@@ -12,4 +12,12 @@ This file is the durable implementation history and hand-off context for the pro
 
 ### Current state
 
-Implementation has not started. The next milestone is M0: workspace, domain types, migrations, and storage integration tests.
+M0 is complete:
+
+- Created a Rust 2024 workspace with strict shared lint settings.
+- Added stable repository/node/commit/key identifiers, bounded confidence, closed domain enums, commit validity, claims, edges, and evidence to `ctx-core`.
+- Added a concrete `SQLite` store using WAL, foreign keys, transactional idempotent migrations, and the full initial temporal/provenance schema.
+- Kept database row IDs out of the public domain model.
+- Verified with `cargo fmt --check`, `cargo clippy --all-targets --all-features -- -D warnings`, and `cargo test --workspace` (5 tests passed).
+
+Next milestone: M1/M2 code-indexing vertical slice with normalized Python IR and pure incremental planning.

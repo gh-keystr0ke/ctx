@@ -1,0 +1,21 @@
+[package]
+name = "ctx-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "ctx"
+path = "src/main.rs"
+
+[dependencies]
+chrono.workspace = true
+clap.workspace = true
+ctx-adapters = { path = "../ctx-adapters" }
+ctx-app = { path = "../ctx-app" }
+serde_json.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true
+

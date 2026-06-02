@@ -1,0 +1,5 @@
+language = "python"
+
+[paths]
+include = ["fixtures"]
+exclude = ["generated", "vendor", "build", "dist", "target", ".venv"]

@@ -5,13 +5,17 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+blake3.workspace = true
+ctx-app = { path = "../ctx-app" }
 ctx-core = { path = "../ctx-core" }
 rusqlite.workspace = true
+serde_json.workspace = true
 thiserror.workspace = true
+tree-sitter.workspace = true
+tree-sitter-python.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
 
 [lints]
 workspace = true
-

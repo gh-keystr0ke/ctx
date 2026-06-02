@@ -32,3 +32,16 @@ Next milestone: M1/M2 code-indexing vertical slice with normalized Python IR and
 - Verified with formatting, strict Clippy, and the workspace suite (8 tests passed, including the existing SQLite test).
 
 Next: execute this plan through Git/Tree-sitter/SQLite and expose `ctx init`, `ctx index`, and `ctx status`.
+
+## 2026-08-17 — M1/M2 indexing shell
+
+- Added narrow application ports and an indexing use case that orchestrates repository inspection, changed-file parsing, pure planning, and one atomic store transaction.
+- Added a NUL-safe Git adapter for initial file discovery and add/modify/delete/rename diffs. Generated, vendor, build, virtual-environment, and cache paths are excluded.
+- Added a Tree-sitter Python adapter for modules, classes, functions, methods, tests, signatures, body hashes, structural fingerprints, and call sites.
+- Extended SQLite persistence to keep commit-bounded node versions, close analyzer-owned structural edges, retire deleted entities, preserve matched identities, and stale affected semantic claims.
+- Added `ctx init`, `ctx index`, and `ctx status`; all commands support `--json`, and indexing exposes verbose invalidation statistics.
+- Added the initial subscriptions fixture.
+- Ran a real CLI smoke test: the first index parsed 2 files into 6 symbols and 11 relationships; a second index at the same commit parsed 0 files and made no changes.
+- Verified formatting, strict Clippy, and the workspace suite (11 tests passed).
+
+Next: ingest Git-versioned business context with explicit, evidence-backed semantic relationships.

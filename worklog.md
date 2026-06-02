@@ -21,3 +21,14 @@ M0 is complete:
 - Verified with `cargo fmt --check`, `cargo clippy --all-targets --all-features -- -D warnings`, and `cargo test --workspace` (5 tests passed).
 
 Next milestone: M1/M2 code-indexing vertical slice with normalized Python IR and pure incremental planning.
+
+## 2026-08-17 — M1/M2 indexing core
+
+- Added a language-neutral normalized IR for complete file analyses, symbols, source ranges, signatures, body fingerprints, and call sites.
+- Added a pure incremental planner that emits explicit node/version/retirement, structural-edge invalidation/rebuild, and semantic-staleness effects.
+- Identity matching is conservative and deterministic: exact canonical path, unique name/signature in the prior file, then unique structural fingerprint. Ambiguity creates a new identity.
+- Added focused tests for body changes, file/symbol renames, and deterministic call facts.
+- Confirmed changed symbol bodies mark semantic links stale, while a pure file rename preserves a uniquely matched symbol identity.
+- Verified with formatting, strict Clippy, and the workspace suite (8 tests passed, including the existing SQLite test).
+
+Next: execute this plan through Git/Tree-sitter/SQLite and expose `ctx init`, `ctx index`, and `ctx status`.

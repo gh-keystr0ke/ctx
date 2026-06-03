@@ -70,3 +70,16 @@ Next: build bounded impact traversal and evidence-first explanation output over 
 - Verified formatting, strict Clippy, and the workspace suite (15 tests passed).
 
 Next: implement the conservative `ctx review` product wedge over Git changes.
+
+## 2026-08-17 — M4 conservative review
+
+- Added Git review input for branch/working-tree diffs, including staged, unstaged, renamed, deleted, and untracked Python/context files. Base revisions are resolved to commit OIDs before use.
+- Added old-source loading through Git and current-source parsing through the same normalized Python analyzer.
+- Added pure symbol pairing and behavioral classification for formatting-only, rename/move, likely refactor, potential behavior, contract, and unknown changes.
+- Added a conservative review engine that surfaces only implementation claims with strong composed confidence. Formatting, rename, and likely-refactor changes are suppressed from product warnings.
+- Findings include severity, confidence, changed entity, affected intent, stored evidence, linked tests, whether those tests changed, possible requirement drift, and a concrete reviewer action.
+- Added `ctx review [--base <revision>]`, text output, JSON output, verbose suppression diagnostics, and explicit stale-relationship reporting.
+- Fixture validation replaced the paid-until guard with an unconditional inactive status. Review produced exactly two high-confidence findings: `INV-SUB-003` and `REQ-SUB-014`, both citing their exact YAML evidence and unchanged related test.
+- Verified formatting, strict Clippy, and the workspace suite (17 tests passed), including formatting/contract classification and precision-focused review tests.
+
+Next: compile a bounded, token-budgeted Context Pack from the same graph knowledge.

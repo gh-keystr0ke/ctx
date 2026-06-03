@@ -58,3 +58,15 @@ Next: ingest Git-versioned business context with explicit, evidence-backed seman
 - Verified formatting, strict Clippy, and the workspace suite (14 tests passed), including an integration test that joins edge → evidence → source.
 
 Next: build bounded impact traversal and evidence-first explanation output over the stored claims.
+
+## 2026-08-17 — M3 impact and explain
+
+- Added a current graph read model that preserves typed nodes, claim class, status, confidence, commit validity, producer, staleness reason, and source-level evidence.
+- Added a pure impact policy: exact seed resolution, one containment/call neighborhood, then at most three typed semantic expansions. Inferred edges below the conservative threshold are excluded and inference cannot recursively amplify inference.
+- Added uncertainty output for stale and inferred relationships, while keeping output grouped into features, requirements, invariants, decisions, implementation, and tests.
+- Added `ctx impact <file|symbol|ID>` and `ctx explain <ID|"source -> target">` with deterministic text and JSON rendering.
+- `ctx explain` only renders stored claims and stored evidence; it never invents a rationale.
+- Fixture validation for `SubscriptionService.cancel` returned the subscription feature, requirement, invariant, caller, file, test, and related Stripe decision. Relation explanation identified an active Documentation Assertion with confidence 1.0 and the exact YAML locator/commit.
+- Verified formatting, strict Clippy, and the workspace suite (15 tests passed).
+
+Next: implement the conservative `ctx review` product wedge over Git changes.

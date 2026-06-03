@@ -45,3 +45,16 @@ Next: execute this plan through Git/Tree-sitter/SQLite and expose `ctx init`, `c
 - Verified formatting, strict Clippy, and the workspace suite (11 tests passed).
 
 Next: ingest Git-versioned business context with explicit, evidence-backed semantic relationships.
+
+## 2026-08-17 — M3 business context and provenance
+
+- Added normalized Feature, Requirement, Invariant, and Decision documents with stable human IDs.
+- Added YAML plus Markdown-front-matter ingestion under `.context/`; duplicate IDs, malformed documents, and missing required fields fail explicitly.
+- Added exact-only resolution for `implementation` and `tests` mappings. Invariants produce `ENFORCES`, requirements/features produce `IMPLEMENTS`, decisions produce `SATISFIES`, tests produce `COVERED_BY`, and feature membership produces `DEPENDS_ON` assertions.
+- Persisted every explicit semantic claim as an `ASSERTION` backed by a Documentation source, locator-level evidence, commit validity, confidence, and producer fingerprint.
+- Context versions and removed documents are synchronized transactionally; changed implementation bodies can now stale these non-fact claims through the existing incremental plan.
+- Added realistic feature, requirement, invariant, decision, implementation, and test mappings to the subscriptions fixture.
+- Verified a fresh fixture index produced 4 intent documents and 7 explicit links with zero unresolved symbols; the database contained 18 active structural/semantic relationships.
+- Verified formatting, strict Clippy, and the workspace suite (14 tests passed), including an integration test that joins edge → evidence → source.
+
+Next: build bounded impact traversal and evidence-first explanation output over the stored claims.

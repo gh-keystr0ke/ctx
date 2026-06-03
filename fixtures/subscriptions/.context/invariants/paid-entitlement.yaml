@@ -1,0 +1,10 @@
+id: INV-SUB-003
+type: invariant
+feature: FEAT-SUBSCRIPTIONS
+status: active
+statement: Paid entitlement must never terminate before paid_until.
+implementation:
+  - symbol: billing.subscription.SubscriptionService.cancel
+tests:
+  - symbol: tests.test_subscription.test_cancel_keeps_access_until_paid_until
+

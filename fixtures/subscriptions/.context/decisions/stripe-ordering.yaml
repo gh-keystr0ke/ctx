@@ -1,0 +1,7 @@
+id: ADR-SUB-001
+type: decision
+title: Tolerate out-of-order Stripe events
+status: accepted
+decision: Stripe webhook processing must preserve paid entitlement across event reordering.
+implementation:
+  - symbol: billing.subscription.StripeWebhookHandler.handle_subscription_update

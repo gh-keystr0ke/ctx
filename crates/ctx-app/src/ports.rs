@@ -1,6 +1,7 @@
 use std::fmt;
 
 use ctx_core::{
+    business::{BusinessDocument, ContextImportStats},
     domain::{CommitOid, RepositoryId},
     indexing::{FileChange, IndexPlan, RepositorySnapshot},
     ir::FileAnalysis,
@@ -80,6 +81,30 @@ pub trait LanguageAnalyzer {
     /// # Errors
     /// Returns [`PortError`] when the source cannot be read or parsed.
     fn analyze(&self, relative_path: &str) -> Result<FileAnalysis, PortError>;
+}
+
+pub trait BusinessContextReader {
+    /// Reads every supported business-context document in stable order.
+    ///
+    /// # Errors
+    /// Returns [`PortError`] when a document cannot be read, parsed, or
+    /// normalized.
+    fn read_all(&self) -> Result<Vec<BusinessDocument>, PortError>;
+}
+
+pub trait BusinessContextStore {
+    /// Synchronizes the complete context snapshot and explicit claims.
+    ///
+    /// # Errors
+    /// Returns [`PortError`] when documents, provenance, or claims cannot be
+    /// persisted atomically.
+    fn sync_context(
+        &mut self,
+        repository: &RepositoryId,
+        commit: &CommitMetadata,
+        indexed_at: &str,
+        documents: &[BusinessDocument],
+    ) -> Result<ContextImportStats, PortError>;
 }
 
 pub trait IndexStore {

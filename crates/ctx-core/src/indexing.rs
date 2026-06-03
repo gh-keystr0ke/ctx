@@ -78,6 +78,13 @@ pub enum PlannedNodeAttributes {
         structural_fingerprint: String,
         calls: Vec<String>,
     },
+    Business {
+        id: String,
+        status: String,
+        body: String,
+        feature: Option<String>,
+        source_uri: String,
+    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]

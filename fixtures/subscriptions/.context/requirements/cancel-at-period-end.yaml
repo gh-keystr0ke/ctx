@@ -1,0 +1,11 @@
+id: REQ-SUB-014
+type: requirement
+feature: FEAT-SUBSCRIPTIONS
+status: active
+statement: >
+  When a paid user cancels, access must remain active until paid_until.
+implementation:
+  - symbol: billing.subscription.SubscriptionService.cancel
+tests:
+  - symbol: tests.test_subscription.test_cancel_keeps_access_until_paid_until
+

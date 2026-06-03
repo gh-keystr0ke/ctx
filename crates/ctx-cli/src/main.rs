@@ -6,11 +6,17 @@ use std::{
 
 use chrono::Utc;
 use clap::{ArgAction, Parser, Subcommand};
-use ctx_adapters::{git::GitRepo, python::PythonAnalyzer, sqlite::SqliteStore};
+use ctx_adapters::{
+    business_context::YamlBusinessContextReader, git::GitRepo, python::PythonAnalyzer,
+    sqlite::SqliteStore,
+};
 use ctx_app::{
-    index::{IndexError, IndexRunner},
+    context::{ContextImportError, ContextImporter},
+    index::{IndexError, IndexReport, IndexRunner},
     ports::{GitRepository, IndexStore, PortError},
 };
+use ctx_core::business::ContextImportStats;
+use serde::Serialize;
 use serde_json::json;
 use thiserror::Error;
 
@@ -54,12 +60,21 @@ enum CliError {
     Sqlite(#[from] ctx_adapters::sqlite::SqliteStoreError),
     #[error(transparent)]
     Index(#[from] IndexError),
+    #[error(transparent)]
+    Context(#[from] ContextImportError),
     #[error("filesystem operation failed: {0}")]
     Io(#[from] std::io::Error),
     #[error("repository operation failed: {0}")]
     Port(#[from] PortError),
     #[error("ctx is not initialized; run 'ctx init' first")]
     NotInitialized,
+}
+
+#[derive(Serialize)]
+struct FullIndexReport {
+    #[serde(flatten)]
+    code: IndexReport,
+    business_context: ContextImportStats,
 }
 
 fn main() -> ExitCode {
@@ -123,26 +138,44 @@ fn index(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
     let mut store = SqliteStore::open(&database_path)?;
     let analyzer = PythonAnalyzer::new(git.root().to_path_buf());
     let now = Utc::now().to_rfc3339();
-    let report = IndexRunner::new(git, &analyzer, &mut store).run(&now)?;
+    let code = IndexRunner::new(git, &analyzer, &mut store).run(&now)?;
+    let repository = git.descriptor()?;
+    let head = git.head()?;
+    let reader = YamlBusinessContextReader::new(git.root().to_path_buf());
+    let business_context =
+        ContextImporter::new(&reader, &mut store).run(&repository, &head, &now)?;
+    let report = FullIndexReport {
+        code,
+        business_context,
+    };
     if cli.json {
         println!("{}", serde_json::to_string_pretty(&report)?);
-    } else if report.already_current {
-        println!("Index is current at {}", short_oid(&report.commit));
+    } else if report.code.already_current {
+        println!("Index is current at {}", short_oid(&report.code.commit));
     } else {
-        println!("Indexed commit {}", short_oid(&report.commit));
+        println!("Indexed commit {}", short_oid(&report.code.commit));
         println!(
             "{} files parsed, {} nodes created, {} versioned, {} retired",
-            report.stats.files_reparsed,
-            report.stats.nodes_created,
-            report.stats.nodes_versioned,
-            report.stats.nodes_retired
+            report.code.stats.files_reparsed,
+            report.code.stats.nodes_created,
+            report.code.stats.nodes_versioned,
+            report.code.stats.nodes_retired
         );
         if cli.verbose > 0 {
             println!(
                 "{} edges recomputed; {} semantic links marked stale",
-                report.stats.edges_recomputed, report.stats.semantic_links_marked_stale
+                report.code.stats.edges_recomputed, report.code.stats.semantic_links_marked_stale
             );
         }
+    }
+    if !cli.json {
+        println!(
+            "Business context: {} created, {} versioned, {} explicit links, {} unresolved",
+            report.business_context.documents_created,
+            report.business_context.documents_versioned,
+            report.business_context.explicit_links_created,
+            report.business_context.unresolved_symbols.len()
+        );
     }
     Ok(())
 }

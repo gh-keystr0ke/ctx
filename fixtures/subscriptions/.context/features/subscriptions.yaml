@@ -1,0 +1,6 @@
+id: FEAT-SUBSCRIPTIONS
+type: feature
+name: Subscription cancellation
+status: active
+description: Users can cancel without losing already-paid entitlement.
+

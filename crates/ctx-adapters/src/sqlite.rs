@@ -3,6 +3,7 @@ use std::path::Path;
 use rusqlite::Connection;
 use thiserror::Error;
 
+mod context;
 mod index;
 
 const MIGRATIONS: &[(i64, &str)] = &[(1, include_str!("../migrations/001_initial.sql"))];

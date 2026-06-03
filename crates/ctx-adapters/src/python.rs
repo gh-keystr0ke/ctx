@@ -84,6 +84,11 @@ impl LanguageAnalyzer for PythonAnalyzer {
         Self::analyze_source(relative_path, source)
             .map_err(|error| PortError::new(error.to_string()))
     }
+
+    fn analyze_text(&self, relative_path: &str, source: &str) -> Result<FileAnalysis, PortError> {
+        Self::analyze_source(relative_path, source)
+            .map_err(|error| PortError::new(error.to_string()))
+    }
 }
 
 fn collect_definitions(

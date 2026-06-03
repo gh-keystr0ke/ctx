@@ -3,7 +3,10 @@ use std::{
     process::Command,
 };
 
-use ctx_app::ports::{CommitMetadata, GitRepository, PortError, RepositoryDescriptor};
+use ctx_app::ports::{
+    CommitMetadata, GitRepository, PortError, RepositoryDescriptor, ReviewChangeSet,
+    ReviewRepository,
+};
 use ctx_core::{
     domain::{CommitOid, RepositoryId},
     indexing::FileChange,
@@ -89,6 +92,15 @@ impl GitRepo {
             .trim();
         Ok((!value.is_empty()).then(|| value.to_owned()))
     }
+
+    fn resolve_revision(&self, revision: &str) -> Result<String, GitError> {
+        let commit = format!("{revision}^{{commit}}");
+        let bytes = self.output(&["rev-parse", "--verify", "--end-of-options", &commit])?;
+        Ok(std::str::from_utf8(&bytes)
+            .map_err(|_| GitError::InvalidUtf8)?
+            .trim()
+            .to_owned())
+    }
 }
 
 impl GitRepository for GitRepo {
@@ -161,8 +173,68 @@ impl GitRepository for GitRepo {
     }
 }
 
+impl ReviewRepository for GitRepo {
+    fn review_changes(&self, base: &str) -> Result<ReviewChangeSet, PortError> {
+        let base = self.resolve_revision(base).map_err(port_error)?;
+        let source_bytes = self
+            .output(&["diff", "--name-status", "-z", "-M", &base, "--"])
+            .map_err(port_error)?;
+        let context_bytes = self
+            .output(&["diff", "--name-only", "-z", &base, "--", ".context"])
+            .map_err(port_error)?;
+        let untracked_bytes = self
+            .output(&["ls-files", "-z", "--others", "--exclude-standard"])
+            .map_err(port_error)?;
+        let mut source_changes = parse_name_status(&source_bytes)?;
+        let mut changed_context_files = parse_nul_strings(&context_bytes)?;
+        for path in parse_nul_strings(&untracked_bytes)? {
+            if is_indexable_python(&path)
+                && !source_changes
+                    .iter()
+                    .any(|change| change.current_path() == Some(path.as_str()))
+            {
+                source_changes.push(FileChange::Added { path: path.clone() });
+            }
+            if path.starts_with(".context/") {
+                changed_context_files.push(path);
+            }
+        }
+        source_changes.sort_by(|left, right| format!("{left:?}").cmp(&format!("{right:?}")));
+        changed_context_files.sort();
+        changed_context_files.dedup();
+        Ok(ReviewChangeSet {
+            source_changes,
+            changed_context_files,
+        })
+    }
+
+    fn source_at(&self, revision: &str, path: &str) -> Result<Option<String>, PortError> {
+        let revision = self.resolve_revision(revision).map_err(port_error)?;
+        let object = format!("{revision}:{path}");
+        let output = Command::new("git")
+            .arg("-C")
+            .arg(&self.root)
+            .args(["show", &object])
+            .output()
+            .map_err(|error| PortError::new(error.to_string()))?;
+        if !output.status.success() {
+            return Ok(None);
+        }
+        String::from_utf8(output.stdout)
+            .map(Some)
+            .map_err(|_| PortError::new(format!("'{path}' at {revision} is not valid UTF-8")))
+    }
+}
+
 fn parse_nul_paths(bytes: &[u8]) -> Result<Vec<String>, PortError> {
-    let mut paths = bytes
+    let mut paths = parse_nul_strings(bytes)?;
+    paths.retain(|path| is_indexable_python(path));
+    paths.sort();
+    Ok(paths)
+}
+
+fn parse_nul_strings(bytes: &[u8]) -> Result<Vec<String>, PortError> {
+    bytes
         .split(|byte| *byte == 0)
         .filter(|part| !part.is_empty())
         .map(|part| {
@@ -170,10 +242,7 @@ fn parse_nul_paths(bytes: &[u8]) -> Result<Vec<String>, PortError> {
                 .map(str::to_owned)
                 .map_err(|_| PortError::new("source path is not valid UTF-8"))
         })
-        .collect::<Result<Vec<_>, _>>()?;
-    paths.retain(|path| is_indexable_python(path));
-    paths.sort();
-    Ok(paths)
+        .collect::<Result<Vec<_>, _>>()
 }
 
 fn parse_name_status(bytes: &[u8]) -> Result<Vec<FileChange>, PortError> {

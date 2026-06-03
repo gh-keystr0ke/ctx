@@ -15,6 +15,7 @@ use ctx_app::{
     index::{IndexError, IndexReport, IndexRunner},
     ports::{GitRepository, IndexStore, PortError},
     query::{QueryError, QueryService},
+    review::{ReviewError, ReviewRunner},
 };
 use ctx_core::business::ContextImportStats;
 use serde::Serialize;
@@ -55,6 +56,11 @@ enum Command {
     Impact { target: String },
     /// Explain a node or a directed `source -> target` claim.
     Explain { target: String },
+    /// Review a branch or working-tree diff in product terms.
+    Review {
+        #[arg(long, default_value = "HEAD")]
+        base: String,
+    },
 }
 
 #[derive(Debug, Error)]
@@ -69,6 +75,8 @@ enum CliError {
     Context(#[from] ContextImportError),
     #[error(transparent)]
     Query(#[from] QueryError),
+    #[error(transparent)]
+    Review(#[from] ReviewError),
     #[error("filesystem operation failed: {0}")]
     Io(#[from] std::io::Error),
     #[error("repository operation failed: {0}")]
@@ -109,7 +117,73 @@ fn run(cli: &Cli) -> Result<(), CliError> {
         Command::Status => status(cli, &git),
         Command::Impact { target } => impact(cli, &git, target),
         Command::Explain { target } => explain(cli, &git, target),
+        Command::Review { base } => review(cli, &git, base),
     }
+}
+
+fn review(cli: &Cli, git: &GitRepo, base: &str) -> Result<(), CliError> {
+    let database_path = database_path(git.root())?;
+    let store = SqliteStore::open(&database_path)?;
+    let analyzer = PythonAnalyzer::new(git.root().to_path_buf());
+    let repository = git.descriptor()?;
+    let report =
+        ReviewRunner::new(git, &analyzer, &store).run(&repository.id, base, cli.verbose > 0)?;
+    if cli.json {
+        println!("{}", serde_json::to_string_pretty(&report)?);
+        return Ok(());
+    }
+    if report.findings.is_empty() {
+        println!("No high-confidence product-impact findings.");
+    }
+    for finding in report.findings {
+        println!(
+            "{:?} — {} may be affected",
+            finding.severity, finding.affected_intent.identifier
+        );
+        println!("Changed: {}", finding.changed_entity);
+        println!("Product context: {}", finding.affected_intent.name);
+        println!("Detected change: {:?}", finding.change_kind);
+        println!("Why this is relevant: {}", finding.reason);
+        for evidence in finding.evidence {
+            println!("Evidence: {evidence}");
+        }
+        if finding.related_tests.is_empty() {
+            println!("Related tests: none explicitly linked");
+        } else {
+            let tests = finding
+                .related_tests
+                .iter()
+                .map(|test| test.identifier.as_str())
+                .collect::<Vec<_>>()
+                .join(", ");
+            println!(
+                "Related tests: {tests} ({})",
+                if finding.tests_modified {
+                    "modified"
+                } else {
+                    "not modified"
+                }
+            );
+        }
+        if finding.possible_requirement_drift {
+            println!("Uncertainty: product context was not modified; check for requirement drift.");
+        }
+        println!("Suggested reviewer action: {}", finding.suggested_action);
+        println!();
+    }
+    if !report.stale_relationships.is_empty() {
+        println!("Stale semantic relationships touching changed code:");
+        for relationship in report.stale_relationships {
+            println!("  - {relationship}");
+        }
+    }
+    if cli.verbose > 0 {
+        println!(
+            "Suppressed {} formatting/rename/refactor changes.",
+            report.suppressed_non_behavioral_changes
+        );
+    }
+    Ok(())
 }
 
 fn impact(cli: &Cli, git: &GitRepo, target: &str) -> Result<(), CliError> {

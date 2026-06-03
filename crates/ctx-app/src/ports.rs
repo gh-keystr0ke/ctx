@@ -82,6 +82,30 @@ pub trait LanguageAnalyzer {
     /// # Errors
     /// Returns [`PortError`] when the source cannot be read or parsed.
     fn analyze(&self, relative_path: &str) -> Result<FileAnalysis, PortError>;
+    /// Produces normalized IR for caller-supplied source text.
+    ///
+    /// # Errors
+    /// Returns [`PortError`] when the source cannot be parsed.
+    fn analyze_text(&self, relative_path: &str, source: &str) -> Result<FileAnalysis, PortError>;
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct ReviewChangeSet {
+    pub source_changes: Vec<FileChange>,
+    pub changed_context_files: Vec<String>,
+}
+
+pub trait ReviewRepository {
+    /// Returns source and context changes between `base` and the working tree.
+    ///
+    /// # Errors
+    /// Returns [`PortError`] when Git cannot resolve or diff the base.
+    fn review_changes(&self, base: &str) -> Result<ReviewChangeSet, PortError>;
+    /// Returns a file as it existed at `revision`, or `None` when absent.
+    ///
+    /// # Errors
+    /// Returns [`PortError`] when Git cannot read repository data.
+    fn source_at(&self, revision: &str, path: &str) -> Result<Option<String>, PortError>;
 }
 
 pub trait BusinessContextReader {

@@ -5,5 +5,8 @@
 
 pub mod business;
 pub mod domain;
+pub mod explain;
+pub mod graph;
+pub mod impact;
 pub mod indexing;
 pub mod ir;

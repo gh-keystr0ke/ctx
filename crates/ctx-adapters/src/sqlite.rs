@@ -4,6 +4,7 @@ use rusqlite::Connection;
 use thiserror::Error;
 
 mod context;
+mod graph;
 mod index;
 
 const MIGRATIONS: &[(i64, &str)] = &[(1, include_str!("../migrations/001_initial.sql"))];

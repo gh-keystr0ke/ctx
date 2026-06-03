@@ -3,6 +3,7 @@ use std::fmt;
 use ctx_core::{
     business::{BusinessDocument, ContextImportStats},
     domain::{CommitOid, RepositoryId},
+    graph::GraphSnapshot,
     indexing::{FileChange, IndexPlan, RepositorySnapshot},
     ir::FileAnalysis,
 };
@@ -105,6 +106,14 @@ pub trait BusinessContextStore {
         indexed_at: &str,
         documents: &[BusinessDocument],
     ) -> Result<ContextImportStats, PortError>;
+}
+
+pub trait GraphStore {
+    /// Loads the current version of all nodes, claims, and evidence.
+    ///
+    /// # Errors
+    /// Returns [`PortError`] when graph state cannot be read or decoded.
+    fn load_graph(&self, repository: &RepositoryId) -> Result<GraphSnapshot, PortError>;
 }
 
 pub trait IndexStore {

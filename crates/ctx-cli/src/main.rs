@@ -14,6 +14,7 @@ use ctx_app::{
     context::{ContextImportError, ContextImporter},
     index::{IndexError, IndexReport, IndexRunner},
     ports::{GitRepository, IndexStore, PortError},
+    query::{QueryError, QueryService},
 };
 use ctx_core::business::ContextImportStats;
 use serde::Serialize;
@@ -50,6 +51,10 @@ enum Command {
     Index,
     /// Show current index health and counts.
     Status,
+    /// Show bounded product and implementation impact for a file or symbol.
+    Impact { target: String },
+    /// Explain a node or a directed `source -> target` claim.
+    Explain { target: String },
 }
 
 #[derive(Debug, Error)]
@@ -62,6 +67,8 @@ enum CliError {
     Index(#[from] IndexError),
     #[error(transparent)]
     Context(#[from] ContextImportError),
+    #[error(transparent)]
+    Query(#[from] QueryError),
     #[error("filesystem operation failed: {0}")]
     Io(#[from] std::io::Error),
     #[error("repository operation failed: {0}")]
@@ -96,10 +103,82 @@ fn main() -> ExitCode {
 fn run(cli: &Cli) -> Result<(), CliError> {
     let current = env::current_dir()?;
     let git = GitRepo::discover(&current)?;
-    match cli.command {
+    match &cli.command {
         Command::Init => initialize(cli, &git),
         Command::Index => index(cli, &git),
         Command::Status => status(cli, &git),
+        Command::Impact { target } => impact(cli, &git, target),
+        Command::Explain { target } => explain(cli, &git, target),
+    }
+}
+
+fn impact(cli: &Cli, git: &GitRepo, target: &str) -> Result<(), CliError> {
+    let database_path = database_path(git.root())?;
+    let store = SqliteStore::open(&database_path)?;
+    let repository = git.descriptor()?;
+    let report = QueryService::new(&store).impact(&repository.id, target)?;
+    if cli.json {
+        println!("{}", serde_json::to_string_pretty(&report)?);
+        return Ok(());
+    }
+    println!("Impact for {target}");
+    print_nodes("Features", &report.features);
+    print_nodes("Requirements", &report.requirements);
+    print_nodes("Invariants", &report.invariants);
+    print_nodes("Decisions", &report.decisions);
+    print_nodes("Implementation", &report.implementation);
+    print_nodes("Tests", &report.tests);
+    if !report.uncertainties.is_empty() {
+        println!("Uncertainty:");
+        for uncertainty in report.uncertainties {
+            println!(
+                "  - {} ({}, confidence {:.2})",
+                uncertainty.relationship, uncertainty.reason, uncertainty.confidence
+            );
+        }
+    }
+    Ok(())
+}
+
+fn explain(cli: &Cli, git: &GitRepo, target: &str) -> Result<(), CliError> {
+    let database_path = database_path(git.root())?;
+    let store = SqliteStore::open(&database_path)?;
+    let repository = git.descriptor()?;
+    let explanation = QueryService::new(&store).explain(&repository.id, target)?;
+    if cli.json {
+        println!("{}", serde_json::to_string_pretty(&explanation)?);
+        return Ok(());
+    }
+    println!("Explanation for {target}");
+    for claim in explanation.claims {
+        println!("- {}", claim.claim);
+        println!(
+            "  {:?}, {:?}, confidence {:.2}, valid from {}",
+            claim.claim_class, claim.status, claim.confidence, claim.valid_from
+        );
+        println!("  Provenance: {:?} ({})", claim.provenance, claim.producer);
+        if let Some(reason) = claim.stale_reason {
+            println!("  Stale because: {reason}");
+        }
+        for evidence in claim.evidence {
+            println!(
+                "  Evidence: {}#{} at {}",
+                evidence.source_uri,
+                evidence.locator,
+                evidence.commit.as_deref().unwrap_or("unknown")
+            );
+        }
+    }
+    Ok(())
+}
+
+fn print_nodes(label: &str, nodes: &[ctx_core::graph::NodeSummary]) {
+    if nodes.is_empty() {
+        return;
+    }
+    println!("{label}:");
+    for node in nodes {
+        println!("  - {}", node.identifier);
     }
 }
 

@@ -644,10 +644,11 @@ fn domain_error(error: ctx_core::domain::InvalidIdentifier) -> PortError {
 
 #[cfg(test)]
 mod tests {
-    use ctx_app::ports::{IndexStore, RepositoryDescriptor};
+    use ctx_app::ports::{GraphStore, IndexStore, RepositoryDescriptor};
     use ctx_core::{
         business::ExplicitSymbolLink,
         domain::NodeKind,
+        explain::explain,
         indexing::{IndexPlan, NodeMutationKind, PlannedNode},
         ir::{SourceRange, SymbolKind},
     };
@@ -735,5 +736,9 @@ mod tests {
             )
             .expect("evidence count");
         assert_eq!(evidence_chains, 1);
+        let graph = store.load_graph(&repository.id).expect("graph");
+        let explanation = explain("billing.cancel -> REQ-SUB-014", &graph).expect("explanation");
+        assert_eq!(explanation.claims.len(), 1);
+        assert_eq!(explanation.claims[0].evidence.len(), 1);
     }
 }

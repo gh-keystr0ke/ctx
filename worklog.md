@@ -83,3 +83,16 @@ Next: implement the conservative `ctx review` product wedge over Git changes.
 - Verified formatting, strict Clippy, and the workspace suite (17 tests passed), including formatting/contract classification and precision-focused review tests.
 
 Next: compile a bounded, token-budgeted Context Pack from the same graph knowledge.
+
+## 2026-08-17 — M5 Context Compiler
+
+- Added deterministic task-term, file, and symbol seed detection with ambiguity errors for explicit seeds.
+- Added bounded typed traversal: semantic relationships up to three hops, containment/calls only at the seed boundary, rejected claims excluded, confidence filtering, and maximum inferred-edge depth one.
+- Added semantic priority tiers that protect invariants and requirements before implementation, tests, adjacency, and low-confidence material.
+- Added a conservative character-based token estimator, content truncation, an evidence reserve, and accounting for selected evidence/uncertainty so reported pack size never exceeds the requested budget.
+- Added evidence prioritization so `ENFORCES`/`IMPLEMENTS` provenance is retained before secondary feature membership when a pack is tight.
+- Added `ctx context <task>` with optional repeated `--file`/`--symbol`, `--token-budget`, text output, and JSON output.
+- Fixture validation compiled the Stripe/cancellation task into a 280/300-token pack containing the invariant, requirement, feature, decision, direct symbol/file context, and the highest-priority evidence instead of entire source files.
+- Verified formatting, strict Clippy, and the workspace suite (19 tests passed), including hard-budget and no-inference-chaining tests.
+
+Next: add heuristic semantic candidates, durable accept/reject verification, and the thin MCP adapter.

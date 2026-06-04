@@ -2,6 +2,7 @@ use ctx_core::{
     context_pack::{ContextCompileError, ContextPack, ContextRequest, compile_context_pack},
     domain::RepositoryId,
     explain::{ExplainError, Explanation, explain},
+    graph::{NodeSummary, find_requirements},
     impact::{ImpactError, ImpactReport, analyze_impact},
 };
 use thiserror::Error;
@@ -81,5 +82,22 @@ where
             .load_graph(repository)
             .map_err(QueryError::Store)?;
         compile_context_pack(&graph, request).map_err(QueryError::from)
+    }
+
+    /// Finds product requirements by ID or terms.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`QueryError`] when graph state cannot be loaded.
+    pub fn find_requirements(
+        &self,
+        repository: &RepositoryId,
+        query: &str,
+    ) -> Result<Vec<NodeSummary>, QueryError> {
+        let graph = self
+            .store
+            .load_graph(repository)
+            .map_err(QueryError::Store)?;
+        Ok(find_requirements(query, &graph))
     }
 }

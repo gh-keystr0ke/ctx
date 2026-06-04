@@ -4,6 +4,7 @@ members = [
     "crates/ctx-app",
     "crates/ctx-adapters",
     "crates/ctx-cli",
+    "crates/ctx-mcp",
 ]
 resolver = "2"
 

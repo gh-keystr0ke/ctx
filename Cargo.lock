@@ -244,6 +244,7 @@ dependencies = [
  "ctx-adapters",
  "ctx-app",
  "ctx-core",
+ "ctx-mcp",
  "serde",
  "serde_json",
  "thiserror",
@@ -254,6 +255,19 @@ name = "ctx-core"
 version = "0.1.0"
 dependencies = [
  "serde",
+ "thiserror",
+]
+
+[[package]]
+name = "ctx-mcp"
+version = "0.1.0"
+dependencies = [
+ "ctx-adapters",
+ "ctx-app",
+ "ctx-core",
+ "serde",
+ "serde_json",
+ "tempfile",
  "thiserror",
 ]
 

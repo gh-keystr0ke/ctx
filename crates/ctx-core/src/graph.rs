@@ -121,3 +121,38 @@ impl From<&GraphNode> for NodeSummary {
         }
     }
 }
+
+/// Finds requirements by stable ID and lexical content in deterministic order.
+pub fn find_requirements(query: &str, graph: &GraphSnapshot) -> Vec<NodeSummary> {
+    let terms = search_terms(query);
+    let mut matches = graph
+        .nodes
+        .values()
+        .filter(|node| node.kind == NodeKind::Requirement)
+        .filter_map(|node| {
+            let content = match &node.attributes {
+                PlannedNodeAttributes::Business { body, .. } => body.as_str(),
+                _ => "",
+            };
+            let searchable =
+                search_terms(&format!("{} {} {content}", node.identifier(), node.name));
+            let score = terms.intersection(&searchable).count();
+            (score > 0 || node.identifier() == query).then_some((score, NodeSummary::from(node)))
+        })
+        .collect::<Vec<_>>();
+    matches.sort_by(|left, right| {
+        right
+            .0
+            .cmp(&left.0)
+            .then_with(|| left.1.identifier.cmp(&right.1.identifier))
+    });
+    matches.into_iter().map(|(_, summary)| summary).collect()
+}
+
+fn search_terms(value: &str) -> std::collections::BTreeSet<String> {
+    value
+        .split(|character: char| !character.is_alphanumeric())
+        .filter(|term| term.len() >= 2)
+        .map(str::to_ascii_lowercase)
+        .collect()
+}

@@ -1,23 +1,24 @@
 [package]
-name = "ctx-cli"
+name = "ctx-mcp"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [[bin]]
-name = "ctx"
+name = "ctx-mcp"
 path = "src/main.rs"
 
 [dependencies]
-chrono.workspace = true
-clap.workspace = true
 ctx-adapters = { path = "../ctx-adapters" }
 ctx-app = { path = "../ctx-app" }
 ctx-core = { path = "../ctx-core" }
-ctx-mcp = { path = "../ctx-mcp" }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 
+[dev-dependencies]
+tempfile.workspace = true
+
 [lints]
 workspace = true
+

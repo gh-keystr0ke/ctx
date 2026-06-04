@@ -84,6 +84,12 @@ enum Command {
         #[arg(long, default_value = "local-user")]
         author: String,
     },
+    /// Serve ctx integrations.
+    Serve {
+        /// Serve the Model Context Protocol over stdio.
+        #[arg(long)]
+        mcp: bool,
+    },
 }
 
 #[derive(Debug, Error)]
@@ -102,6 +108,10 @@ enum CliError {
     Review(#[from] ReviewError),
     #[error(transparent)]
     Verification(#[from] VerificationError),
+    #[error(transparent)]
+    Mcp(#[from] ctx_mcp::McpServerError),
+    #[error("serve currently requires '--mcp'")]
+    UnsupportedServe,
     #[error("filesystem operation failed: {0}")]
     Io(#[from] std::io::Error),
     #[error("repository operation failed: {0}")]
@@ -154,6 +164,13 @@ fn run(cli: &Cli) -> Result<(), CliError> {
             reject,
             author,
         } => verify(cli, &git, accept.as_deref(), reject.as_deref(), author),
+        Command::Serve { mcp } => {
+            if *mcp {
+                ctx_mcp::serve_stdio(&git).map_err(CliError::from)
+            } else {
+                Err(CliError::UnsupportedServe)
+            }
+        }
     }
 }
 

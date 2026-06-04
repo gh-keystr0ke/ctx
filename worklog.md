@@ -108,3 +108,16 @@ Next: add heuristic semantic candidates, durable accept/reject verification, and
 - Verified formatting, strict Clippy, and the workspace suite (20 tests passed), including signal breakdown, inference preservation, separate assertion creation, and durable rejection tests.
 
 Next: expose the same application use cases through a thin stdio MCP server without duplicating business logic.
+
+## 2026-08-17 — M7 MCP adapter
+
+- Checked the current official MCP protocol before implementation. The adapter supports modern `2026-07-28` `server/discover` negotiation and legacy `2025-*` `initialize` clients over newline-delimited stdio.
+- Added the dedicated `ctx-mcp` crate plus both `ctx-mcp` and `ctx serve --mcp` entry points.
+- Added deterministic tool discovery for exactly the specified tools: `get_context`, `get_impact`, `explain_relation`, `find_requirements`, and `review_change`.
+- Every tool calls the existing `ctx-app` query/review services; no graph traversal, ranking, review, or evidence logic is duplicated in the protocol adapter.
+- Tool results include both MCP text content and structured JSON, while recoverable use-case errors use `isError` and protocol errors remain JSON-RPC errors.
+- The stdio server writes only one-line JSON-RPC messages to stdout and supports parse errors, ping, notifications, current server metadata, and read-only/local-world tool annotations.
+- End-to-end stdio validation completed modern discovery, `tools/list`, and `get_impact`; the returned structured content contained the full fixture product chain.
+- Verified formatting, strict Clippy, and the workspace suite (22 tests passed), including stable tool schemas and modern/legacy negotiation tests.
+
+Next: finish configuration correctness, end-to-end automation, Docker packaging, and user/architecture documentation.

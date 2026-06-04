@@ -6,6 +6,7 @@ use thiserror::Error;
 mod context;
 mod graph;
 mod index;
+mod verification;
 
 const MIGRATIONS: &[(i64, &str)] = &[(1, include_str!("../migrations/001_initial.sql"))];
 

@@ -6,6 +6,7 @@ use ctx_core::{
     graph::GraphSnapshot,
     indexing::{FileChange, IndexPlan, RepositorySnapshot},
     ir::FileAnalysis,
+    verification::{SemanticCandidate, VerificationDecision},
 };
 use serde::{Deserialize, Serialize};
 
@@ -138,6 +139,24 @@ pub trait GraphStore {
     /// # Errors
     /// Returns [`PortError`] when graph state cannot be read or decoded.
     fn load_graph(&self, repository: &RepositoryId) -> Result<GraphSnapshot, PortError>;
+}
+
+pub trait VerificationStore {
+    /// Persists the original inference, human annotation, and—on acceptance—a
+    /// separate human assertion.
+    ///
+    /// # Errors
+    /// Returns [`PortError`] when the atomic verification record cannot be
+    /// persisted.
+    fn record_verification(
+        &mut self,
+        repository: &RepositoryId,
+        commit: &CommitMetadata,
+        candidate: &SemanticCandidate,
+        decision: VerificationDecision,
+        author: &str,
+        timestamp: &str,
+    ) -> Result<(), PortError>;
 }
 
 pub trait IndexStore {

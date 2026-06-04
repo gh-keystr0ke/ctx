@@ -12,3 +12,4 @@ pub mod impact;
 pub mod indexing;
 pub mod ir;
 pub mod review;
+pub mod verification;

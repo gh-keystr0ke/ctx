@@ -1,5 +1,6 @@
 use std::{
     env, fs,
+    io::{self, IsTerminal, Write},
     path::{Path, PathBuf},
     process::ExitCode,
 };
@@ -16,9 +17,11 @@ use ctx_app::{
     ports::{GitRepository, IndexStore, PortError},
     query::{QueryError, QueryService},
     review::{ReviewError, ReviewRunner},
+    verification::{VerificationError, VerificationService},
 };
 use ctx_core::business::ContextImportStats;
 use ctx_core::context_pack::ContextRequest;
+use ctx_core::verification::VerificationDecision;
 use serde::Serialize;
 use serde_json::json;
 use thiserror::Error;
@@ -72,6 +75,15 @@ enum Command {
         #[arg(long, default_value_t = 4_000)]
         token_budget: usize,
     },
+    /// Review and accept/reject heuristic semantic candidates.
+    Verify {
+        #[arg(long, conflicts_with = "reject")]
+        accept: Option<String>,
+        #[arg(long, conflicts_with = "accept")]
+        reject: Option<String>,
+        #[arg(long, default_value = "local-user")]
+        author: String,
+    },
 }
 
 #[derive(Debug, Error)]
@@ -88,6 +100,8 @@ enum CliError {
     Query(#[from] QueryError),
     #[error(transparent)]
     Review(#[from] ReviewError),
+    #[error(transparent)]
+    Verification(#[from] VerificationError),
     #[error("filesystem operation failed: {0}")]
     Io(#[from] std::io::Error),
     #[error("repository operation failed: {0}")]
@@ -135,6 +149,112 @@ fn run(cli: &Cli) -> Result<(), CliError> {
             symbol,
             token_budget,
         } => context(cli, &git, task, file, symbol, *token_budget),
+        Command::Verify {
+            accept,
+            reject,
+            author,
+        } => verify(cli, &git, accept.as_deref(), reject.as_deref(), author),
+    }
+}
+
+fn verify(
+    cli: &Cli,
+    git: &GitRepo,
+    accept: Option<&str>,
+    reject: Option<&str>,
+    author: &str,
+) -> Result<(), CliError> {
+    let database_path = database_path(git.root())?;
+    let mut store = SqliteStore::open(&database_path)?;
+    let repository = git.descriptor()?;
+    let head = git.head()?;
+    let now = Utc::now().to_rfc3339();
+    let mut service = VerificationService::new(&mut store);
+    if let Some((fingerprint, decision)) = accept
+        .map(|value| (value, VerificationDecision::Accept))
+        .or_else(|| reject.map(|value| (value, VerificationDecision::Reject)))
+    {
+        service.decide(&repository.id, &head, fingerprint, decision, author, &now)?;
+        if cli.json {
+            println!(
+                "{}",
+                json!({"ok": true, "fingerprint": fingerprint, "decision": decision})
+            );
+        } else {
+            println!("Recorded {decision:?} for {fingerprint}");
+        }
+        return Ok(());
+    }
+    let candidates = service.candidates(&repository.id)?;
+    if cli.json {
+        println!("{}", serde_json::to_string_pretty(&candidates)?);
+        return Ok(());
+    }
+    if candidates.is_empty() {
+        println!("No high-confidence semantic candidates.");
+        return Ok(());
+    }
+    if !io::stdin().is_terminal() {
+        print_candidates(&candidates);
+        return Ok(());
+    }
+    for candidate in candidates {
+        println!();
+        println!(
+            "Possible relation: {} {:?} {}",
+            candidate.source_identifier, candidate.relation, candidate.target_identifier
+        );
+        println!("Confidence score: {:.2}", candidate.score.total);
+        for evidence in &candidate.evidence {
+            println!("  - {evidence}");
+        }
+        loop {
+            print!("[y] accept  [n] reject  [s] skip  [e] explain: ");
+            io::stdout().flush()?;
+            let mut answer = String::new();
+            io::stdin().read_line(&mut answer)?;
+            match answer.trim().to_ascii_lowercase().as_str() {
+                "y" => {
+                    service.decide(
+                        &repository.id,
+                        &head,
+                        &candidate.fingerprint,
+                        VerificationDecision::Accept,
+                        author,
+                        &now,
+                    )?;
+                    break;
+                }
+                "n" => {
+                    service.decide(
+                        &repository.id,
+                        &head,
+                        &candidate.fingerprint,
+                        VerificationDecision::Reject,
+                        author,
+                        &now,
+                    )?;
+                    break;
+                }
+                "s" => break,
+                "e" => println!("Score breakdown: {:#?}", candidate.score),
+                _ => println!("Please enter y, n, s, or e."),
+            }
+        }
+    }
+    Ok(())
+}
+
+fn print_candidates(candidates: &[ctx_core::verification::SemanticCandidate]) {
+    for candidate in candidates {
+        println!(
+            "{}: {} {:?} {} ({:.2})",
+            candidate.fingerprint,
+            candidate.source_identifier,
+            candidate.relation,
+            candidate.target_identifier,
+            candidate.score.total
+        );
     }
 }
 

@@ -644,13 +644,14 @@ fn domain_error(error: ctx_core::domain::InvalidIdentifier) -> PortError {
 
 #[cfg(test)]
 mod tests {
-    use ctx_app::ports::{GraphStore, IndexStore, RepositoryDescriptor};
+    use ctx_app::ports::{GraphStore, IndexStore, RepositoryDescriptor, VerificationStore};
     use ctx_core::{
         business::ExplicitSymbolLink,
         domain::NodeKind,
         explain::explain,
         indexing::{IndexPlan, NodeMutationKind, PlannedNode},
         ir::{SourceRange, SymbolKind},
+        verification::{ResolutionScore, SemanticCandidate, VerificationDecision},
     };
     use tempfile::tempdir;
 
@@ -740,5 +741,93 @@ mod tests {
         let explanation = explain("billing.cancel -> REQ-SUB-014", &graph).expect("explanation");
         assert_eq!(explanation.claims.len(), 1);
         assert_eq!(explanation.claims[0].evidence.len(), 1);
+        assert_acceptance_preserves_inference(&mut store, &repository.id, &commit);
+    }
+
+    fn assert_acceptance_preserves_inference(
+        store: &mut SqliteStore,
+        repository: &RepositoryId,
+        commit: &CommitMetadata,
+    ) {
+        let candidate = SemanticCandidate {
+            fingerprint: "candidate:cancel:enforces:req".to_owned(),
+            source: StableKey::new("symbol:python:billing.cancel:Function").expect("source key"),
+            source_identifier: "billing.cancel".to_owned(),
+            target: StableKey::new("intent:REQ-SUB-014").expect("target key"),
+            target_identifier: "REQ-SUB-014".to_owned(),
+            relation: RelationKind::Enforces,
+            score: ResolutionScore {
+                lexical: 0.75,
+                structural: 1.0,
+                total: 0.8,
+                ..ResolutionScore::default()
+            },
+            evidence: vec!["lexical signal 0.75".to_owned()],
+            impact_priority: 3,
+        };
+        store
+            .record_verification(
+                repository,
+                commit,
+                &candidate,
+                VerificationDecision::Accept,
+                "reviewer@example.test",
+                "2026-08-17T00:01:00Z",
+            )
+            .expect("verification");
+        let preserved_inferences: i64 = store
+            .connection()
+            .query_row(
+                "SELECT COUNT(*) FROM edges
+                 WHERE epistemic_class = 'inference' AND valid_to IS NOT NULL",
+                [],
+                |row| row.get(0),
+            )
+            .expect("inference count");
+        let human_assertions: i64 = store
+            .connection()
+            .query_row(
+                "SELECT COUNT(*) FROM edges
+                 WHERE epistemic_class = 'assertion' AND provenance_kind = 'human'
+                   AND valid_to IS NULL",
+                [],
+                |row| row.get(0),
+            )
+            .expect("assertion count");
+        assert_eq!(preserved_inferences, 1);
+        assert_eq!(human_assertions, 1);
+        assert_rejection_is_durable(store, repository, commit, candidate);
+    }
+
+    fn assert_rejection_is_durable(
+        store: &mut SqliteStore,
+        repository: &RepositoryId,
+        commit: &CommitMetadata,
+        candidate: SemanticCandidate,
+    ) {
+        let mut rejected = candidate;
+        rejected.fingerprint = "candidate:cancel:satisfies:req".to_owned();
+        rejected.relation = RelationKind::Satisfies;
+        store
+            .record_verification(
+                repository,
+                commit,
+                &rejected,
+                VerificationDecision::Reject,
+                "reviewer@example.test",
+                "2026-08-17T00:02:00Z",
+            )
+            .expect("rejection");
+        let durable_rejections: i64 = store
+            .connection()
+            .query_row(
+                "SELECT COUNT(*) FROM edges e
+                 JOIN annotations a ON a.edge_id = e.id
+                 WHERE e.status = 'rejected' AND a.action = 'reject'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("rejection count");
+        assert_eq!(durable_rejections, 1);
     }
 }

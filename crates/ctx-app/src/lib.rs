@@ -5,3 +5,4 @@ pub mod index;
 pub mod ports;
 pub mod query;
 pub mod review;
+pub mod verification;

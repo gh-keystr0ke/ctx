@@ -96,3 +96,15 @@ Next: compile a bounded, token-budgeted Context Pack from the same graph knowled
 - Verified formatting, strict Clippy, and the workspace suite (19 tests passed), including hard-budget and no-inference-chaining tests.
 
 Next: add heuristic semantic candidates, durable accept/reject verification, and the thin MCP adapter.
+
+## 2026-08-17 — M6 semantic verification
+
+- Added deterministic heuristic candidate generation using separately reported lexical, structural-neighborhood, and linked-test signals. Scores are ranking strengths, not probabilities.
+- Added conservative candidate filtering at 0.65 and impact-first ordering so invariants/requirements are reviewed before lower-value mappings.
+- Existing active or rejected semantic pairs are never proposed again without a different relationship/evidence fingerprint.
+- Added `ctx verify`: JSON/non-interactive candidate listing, interactive accept/reject/skip/explain, and scriptable `--accept`/`--reject` decisions with author attribution.
+- Acceptance persists the original heuristic `INFERENCE` and its derivation/evidence in history, attaches a human confirmation annotation, and creates a separate current Human `ASSERTION` with provenance back to the inference.
+- Rejection persists a current rejected inference plus human rejection annotation, preventing repeated annotation work.
+- Verified formatting, strict Clippy, and the workspace suite (20 tests passed), including signal breakdown, inference preservation, separate assertion creation, and durable rejection tests.
+
+Next: expose the same application use cases through a thin stdio MCP server without duplicating business logic.

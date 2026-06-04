@@ -1,4 +1,5 @@
 use ctx_core::{
+    context_pack::{ContextCompileError, ContextPack, ContextRequest, compile_context_pack},
     domain::RepositoryId,
     explain::{ExplainError, Explanation, explain},
     impact::{ImpactError, ImpactReport, analyze_impact},
@@ -15,6 +16,8 @@ pub enum QueryError {
     Impact(#[from] ImpactError),
     #[error(transparent)]
     Explain(#[from] ExplainError),
+    #[error(transparent)]
+    Context(#[from] ContextCompileError),
 }
 
 pub struct QueryService<'a, S> {
@@ -61,5 +64,22 @@ where
             .load_graph(repository)
             .map_err(QueryError::Store)?;
         explain(target, &graph).map_err(QueryError::from)
+    }
+
+    /// Compiles a bounded context pack from task and explicit seeds.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`QueryError`] when graph loading or context compilation fails.
+    pub fn context(
+        &self,
+        repository: &RepositoryId,
+        request: &ContextRequest,
+    ) -> Result<ContextPack, QueryError> {
+        let graph = self
+            .store
+            .load_graph(repository)
+            .map_err(QueryError::Store)?;
+        compile_context_pack(&graph, request).map_err(QueryError::from)
     }
 }

@@ -18,6 +18,7 @@ use ctx_app::{
     review::{ReviewError, ReviewRunner},
 };
 use ctx_core::business::ContextImportStats;
+use ctx_core::context_pack::ContextRequest;
 use serde::Serialize;
 use serde_json::json;
 use thiserror::Error;
@@ -60,6 +61,16 @@ enum Command {
     Review {
         #[arg(long, default_value = "HEAD")]
         base: String,
+    },
+    /// Compile bounded context for a coding task.
+    Context {
+        task: String,
+        #[arg(long)]
+        file: Vec<String>,
+        #[arg(long)]
+        symbol: Vec<String>,
+        #[arg(long, default_value_t = 4_000)]
+        token_budget: usize,
     },
 }
 
@@ -118,7 +129,77 @@ fn run(cli: &Cli) -> Result<(), CliError> {
         Command::Impact { target } => impact(cli, &git, target),
         Command::Explain { target } => explain(cli, &git, target),
         Command::Review { base } => review(cli, &git, base),
+        Command::Context {
+            task,
+            file,
+            symbol,
+            token_budget,
+        } => context(cli, &git, task, file, symbol, *token_budget),
     }
+}
+
+fn context(
+    cli: &Cli,
+    git: &GitRepo,
+    task: &str,
+    files: &[String],
+    symbols: &[String],
+    token_budget: usize,
+) -> Result<(), CliError> {
+    let database_path = database_path(git.root())?;
+    let store = SqliteStore::open(&database_path)?;
+    let repository = git.descriptor()?;
+    let request = ContextRequest {
+        task: task.to_owned(),
+        files: files.to_vec(),
+        symbols: symbols.to_vec(),
+        token_budget,
+    };
+    let pack = QueryService::new(&store).context(&repository.id, &request)?;
+    if cli.json {
+        println!("{}", serde_json::to_string_pretty(&pack)?);
+        return Ok(());
+    }
+    println!("Task: {}", pack.task);
+    println!(
+        "Context budget: {}/{} estimated tokens{}",
+        pack.estimated_tokens,
+        pack.token_budget,
+        if pack.truncated { " (truncated)" } else { "" }
+    );
+    let mut current_priority = None;
+    for item in pack.items {
+        if current_priority != Some(item.priority) {
+            println!();
+            println!("{:?}:", item.priority);
+            current_priority = Some(item.priority);
+        }
+        println!("- {} — {}", item.identifier, item.title);
+        for line in item.content.lines() {
+            println!("  {line}");
+        }
+    }
+    if !pack.evidence.is_empty() {
+        println!();
+        println!("Evidence:");
+        for evidence in pack.evidence {
+            println!(
+                "- {} ({:?}, {:?}, {:.2})",
+                evidence.claim, evidence.claim_class, evidence.status, evidence.confidence
+            );
+            for source in evidence.sources {
+                println!("  {source}");
+            }
+        }
+    }
+    if !pack.uncertainties.is_empty() {
+        println!();
+        println!("Uncertainty:");
+        for uncertainty in pack.uncertainties {
+            println!("- {}: {}", uncertainty.relationship, uncertainty.reason);
+        }
+    }
+    Ok(())
 }
 
 fn review(cli: &Cli, git: &GitRepo, base: &str) -> Result<(), CliError> {

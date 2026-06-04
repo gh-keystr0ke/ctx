@@ -4,6 +4,7 @@
 //! network code. Callers provide observations; the core returns decisions.
 
 pub mod business;
+pub mod context_pack;
 pub mod domain;
 pub mod explain;
 pub mod graph;

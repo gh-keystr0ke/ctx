@@ -1,0 +1,639 @@
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
+
+use serde::{Deserialize, Serialize};
+use thiserror::Error;
+
+use crate::{
+    domain::{ClaimClass, ClaimStatus, NodeKind, RelationKind, StableKey},
+    graph::{GraphEdge, GraphNode, GraphSnapshot},
+    indexing::PlannedNodeAttributes,
+};
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ContextRequest {
+    pub task: String,
+    pub files: Vec<String>,
+    pub symbols: Vec<String>,
+    pub token_budget: usize,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ContextPriority {
+    Invariant,
+    Requirement,
+    Feature,
+    Decision,
+    DirectImplementation,
+    Test,
+    DataContract,
+    AdjacentImplementation,
+    LowConfidence,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ContextItem {
+    pub priority: ContextPriority,
+    pub kind: NodeKind,
+    pub identifier: String,
+    pub title: String,
+    pub content: String,
+    pub estimated_tokens: usize,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ContextEvidence {
+    pub claim: String,
+    pub claim_class: ClaimClass,
+    pub status: ClaimStatus,
+    pub confidence: f32,
+    pub sources: Vec<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ContextUncertainty {
+    pub relationship: String,
+    pub reason: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ContextPack {
+    pub task: String,
+    pub token_budget: usize,
+    pub estimated_tokens: usize,
+    pub truncated: bool,
+    pub seeds: Vec<String>,
+    pub items: Vec<ContextItem>,
+    pub evidence: Vec<ContextEvidence>,
+    pub uncertainties: Vec<ContextUncertainty>,
+}
+
+#[derive(Clone, Debug, Error, Eq, PartialEq)]
+pub enum ContextCompileError {
+    #[error("token budget must be greater than zero")]
+    EmptyBudget,
+    #[error("no indexed context matches the task or supplied seeds")]
+    NoSeeds,
+    #[error("explicit context seed '{0}' is ambiguous")]
+    AmbiguousSeed(String),
+}
+
+#[derive(Clone, Debug)]
+struct Candidate {
+    key: StableKey,
+    distance: usize,
+    direct: bool,
+    score: usize,
+}
+
+/// Compiles a bounded task-oriented context pack using typed graph traversal.
+///
+/// # Errors
+///
+/// Returns [`ContextCompileError`] when the budget is empty, an explicit seed
+/// is ambiguous, or no deterministic/lexical seed can be found.
+pub fn compile_context_pack(
+    graph: &GraphSnapshot,
+    request: &ContextRequest,
+) -> Result<ContextPack, ContextCompileError> {
+    if request.token_budget == 0 {
+        return Err(ContextCompileError::EmptyBudget);
+    }
+    let task_terms = terms(&request.task);
+    let seed_keys = detect_seeds(graph, request, &task_terms)?;
+    if seed_keys.is_empty() {
+        return Err(ContextCompileError::NoSeeds);
+    }
+    let candidates = expand_candidates(graph, &seed_keys, &task_terms);
+    let task_tokens = estimate_tokens(&request.task).max(1);
+    let mut used = task_tokens.min(request.token_budget);
+    let evidence_reserve = if request.token_budget >= 100 {
+        request.token_budget / 5
+    } else {
+        0
+    };
+    let item_limit = request.token_budget.saturating_sub(evidence_reserve);
+    let mut items = Vec::new();
+    let mut selected = BTreeSet::new();
+    let mut truncated = false;
+    for candidate in candidates {
+        let Some(node) = graph.nodes.get(&candidate.key) else {
+            continue;
+        };
+        let remaining = item_limit.saturating_sub(used);
+        if remaining == 0 {
+            truncated = true;
+            break;
+        }
+        let mut item = context_item(node, &seed_keys, candidate.distance);
+        if item.estimated_tokens > remaining {
+            if items.is_empty() || matches!(item.priority, ContextPriority::Invariant) {
+                item.content = truncate_to_tokens(&item.content, remaining.saturating_sub(4));
+                item.estimated_tokens = estimate_item_tokens(&item);
+            }
+            if item.estimated_tokens > remaining || item.content.is_empty() {
+                truncated = true;
+                continue;
+            }
+            truncated = true;
+        }
+        used += item.estimated_tokens;
+        selected.insert(candidate.key);
+        items.push(item);
+    }
+    let (all_evidence, all_uncertainties) = compile_evidence(graph, &selected);
+    let mut evidence = Vec::new();
+    let mut uncertainties = Vec::new();
+    for item in all_evidence {
+        let cost = estimate_evidence_tokens(&item);
+        if used + cost <= request.token_budget {
+            used += cost;
+            evidence.push(item);
+        } else {
+            truncated = true;
+        }
+    }
+    for item in all_uncertainties {
+        let cost = estimate_tokens(&format!("{} {}", item.relationship, item.reason));
+        if used + cost <= request.token_budget {
+            used += cost;
+            uncertainties.push(item);
+        } else {
+            truncated = true;
+        }
+    }
+    let seeds = seed_keys
+        .iter()
+        .filter_map(|key| graph.nodes.get(key))
+        .map(|node| node.identifier().to_owned())
+        .collect();
+    Ok(ContextPack {
+        task: request.task.clone(),
+        token_budget: request.token_budget,
+        estimated_tokens: used,
+        truncated,
+        seeds,
+        items,
+        evidence,
+        uncertainties,
+    })
+}
+
+fn detect_seeds(
+    graph: &GraphSnapshot,
+    request: &ContextRequest,
+    task_terms: &BTreeSet<String>,
+) -> Result<BTreeSet<StableKey>, ContextCompileError> {
+    let mut seeds = BTreeSet::new();
+    for query in request.files.iter().chain(&request.symbols) {
+        let matches = graph.resolve(query);
+        if matches.len() > 1 {
+            return Err(ContextCompileError::AmbiguousSeed(query.clone()));
+        }
+        if let Some(node) = matches.first() {
+            seeds.insert(node.stable_key.clone());
+        }
+    }
+    let mut lexical = graph
+        .nodes
+        .values()
+        .filter_map(|node| {
+            let score = lexical_score(node, task_terms);
+            (score > 0).then_some((score, node.stable_key.clone()))
+        })
+        .collect::<Vec<_>>();
+    lexical.sort_by(|left, right| right.cmp(left));
+    for (_, key) in lexical.into_iter().take(5) {
+        seeds.insert(key);
+    }
+    Ok(seeds)
+}
+
+fn expand_candidates(
+    graph: &GraphSnapshot,
+    seeds: &BTreeSet<StableKey>,
+    task_terms: &BTreeSet<String>,
+) -> Vec<Candidate> {
+    let mut distances = seeds
+        .iter()
+        .cloned()
+        .map(|key| (key, 0_usize))
+        .collect::<BTreeMap<_, _>>();
+    let mut queue = seeds
+        .iter()
+        .cloned()
+        .map(|key| (key, 0_usize, false))
+        .collect::<VecDeque<_>>();
+    while let Some((key, distance, inferred)) = queue.pop_front() {
+        if distance >= 3 {
+            continue;
+        }
+        for edge in graph.edges.iter().filter(|edge| touches(edge, &key)) {
+            if !traversable(edge, distance, inferred) {
+                continue;
+            }
+            let next = if edge.source == key {
+                edge.target.clone()
+            } else {
+                edge.source.clone()
+            };
+            let next_distance = distance + 1;
+            if distances
+                .get(&next)
+                .is_some_and(|known| *known <= next_distance)
+            {
+                continue;
+            }
+            distances.insert(next.clone(), next_distance);
+            queue.push_back((
+                next,
+                next_distance,
+                inferred || edge.claim_class == ClaimClass::Inference,
+            ));
+        }
+    }
+    let mut candidates = distances
+        .into_iter()
+        .filter_map(|(key, distance)| {
+            let node = graph.nodes.get(&key)?;
+            Some(Candidate {
+                direct: seeds.contains(&key),
+                score: candidate_score(node, task_terms, distance, seeds.contains(&key)),
+                key,
+                distance,
+            })
+        })
+        .collect::<Vec<_>>();
+    candidates.sort_by(|left, right| {
+        let left_node = &graph.nodes[&left.key];
+        let right_node = &graph.nodes[&right.key];
+        priority(left_node, left.direct, left.distance)
+            .cmp(&priority(right_node, right.direct, right.distance))
+            .then_with(|| right.score.cmp(&left.score))
+            .then_with(|| left.key.cmp(&right.key))
+    });
+    candidates
+}
+
+fn traversable(edge: &GraphEdge, distance: usize, inferred: bool) -> bool {
+    if edge.status == ClaimStatus::Rejected {
+        return false;
+    }
+    if edge.claim_class == ClaimClass::Inference && (inferred || edge.confidence.get() < 0.65) {
+        return false;
+    }
+    edge.kind.is_semantic()
+        || (distance == 0 && matches!(edge.kind, RelationKind::Contains | RelationKind::Calls))
+}
+
+fn touches(edge: &GraphEdge, key: &StableKey) -> bool {
+    edge.source == *key || edge.target == *key
+}
+
+fn lexical_score(node: &GraphNode, task_terms: &BTreeSet<String>) -> usize {
+    let searchable = format!("{} {} {}", node.identifier(), node.name, node_content(node));
+    let node_terms = terms(&searchable);
+    task_terms.intersection(&node_terms).count()
+}
+
+fn candidate_score(
+    node: &GraphNode,
+    task_terms: &BTreeSet<String>,
+    distance: usize,
+    direct: bool,
+) -> usize {
+    usize::from(direct) * 1_000 + lexical_score(node, task_terms) * 100 + (3 - distance) * 10
+}
+
+fn context_item(node: &GraphNode, seeds: &BTreeSet<StableKey>, distance: usize) -> ContextItem {
+    let mut item = ContextItem {
+        priority: priority(node, seeds.contains(&node.stable_key), distance),
+        kind: node.kind,
+        identifier: node.identifier().to_owned(),
+        title: node.name.trim().to_owned(),
+        content: node_content(node),
+        estimated_tokens: 0,
+    };
+    item.estimated_tokens = estimate_item_tokens(&item);
+    item
+}
+
+fn priority(node: &GraphNode, direct: bool, distance: usize) -> ContextPriority {
+    match node.kind {
+        NodeKind::Invariant => ContextPriority::Invariant,
+        NodeKind::Requirement => ContextPriority::Requirement,
+        NodeKind::Feature => ContextPriority::Feature,
+        NodeKind::Decision => ContextPriority::Decision,
+        NodeKind::CodeSymbol if node.is_test() => ContextPriority::Test,
+        NodeKind::DbEntity | NodeKind::ExternalSystem | NodeKind::Endpoint | NodeKind::Event => {
+            ContextPriority::DataContract
+        }
+        NodeKind::CodeSymbol | NodeKind::File if direct || distance <= 1 => {
+            ContextPriority::DirectImplementation
+        }
+        NodeKind::CodeSymbol | NodeKind::File => ContextPriority::AdjacentImplementation,
+        NodeKind::DomainConcept => ContextPriority::LowConfidence,
+    }
+}
+
+fn node_content(node: &GraphNode) -> String {
+    match &node.attributes {
+        PlannedNodeAttributes::Business { body, status, .. } => {
+            format!("Status: {status}\n{}", body.trim())
+        }
+        PlannedNodeAttributes::Symbol {
+            file_path,
+            range,
+            signature,
+            calls,
+            ..
+        } => format!(
+            "{}:{}-{}\nSignature: {}\nCalls: {}",
+            file_path,
+            range.start_line,
+            range.end_line,
+            signature.as_deref().unwrap_or("unknown"),
+            if calls.is_empty() {
+                "none".to_owned()
+            } else {
+                calls.join(", ")
+            }
+        ),
+        PlannedNodeAttributes::File { path, language } => {
+            format!("{language} source file: {path}")
+        }
+    }
+}
+
+fn compile_evidence(
+    graph: &GraphSnapshot,
+    selected: &BTreeSet<StableKey>,
+) -> (Vec<ContextEvidence>, Vec<ContextUncertainty>) {
+    let mut evidence = Vec::new();
+    let mut uncertainties = Vec::new();
+    let mut relevant_edges = graph
+        .edges
+        .iter()
+        .filter(|edge| {
+            selected.contains(&edge.source)
+                && selected.contains(&edge.target)
+                && edge.kind.is_semantic()
+        })
+        .collect::<Vec<_>>();
+    relevant_edges.sort_by(|left, right| {
+        evidence_priority(left.kind)
+            .cmp(&evidence_priority(right.kind))
+            .then_with(|| left.fingerprint.cmp(&right.fingerprint))
+    });
+    for edge in relevant_edges {
+        let claim = claim_text(edge, graph);
+        evidence.push(ContextEvidence {
+            claim: claim.clone(),
+            claim_class: edge.claim_class,
+            status: edge.status,
+            confidence: edge.confidence.get(),
+            sources: edge
+                .evidence
+                .iter()
+                .map(|item| format!("{}#{}", item.source_uri, item.locator))
+                .collect(),
+        });
+        if edge.status != ClaimStatus::Active || edge.claim_class == ClaimClass::Inference {
+            uncertainties.push(ContextUncertainty {
+                relationship: claim,
+                reason: edge.stale_reason.clone().unwrap_or_else(|| {
+                    if edge.status == ClaimStatus::Active {
+                        "inferred relationship".to_owned()
+                    } else {
+                        "stale relationship".to_owned()
+                    }
+                }),
+            });
+        }
+    }
+    uncertainties.sort_by(|left, right| left.relationship.cmp(&right.relationship));
+    (evidence, uncertainties)
+}
+
+const fn evidence_priority(kind: RelationKind) -> usize {
+    match kind {
+        RelationKind::Enforces => 0,
+        RelationKind::Implements => 1,
+        RelationKind::CoveredBy => 2,
+        RelationKind::Satisfies => 3,
+        RelationKind::DependsOn => 4,
+        RelationKind::Contains
+        | RelationKind::Calls
+        | RelationKind::References
+        | RelationKind::ReadsFrom
+        | RelationKind::WritesTo
+        | RelationKind::Emits
+        | RelationKind::Handles => 5,
+    }
+}
+
+fn claim_text(edge: &GraphEdge, graph: &GraphSnapshot) -> String {
+    let source = graph.nodes.get(&edge.source).map_or_else(
+        || edge.source.to_string(),
+        |node| node.identifier().to_owned(),
+    );
+    let target = graph.nodes.get(&edge.target).map_or_else(
+        || edge.target.to_string(),
+        |node| node.identifier().to_owned(),
+    );
+    format!("{source} {:?} {target}", edge.kind)
+}
+
+fn terms(value: &str) -> BTreeSet<String> {
+    value
+        .split(|character: char| {
+            !character.is_alphanumeric() && character != '_' && character != '-'
+        })
+        .filter(|term| term.len() >= 3)
+        .map(str::to_ascii_lowercase)
+        .collect()
+}
+
+fn estimate_item_tokens(item: &ContextItem) -> usize {
+    estimate_tokens(&format!(
+        "{} {} {}",
+        item.identifier, item.title, item.content
+    ))
+}
+
+fn estimate_evidence_tokens(evidence: &ContextEvidence) -> usize {
+    estimate_tokens(&format!(
+        "{} {:?} {:?} {}",
+        evidence.claim,
+        evidence.claim_class,
+        evidence.status,
+        evidence.sources.join(" ")
+    ))
+}
+
+fn estimate_tokens(value: &str) -> usize {
+    value.chars().count().div_ceil(4)
+}
+
+fn truncate_to_tokens(value: &str, tokens: usize) -> String {
+    let character_limit = tokens.saturating_mul(4);
+    let mut truncated = value.chars().take(character_limit).collect::<String>();
+    if truncated.chars().count() < value.chars().count() {
+        truncated.push('…');
+    }
+    truncated
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        domain::{Confidence, SourceKind},
+        graph::{GraphEdge, GraphNode},
+        ir::{SourceRange, SymbolKind},
+    };
+
+    use super::*;
+
+    #[test]
+    fn preserves_invariants_first_and_respects_the_budget() {
+        let code = symbol_node("code", "billing.cancel");
+        let invariant = intent_node("invariant", NodeKind::Invariant, "INV-SUB-003");
+        let graph = graph_with(
+            &[code.clone(), invariant.clone()],
+            vec![edge(
+                &code,
+                &invariant,
+                RelationKind::Enforces,
+                ClaimClass::Assertion,
+            )],
+        );
+        let request = ContextRequest {
+            task: "fix cancellation paid access".to_owned(),
+            files: Vec::new(),
+            symbols: vec!["billing.cancel".to_owned()],
+            token_budget: 45,
+        };
+
+        let pack = compile_context_pack(&graph, &request).expect("context pack");
+
+        assert_eq!(pack.items[0].priority, ContextPriority::Invariant);
+        assert!(pack.estimated_tokens <= pack.token_budget);
+    }
+
+    #[test]
+    fn never_chains_one_inference_through_another() {
+        let code = symbol_node("code", "billing.cancel");
+        let requirement = intent_node("requirement", NodeKind::Requirement, "REQ-SUB-014");
+        let feature = intent_node("feature", NodeKind::Feature, "FEAT-SUBSCRIPTIONS");
+        let graph = graph_with(
+            &[code.clone(), requirement.clone(), feature.clone()],
+            vec![
+                edge(
+                    &code,
+                    &requirement,
+                    RelationKind::Implements,
+                    ClaimClass::Inference,
+                ),
+                edge(
+                    &requirement,
+                    &feature,
+                    RelationKind::DependsOn,
+                    ClaimClass::Inference,
+                ),
+            ],
+        );
+        let request = ContextRequest {
+            task: "unrelated wording".to_owned(),
+            files: Vec::new(),
+            symbols: vec!["billing.cancel".to_owned()],
+            token_budget: 1_000,
+        };
+
+        let pack = compile_context_pack(&graph, &request).expect("context pack");
+
+        assert!(
+            pack.items
+                .iter()
+                .any(|item| item.identifier == "REQ-SUB-014")
+        );
+        assert!(
+            !pack
+                .items
+                .iter()
+                .any(|item| item.identifier == "FEAT-SUBSCRIPTIONS")
+        );
+    }
+
+    fn graph_with(nodes: &[GraphNode], edges: Vec<GraphEdge>) -> GraphSnapshot {
+        GraphSnapshot {
+            nodes: nodes
+                .iter()
+                .cloned()
+                .map(|node| (node.stable_key.clone(), node))
+                .collect(),
+            edges,
+        }
+    }
+
+    fn symbol_node(key: &str, canonical: &str) -> GraphNode {
+        GraphNode {
+            stable_key: StableKey::new(key).expect("stable key"),
+            kind: NodeKind::CodeSymbol,
+            name: "cancel".to_owned(),
+            content_hash: "hash".to_owned(),
+            attributes: PlannedNodeAttributes::Symbol {
+                file_path: "billing.py".to_owned(),
+                canonical_path: canonical.to_owned(),
+                symbol_kind: SymbolKind::Method,
+                range: SourceRange {
+                    start_byte: 0,
+                    end_byte: 10,
+                    start_line: 1,
+                    end_line: 2,
+                },
+                signature: Some("()".to_owned()),
+                structural_fingerprint: "shape".to_owned(),
+                calls: Vec::new(),
+            },
+        }
+    }
+
+    fn intent_node(key: &str, kind: NodeKind, id: &str) -> GraphNode {
+        GraphNode {
+            stable_key: StableKey::new(key).expect("stable key"),
+            kind,
+            name: id.to_owned(),
+            content_hash: "hash".to_owned(),
+            attributes: PlannedNodeAttributes::Business {
+                id: id.to_owned(),
+                status: "active".to_owned(),
+                body: "Paid access remains active until paid_until.".to_owned(),
+                feature: None,
+                source_uri: "context.yaml".to_owned(),
+            },
+        }
+    }
+
+    fn edge(
+        source: &GraphNode,
+        target: &GraphNode,
+        kind: RelationKind,
+        claim_class: ClaimClass,
+    ) -> GraphEdge {
+        GraphEdge {
+            source: source.stable_key.clone(),
+            target: target.stable_key.clone(),
+            kind,
+            claim_class,
+            source_kind: SourceKind::Documentation,
+            confidence: Confidence::new(0.9).expect("confidence"),
+            status: ClaimStatus::Active,
+            valid_from: "commit".to_owned(),
+            valid_to: None,
+            producer: "test".to_owned(),
+            fingerprint: format!("{kind:?}:{}", target.stable_key),
+            stale_reason: None,
+            evidence: Vec::new(),
+        }
+    }
+}

@@ -142,3 +142,13 @@ Next: automate the complete fixture journey through the compiled CLI, then add p
 - Verified formatting, strict Clippy, and the complete workspace suite (27 tests passed).
 
 Next: ship reproducible container packaging and concise user/architecture documentation.
+
+## 2026-08-17 — Commit-faithful indexing and safe local state
+
+- Added a Git port check that refuses `ctx index` when configured Python sources or `.context` documents differ from `HEAD`; commit-bounded validity can no longer be attached to uncommitted input by a first index.
+- Kept working-tree inspection in `ctx review`, where an uncommitted diff is the intended input.
+- `ctx init` now records only `.ctx/ctx.db`, its WAL, and its shared-memory file in Git's repository-local exclude file. It does not mutate the project's shared `.gitignore`, and `.ctx/config.toml` remains trackable.
+- Extended the CLI end-to-end scenario to prove the database is absent from Git status and a harmful dirty source is rejected by indexing while remaining reviewable.
+- Verified formatting, strict Clippy, and the complete workspace suite (27 tests passed).
+
+Next: package both binaries in Docker and finish the user and architecture guides.

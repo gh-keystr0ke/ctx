@@ -152,3 +152,11 @@ Next: ship reproducible container packaging and concise user/architecture docume
 - Verified formatting, strict Clippy, and the complete workspace suite (27 tests passed).
 
 Next: package both binaries in Docker and finish the user and architecture guides.
+
+## 2026-08-17 — Ignored context fidelity
+
+- Closed the remaining commit-validity edge case for `.context`: ignored context files are visible to the filesystem reader but absent from normal untracked Git output, so indexing now detects and refuses them explicitly.
+- Extended the full CLI scenario with an ignored requirement and proved the file is named in the refusal before any index state is written.
+- Re-ran formatting, strict Clippy, and the complete workspace suite (27 tests passed).
+
+Next: complete packaging validation and documentation.

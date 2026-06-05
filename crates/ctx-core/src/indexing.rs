@@ -55,6 +55,63 @@ impl FileChange {
     }
 }
 
+/// Reconciles Git changes with the configured source boundary.
+///
+/// Git does not report source changes when a commit only edits configuration.
+/// Comparing the current allowed paths with the stored snapshot turns boundary
+/// crossings into ordinary additions and deletions for the incremental planner.
+#[must_use]
+pub fn reconcile_source_scope(
+    changes: &[FileChange],
+    indexed_paths: impl IntoIterator<Item = String>,
+    current_paths: impl IntoIterator<Item = String>,
+) -> Vec<FileChange> {
+    let indexed = indexed_paths.into_iter().collect::<BTreeSet<_>>();
+    let current = current_paths.into_iter().collect::<BTreeSet<_>>();
+    let mut reconciled = changes.to_vec();
+    let covered_previous = changes
+        .iter()
+        .filter_map(previous_path)
+        .collect::<BTreeSet<_>>();
+    let covered_current = changes
+        .iter()
+        .filter_map(FileChange::current_path)
+        .collect::<BTreeSet<_>>();
+
+    reconciled.extend(
+        indexed
+            .difference(&current)
+            .filter(|path| !covered_previous.contains(path.as_str()))
+            .map(|path| FileChange::Deleted { path: path.clone() }),
+    );
+    reconciled.extend(
+        current
+            .difference(&indexed)
+            .filter(|path| !covered_current.contains(path.as_str()))
+            .map(|path| FileChange::Added { path: path.clone() }),
+    );
+    reconciled.sort_by(|left, right| change_sort_key(left).cmp(&change_sort_key(right)));
+    reconciled.dedup();
+    reconciled
+}
+
+fn previous_path(change: &FileChange) -> Option<&str> {
+    match change {
+        FileChange::Modified { path } | FileChange::Deleted { path } => Some(path),
+        FileChange::Renamed { old_path, .. } => Some(old_path),
+        FileChange::Added { .. } => None,
+    }
+}
+
+fn change_sort_key(change: &FileChange) -> (u8, &str, &str) {
+    match change {
+        FileChange::Added { path } => (0, path, ""),
+        FileChange::Modified { path } => (1, path, ""),
+        FileChange::Deleted { path } => (2, path, ""),
+        FileChange::Renamed { old_path, new_path } => (3, old_path, new_path),
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum NodeMutationKind {
@@ -660,5 +717,35 @@ mod tests {
                 .count(),
             1
         );
+    }
+
+    #[test]
+    fn scope_reconciliation_retires_files_excluded_by_config() {
+        let changes = reconcile_source_scope(
+            &[],
+            ["src/keep.py".to_owned(), "legacy/drop.py".to_owned()],
+            ["src/keep.py".to_owned()],
+        );
+
+        assert_eq!(
+            changes,
+            vec![FileChange::Deleted {
+                path: "legacy/drop.py".to_owned()
+            }]
+        );
+    }
+
+    #[test]
+    fn scope_reconciliation_adds_newly_included_files_without_duplicates() {
+        let added = FileChange::Added {
+            path: "app/new.py".to_owned(),
+        };
+        let changes = reconcile_source_scope(
+            std::slice::from_ref(&added),
+            std::iter::empty(),
+            ["app/new.py".to_owned()],
+        );
+
+        assert_eq!(changes, vec![added]);
     }
 }

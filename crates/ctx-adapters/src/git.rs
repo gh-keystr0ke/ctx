@@ -11,6 +11,7 @@ use ctx_core::{
     domain::{CommitOid, RepositoryId},
     indexing::FileChange,
 };
+use serde::Deserialize;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -23,10 +24,50 @@ pub enum GitError {
     Command { command: String, stderr: String },
     #[error("Git output was not valid UTF-8")]
     InvalidUtf8,
+    #[error("invalid ctx configuration at '{path}': {message}")]
+    Config { path: String, message: String },
 }
 
 pub struct GitRepo {
     root: PathBuf,
+    path_filter: PathFilter,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+struct ConfigFile {
+    language: Option<String>,
+    #[serde(default)]
+    paths: ConfigPaths,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+struct ConfigPaths {
+    #[serde(default)]
+    include: Vec<String>,
+    #[serde(default)]
+    exclude: Vec<String>,
+}
+
+#[derive(Clone, Debug)]
+struct PathFilter {
+    include: Vec<String>,
+    exclude: Vec<String>,
+}
+
+impl Default for PathFilter {
+    fn default() -> Self {
+        Self {
+            include: vec!["src".to_owned(), "tests".to_owned()],
+            exclude: vec![
+                "generated".to_owned(),
+                "vendor".to_owned(),
+                "build".to_owned(),
+                "dist".to_owned(),
+                "target".to_owned(),
+                ".venv".to_owned(),
+            ],
+        }
+    }
 }
 
 impl GitRepo {
@@ -53,9 +94,9 @@ impl GitRepo {
         let root = std::str::from_utf8(&output.stdout)
             .map_err(|_| GitError::InvalidUtf8)?
             .trim();
-        Ok(Self {
-            root: PathBuf::from(root),
-        })
+        let root = PathBuf::from(root);
+        let path_filter = load_path_filter(&root)?;
+        Ok(Self { root, path_filter })
     }
 
     pub fn root(&self) -> &Path {
@@ -100,6 +141,10 @@ impl GitRepo {
             .map_err(|_| GitError::InvalidUtf8)?
             .trim()
             .to_owned())
+    }
+
+    fn source_allowed(&self, path: &str) -> bool {
+        is_indexable_python(path) && self.path_filter.allows(path)
     }
 }
 
@@ -154,7 +199,9 @@ impl GitRepository for GitRepo {
                 "--exclude-standard",
             ])
             .map_err(port_error)?;
-        parse_nul_paths(&bytes)
+        let mut paths = parse_nul_paths(&bytes)?;
+        paths.retain(|path| self.path_filter.allows(path));
+        Ok(paths)
     }
 
     fn changes_since(&self, oid: &CommitOid) -> Result<Vec<FileChange>, PortError> {
@@ -169,7 +216,10 @@ impl GitRepository for GitRepo {
                 "--",
             ])
             .map_err(port_error)?;
-        parse_name_status(&bytes)
+        Ok(filter_changes(
+            parse_name_status(&bytes)?,
+            &self.path_filter,
+        ))
     }
 }
 
@@ -185,10 +235,11 @@ impl ReviewRepository for GitRepo {
         let untracked_bytes = self
             .output(&["ls-files", "-z", "--others", "--exclude-standard"])
             .map_err(port_error)?;
-        let mut source_changes = parse_name_status(&source_bytes)?;
+        let mut source_changes =
+            filter_changes(parse_name_status(&source_bytes)?, &self.path_filter);
         let mut changed_context_files = parse_nul_strings(&context_bytes)?;
         for path in parse_nul_strings(&untracked_bytes)? {
-            if is_indexable_python(&path)
+            if self.source_allowed(&path)
                 && !source_changes
                     .iter()
                     .any(|change| change.current_path() == Some(path.as_str()))
@@ -330,6 +381,82 @@ fn is_indexable_python(path: &str) -> bool {
         })
 }
 
+impl PathFilter {
+    fn allows(&self, path: &str) -> bool {
+        let included = self.include.is_empty()
+            || self
+                .include
+                .iter()
+                .any(|prefix| path == prefix || path.starts_with(&format!("{prefix}/")));
+        included
+            && !self.exclude.iter().any(|excluded| {
+                path == excluded
+                    || path.starts_with(&format!("{excluded}/"))
+                    || path.split('/').any(|component| component == excluded)
+            })
+    }
+}
+
+fn load_path_filter(root: &Path) -> Result<PathFilter, GitError> {
+    let path = root.join(".ctx").join("config.toml");
+    if !path.exists() {
+        return Ok(PathFilter::default());
+    }
+    let content = std::fs::read_to_string(&path).map_err(|error| GitError::Config {
+        path: path.display().to_string(),
+        message: error.to_string(),
+    })?;
+    let config: ConfigFile = toml::from_str(&content).map_err(|error| GitError::Config {
+        path: path.display().to_string(),
+        message: error.to_string(),
+    })?;
+    if config.language.as_deref().unwrap_or("python") != "python" {
+        return Err(GitError::Config {
+            path: path.display().to_string(),
+            message: "only language = \"python\" is supported in this release".to_owned(),
+        });
+    }
+    let defaults = PathFilter::default();
+    Ok(PathFilter {
+        include: if config.paths.include.is_empty() {
+            defaults.include
+        } else {
+            config.paths.include
+        },
+        exclude: if config.paths.exclude.is_empty() {
+            defaults.exclude
+        } else {
+            config.paths.exclude
+        },
+    })
+}
+
+fn filter_changes(changes: Vec<FileChange>, filter: &PathFilter) -> Vec<FileChange> {
+    changes
+        .into_iter()
+        .filter_map(|change| match change {
+            FileChange::Added { path } if filter.allows(&path) => Some(FileChange::Added { path }),
+            FileChange::Modified { path } if filter.allows(&path) => {
+                Some(FileChange::Modified { path })
+            }
+            FileChange::Deleted { path } if filter.allows(&path) => {
+                Some(FileChange::Deleted { path })
+            }
+            FileChange::Renamed { old_path, new_path } => {
+                match (filter.allows(&old_path), filter.allows(&new_path)) {
+                    (true, true) => Some(FileChange::Renamed { old_path, new_path }),
+                    (true, false) => Some(FileChange::Deleted { path: old_path }),
+                    (false, true) => Some(FileChange::Added { path: new_path }),
+                    (false, false) => None,
+                }
+            }
+            FileChange::Added { .. } | FileChange::Modified { .. } | FileChange::Deleted { .. } => {
+                None
+            }
+        })
+        .collect()
+}
+
 #[allow(clippy::needless_pass_by_value)]
 fn port_error(error: GitError) -> PortError {
     PortError::new(error.to_string())
@@ -356,5 +483,34 @@ mod tests {
         assert!(is_indexable_python("src/app.py"));
         assert!(!is_indexable_python("vendor/pkg.py"));
         assert!(!is_indexable_python(".venv/lib.py"));
+    }
+
+    #[test]
+    fn configured_boundaries_include_only_selected_sources() {
+        let filter = PathFilter {
+            include: vec!["app".to_owned(), "tests".to_owned()],
+            exclude: vec!["generated".to_owned()],
+        };
+
+        assert!(filter.allows("app/service.py"));
+        assert!(filter.allows("tests/test_service.py"));
+        assert!(!filter.allows("scripts/service.py"));
+        assert!(!filter.allows("app/generated/client.py"));
+    }
+
+    #[test]
+    fn rename_across_config_boundary_becomes_delete() {
+        let changes = vec![FileChange::Renamed {
+            old_path: "src/service.py".to_owned(),
+            new_path: "archive/service.py".to_owned(),
+        }];
+        let filtered = filter_changes(changes, &PathFilter::default());
+
+        assert_eq!(
+            filtered,
+            vec![FileChange::Deleted {
+                path: "src/service.py".to_owned()
+            }]
+        );
     }
 }

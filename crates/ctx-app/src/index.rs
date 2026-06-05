@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use ctx_core::indexing::{IndexStats, plan_incremental_index};
+use ctx_core::indexing::{IndexStats, plan_incremental_index, reconcile_source_scope};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -72,29 +72,31 @@ where
             });
         }
 
+        let current_paths = self.git.all_source_files().map_err(IndexError::Git)?;
         let changes = previous
             .as_ref()
             .map_or_else(
                 || {
-                    self.git.all_source_files().map(|paths| {
-                        paths
-                            .into_iter()
-                            .map(|path| ctx_core::indexing::FileChange::Added { path })
-                            .collect()
-                    })
+                    Ok(current_paths
+                        .iter()
+                        .cloned()
+                        .map(|path| ctx_core::indexing::FileChange::Added { path })
+                        .collect())
                 },
                 |commit| self.git.changes_since(&commit.oid),
             )
             .map_err(IndexError::Git)?;
+        let snapshot = self
+            .store
+            .load_snapshot(&repository.id)
+            .map_err(IndexError::Storage)?;
+        let changes =
+            reconcile_source_scope(&changes, snapshot.files.keys().cloned(), current_paths);
         let mut analyses = BTreeMap::new();
         for path in changes.iter().filter_map(|change| change.current_path()) {
             let file_ir = self.analyzer.analyze(path).map_err(IndexError::Analysis)?;
             analyses.insert(path.to_owned(), file_ir);
         }
-        let snapshot = self
-            .store
-            .load_snapshot(&repository.id)
-            .map_err(IndexError::Storage)?;
         let plan = plan_incremental_index(&snapshot, &analyses, &changes)?;
         self.store
             .apply_index(&repository.id, &head, now, &plan)

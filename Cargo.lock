@@ -248,6 +248,7 @@ dependencies = [
  "ctx-mcp",
  "serde",
  "serde_json",
+ "tempfile",
  "thiserror",
 ]
 

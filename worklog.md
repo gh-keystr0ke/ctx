@@ -132,3 +132,13 @@ Next: finish configuration correctness, end-to-end automation, Docker packaging,
 - Verified formatting, strict Clippy, and the workspace suite (26 tests passed).
 
 Next: automate the complete fixture journey through the compiled CLI, then add packaging and documentation.
+
+## 2026-08-17 — CLI end-to-end product scenario
+
+- Added an executable-level integration test that copies the subscriptions fixture into an isolated temporary Git repository and invokes the compiled `ctx` binary.
+- The scenario proves initialization, a 2-file/6-symbol/18-edge first index, a zero-reparse second index, explicit product impact, and a Context Pack that remains within a 300-token budget.
+- The same scenario removes the paid-entitlement guard and verifies that review emits exactly the two documented high-severity findings (`REQ-SUB-014` and `INV-SUB-003`), with evidence and an unchanged linked test.
+- The test uses real Git, Tree-sitter, SQLite, YAML ingestion, application services, CLI argument parsing, and JSON rendering; only its filesystem is temporary.
+- Verified formatting, strict Clippy, and the complete workspace suite (27 tests passed).
+
+Next: ship reproducible container packaging and concise user/architecture documentation.

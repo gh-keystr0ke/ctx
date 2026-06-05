@@ -121,3 +121,14 @@ Next: expose the same application use cases through a thin stdio MCP server with
 - Verified formatting, strict Clippy, and the workspace suite (22 tests passed), including stable tool schemas and modern/legacy negotiation tests.
 
 Next: finish configuration correctness, end-to-end automation, Docker packaging, and user/architecture documentation.
+
+## 2026-08-17 — Configuration boundaries
+
+- Wired `.ctx/config.toml` into Git source discovery, incremental diffs, and review input instead of merely generating an unused file.
+- The first release rejects unsupported languages explicitly and applies deterministic include/exclude prefixes on top of the built-in Python generated/vendor safeguards.
+- Renames across a configured boundary become an addition or deletion, so excluded paths cannot remain active by masquerading as a move.
+- Added pure source-scope reconciliation between the stored snapshot and current configured paths. A commit that changes only configuration now retires newly excluded files and indexes newly included files without requiring a full rebuild.
+- Added unit coverage for configured boundaries, exclusions, cross-boundary renames, scope retirement, and duplicate-free inclusion.
+- Verified formatting, strict Clippy, and the workspace suite (26 tests passed).
+
+Next: automate the complete fixture journey through the compiled CLI, then add packaging and documentation.

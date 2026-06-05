@@ -75,6 +75,12 @@ pub trait GitRepository {
     /// # Errors
     /// Returns [`PortError`] when the diff cannot be read or parsed.
     fn changes_since(&self, oid: &CommitOid) -> Result<Vec<FileChange>, PortError>;
+    /// Lists uncommitted source or business-context files that would make a
+    /// commit-labelled index misleading.
+    ///
+    /// # Errors
+    /// Returns [`PortError`] when working-tree state cannot be inspected.
+    fn uncommitted_index_inputs(&self) -> Result<Vec<String>, PortError>;
 }
 
 pub trait LanguageAnalyzer {

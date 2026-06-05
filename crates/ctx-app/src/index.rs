@@ -15,6 +15,8 @@ pub struct IndexReport {
 
 #[derive(Debug, Error)]
 pub enum IndexError {
+    #[error("index inputs have uncommitted changes: {paths}; commit them before indexing")]
+    UncommittedInputs { paths: String },
     #[error("repository operation failed: {0}")]
     Git(PortError),
     #[error("source analysis failed: {0}")]
@@ -52,6 +54,15 @@ where
     /// Returns [`IndexError`] when repository inspection, parsing, planning, or
     /// the atomic persistence operation fails.
     pub fn run(&mut self, now: &str) -> Result<IndexReport, IndexError> {
+        let uncommitted = self
+            .git
+            .uncommitted_index_inputs()
+            .map_err(IndexError::Git)?;
+        if !uncommitted.is_empty() {
+            return Err(IndexError::UncommittedInputs {
+                paths: uncommitted.join(", "),
+            });
+        }
         let repository = self.git.descriptor().map_err(IndexError::Git)?;
         self.store
             .ensure_repository(&repository, now)

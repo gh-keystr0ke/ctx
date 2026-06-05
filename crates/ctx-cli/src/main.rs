@@ -486,6 +486,7 @@ fn initialize(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
     }
     let database_path = ctx_directory.join("ctx.db");
     SqliteStore::open(&database_path)?;
+    git.ignore_local_database()?;
 
     if cli.json {
         println!(

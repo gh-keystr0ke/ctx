@@ -103,6 +103,38 @@ impl GitRepo {
         &self.root
     }
 
+    /// Keeps machine-local `SQLite` state out of Git without modifying the
+    /// repository's shared `.gitignore`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`GitError`] when the repository exclude file cannot be found,
+    /// read, or updated.
+    pub fn ignore_local_database(&self) -> Result<(), GitError> {
+        let bytes = self.output(&["rev-parse", "--git-path", "info/exclude"])?;
+        let value = std::str::from_utf8(&bytes)
+            .map_err(|_| GitError::InvalidUtf8)?
+            .trim();
+        let path = if Path::new(value).is_absolute() {
+            PathBuf::from(value)
+        } else {
+            self.root.join(value)
+        };
+        let mut content = std::fs::read_to_string(&path)?;
+        for pattern in [".ctx/ctx.db", ".ctx/ctx.db-shm", ".ctx/ctx.db-wal"] {
+            if content.lines().any(|line| line.trim() == pattern) {
+                continue;
+            }
+            if !content.is_empty() && !content.ends_with('\n') {
+                content.push('\n');
+            }
+            content.push_str(pattern);
+            content.push('\n');
+        }
+        std::fs::write(path, content)?;
+        Ok(())
+    }
+
     fn output(&self, args: &[&str]) -> Result<Vec<u8>, GitError> {
         let output = Command::new("git")
             .arg("-C")
@@ -220,6 +252,31 @@ impl GitRepository for GitRepo {
             parse_name_status(&bytes)?,
             &self.path_filter,
         ))
+    }
+
+    fn uncommitted_index_inputs(&self) -> Result<Vec<String>, PortError> {
+        let source_bytes = self
+            .output(&["diff", "--name-status", "-z", "-M", "HEAD", "--"])
+            .map_err(port_error)?;
+        let context_bytes = self
+            .output(&["diff", "--name-only", "-z", "HEAD", "--", ".context"])
+            .map_err(port_error)?;
+        let untracked_bytes = self
+            .output(&["ls-files", "-z", "--others", "--exclude-standard"])
+            .map_err(port_error)?;
+        let mut paths = change_paths(&filter_changes(
+            parse_name_status(&source_bytes)?,
+            &self.path_filter,
+        ));
+        paths.extend(parse_nul_strings(&context_bytes)?);
+        paths.extend(
+            parse_nul_strings(&untracked_bytes)?
+                .into_iter()
+                .filter(|path| self.source_allowed(path) || path.starts_with(".context/")),
+        );
+        paths.sort();
+        paths.dedup();
+        Ok(paths)
     }
 }
 
@@ -342,6 +399,20 @@ fn parse_name_status(bytes: &[u8]) -> Result<Vec<FileChange>, PortError> {
     }
     changes.sort_by(|left, right| format!("{left:?}").cmp(&format!("{right:?}")));
     Ok(changes)
+}
+
+fn change_paths(changes: &[FileChange]) -> Vec<String> {
+    changes
+        .iter()
+        .flat_map(|change| match change {
+            FileChange::Renamed { old_path, new_path } => {
+                vec![old_path.clone(), new_path.clone()]
+            }
+            FileChange::Added { path }
+            | FileChange::Modified { path }
+            | FileChange::Deleted { path } => vec![path.clone()],
+        })
+        .collect()
 }
 
 fn add_rename(changes: &mut Vec<FileChange>, old_path: &str, new_path: &str) {

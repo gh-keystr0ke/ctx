@@ -50,6 +50,17 @@ impl FixtureRepository {
         serde_json::from_slice(&output.stdout).expect("ctx JSON response")
     }
 
+    fn ctx_failure(&self, arguments: &[&str]) -> Value {
+        let output = Command::new(env!("CARGO_BIN_EXE_ctx"))
+            .current_dir(self.root())
+            .arg("--json")
+            .args(arguments)
+            .output()
+            .expect("execute ctx");
+        assert!(!output.status.success(), "ctx unexpectedly succeeded");
+        serde_json::from_slice(&output.stderr).expect("ctx JSON error")
+    }
+
     fn introduce_entitlement_regression(&self) {
         let path = self.root().join("src/billing/subscription.py");
         let source = fs::read_to_string(&path).expect("fixture source");
@@ -69,6 +80,7 @@ fn complete_product_journey_is_deterministic_and_evidence_backed() {
 
     let initialized = repository.ctx(&["init"]);
     assert_eq!(initialized["ok"], true);
+    assert_local_database_is_ignored(&repository);
 
     let indexed = repository.ctx(&["index"]);
     assert_eq!(indexed["already_current"], false);
@@ -94,7 +106,24 @@ fn complete_product_journey_is_deterministic_and_evidence_backed() {
     ]));
 
     repository.introduce_entitlement_regression();
+    let refused_index = repository.ctx_failure(&["index"]);
+    assert!(
+        refused_index["error"]
+            .as_str()
+            .is_some_and(|error| error.contains("uncommitted changes"))
+    );
     assert_precise_review(&repository.ctx(&["review", "--base", "HEAD"]));
+}
+
+fn assert_local_database_is_ignored(repository: &FixtureRepository) {
+    let output = Command::new("git")
+        .arg("-C")
+        .arg(repository.root())
+        .args(["status", "--porcelain", "--untracked-files=all"])
+        .output()
+        .expect("inspect Git status");
+    let status = String::from_utf8(output.stdout).expect("Git status UTF-8");
+    assert_eq!(status, "?? .ctx/config.toml\n");
 }
 
 fn assert_index_shape(status: &Value) {

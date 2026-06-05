@@ -72,6 +72,21 @@ impl FixtureRepository {
         assert!(source.contains(guard), "fixture guard changed unexpectedly");
         fs::write(path, source.replace(guard, replacement)).expect("write harmful diff");
     }
+
+    fn add_ignored_context(&self) {
+        fs::write(self.root().join(".gitignore"), ".context/private.yaml\n")
+            .expect("write fixture ignore rule");
+        fs::write(
+            self.root().join(".context/private.yaml"),
+            "id: REQ-IGNORED\ntype: requirement\nstatement: Must not be indexed.\n",
+        )
+        .expect("write ignored context");
+    }
+
+    fn remove_ignored_context(&self) {
+        fs::remove_file(self.root().join(".context/private.yaml")).expect("remove ignored context");
+        fs::remove_file(self.root().join(".gitignore")).expect("remove fixture ignore rule");
+    }
 }
 
 #[test]
@@ -81,6 +96,14 @@ fn complete_product_journey_is_deterministic_and_evidence_backed() {
     let initialized = repository.ctx(&["init"]);
     assert_eq!(initialized["ok"], true);
     assert_local_database_is_ignored(&repository);
+    repository.add_ignored_context();
+    let ignored_context = repository.ctx_failure(&["index"]);
+    assert!(
+        ignored_context["error"]
+            .as_str()
+            .is_some_and(|error| error.contains(".context/private.yaml"))
+    );
+    repository.remove_ignored_context();
 
     let indexed = repository.ctx(&["index"]);
     assert_eq!(indexed["already_current"], false);

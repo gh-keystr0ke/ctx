@@ -264,6 +264,17 @@ impl GitRepository for GitRepo {
         let untracked_bytes = self
             .output(&["ls-files", "-z", "--others", "--exclude-standard"])
             .map_err(port_error)?;
+        let ignored_context_bytes = self
+            .output(&[
+                "ls-files",
+                "-z",
+                "--others",
+                "--ignored",
+                "--exclude-standard",
+                "--",
+                ".context",
+            ])
+            .map_err(port_error)?;
         let mut paths = change_paths(&filter_changes(
             parse_name_status(&source_bytes)?,
             &self.path_filter,
@@ -274,6 +285,7 @@ impl GitRepository for GitRepo {
                 .into_iter()
                 .filter(|path| self.source_allowed(path) || path.starts_with(".context/")),
         );
+        paths.extend(parse_nul_strings(&ignored_context_bytes)?);
         paths.sort();
         paths.dedup();
         Ok(paths)

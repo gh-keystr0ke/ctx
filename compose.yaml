@@ -1,0 +1,22 @@
+x-ctx-service: &ctx-service
+  build:
+    context: .
+  image: ctx:local
+  working_dir: /workspace
+  user: "${CTX_UID:-1000}:${CTX_GID:-1000}"
+  volumes:
+    - type: bind
+      source: "${CTX_REPOSITORY:-.}"
+      target: /workspace
+
+services:
+  ctx:
+    <<: *ctx-service
+    command: ["status"]
+
+  mcp:
+    <<: *ctx-service
+    profiles: ["mcp"]
+    stdin_open: true
+    command: ["serve", "--mcp"]
+

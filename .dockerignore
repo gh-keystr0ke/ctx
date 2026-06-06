@@ -1,0 +1,5 @@
+.git
+target
+**/.ctx/ctx.db
+**/.ctx/ctx.db-shm
+**/.ctx/ctx.db-wal

@@ -160,3 +160,15 @@ Next: package both binaries in Docker and finish the user and architecture guide
 - Re-ran formatting, strict Clippy, and the complete workspace suite (27 tests passed).
 
 Next: complete packaging validation and documentation.
+
+## 2026-08-17 — Packaging and documentation
+
+- Added a multi-stage Alpine `Dockerfile` that pins Rust 1.97.1, builds both `ctx` and `ctx-mcp`, runs as a non-root user, and includes only Git/CA certificates at runtime.
+- Added BuildKit registry and target caches so source edits do not force dependency recompilation, plus a `.dockerignore` that excludes Git metadata, local databases, and host build output.
+- Added `compose.yaml` with a normal CLI service and an opt-in stdin-attached MCP profile; host repository and UID/GID are configurable.
+- Wrote the user guide with installation, quick start, context schemas, canonical symbol rules, configuration, complete command reference, MCP client setup, Docker/Compose usage, development gates, privacy, and current limitations.
+- Wrote the architecture guide covering crate boundaries, index transitions, identity, validity/staleness, epistemic classes, provenance, traversal, review precision, and local storage. Added the Apache-2.0 license and removed the placeholder repository URL from package metadata.
+- Verified both Compose profiles, Cargo metadata, generated Rust API documentation, a locked optimized workspace build, and `ctx 0.1.0` from the release binary.
+- Docker validated both remote image manifests and completed the Alpine runtime package/non-root-user layer. The final multi-stage image could not finish because the Docker registry transfer stalled repeatedly while fetching the Rust builder layer; no Dockerfile compilation error was reached.
+
+Next: run the final clean-tree release gates and summarize the delivered product.

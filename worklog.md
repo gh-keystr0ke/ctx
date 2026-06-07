@@ -172,3 +172,15 @@ Next: complete packaging validation and documentation.
 - Docker validated both remote image manifests and completed the Alpine runtime package/non-root-user layer. The final multi-stage image could not finish because the Docker registry transfer stalled repeatedly while fetching the Rust builder layer; no Dockerfile compilation error was reached.
 
 Next: run the final clean-tree release gates and summarize the delivered product.
+
+## 2026-08-17 — Final release gate
+
+- Ran `cargo fmt --all -- --check`: passed.
+- Ran `cargo clippy --locked --all-targets --all-features -- -D warnings`: passed with no warnings.
+- Ran `cargo test --locked --workspace`: all 27 tests passed, including the complete temporary-Git CLI scenario and adapter persistence/provenance checks.
+- Ran `cargo build --locked --workspace --release`: passed; the optimized CLI reports `ctx 0.1.0`.
+- Revalidated the normal and MCP Docker Compose profiles, Cargo metadata, diff whitespace, and the clean Git worktree.
+- All requested MVP milestones are implemented: local incremental indexing, explicit business context, provenance/validity/staleness, impact/explain, conservative review, bounded Context Packs, semantic verification, CLI/JSON, and MCP.
+- The only incomplete environmental check is a full Docker image build: registry connectivity stalled during the pinned Rust builder-image download. The Docker/Compose definitions parsed successfully and the runtime layer completed, but the final image was not falsely reported as built.
+
+The product implementation and release documentation are complete at version 0.1.0.

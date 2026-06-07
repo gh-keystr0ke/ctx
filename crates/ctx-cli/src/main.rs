@@ -14,9 +14,10 @@ use ctx_adapters::{
 use ctx_app::{
     context::{ContextImportError, ContextImporter},
     index::{IndexError, IndexReport, IndexRunner},
-    ports::{GitRepository, IndexStore, PortError},
+    ports::{GitRepository, PortError},
     query::{QueryError, QueryService},
     review::{ReviewError, ReviewRunner},
+    status::{IndexState, StatusError, StatusHealth, StatusService},
     verification::{VerificationError, VerificationService},
 };
 use ctx_core::business::ContextImportStats;
@@ -106,6 +107,8 @@ enum CliError {
     Query(#[from] QueryError),
     #[error(transparent)]
     Review(#[from] ReviewError),
+    #[error(transparent)]
+    Status(#[from] StatusError),
     #[error(transparent)]
     Verification(#[from] VerificationError),
     #[error(transparent)]
@@ -555,26 +558,93 @@ fn index(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
 fn status(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
     let database_path = database_path(git.root())?;
     let store = SqliteStore::open(&database_path)?;
-    let repository = git.descriptor()?;
-    let status = store.status(&repository.id)?;
+    let status = StatusService::new(git, &store).inspect()?;
     if cli.json {
         println!("{}", serde_json::to_string_pretty(&status)?);
+        return Ok(());
+    }
+    println!("Repository: {}", status.repository);
+    println!("Health: {}", health_label(status.health));
+    println!(
+        "Index: {} (HEAD {})",
+        index_state_label(status.index_state),
+        short_oid(status.head_commit.as_str())
+    );
+    if let Some(indexed) = &status.knowledge.last_indexed_commit {
+        println!("Last indexed commit: {}", short_oid(indexed.as_str()));
+    }
+    println!(
+        "Source scope: {} [{}]",
+        status.source_scope.language,
+        status.source_scope.include.join(", ")
+    );
+    println!();
+    println!("Code:");
+    println!("  Files: {}", status.knowledge.files);
+    println!("  Symbols: {}", status.knowledge.symbols);
+    println!("Product context:");
+    println!("  Features: {}", status.knowledge.features);
+    println!("  Requirements: {}", status.knowledge.requirements);
+    println!("  Invariants: {}", status.knowledge.invariants);
+    println!("  Decisions: {}", status.knowledge.decisions);
+    println!("Relationships:");
+    println!("  Structural facts: {}", status.knowledge.structural_facts);
+    println!(
+        "  Active assertions: {}",
+        status.knowledge.active_assertions
+    );
+    println!(
+        "  Active inferences: {}",
+        status.knowledge.active_inferences
+    );
+    println!(
+        "  Stale semantics: {}",
+        status.knowledge.stale_semantic_edges
+    );
+    println!(
+        "  Rejected inferences: {}",
+        status.knowledge.rejected_semantic_edges
+    );
+    if status.uncommitted_index_inputs.is_empty() {
+        println!("Index inputs: clean");
     } else {
-        let commit = status
-            .last_indexed_commit
-            .as_ref()
-            .map_or("not indexed".to_owned(), |oid| short_oid(oid.as_str()));
-        println!("Repository: {}", repository.root_path);
-        println!("Last indexed commit: {commit}");
-        println!("Files: {}", status.files);
-        println!("Symbols: {}", status.symbols);
-        println!("Active relationships: {}", status.active_edges);
-        println!(
-            "Stale semantic relationships: {}",
-            status.stale_semantic_edges
-        );
+        println!("Index inputs differing from HEAD:");
+        for path in &status.uncommitted_index_inputs {
+            println!("  - {path}");
+        }
+    }
+    if !status.notices.is_empty() {
+        println!();
+        println!("Why this health state:");
+        for notice in &status.notices {
+            println!("  - {notice}");
+        }
+    }
+    if !status.suggested_actions.is_empty() {
+        println!("Next actions:");
+        for action in &status.suggested_actions {
+            println!("  - {action}");
+        }
     }
     Ok(())
+}
+
+const fn health_label(health: StatusHealth) -> &'static str {
+    match health {
+        StatusHealth::Ready => "ready",
+        StatusHealth::NeedsIndex => "needs index",
+        StatusHealth::NeedsContext => "needs product context",
+        StatusHealth::NeedsMappings => "needs semantic mappings",
+        StatusHealth::NeedsAttention => "needs attention",
+    }
+}
+
+const fn index_state_label(state: IndexState) -> &'static str {
+    match state {
+        IndexState::NotIndexed => "not indexed",
+        IndexState::Behind => "behind",
+        IndexState::Current => "current",
+    }
 }
 
 fn database_path(root: &Path) -> Result<PathBuf, CliError> {

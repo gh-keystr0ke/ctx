@@ -50,8 +50,23 @@ pub struct RepositoryStatus {
     pub last_indexed_commit: Option<CommitOid>,
     pub files: usize,
     pub symbols: usize,
+    pub features: usize,
+    pub requirements: usize,
+    pub invariants: usize,
+    pub decisions: usize,
     pub active_edges: usize,
+    pub structural_facts: usize,
+    pub active_assertions: usize,
+    pub active_inferences: usize,
     pub stale_semantic_edges: usize,
+    pub rejected_semantic_edges: usize,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct SourceScope {
+    pub language: String,
+    pub include: Vec<String>,
+    pub exclude: Vec<String>,
 }
 
 pub trait GitRepository {
@@ -81,6 +96,8 @@ pub trait GitRepository {
     /// # Errors
     /// Returns [`PortError`] when working-tree state cannot be inspected.
     fn uncommitted_index_inputs(&self) -> Result<Vec<String>, PortError>;
+    /// Returns the effective deterministic source configuration.
+    fn source_scope(&self) -> SourceScope;
 }
 
 pub trait LanguageAnalyzer {

@@ -5,7 +5,7 @@ use std::{
 
 use ctx_app::ports::{
     CommitMetadata, GitRepository, PortError, RepositoryDescriptor, ReviewChangeSet,
-    ReviewRepository,
+    ReviewRepository, SourceScope,
 };
 use ctx_core::{
     domain::{CommitOid, RepositoryId},
@@ -289,6 +289,14 @@ impl GitRepository for GitRepo {
         paths.sort();
         paths.dedup();
         Ok(paths)
+    }
+
+    fn source_scope(&self) -> SourceScope {
+        SourceScope {
+            language: "python".to_owned(),
+            include: self.path_filter.include.clone(),
+            exclude: self.path_filter.exclude.clone(),
+        }
     }
 }
 

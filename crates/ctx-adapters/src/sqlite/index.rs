@@ -118,8 +118,31 @@ impl IndexStore for SqliteStore {
             last_indexed_commit: latest.map(|commit| commit.oid),
             files: count_current_nodes(&self.connection, repository_row, "file")?,
             symbols: count_current_nodes(&self.connection, repository_row, "code_symbol")?,
+            features: count_current_nodes(&self.connection, repository_row, "feature")?,
+            requirements: count_current_nodes(&self.connection, repository_row, "requirement")?,
+            invariants: count_current_nodes(&self.connection, repository_row, "invariant")?,
+            decisions: count_current_nodes(&self.connection, repository_row, "decision")?,
             active_edges: count_edges(&self.connection, repository_row, "active")?,
+            structural_facts: count_current_edges_by_class(
+                &self.connection,
+                repository_row,
+                "fact",
+                "active",
+            )?,
+            active_assertions: count_current_edges_by_class(
+                &self.connection,
+                repository_row,
+                "assertion",
+                "active",
+            )?,
+            active_inferences: count_current_edges_by_class(
+                &self.connection,
+                repository_row,
+                "inference",
+                "active",
+            )?,
             stale_semantic_edges: count_edges(&self.connection, repository_row, "stale")?,
+            rejected_semantic_edges: count_edges(&self.connection, repository_row, "rejected")?,
         })
     }
 }
@@ -480,6 +503,24 @@ fn count_edges(
             "SELECT COUNT(*) FROM edges
              WHERE repository_id = ?1 AND status = ?2 AND valid_to IS NULL",
             params![repository_row, status],
+            |row| row.get::<_, i64>(0),
+        )
+        .map_err(database_error)?;
+    usize::try_from(count).map_err(|error| PortError::new(error.to_string()))
+}
+
+fn count_current_edges_by_class(
+    connection: &rusqlite::Connection,
+    repository_row: i64,
+    epistemic_class: &str,
+    status: &str,
+) -> Result<usize, PortError> {
+    let count = connection
+        .query_row(
+            "SELECT COUNT(*) FROM edges
+             WHERE repository_id = ?1 AND epistemic_class = ?2
+               AND status = ?3 AND valid_to IS NULL",
+            params![repository_row, epistemic_class, status],
             |row| row.get::<_, i64>(0),
         )
         .map_err(database_error)?;

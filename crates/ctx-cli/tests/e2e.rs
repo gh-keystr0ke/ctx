@@ -150,10 +150,14 @@ fn assert_local_database_is_ignored(repository: &FixtureRepository) {
 }
 
 fn assert_index_shape(status: &Value) {
-    assert_eq!(status["files"], 2);
-    assert_eq!(status["symbols"], 6);
-    assert_eq!(status["active_edges"], 18);
-    assert_eq!(status["stale_semantic_edges"], 0);
+    assert_eq!(status["health"], "ready");
+    assert_eq!(status["index_state"], "current");
+    assert_eq!(status["knowledge"]["files"], 2);
+    assert_eq!(status["knowledge"]["symbols"], 6);
+    assert_eq!(status["knowledge"]["structural_facts"], 11);
+    assert_eq!(status["knowledge"]["active_assertions"], 7);
+    assert_eq!(status["knowledge"]["active_edges"], 18);
+    assert_eq!(status["knowledge"]["stale_semantic_edges"], 0);
 }
 
 fn assert_product_impact(impact: &Value) {

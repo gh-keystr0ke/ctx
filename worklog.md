@@ -195,3 +195,16 @@ The product implementation and release documentation are complete at version 0.1
 - Applied the migration to the development database through the normal CLI open path: active structural relationships were repaired from 22 to 11 with one current version per fingerprint.
 
 Next: replace the vanity-counter status screen with actionable graph-health diagnostics.
+
+## 2026-08-17 — Actionable status health
+
+- Replaced the five opaque counters with an application-level `StatusService` and a structured JSON/text health report.
+- Status now compares `HEAD` with the indexed commit, exposes the effective language/include/exclude scope, and lists relevant working-tree inputs without confusing the committed graph with the diff.
+- Split knowledge into code files/symbols; Features, Requirements, Invariants, and Decisions; structural facts; active assertions; active inferences; stale semantics; and rejected inferences.
+- Added explicit health states: `ready`, `needs_index`, `needs_context`, `needs_mappings`, and `needs_attention`, with deterministic explanations and suggested commands/actions.
+- A structural-only graph is no longer called healthy. On this repository the repaired result is honestly `needs product context`, with 11 structural facts and zero product documents/assertions.
+- Updated JSON end-to-end assertions so the complete subscriptions fixture must be `ready` with exactly 11 structural facts plus 7 active assertions.
+- Added pure tests for health classification and updated the user/architecture documentation.
+- Verified formatting, strict Clippy, and the full workspace suite (31 tests passed).
+
+Next: final regression gate and handoff of the corrected status behavior.

@@ -184,3 +184,14 @@ Next: run the final clean-tree release gates and summarize the delivered product
 - The only incomplete environmental check is a full Docker image build: registry connectivity stalled during the pinned Rust builder-image download. The Docker/Compose definitions parsed successfully and the runtime layer completed, but the final image was not falsely reported as built.
 
 The product implementation and release documentation are complete at version 0.1.0.
+
+## 2026-08-17 — Post-release graph-integrity audit
+
+- A real `ctx status` run exposed 22 active relationships where a fresh equivalent graph had 11 structural facts. Direct SQLite inspection proved these were two simultaneously active versions of every `contains`/`calls` fingerprint, not additional knowledge.
+- Root cause: an early development database had indexed then-untracked fixture files; Git later reported those same paths as `Added`, while the planner assumed an addition could never replace a snapshot path and therefore did not close analyzer-owned edges.
+- Changed the pure planner so `Added` plus an existing snapshot path is treated as a replacement for structural invalidation.
+- Added migration 002. It deterministically closes every older current edge version, then creates a partial unique index on `(repository_id, fingerprint)` for current edges so this invariant is enforced by SQLite as well as planner logic.
+- Added regression coverage for the planner edge case and migration of an intentionally duplicated legacy database.
+- Applied the migration to the development database through the normal CLI open path: active structural relationships were repaired from 22 to 11 with one current version per fingerprint.
+
+Next: replace the vanity-counter status screen with actionable graph-health diagnostics.

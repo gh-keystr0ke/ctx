@@ -77,3 +77,4 @@ SQLite runs locally with foreign keys, WAL mode, idempotent migrations, and tran
 
 No source is sent to a network service. MCP tools are read-only and use the same query/review services as the CLI. Optional remote inference is intentionally absent from this release.
 
+Status health is assembled in `ctx-app` from Git freshness, the effective source scope, current typed node counts, epistemic relationship counts, and staleness. This keeps health classification out of terminal rendering and prevents a large structural graph with no product assertions from being labelled ready.

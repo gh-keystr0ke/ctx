@@ -219,6 +219,7 @@ pub fn plan_incremental_index(
 
     for change in changes {
         let replaced_path = match change {
+            FileChange::Added { path } if snapshot.files.contains_key(path) => Some(path.as_str()),
             FileChange::Added { .. } => None,
             FileChange::Modified { path } | FileChange::Deleted { path } => Some(path.as_str()),
             FileChange::Renamed { old_path, .. } => Some(old_path.as_str()),
@@ -747,5 +748,33 @@ mod tests {
         );
 
         assert_eq!(changes, vec![added]);
+    }
+
+    #[test]
+    fn repeated_add_for_an_existing_snapshot_closes_prior_structural_facts() {
+        let old = definition("cancel", "billing.cancel", "body", "shape");
+        let snapshot = RepositorySnapshot {
+            files: BTreeMap::from([("billing.py".to_owned(), indexed_file("billing.py", &old))]),
+        };
+        let analyses = BTreeMap::from([(
+            "billing.py".to_owned(),
+            FileAnalysis {
+                path: "billing.py".to_owned(),
+                language: "python".to_owned(),
+                content_hash: "same-file".to_owned(),
+                symbols: vec![old],
+            },
+        )]);
+
+        let plan = plan_incremental_index(
+            &snapshot,
+            &analyses,
+            &[FileChange::Added {
+                path: "billing.py".to_owned(),
+            }],
+        )
+        .expect("plan");
+
+        assert_eq!(plan.structural_sources_to_close, ["billing.py"]);
     }
 }

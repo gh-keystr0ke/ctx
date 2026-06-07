@@ -8,7 +8,13 @@ mod graph;
 mod index;
 mod verification;
 
-const MIGRATIONS: &[(i64, &str)] = &[(1, include_str!("../migrations/001_initial.sql"))];
+const MIGRATIONS: &[(i64, &str)] = &[
+    (1, include_str!("../migrations/001_initial.sql")),
+    (
+        2,
+        include_str!("../migrations/002_unique_current_edges.sql"),
+    ),
+];
 
 #[derive(Debug, Error)]
 pub enum SqliteStoreError {
@@ -98,5 +104,68 @@ mod tests {
 
         drop(store);
         SqliteStore::open(&database).expect("migrations are idempotent");
+    }
+
+    #[test]
+    fn migration_closes_duplicate_current_edges_and_enforces_uniqueness() {
+        let directory = tempdir().expect("temporary directory");
+        let database = directory.path().join("legacy.db");
+        create_legacy_database_with_duplicate_edges(&database);
+
+        let store = SqliteStore::open(&database).expect("migrate legacy database");
+        let current: i64 = store
+            .connection()
+            .query_row(
+                "SELECT COUNT(*) FROM edges WHERE fingerprint = 'same' AND valid_to IS NULL",
+                [],
+                |row| row.get(0),
+            )
+            .expect("current edges");
+        let closed_at: i64 = store
+            .connection()
+            .query_row("SELECT valid_to FROM edges WHERE id = 1", [], |row| {
+                row.get(0)
+            })
+            .expect("closed edge");
+        let index_exists: bool = store
+            .connection()
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM sqlite_master
+                 WHERE type = 'index' AND name = 'edges_one_current_fingerprint')",
+                [],
+                |row| row.get(0),
+            )
+            .expect("unique index");
+
+        assert_eq!(current, 1);
+        assert_eq!(closed_at, 2);
+        assert!(index_exists);
+    }
+
+    fn create_legacy_database_with_duplicate_edges(database: &Path) {
+        let connection = Connection::open(database).expect("legacy database");
+        connection
+            .execute_batch(&format!(
+                "CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY);
+                 {};
+                 INSERT INTO schema_migrations(version) VALUES (1);
+                 INSERT INTO repositories(id, stable_id, root_path, created_at)
+                    VALUES (1, 'repo:test', '/repo', '2026-08-17T00:00:00Z');
+                 INSERT INTO commits(id, repository_id, oid, authored_at, indexed_at) VALUES
+                    (1, 1, 'aaaaaaaa', '2026-08-17T00:00:00Z', '2026-08-17T00:00:00Z'),
+                    (2, 1, 'bbbbbbbb', '2026-08-17T00:01:00Z', '2026-08-17T00:01:00Z');
+                 INSERT INTO nodes(id, repository_id, kind, stable_key, created_commit) VALUES
+                    (1, 1, 'file', 'file:a.py', 1),
+                    (2, 1, 'code_symbol', 'symbol:a', 1);
+                 INSERT INTO edges(
+                    id, repository_id, src_node_id, dst_node_id, kind,
+                    epistemic_class, provenance_kind, confidence, status,
+                    valid_from, producer, fingerprint
+                 ) VALUES
+                    (1, 1, 1, 2, 'contains', 'fact', 'staticanalysis', 1, 'active', 1, 'test', 'same'),
+                    (2, 1, 1, 2, 'contains', 'fact', 'staticanalysis', 1, 'active', 2, 'test', 'same');",
+                include_str!("../migrations/001_initial.sql")
+            ))
+            .expect("legacy schema and data");
     }
 }

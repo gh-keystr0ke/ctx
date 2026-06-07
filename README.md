@@ -132,6 +132,8 @@ The database lives at `.ctx/ctx.db`. `ctx init` adds only the database, WAL, and
 
 Add global `--json` for stable machine-readable output. Add `-v` to review for lower-confidence diagnostics and suppressed-change counts. Script verification decisions with `ctx verify --accept <fingerprint> --author <name>` or `--reject`.
 
+`ctx status` is a health report, not just a graph-size counter. It compares the indexed commit with `HEAD`, shows the effective source scope, separates structural facts from assertions and inferences, counts each product-context type, reports dirty inputs/stale/rejected claims, and suggests the next action. A current structural graph without product documents is reported as `needs product context`, not `ready`.
+
 Review deliberately favors precision over recall. Formatting-only changes, renames, and likely refactors are suppressed. Findings require a strong implementation claim and always include the affected intent, stored evidence, linked tests, uncertainty, and a reviewer action.
 
 ## MCP integration

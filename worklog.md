@@ -208,3 +208,13 @@ Next: replace the vanity-counter status screen with actionable graph-health diag
 - Verified formatting, strict Clippy, and the full workspace suite (31 tests passed).
 
 Next: final regression gate and handoff of the corrected status behavior.
+
+## 2026-08-17 — Language-aware graph identity
+
+- Removed the Python constant from generated symbol identities: stable keys now use the analyzer-reported language (`symbol:<language>:<canonical-path>:<kind>`).
+- Persisted language on indexed symbols so rename/fingerprint matching cannot merge structurally identical symbols from different languages.
+- Scoped static call resolution to one language and labelled structural-edge provenance with the responsible Tree-sitter analyzer.
+- Added a regression test proving identical Python and Rust symbol definitions receive distinct stable identities.
+- Ran formatting and the complete workspace suite (32 tests passed).
+
+Next: replace the single Python analyzer/configuration path with a multi-language registry, then add the Rust module.

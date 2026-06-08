@@ -11,6 +11,7 @@ use crate::{
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct IndexedSymbol {
     pub stable_key: StableKey,
+    pub language: String,
     pub file_path: String,
     pub name: String,
     pub canonical_path: String,
@@ -287,7 +288,12 @@ fn plan_changed_file(
         .files
         .get(prior_path)
         .map_or(&[][..], |file| file.symbols.as_slice());
-    let matched = match_symbols(&file_analysis.symbols, prior_symbols, current_symbols)?;
+    let matched = match_symbols(
+        &file_analysis.language,
+        &file_analysis.symbols,
+        prior_symbols,
+        current_symbols,
+    )?;
     let matched_keys: BTreeSet<_> = matched.iter().map(|(_, key)| key.clone()).collect();
     for prior in prior_symbols {
         if !matched_keys.contains(&prior.stable_key) {
@@ -355,6 +361,7 @@ fn write_symbol(
     current_symbols.retain(|symbol| &symbol.stable_key != stable_key);
     current_symbols.push(IndexedSymbol {
         stable_key: stable_key.clone(),
+        language: file_analysis.language.clone(),
         file_path: path.to_owned(),
         name: definition.name.clone(),
         canonical_path: definition.canonical_path.clone(),
@@ -371,10 +378,12 @@ fn write_symbol(
         RelationKind::Contains,
         path,
         &file_analysis.content_hash,
+        &file_analysis.language,
     ));
 }
 
 fn match_symbols(
+    language: &str,
     definitions: &[SymbolDefinition],
     prior_file: &[IndexedSymbol],
     all_prior: &[IndexedSymbol],
@@ -385,7 +394,8 @@ fn match_symbols(
         .map(|definition| {
             let candidates = [
                 unique_match(all_prior, |symbol| {
-                    symbol.canonical_path == definition.canonical_path
+                    symbol.language == language
+                        && symbol.canonical_path == definition.canonical_path
                         && symbol.kind == definition.kind
                 }),
                 unique_match(prior_file, |symbol| {
@@ -394,7 +404,8 @@ fn match_symbols(
                         && symbol.signature == definition.signature
                 }),
                 unique_match(all_prior, |symbol| {
-                    symbol.kind == definition.kind
+                    symbol.language == language
+                        && symbol.kind == definition.kind
                         && symbol.structural_fingerprint == definition.structural_fingerprint
                 }),
             ];
@@ -404,7 +415,7 @@ fn match_symbols(
                 .find(|key| !used.contains(*key));
             let stable_key = existing
                 .cloned()
-                .map_or_else(|| symbol_key(definition), Ok)?;
+                .map_or_else(|| symbol_key(language, definition), Ok)?;
             used.insert(stable_key.clone());
             Ok((definition.clone(), stable_key))
         })
@@ -470,10 +481,10 @@ fn file_key(path: &str) -> Result<StableKey, IndexPlanError> {
         .map_err(|error| IndexPlanError::InvalidStableKey(error.to_string()))
 }
 
-fn symbol_key(definition: &SymbolDefinition) -> Result<StableKey, IndexPlanError> {
+fn symbol_key(language: &str, definition: &SymbolDefinition) -> Result<StableKey, IndexPlanError> {
     StableKey::new(format!(
-        "symbol:python:{}:{:?}",
-        definition.canonical_path, definition.kind
+        "symbol:{language}:{}:{:?}",
+        definition.canonical_path, definition.kind,
     ))
     .map_err(|error| IndexPlanError::InvalidStableKey(error.to_string()))
 }
@@ -484,6 +495,7 @@ fn structural_edge(
     kind: RelationKind,
     source_uri: &str,
     input_fingerprint: &str,
+    language: &str,
 ) -> PlannedEdge {
     PlannedEdge {
         source: source.clone(),
@@ -493,7 +505,7 @@ fn structural_edge(
         source_kind: SourceKind::StaticAnalysis,
         confidence: Confidence::CERTAIN,
         status: ClaimStatus::Active,
-        producer: "python_tree_sitter".to_owned(),
+        producer: format!("{language}_tree_sitter"),
         fingerprint: format!("{}:{kind:?}:{}", source.as_str(), target.as_str()),
         source_uri: source_uri.to_owned(),
         input_fingerprint: input_fingerprint.to_owned(),
@@ -501,9 +513,12 @@ fn structural_edge(
 }
 
 fn add_resolved_calls(plan: &mut IndexPlan, symbols: &[IndexedSymbol]) {
-    let mut names: BTreeMap<&str, Vec<&IndexedSymbol>> = BTreeMap::new();
+    let mut names: BTreeMap<(&str, &str), Vec<&IndexedSymbol>> = BTreeMap::new();
     for symbol in symbols {
-        names.entry(&symbol.name).or_default().push(symbol);
+        names
+            .entry((&symbol.language, &symbol.name))
+            .or_default()
+            .push(symbol);
     }
     let changed: BTreeSet<_> = plan
         .nodes_to_write
@@ -516,7 +531,8 @@ fn add_resolved_calls(plan: &mut IndexPlan, symbols: &[IndexedSymbol]) {
         .filter(|symbol| changed.contains(&symbol.stable_key))
     {
         for callee_name in &caller.calls {
-            let Some(candidates) = names.get(callee_name.as_str()) else {
+            let Some(candidates) = names.get(&(caller.language.as_str(), callee_name.as_str()))
+            else {
                 continue;
             };
             if let [callee] = candidates.as_slice() {
@@ -526,6 +542,7 @@ fn add_resolved_calls(plan: &mut IndexPlan, symbols: &[IndexedSymbol]) {
                     RelationKind::Calls,
                     &caller.file_path,
                     &caller.body_hash,
+                    &caller.language,
                 ));
             }
         }
@@ -601,7 +618,8 @@ mod tests {
             language: "python".to_owned(),
             content_hash: "old-file".to_owned(),
             symbols: vec![IndexedSymbol {
-                stable_key: symbol_key(definition).expect("symbol key"),
+                stable_key: symbol_key("python", definition).expect("symbol key"),
+                language: "python".to_owned(),
                 file_path: path.to_owned(),
                 name: definition.name.clone(),
                 canonical_path: definition.canonical_path.clone(),
@@ -718,6 +736,55 @@ mod tests {
                 .count(),
             1
         );
+    }
+
+    #[test]
+    fn identical_symbols_in_different_languages_keep_distinct_identities() {
+        let definition = definition("run", "app.run", "same-body", "same-shape");
+        let analyses = BTreeMap::from([
+            (
+                "app.py".to_owned(),
+                FileAnalysis {
+                    path: "app.py".to_owned(),
+                    language: "python".to_owned(),
+                    content_hash: "python-file".to_owned(),
+                    symbols: vec![definition.clone()],
+                },
+            ),
+            (
+                "app.rs".to_owned(),
+                FileAnalysis {
+                    path: "app.rs".to_owned(),
+                    language: "rust".to_owned(),
+                    content_hash: "rust-file".to_owned(),
+                    symbols: vec![definition],
+                },
+            ),
+        ]);
+
+        let plan = plan_incremental_index(
+            &RepositorySnapshot::default(),
+            &analyses,
+            &[
+                FileChange::Added {
+                    path: "app.py".to_owned(),
+                },
+                FileChange::Added {
+                    path: "app.rs".to_owned(),
+                },
+            ],
+        )
+        .expect("plan");
+        let symbol_keys = plan
+            .nodes_to_write
+            .iter()
+            .filter(|node| node.kind == NodeKind::CodeSymbol)
+            .map(|node| node.stable_key.as_str())
+            .collect::<BTreeSet<_>>();
+
+        assert_eq!(symbol_keys.len(), 2);
+        assert!(symbol_keys.contains("symbol:python:app.run:Function"));
+        assert!(symbol_keys.contains("symbol:rust:app.run:Function"));
     }
 
     #[test]

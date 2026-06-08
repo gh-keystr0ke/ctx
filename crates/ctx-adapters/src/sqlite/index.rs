@@ -239,6 +239,7 @@ impl SqliteStore {
             if let Some(file) = files.get_mut(&file_path) {
                 file.symbols.push(IndexedSymbol {
                     stable_key: StableKey::new(stable_key).map_err(domain_error)?,
+                    language: file.language.clone(),
                     file_path,
                     name,
                     canonical_path,

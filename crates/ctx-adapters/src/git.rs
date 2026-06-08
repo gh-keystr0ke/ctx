@@ -14,6 +14,8 @@ use ctx_core::{
 use serde::Deserialize;
 use thiserror::Error;
 
+use crate::language::{SupportedLanguage, is_indexable_source};
+
 #[derive(Debug, Error)]
 pub enum GitError {
     #[error("'{path}' is not inside a Git repository")]
@@ -30,12 +32,14 @@ pub enum GitError {
 
 pub struct GitRepo {
     root: PathBuf,
+    languages: Vec<SupportedLanguage>,
     path_filter: PathFilter,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
 struct ConfigFile {
     language: Option<String>,
+    languages: Option<Vec<String>>,
     #[serde(default)]
     paths: ConfigPaths,
 }
@@ -52,6 +56,21 @@ struct ConfigPaths {
 struct PathFilter {
     include: Vec<String>,
     exclude: Vec<String>,
+}
+
+#[derive(Clone, Debug)]
+struct RepositoryConfiguration {
+    languages: Vec<SupportedLanguage>,
+    path_filter: PathFilter,
+}
+
+impl Default for RepositoryConfiguration {
+    fn default() -> Self {
+        Self {
+            languages: vec![SupportedLanguage::Python],
+            path_filter: PathFilter::default(),
+        }
+    }
 }
 
 impl Default for PathFilter {
@@ -95,8 +114,12 @@ impl GitRepo {
             .map_err(|_| GitError::InvalidUtf8)?
             .trim();
         let root = PathBuf::from(root);
-        let path_filter = load_path_filter(&root)?;
-        Ok(Self { root, path_filter })
+        let configuration = load_configuration(&root)?;
+        Ok(Self {
+            root,
+            languages: configuration.languages,
+            path_filter: configuration.path_filter,
+        })
     }
 
     pub fn root(&self) -> &Path {
@@ -176,7 +199,7 @@ impl GitRepo {
     }
 
     fn source_allowed(&self, path: &str) -> bool {
-        is_indexable_python(path) && self.path_filter.allows(path)
+        is_indexable_source(path, &self.languages) && self.path_filter.allows(path)
     }
 }
 
@@ -231,7 +254,7 @@ impl GitRepository for GitRepo {
                 "--exclude-standard",
             ])
             .map_err(port_error)?;
-        let mut paths = parse_nul_paths(&bytes)?;
+        let mut paths = parse_nul_paths(&bytes, &self.languages)?;
         paths.retain(|path| self.path_filter.allows(path));
         Ok(paths)
     }
@@ -249,7 +272,7 @@ impl GitRepository for GitRepo {
             ])
             .map_err(port_error)?;
         Ok(filter_changes(
-            parse_name_status(&bytes)?,
+            parse_name_status(&bytes, &self.languages)?,
             &self.path_filter,
         ))
     }
@@ -276,7 +299,7 @@ impl GitRepository for GitRepo {
             ])
             .map_err(port_error)?;
         let mut paths = change_paths(&filter_changes(
-            parse_name_status(&source_bytes)?,
+            parse_name_status(&source_bytes, &self.languages)?,
             &self.path_filter,
         ));
         paths.extend(parse_nul_strings(&context_bytes)?);
@@ -293,7 +316,11 @@ impl GitRepository for GitRepo {
 
     fn source_scope(&self) -> SourceScope {
         SourceScope {
-            language: "python".to_owned(),
+            languages: self
+                .languages
+                .iter()
+                .map(|language| language.name().to_owned())
+                .collect(),
             include: self.path_filter.include.clone(),
             exclude: self.path_filter.exclude.clone(),
         }
@@ -312,8 +339,10 @@ impl ReviewRepository for GitRepo {
         let untracked_bytes = self
             .output(&["ls-files", "-z", "--others", "--exclude-standard"])
             .map_err(port_error)?;
-        let mut source_changes =
-            filter_changes(parse_name_status(&source_bytes)?, &self.path_filter);
+        let mut source_changes = filter_changes(
+            parse_name_status(&source_bytes, &self.languages)?,
+            &self.path_filter,
+        );
         let mut changed_context_files = parse_nul_strings(&context_bytes)?;
         for path in parse_nul_strings(&untracked_bytes)? {
             if self.source_allowed(&path)
@@ -354,9 +383,12 @@ impl ReviewRepository for GitRepo {
     }
 }
 
-fn parse_nul_paths(bytes: &[u8]) -> Result<Vec<String>, PortError> {
+fn parse_nul_paths(
+    bytes: &[u8],
+    languages: &[SupportedLanguage],
+) -> Result<Vec<String>, PortError> {
     let mut paths = parse_nul_strings(bytes)?;
-    paths.retain(|path| is_indexable_python(path));
+    paths.retain(|path| is_indexable_source(path, languages));
     paths.sort();
     Ok(paths)
 }
@@ -373,7 +405,10 @@ fn parse_nul_strings(bytes: &[u8]) -> Result<Vec<String>, PortError> {
         .collect::<Result<Vec<_>, _>>()
 }
 
-fn parse_name_status(bytes: &[u8]) -> Result<Vec<FileChange>, PortError> {
+fn parse_name_status(
+    bytes: &[u8],
+    languages: &[SupportedLanguage],
+) -> Result<Vec<FileChange>, PortError> {
     let fields = bytes
         .split(|byte| *byte == 0)
         .filter(|part| !part.is_empty())
@@ -395,14 +430,14 @@ fn parse_name_status(bytes: &[u8]) -> Result<Vec<FileChange>, PortError> {
                 .get(index + 1)
                 .ok_or_else(|| PortError::new("rename is missing its new path"))?;
             index += 2;
-            add_rename(&mut changes, old_path, new_path);
+            add_rename(&mut changes, old_path, new_path, languages);
             continue;
         }
         let path = fields
             .get(index)
             .ok_or_else(|| PortError::new("change is missing its path"))?;
         index += 1;
-        if is_indexable_python(path) {
+        if is_indexable_source(path, languages) {
             let change = match status.chars().next() {
                 Some('A') => FileChange::Added {
                     path: (*path).to_owned(),
@@ -435,8 +470,16 @@ fn change_paths(changes: &[FileChange]) -> Vec<String> {
         .collect()
 }
 
-fn add_rename(changes: &mut Vec<FileChange>, old_path: &str, new_path: &str) {
-    match (is_indexable_python(old_path), is_indexable_python(new_path)) {
+fn add_rename(
+    changes: &mut Vec<FileChange>,
+    old_path: &str,
+    new_path: &str,
+    languages: &[SupportedLanguage],
+) {
+    match (
+        is_indexable_source(old_path, languages),
+        is_indexable_source(new_path, languages),
+    ) {
         (true, true) => changes.push(FileChange::Renamed {
             old_path: old_path.to_owned(),
             new_path: new_path.to_owned(),
@@ -449,27 +492,6 @@ fn add_rename(changes: &mut Vec<FileChange>, old_path: &str, new_path: &str) {
         }),
         (false, false) => {}
     }
-}
-
-fn is_indexable_python(path: &str) -> bool {
-    Path::new(path)
-        .extension()
-        .is_some_and(|extension| extension.eq_ignore_ascii_case("py"))
-        && !path.split('/').any(|component| {
-            matches!(
-                component,
-                ".git"
-                    | ".ctx"
-                    | ".venv"
-                    | "venv"
-                    | "vendor"
-                    | "generated"
-                    | "build"
-                    | "dist"
-                    | "target"
-                    | "__pycache__"
-            )
-        })
 }
 
 impl PathFilter {
@@ -488,10 +510,10 @@ impl PathFilter {
     }
 }
 
-fn load_path_filter(root: &Path) -> Result<PathFilter, GitError> {
+fn load_configuration(root: &Path) -> Result<RepositoryConfiguration, GitError> {
     let path = root.join(".ctx").join("config.toml");
     if !path.exists() {
-        return Ok(PathFilter::default());
+        return Ok(RepositoryConfiguration::default());
     }
     let content = std::fs::read_to_string(&path).map_err(|error| GitError::Config {
         path: path.display().to_string(),
@@ -501,23 +523,52 @@ fn load_path_filter(root: &Path) -> Result<PathFilter, GitError> {
         path: path.display().to_string(),
         message: error.to_string(),
     })?;
-    if config.language.as_deref().unwrap_or("python") != "python" {
+    if config.language.is_some() && config.languages.is_some() {
         return Err(GitError::Config {
             path: path.display().to_string(),
-            message: "only language = \"python\" is supported in this release".to_owned(),
+            message: "use either legacy `language` or `languages`, not both".to_owned(),
         });
     }
+    let configured_names = config.languages.unwrap_or_else(|| {
+        vec![
+            config
+                .language
+                .unwrap_or_else(|| SupportedLanguage::Python.name().to_owned()),
+        ]
+    });
+    if configured_names.is_empty() {
+        return Err(GitError::Config {
+            path: path.display().to_string(),
+            message: "`languages` must contain at least one analyzer name".to_owned(),
+        });
+    }
+    let mut languages = configured_names
+        .iter()
+        .map(|name| {
+            SupportedLanguage::from_name(name).ok_or_else(|| GitError::Config {
+                path: path.display().to_string(),
+                message: format!(
+                    "unsupported language '{name}'; available analyzers: python, rust"
+                ),
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    languages.sort();
+    languages.dedup();
     let defaults = PathFilter::default();
-    Ok(PathFilter {
-        include: if config.paths.include.is_empty() {
-            defaults.include
-        } else {
-            config.paths.include
-        },
-        exclude: if config.paths.exclude.is_empty() {
-            defaults.exclude
-        } else {
-            config.paths.exclude
+    Ok(RepositoryConfiguration {
+        languages,
+        path_filter: PathFilter {
+            include: if config.paths.include.is_empty() {
+                defaults.include
+            } else {
+                config.paths.include
+            },
+            exclude: if config.paths.exclude.is_empty() {
+                defaults.exclude
+            } else {
+                config.paths.exclude
+            },
         },
     })
 }
@@ -558,22 +609,55 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parses_nul_delimited_renames_and_filters_non_python() {
-        let bytes = b"R100\0old.py\0new.py\0M\0README.md\0A\0src/app.py\0";
-        let changes = parse_name_status(bytes).expect("valid status");
-        assert_eq!(changes.len(), 2);
+    fn parses_mixed_language_changes_and_filters_unconfigured_sources() {
+        let bytes =
+            b"R100\0old.py\0new.py\0M\0README.md\0A\0src/app.py\0A\0src/lib.rs\0A\0src/main.go\0";
+        let changes =
+            parse_name_status(bytes, &[SupportedLanguage::Python, SupportedLanguage::Rust])
+                .expect("valid status");
+        assert_eq!(changes.len(), 3);
         assert!(changes.iter().any(|change| matches!(
             change,
             FileChange::Renamed { old_path, new_path }
                 if old_path == "old.py" && new_path == "new.py"
         )));
+        assert!(changes.iter().any(|change| matches!(
+            change,
+            FileChange::Added { path } if path == "src/lib.rs"
+        )));
     }
 
     #[test]
-    fn excludes_generated_and_virtual_environment_sources() {
-        assert!(is_indexable_python("src/app.py"));
-        assert!(!is_indexable_python("vendor/pkg.py"));
-        assert!(!is_indexable_python(".venv/lib.py"));
+    fn legacy_single_language_configuration_remains_supported() {
+        let root = tempfile::tempdir().expect("temp dir");
+        std::fs::create_dir(root.path().join(".ctx")).expect("ctx directory");
+        std::fs::write(
+            root.path().join(".ctx/config.toml"),
+            "language = \"rust\"\n",
+        )
+        .expect("configuration");
+
+        let configuration = load_configuration(root.path()).expect("valid configuration");
+
+        assert_eq!(configuration.languages, vec![SupportedLanguage::Rust]);
+    }
+
+    #[test]
+    fn multi_language_configuration_is_normalized() {
+        let root = tempfile::tempdir().expect("temp dir");
+        std::fs::create_dir(root.path().join(".ctx")).expect("ctx directory");
+        std::fs::write(
+            root.path().join(".ctx/config.toml"),
+            "languages = [\"rust\", \"python\", \"rust\"]\n",
+        )
+        .expect("configuration");
+
+        let configuration = load_configuration(root.path()).expect("valid configuration");
+
+        assert_eq!(
+            configuration.languages,
+            vec![SupportedLanguage::Python, SupportedLanguage::Rust]
+        );
     }
 
     #[test]

@@ -5,6 +5,8 @@ use ctx_core::ir::{CallSite, FileAnalysis, SourceRange, SymbolDefinition, Symbol
 use thiserror::Error;
 use tree_sitter::{Node, Parser, TreeCursor};
 
+use crate::analyzer::AnalyzerModule;
+
 #[derive(Debug, Error)]
 pub enum PythonAnalysisError {
     #[error("could not read Python source '{path}': {source}")]
@@ -88,6 +90,16 @@ impl LanguageAnalyzer for PythonAnalyzer {
     fn analyze_text(&self, relative_path: &str, source: &str) -> Result<FileAnalysis, PortError> {
         Self::analyze_source(relative_path, source)
             .map_err(|error| PortError::new(error.to_string()))
+    }
+}
+
+impl AnalyzerModule for PythonAnalyzer {
+    fn language(&self) -> &'static str {
+        "python"
+    }
+
+    fn extensions(&self) -> &'static [&'static str] {
+        &["py"]
     }
 }
 

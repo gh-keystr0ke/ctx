@@ -7,6 +7,66 @@ struct FixtureRepository {
     directory: TempDir,
 }
 
+struct MixedLanguageRepository {
+    directory: TempDir,
+}
+
+impl MixedLanguageRepository {
+    fn new() -> Self {
+        let directory = tempfile::tempdir().expect("temporary mixed repository");
+        fs::create_dir_all(directory.path().join("src")).expect("source directory");
+        fs::create_dir_all(directory.path().join(".ctx")).expect("ctx directory");
+        fs::write(
+            directory.path().join(".ctx/config.toml"),
+            "languages = [\"python\", \"rust\"]\n\n[paths]\ninclude = [\"src\"]\n",
+        )
+        .expect("mixed configuration");
+        fs::write(
+            directory.path().join("src/app.py"),
+            "def run():\n    helper()\n\ndef helper():\n    return 1\n",
+        )
+        .expect("Python source");
+        fs::write(
+            directory.path().join("src/lib.rs"),
+            "pub fn run() {\n    helper();\n}\n\nfn helper() -> u8 {\n    1\n}\n",
+        )
+        .expect("Rust source");
+        run_git(directory.path(), &["init", "--quiet"]);
+        run_git(directory.path(), &["config", "user.name", "ctx tests"]);
+        run_git(
+            directory.path(),
+            &["config", "user.email", "ctx@example.invalid"],
+        );
+        run_git(directory.path(), &["add", "."]);
+        run_git(
+            directory.path(),
+            &["commit", "--quiet", "-m", "mixed baseline"],
+        );
+        Self { directory }
+    }
+
+    fn root(&self) -> &Path {
+        self.directory.path()
+    }
+
+    fn ctx(&self, arguments: &[&str]) -> Value {
+        let output = Command::new(env!("CARGO_BIN_EXE_ctx"))
+            .current_dir(self.root())
+            .arg("--json")
+            .args(arguments)
+            .output()
+            .expect("execute ctx");
+        assert!(
+            output.status.success(),
+            "ctx {} failed\nstdout: {}\nstderr: {}",
+            arguments.join(" "),
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        serde_json::from_slice(&output.stdout).expect("ctx JSON response")
+    }
+}
+
 impl FixtureRepository {
     fn new() -> Self {
         let directory = tempfile::tempdir().expect("temporary fixture repository");
@@ -136,6 +196,49 @@ fn complete_product_journey_is_deterministic_and_evidence_backed() {
             .is_some_and(|error| error.contains("uncommitted changes"))
     );
     assert_precise_review(&repository.ctx(&["review", "--base", "HEAD"]));
+}
+
+#[test]
+fn mixed_python_and_rust_repository_indexes_and_reviews_through_one_registry() {
+    let repository = MixedLanguageRepository::new();
+
+    repository.ctx(&["init"]);
+    let indexed = repository.ctx(&["index"]);
+    assert_eq!(indexed["stats"]["files_reparsed"], 2);
+    assert_eq!(indexed["stats"]["nodes_created"], 6);
+    assert_eq!(indexed["stats"]["edges_recomputed"], 6);
+
+    let status = repository.ctx(&["status"]);
+    assert_eq!(
+        status["source_scope"]["languages"],
+        json_array(&["python", "rust"])
+    );
+    assert_eq!(status["knowledge"]["files"], 2);
+    assert_eq!(status["knowledge"]["symbols"], 4);
+    assert_eq!(status["knowledge"]["structural_facts"], 6);
+
+    fs::write(
+        repository.root().join("src/lib.rs"),
+        "pub fn run() {\n    helper();\n    helper();\n}\n\nfn helper() -> u8 {\n    1\n}\n",
+    )
+    .expect("Rust change");
+    let review = repository.ctx(&["review", "--base", "HEAD"]);
+    let changed = review["changed_entities"]
+        .as_array()
+        .expect("changed Rust entities");
+    assert!(changed.iter().any(|entity| {
+        entity["stable_key"] == "symbol:rust:crate.run:Function"
+            && entity["change_kind"] == "behavior_potentially_changed"
+    }));
+}
+
+fn json_array(values: &[&str]) -> Value {
+    Value::Array(
+        values
+            .iter()
+            .map(|value| Value::String((*value).to_owned()))
+            .collect(),
+    )
 }
 
 fn assert_local_database_is_ignored(repository: &FixtureRepository) {

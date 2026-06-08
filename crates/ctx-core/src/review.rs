@@ -142,13 +142,24 @@ pub fn resolve_changed_entities(graph: &GraphSnapshot, input: &ReviewInput) -> V
     let mut entities = Vec::new();
     for change in &input.changes {
         let (old_path, new_path) = change_paths(change);
-        let before = old_path
-            .and_then(|path| input.before.get(path))
-            .map_or(&[][..], |analysis| analysis.symbols.as_slice());
-        let after = new_path
-            .and_then(|path| input.after.get(path))
-            .map_or(&[][..], |analysis| analysis.symbols.as_slice());
-        pair_symbols(graph, old_path, new_path, before, after, &mut entities);
+        let before_analysis = old_path.and_then(|path| input.before.get(path));
+        let after_analysis = new_path.and_then(|path| input.after.get(path));
+        let before = before_analysis.map_or(&[][..], |analysis| analysis.symbols.as_slice());
+        let after = after_analysis.map_or(&[][..], |analysis| analysis.symbols.as_slice());
+        pair_symbols(
+            graph,
+            AnalyzedSymbols {
+                path: old_path,
+                language: before_analysis.map(|analysis| analysis.language.as_str()),
+                symbols: before,
+            },
+            AnalyzedSymbols {
+                path: new_path,
+                language: after_analysis.map(|analysis| analysis.language.as_str()),
+                symbols: after,
+            },
+            &mut entities,
+        );
     }
     entities.sort_by(|left, right| {
         left.file_path
@@ -159,17 +170,22 @@ pub fn resolve_changed_entities(graph: &GraphSnapshot, input: &ReviewInput) -> V
     entities
 }
 
+#[derive(Clone, Copy)]
+struct AnalyzedSymbols<'a> {
+    path: Option<&'a str>,
+    language: Option<&'a str>,
+    symbols: &'a [SymbolDefinition],
+}
+
 fn pair_symbols(
     graph: &GraphSnapshot,
-    old_path: Option<&str>,
-    new_path: Option<&str>,
-    before: &[SymbolDefinition],
-    after: &[SymbolDefinition],
+    before: AnalyzedSymbols<'_>,
+    after: AnalyzedSymbols<'_>,
     entities: &mut Vec<ChangedEntity>,
 ) {
     let mut paired_after = BTreeSet::new();
-    for old in before {
-        let matched = after.iter().enumerate().find(|(index, new)| {
+    for old in before.symbols {
+        let matched = after.symbols.iter().enumerate().find(|(index, new)| {
             !paired_after.contains(index)
                 && (new.canonical_path == old.canonical_path
                     || (new.kind == old.kind
@@ -181,41 +197,41 @@ fn pair_symbols(
                 || old.signature != new.signature
                 || old.canonical_path != new.canonical_path
             {
-                entities.push(changed_entity(
-                    graph,
-                    old_path,
-                    new_path,
-                    Some(old),
-                    Some(new),
-                ));
+                entities.push(changed_entity(graph, before, after, Some(old), Some(new)));
             }
         } else {
-            entities.push(changed_entity(graph, old_path, new_path, Some(old), None));
+            entities.push(changed_entity(graph, before, after, Some(old), None));
         }
     }
-    for (index, new) in after.iter().enumerate() {
+    for (index, new) in after.symbols.iter().enumerate() {
         if !paired_after.contains(&index) {
-            entities.push(changed_entity(graph, old_path, new_path, None, Some(new)));
+            entities.push(changed_entity(graph, before, after, None, Some(new)));
         }
     }
 }
 
 fn changed_entity(
     graph: &GraphSnapshot,
-    old_path: Option<&str>,
-    new_path: Option<&str>,
+    before_analysis: AnalyzedSymbols<'_>,
+    after_analysis: AnalyzedSymbols<'_>,
     before: Option<&SymbolDefinition>,
     after: Option<&SymbolDefinition>,
 ) -> ChangedEntity {
     let (change_kind, signals) = classify_behavior_change(before, after);
     let stable_key = before
-        .and_then(|symbol| graph_symbol_key(graph, symbol))
-        .or_else(|| after.and_then(|symbol| graph_symbol_key(graph, symbol)));
+        .and_then(|symbol| graph_symbol_key(graph, symbol, before_analysis.language))
+        .or_else(|| {
+            after.and_then(|symbol| graph_symbol_key(graph, symbol, after_analysis.language))
+        });
     ChangedEntity {
         stable_key,
         before: before.map(|symbol| symbol.canonical_path.clone()),
         after: after.map(|symbol| symbol.canonical_path.clone()),
-        file_path: new_path.or(old_path).unwrap_or("unknown").to_owned(),
+        file_path: after_analysis
+            .path
+            .or(before_analysis.path)
+            .unwrap_or("unknown")
+            .to_owned(),
         change_kind,
         signals,
     }
@@ -278,24 +294,41 @@ fn call_names(symbol: &SymbolDefinition) -> BTreeSet<&str> {
         .collect()
 }
 
-fn graph_symbol_key(graph: &GraphSnapshot, symbol: &SymbolDefinition) -> Option<StableKey> {
+fn graph_symbol_key(
+    graph: &GraphSnapshot,
+    symbol: &SymbolDefinition,
+    language: Option<&str>,
+) -> Option<StableKey> {
     let exact = graph.nodes.values().find(|node| {
-        matches!(
-            &node.attributes,
-            PlannedNodeAttributes::Symbol { canonical_path, .. }
-                if canonical_path == &symbol.canonical_path
-        )
+        language_matches(node, language)
+            && matches!(
+                &node.attributes,
+                PlannedNodeAttributes::Symbol { canonical_path, .. }
+                    if canonical_path == &symbol.canonical_path
+            )
     });
     exact
         .or_else(|| {
             let matches = graph
                 .nodes
                 .values()
-                .filter(|node| matches_fingerprint(node, symbol))
+                .filter(|node| {
+                    language_matches(node, language) && matches_fingerprint(node, symbol)
+                })
                 .collect::<Vec<_>>();
             (matches.len() == 1).then(|| matches[0])
         })
         .map(|node| node.stable_key.clone())
+}
+
+fn language_matches(node: &GraphNode, language: Option<&str>) -> bool {
+    language.is_none_or(|language| {
+        !node.stable_key.as_str().starts_with("symbol:")
+            || node
+                .stable_key
+                .as_str()
+                .starts_with(&format!("symbol:{language}:"))
+    })
 }
 
 fn matches_fingerprint(node: &GraphNode, symbol: &SymbolDefinition) -> bool {

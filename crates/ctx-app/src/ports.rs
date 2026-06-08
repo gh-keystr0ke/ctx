@@ -64,7 +64,7 @@ pub struct RepositoryStatus {
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct SourceScope {
-    pub language: String,
+    pub languages: Vec<String>,
     pub include: Vec<String>,
     pub exclude: Vec<String>,
 }

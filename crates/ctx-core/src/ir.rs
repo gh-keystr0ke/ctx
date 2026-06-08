@@ -16,6 +16,12 @@ pub enum SymbolKind {
     Function,
     Method,
     Class,
+    Struct,
+    Enum,
+    Trait,
+    Module,
+    TypeAlias,
+    Constant,
     Test,
 }
 

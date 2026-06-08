@@ -199,7 +199,7 @@ mod tests {
             "/repo".to_owned(),
             oid("aaaaaaaa"),
             SourceScope {
-                language: "python".to_owned(),
+                languages: vec!["python".to_owned()],
                 include: vec!["src".to_owned()],
                 exclude: Vec::new(),
             },

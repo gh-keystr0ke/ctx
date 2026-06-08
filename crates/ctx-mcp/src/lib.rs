@@ -2,7 +2,7 @@
 
 use std::io::{self, BufRead, Write};
 
-use ctx_adapters::{git::GitRepo, python::PythonAnalyzer, sqlite::SqliteStore};
+use ctx_adapters::{analyzer::AnalyzerRegistry, git::GitRepo, sqlite::SqliteStore};
 use ctx_app::{
     ports::{GitRepository, PortError},
     query::QueryService,
@@ -36,7 +36,7 @@ pub enum McpServerError {
 
 pub struct McpServer<'a> {
     git: &'a GitRepo,
-    analyzer: PythonAnalyzer,
+    analyzer: AnalyzerRegistry,
     store: SqliteStore,
     repository: RepositoryId,
 }
@@ -56,7 +56,7 @@ impl<'a> McpServer<'a> {
         let repository = git.descriptor()?.id;
         Ok(Self {
             git,
-            analyzer: PythonAnalyzer::new(git.root().to_path_buf()),
+            analyzer: AnalyzerRegistry::builtins(git.root(), &git.source_scope().languages)?,
             store: SqliteStore::open(&database)?,
             repository,
         })

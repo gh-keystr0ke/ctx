@@ -8,7 +8,7 @@ use std::{
 use chrono::Utc;
 use clap::{ArgAction, Parser, Subcommand};
 use ctx_adapters::{
-    business_context::YamlBusinessContextReader, git::GitRepo, python::PythonAnalyzer,
+    analyzer::AnalyzerRegistry, business_context::YamlBusinessContextReader, git::GitRepo,
     sqlite::SqliteStore,
 };
 use ctx_app::{
@@ -27,7 +27,7 @@ use serde::Serialize;
 use serde_json::json;
 use thiserror::Error;
 
-const DEFAULT_CONFIG: &str = r#"language = "python"
+const DEFAULT_CONFIG: &str = r#"languages = ["python", "rust"]
 
 [paths]
 include = ["src", "tests"]
@@ -345,7 +345,7 @@ fn context(
 fn review(cli: &Cli, git: &GitRepo, base: &str) -> Result<(), CliError> {
     let database_path = database_path(git.root())?;
     let store = SqliteStore::open(&database_path)?;
-    let analyzer = PythonAnalyzer::new(git.root().to_path_buf());
+    let analyzer = AnalyzerRegistry::builtins(git.root(), &git.source_scope().languages)?;
     let repository = git.descriptor()?;
     let report =
         ReviewRunner::new(git, &analyzer, &store).run(&repository.id, base, cli.verbose > 0)?;
@@ -490,6 +490,7 @@ fn initialize(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
     let database_path = ctx_directory.join("ctx.db");
     SqliteStore::open(&database_path)?;
     git.ignore_local_database()?;
+    let languages = GitRepo::discover(git.root())?.source_scope().languages;
 
     if cli.json {
         println!(
@@ -498,12 +499,15 @@ fn initialize(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
                 "ok": true,
                 "repository": git.root(),
                 "database": database_path,
-                "language": "python"
+                "languages": languages
             })
         );
     } else {
         println!("Initialized ctx in {}", ctx_directory.display());
-        println!("Next: add Python code to Git, then run 'ctx index'.");
+        println!(
+            "Enabled analyzers: {}. Next: add source code to Git, then run 'ctx index'.",
+            languages.join(", ")
+        );
     }
     Ok(())
 }
@@ -511,7 +515,7 @@ fn initialize(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
 fn index(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
     let database_path = database_path(git.root())?;
     let mut store = SqliteStore::open(&database_path)?;
-    let analyzer = PythonAnalyzer::new(git.root().to_path_buf());
+    let analyzer = AnalyzerRegistry::builtins(git.root(), &git.source_scope().languages)?;
     let now = Utc::now().to_rfc3339();
     let code = IndexRunner::new(git, &analyzer, &mut store).run(&now)?;
     let repository = git.descriptor()?;
@@ -575,7 +579,7 @@ fn status(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
     }
     println!(
         "Source scope: {} [{}]",
-        status.source_scope.language,
+        status.source_scope.languages.join(", "),
         status.source_scope.include.join(", ")
     );
     println!();

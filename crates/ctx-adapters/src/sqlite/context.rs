@@ -536,13 +536,26 @@ fn current_symbol_keys(
         let attributes: PlannedNodeAttributes =
             serde_json::from_str(&attributes).map_err(serialization_error)?;
         if let PlannedNodeAttributes::Symbol { canonical_path, .. } = attributes {
-            symbols
-                .entry(canonical_path)
-                .or_default()
-                .push(StableKey::new(stable_key).map_err(domain_error)?);
+            add_symbol_lookup(
+                &mut symbols,
+                canonical_path,
+                StableKey::new(stable_key).map_err(domain_error)?,
+            );
         }
     }
     Ok(symbols)
+}
+
+fn add_symbol_lookup(
+    symbols: &mut BTreeMap<String, Vec<StableKey>>,
+    canonical_path: String,
+    stable_key: StableKey,
+) {
+    symbols
+        .entry(canonical_path)
+        .or_default()
+        .push(stable_key.clone());
+    symbols.insert(stable_key.as_str().to_owned(), vec![stable_key]);
 }
 
 fn current_intent_keys(
@@ -656,6 +669,20 @@ mod tests {
     use tempfile::tempdir;
 
     use super::*;
+
+    #[test]
+    fn language_qualified_stable_keys_disambiguate_equal_canonical_paths() {
+        let python = StableKey::new("symbol:python:app.run:Function").expect("Python stable key");
+        let rust = StableKey::new("symbol:rust:app.run:Function").expect("Rust stable key");
+        let mut symbols = BTreeMap::new();
+
+        add_symbol_lookup(&mut symbols, "app.run".to_owned(), python.clone());
+        add_symbol_lookup(&mut symbols, "app.run".to_owned(), rust.clone());
+
+        assert_eq!(symbols["app.run"], vec![python.clone(), rust.clone()]);
+        assert_eq!(symbols[python.as_str()], vec![python]);
+        assert_eq!(symbols[rust.as_str()], vec![rust]);
+    }
 
     #[test]
     fn explicit_links_persist_an_explainable_evidence_chain() {

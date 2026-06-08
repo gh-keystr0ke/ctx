@@ -218,3 +218,15 @@ Next: final regression gate and handoff of the corrected status behavior.
 - Ran formatting and the complete workspace suite (32 tests passed).
 
 Next: replace the single Python analyzer/configuration path with a multi-language registry, then add the Rust module.
+
+## 2026-08-17 — Pluggable Rust language module
+
+- Replaced the single-language source scope with deterministic `languages = [...]` configuration while preserving legacy `language = "..."` files; invalid, empty, conflicting, and unsupported configurations fail with actionable errors.
+- Added a self-describing `AnalyzerModule` contract and `AnalyzerRegistry`. Indexing, branch review, CLI, and MCP now dispatch by registered source extension without depending on Python- or Rust-specific types.
+- Added a Tree-sitter Rust module that extracts functions, inherent and trait methods, structs, enums, traits, inline modules, type aliases, constants/statics, `#[test]`/`#[tokio::test]` functions, signatures, byte/line ranges, body hashes, structural fingerprints, and call sites into the existing language-neutral IR.
+- Derived workspace-aware Rust canonical paths (for example `ctx_core.indexing.plan_incremental_index`) and rejected syntax-error trees instead of persisting incomplete analysis.
+- Extended the IR with Rust-relevant symbol kinds and made review graph resolution language-aware, preventing equal canonical paths in different languages from being confused.
+- Added mixed-language Git parsing/config tests, Rust parser tests (including generic `impl` and abstract trait methods), and an executable-level Python/Rust scenario proving one index has 2 files, 4 symbols, 6 structural facts, distinct call graphs, and a Rust working-tree change resolves back to its Rust stable key during review.
+- Added the pinned `tree-sitter-rust` 0.24.2 grammar. Ran formatting, strict Clippy, the Rust-specific CLI scenario, and the complete workspace suite (38 tests passed).
+
+Next: enable Rust dogfooding for this workspace, document the module extension point and configuration migration, then run the release gates.

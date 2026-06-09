@@ -1,13 +1,13 @@
 # ctx
 
-`ctx` is a local-first product-context engine for Python repositories. It connects a small, explicit set of features, requirements, invariants, and decisions to code and tests, then uses those claims to answer impact questions, review diffs, and compile bounded context for coding agents.
+`ctx` is a local-first product-context engine for Python and Rust repositories. It connects a small, explicit set of features, requirements, invariants, and decisions to code and tests, then uses those claims to answer impact questions, review diffs, and compile bounded context for coding agents.
 
 The current release is deterministic and works without an LLM or network service. Semantic findings carry their origin, evidence, confidence, validity, and staleness instead of being silently promoted to facts.
 
 ## What works
 
-- Git-aware incremental Python indexing with Tree-sitter
-- file, class, function, method, test, containment, and call relationships
+- Git-aware incremental Python and Rust indexing with Tree-sitter
+- file, class, struct, enum, trait, module, function, method, test, containment, and call relationships
 - YAML or Markdown-front-matter product context under `.context/`
 - evidence-backed `impact`, `explain`, and high-precision `review`
 - token-budgeted Context Packs
@@ -47,7 +47,7 @@ ctx context "preserve paid access during subscription cancellation" \
   --token-budget 1200
 ```
 
-`ctx index` only accepts committed Python and `.context` inputs so every indexed version has an honest Git validity boundary. After editing code, review the working diff before committing:
+`ctx index` only accepts committed configured sources and `.context` inputs so every indexed version has an honest Git validity boundary. After editing code, review the working diff before committing:
 
 ```bash
 ctx review --base HEAD
@@ -73,7 +73,7 @@ After committing an accepted change, run `ctx index` again. Changed implementati
 └── decisions/
 ```
 
-A requirement can link exact canonical Python symbols to intent and tests:
+A requirement can link exact canonical symbols to intent and tests:
 
 ```yaml
 id: REQ-SUB-014
@@ -98,21 +98,27 @@ The other required fields are:
 
 `status` defaults to `active`. IDs must be unique across `.context`. A link may be either `{ symbol: canonical.name }` or a plain canonical-name string. Markdown files are accepted when their metadata is YAML front matter delimited by `---`; prose after the closing delimiter is retained as source evidence but fields come from the front matter.
 
-For files below `src/`, canonical symbols omit that prefix. For example, `src/billing/subscription.py` plus `class SubscriptionService` and `def cancel` becomes `billing.subscription.SubscriptionService.cancel`.
+Python files below `src/` omit that prefix: `src/billing/subscription.py` plus `class SubscriptionService` and `def cancel` becomes `billing.subscription.SubscriptionService.cancel`.
+
+Rust paths include a crate namespace. A root `src/lib.rs` uses `crate`, while a workspace file such as `crates/ctx-core/src/indexing.rs` uses the Cargo-directory name: `ctx_core.indexing.plan_incremental_index`. Inherent methods use their implemented type and trait declarations use their trait, for example `ctx_core.Service.run` and `ctx_core.Runnable.run`.
+
+Canonical names are normally enough. If two enabled languages produce the same canonical name, use the exact language-qualified stable key in the mapping, such as `symbol:rust:app.run:Function` or `symbol:python:app.run:Function`; `ctx status`, review JSON, and query output expose these keys.
 
 ## Configuration
 
 `.ctx/config.toml` is intentionally small:
 
 ```toml
-language = "python"
+languages = ["python", "rust"]
 
 [paths]
 include = ["src", "tests"]
 exclude = ["generated", "vendor", "build", "dist", "target", ".venv"]
 ```
 
-Include and exclude entries are repository-relative directory prefixes. Exclusions win. Generated, vendor, build, virtual-environment, cache, and non-Python paths are also protected by built-in filtering. Commit the config when a team should share it.
+`languages` enables any subset of the built-in `python` and `rust` modules. The legacy singular `language = "python"` form remains accepted; do not set both forms. Unsupported or empty language sets fail during repository discovery instead of silently skipping code.
+
+Include and exclude entries are repository-relative directory prefixes. Exclusions win. Generated, vendor, build, virtual-environment, cache, and non-configured source paths are also protected by built-in filtering. Commit the config when a team should share it. Changing languages or path boundaries is reconciled against the stored snapshot on the next index.
 
 The database lives at `.ctx/ctx.db`. `ctx init` adds only the database, WAL, and shared-memory filenames to the repository-local Git exclude file; it does not edit the shared `.gitignore`.
 
@@ -181,13 +187,25 @@ cargo clippy --all-targets --all-features -- -D warnings
 cargo test --workspace
 ```
 
-The end-to-end test builds a temporary real Git repository from `fixtures/subscriptions` and covers initialization, indexing, impact, Context Pack compilation, dirty-input rejection, and precise review findings.
+The end-to-end tests build temporary real Git repositories. They cover the complete subscriptions product journey and a mixed Python/Rust repository through initialization, indexing, language-scoped call resolution, status, and Rust diff review.
+
+### Add another language module
+
+Language support is isolated behind `AnalyzerModule` and the normalized `FileAnalysis` IR. To add TypeScript, Go, Java, or Zig:
+
+1. Add one parser adapter that implements `LanguageAnalyzer` and `AnalyzerModule`, including its language name and extensions.
+2. Declare the language in `language.rs` and register its constructor in `AnalyzerRegistry::builtins`.
+3. Normalize definitions, ranges, signatures, body/structure fingerprints, and calls into the existing IR; never expose parser nodes above the adapter crate.
+4. Add parser-unit coverage plus a mixed-language executable test before enabling it in the default config.
+
+The registry rejects duplicate language names and extension ownership. Indexing, review, CLI, MCP, persistence, and graph algorithms require no language-specific branch.
 
 See [docs/architecture.md](docs/architecture.md) for boundaries and persistence semantics. The detailed product and engineering source specifications are in [product_conclu.md](product_conclu.md) and [eng_conclu.md](eng_conclu.md).
 
 ## Current limits
 
-- Python is the only parser and source model in this release.
+- Python and Rust are the built-in parsers; TypeScript, Go, Java, and Zig modules are not implemented yet.
+- Language modules are compiled into the binary; dynamic shared-library loading is not supported.
 - Explicit symbol mappings are exact; unresolved mappings are reported instead of guessed.
 - Heuristic suggestions use lexical/structural/test signals, not embeddings or an LLM.
 - There is no web UI, cloud backend, runtime tracing, multi-repository graph, or external ticket/document integration.

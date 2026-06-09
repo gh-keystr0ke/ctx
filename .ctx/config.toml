@@ -1,5 +1,5 @@
-language = "python"
+languages = ["python", "rust"]
 
 [paths]
-include = ["fixtures"]
+include = ["crates", "fixtures"]
 exclude = ["generated", "vendor", "build", "dist", "target", ".venv"]

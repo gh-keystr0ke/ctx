@@ -238,3 +238,13 @@ Next: enable Rust dogfooding for this workspace, document the module extension p
 - Added a focused regression test proving the canonical lookup remains deliberately ambiguous while each qualified stable key resolves to exactly one symbol.
 
 Next: document both mapping forms and dogfood the Rust analyzer on the ctx workspace.
+
+## 2026-08-17 — Rust configuration and extension guide
+
+- Updated the quick start, capabilities, canonical-path rules, configuration reference, development checks, and current limitations for mixed Python/Rust repositories.
+- Documented the `AnalyzerModule` extension procedure for planned TypeScript, Go, Java, and Zig adapters, including the normalized IR contract and required parser/e2e coverage.
+- Documented language-qualified mapping keys for cross-language canonical-name collisions and stated explicitly that modules are compile-time components rather than dynamic shared libraries.
+- Updated the architecture guide with registry dispatch, language-scoped identity/call resolution, Rust workspace namespaces, and syntax-error handling.
+- Enabled both `python` and `rust` in this repository and expanded its source scope from the small Python fixture to `crates` plus `fixtures`, so the product will index its own Rust implementation.
+
+Next: commit the shared scope, index the commit with the release binary, inspect the resulting graph, and run all release gates.

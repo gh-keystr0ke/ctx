@@ -230,3 +230,11 @@ Next: replace the single Python analyzer/configuration path with a multi-languag
 - Added the pinned `tree-sitter-rust` 0.24.2 grammar. Ran formatting, strict Clippy, the Rust-specific CLI scenario, and the complete workspace suite (38 tests passed).
 
 Next: enable Rust dogfooding for this workspace, document the module extension point and configuration migration, then run the release gates.
+
+## 2026-08-17 — Cross-language mapping disambiguation
+
+- Kept concise canonical paths as the default `.context` mapping syntax.
+- Added language-qualified stable keys as an exact mapping syntax for the case where two enabled languages produce the same canonical path, for example `symbol:rust:app.run:Function` versus `symbol:python:app.run:Function`.
+- Added a focused regression test proving the canonical lookup remains deliberately ambiguous while each qualified stable key resolves to exactly one symbol.
+
+Next: document both mapping forms and dogfood the Rust analyzer on the ctx workspace.

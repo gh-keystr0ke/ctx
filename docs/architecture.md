@@ -3,7 +3,7 @@
 `ctx` uses a functional core with an imperative shell. Pure decisions depend only on normalized domain values; Git, Tree-sitter, SQLite, CLI, and MCP remain replaceable boundaries.
 
 ```text
-Git + .context + Python
+Git + .context + configured languages
           │
           ▼
    adapters (I/O)
@@ -27,7 +27,7 @@ Git + .context + Python
 | --- | --- |
 | `ctx-core` | Domain types and pure incremental planning, impact, review, context compilation, and verification scoring |
 | `ctx-app` | Narrow ports and use-case orchestration |
-| `ctx-adapters` | Git inspection, Python Tree-sitter normalization, `.context` parsing, and SQLite transactions |
+| `ctx-adapters` | Git inspection, analyzer registry, Python/Rust Tree-sitter normalization, `.context` parsing, and SQLite transactions |
 | `ctx-cli` | Human and JSON command surface |
 | `ctx-mcp` | Thin stdio protocol adapter over the application services |
 
@@ -37,7 +37,7 @@ The core has no dependency on filesystem paths as handles, database row IDs, SQL
 
 1. Git resolves `HEAD`, verifies that configured source and `.context` inputs are committed, and reports changed paths.
 2. The configured current source set is reconciled with the stored snapshot, covering config-only include/exclude changes.
-3. Tree-sitter emits a complete language-neutral `FileAnalysis` only for added, modified, or renamed Python files.
+3. The analyzer registry dispatches each added, modified, or renamed source by extension; its Tree-sitter module emits a complete language-neutral `FileAnalysis`.
 4. The pure incremental planner matches identities conservatively and emits node writes, retirements, structural invalidation/rebuild, and semantic-staleness effects.
 5. SQLite applies the plan and commit marker in one transaction; business documents and explicit claims are synchronized in a second bounded transaction.
 
@@ -45,13 +45,23 @@ Repeated indexing at the same commit performs no source parsing. Changed source 
 
 ## Identity and validity
 
-Stable keys are derived from repository-relative file paths, canonical Python symbols, or human-owned business IDs. Symbol matching tries, in order:
+Stable keys are derived from repository-relative file paths, language-qualified canonical symbols, or human-owned business IDs. Symbol matching never crosses a language boundary and tries, in order:
 
 1. the same canonical path;
 2. a unique name/signature match in the prior file;
 3. a unique structural fingerprint.
 
 Ambiguity creates a new identity instead of conflating two symbols. Versions are valid from one commit until a later transition closes them. An active relationship may still be marked stale when its input fingerprint changed; queries surface that uncertainty instead of hiding it.
+
+Stable symbol keys have the form `symbol:<language>:<canonical-path>:<kind>`. Human-authored mappings may use the shorter canonical path when it is unique or the complete stable key to disambiguate equal paths across languages. Static call resolution is likewise language-scoped.
+
+## Language modules
+
+`AnalyzerRegistry` is the only analyzer passed to indexing and review. It owns independent self-describing `AnalyzerModule` implementations and routes by source extension. Git filtering uses the same supported-language declarations, so configured discovery and parser dispatch cannot disagree.
+
+Python and Rust are built in today. A future TypeScript, Go, Java, or Zig adapter supplies parser-specific extraction but must return the common IR: complete-file hash, symbol kind/name/canonical path, version range, signature, body hash, whitespace-insensitive structural fingerprint, and simple call sites. Parser syntax types remain inside `ctx-adapters`; application and core crates stay unchanged. Duplicate module names or extension claims are rejected when the registry is built.
+
+Rust canonical paths use `crate` for a root `src/` tree and the workspace crate directory for `crates/<name>/src/`. Inline modules, implemented types, and traits extend that namespace. Syntax-error trees are rejected rather than partially indexed.
 
 ## Claims and provenance
 

@@ -61,7 +61,7 @@ Stable symbol keys have the form `symbol:<language>:<canonical-path>:<kind>`. Hu
 
 Python and Rust are built in today. A future TypeScript, Go, Java, or Zig adapter supplies parser-specific extraction but must return the common IR: complete-file hash, symbol kind/name/canonical path, version range, signature, body hash, whitespace-insensitive structural fingerprint, and simple call sites. Parser syntax types remain inside `ctx-adapters`; application and core crates stay unchanged. Duplicate module names or extension claims are rejected when the registry is built.
 
-Rust canonical paths use `crate` for a root `src/` tree and the workspace crate directory for `crates/<name>/src/`. Inline modules, implemented types, and traits extend that namespace. Syntax-error trees are rejected rather than partially indexed.
+Rust canonical paths use `crate` for a root `src/` tree and the workspace crate directory for `crates/<name>/src/`. Inline modules and implemented types extend that namespace. Trait-implementation methods additionally include the complete trait name (including generic arguments), so legal pairs such as `impl From<u8>` and `impl From<u16>` cannot collide. Syntax-error trees are rejected rather than partially indexed.
 
 ## Claims and provenance
 

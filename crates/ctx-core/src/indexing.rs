@@ -197,6 +197,8 @@ pub enum IndexPlanError {
     MissingAnalysis(String),
     #[error("invalid generated stable key: {0}")]
     InvalidStableKey(String),
+    #[error("index plan contains more than one write for stable key '{0}'")]
+    DuplicateNodeWrite(String),
 }
 
 /// Calculates all persistence effects for changed files without performing IO.
@@ -245,7 +247,7 @@ pub fn plan_incremental_index(
 
     current_symbols.retain(|symbol| !retired.contains(&symbol.stable_key));
     add_resolved_calls(&mut plan, &current_symbols);
-    normalize_plan(&mut plan);
+    normalize_plan(&mut plan)?;
     Ok(plan)
 }
 
@@ -549,9 +551,18 @@ fn add_resolved_calls(plan: &mut IndexPlan, symbols: &[IndexedSymbol]) {
     }
 }
 
-fn normalize_plan(plan: &mut IndexPlan) {
+fn normalize_plan(plan: &mut IndexPlan) -> Result<(), IndexPlanError> {
     plan.nodes_to_write
         .sort_by(|left, right| left.stable_key.cmp(&right.stable_key));
+    if let Some(duplicate) = plan
+        .nodes_to_write
+        .windows(2)
+        .find(|nodes| nodes[0].stable_key == nodes[1].stable_key)
+    {
+        return Err(IndexPlanError::DuplicateNodeWrite(
+            duplicate[0].stable_key.to_string(),
+        ));
+    }
     plan.nodes_to_retire.sort();
     plan.nodes_to_retire.dedup();
     plan.structural_sources_to_close.sort();
@@ -582,6 +593,7 @@ fn normalize_plan(plan: &mut IndexPlan) {
         edges_recomputed: plan.edges_to_create.len(),
         semantic_links_marked_stale: plan.semantic_sources_to_mark_stale.len(),
     };
+    Ok(())
 }
 
 #[cfg(test)]
@@ -785,6 +797,39 @@ mod tests {
         assert_eq!(symbol_keys.len(), 2);
         assert!(symbol_keys.contains("symbol:python:app.run:Function"));
         assert!(symbol_keys.contains("symbol:rust:app.run:Function"));
+    }
+
+    #[test]
+    fn duplicate_file_transitions_fail_before_storage() {
+        let definition = definition("run", "app.run", "body", "shape");
+        let analyses = BTreeMap::from([(
+            "app.py".to_owned(),
+            FileAnalysis {
+                path: "app.py".to_owned(),
+                language: "python".to_owned(),
+                content_hash: "file".to_owned(),
+                symbols: vec![definition],
+            },
+        )]);
+
+        let error = plan_incremental_index(
+            &RepositorySnapshot::default(),
+            &analyses,
+            &[
+                FileChange::Added {
+                    path: "app.py".to_owned(),
+                },
+                FileChange::Modified {
+                    path: "app.py".to_owned(),
+                },
+            ],
+        )
+        .expect_err("duplicate plan must fail");
+
+        assert_eq!(
+            error,
+            IndexPlanError::DuplicateNodeWrite("file:app.py".to_owned())
+        );
     }
 
     #[test]

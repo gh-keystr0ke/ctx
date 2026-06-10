@@ -453,6 +453,8 @@ fn join_path(parent: &str, name: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use super::*;
 
     #[test]
@@ -567,5 +569,51 @@ impl From<u16> for Error {
                 "crate.error.Error.From<u8>.from"
             ]
         );
+    }
+
+    #[test]
+    fn workspace_rust_symbols_produce_unique_graph_identities() {
+        let workspace = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let mut files = Vec::new();
+        collect_rust_files(&workspace.join("crates"), &mut files);
+        files.sort();
+        let mut identities: BTreeMap<String, Vec<String>> = BTreeMap::new();
+        for path in files {
+            let relative = path
+                .strip_prefix(&workspace)
+                .expect("workspace-relative Rust path")
+                .to_string_lossy()
+                .replace('\\', "/");
+            let source = fs::read_to_string(&path).expect("workspace Rust source");
+            let analysis =
+                RustAnalyzer::analyze_source(&relative, &source).expect("workspace Rust analysis");
+            for symbol in analysis.symbols {
+                identities
+                    .entry(format!("{}:{:?}", symbol.canonical_path, symbol.kind))
+                    .or_default()
+                    .push(format!("{relative}:{}", symbol.range.start_line));
+            }
+        }
+        let duplicates = identities
+            .into_iter()
+            .filter(|(_, locations)| locations.len() > 1)
+            .collect::<Vec<_>>();
+
+        assert!(
+            duplicates.is_empty(),
+            "duplicate Rust identities: {duplicates:#?}"
+        );
+    }
+
+    fn collect_rust_files(directory: &std::path::Path, files: &mut Vec<PathBuf>) {
+        for entry in fs::read_dir(directory).expect("workspace source directory") {
+            let entry = entry.expect("workspace source entry");
+            let path = entry.path();
+            if entry.file_type().expect("workspace entry type").is_dir() {
+                collect_rust_files(&path, files);
+            } else if path.extension().is_some_and(|extension| extension == "rs") {
+                files.push(path);
+            }
+        }
     }
 }

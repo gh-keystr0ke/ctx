@@ -175,7 +175,13 @@ fn collect_items(
                     && let Some(type_node) = child.child_by_field_name("type")
                     && let Some(type_name) = implemented_type_name(type_node, source)
                 {
-                    let parent = join_path(module, &type_name);
+                    let type_parent = join_path(module, &type_name);
+                    let parent = child
+                        .child_by_field_name("trait")
+                        .and_then(|trait_node| normalized_node_text(trait_node, source))
+                        .map_or(type_parent.clone(), |trait_name| {
+                            join_path(&type_parent, &trait_name)
+                        });
                     collect_items(body, source, module, Some(&parent), symbols);
                 }
             }
@@ -311,6 +317,15 @@ fn is_test_attribute(attribute: &str) -> bool {
         .next()
         .unwrap_or_default();
     path.rsplit("::").next() == Some("test")
+}
+
+fn normalized_node_text(node: Node<'_>, source: &[u8]) -> Option<String> {
+    let text = node.utf8_text(source).ok()?;
+    let normalized = text
+        .chars()
+        .filter(|character| !character.is_whitespace())
+        .collect::<String>();
+    (!normalized.is_empty()).then_some(normalized)
 }
 
 fn implemented_type_name(node: Node<'_>, source: &[u8]) -> Option<String> {
@@ -520,6 +535,37 @@ mod tests {
         assert_eq!(
             module_path("crates/ctx-core/src/indexing.rs"),
             "ctx_core.indexing"
+        );
+    }
+
+    #[test]
+    fn trait_implementation_type_arguments_disambiguate_method_paths() {
+        let source = r"
+struct Error;
+
+impl From<u8> for Error {
+    fn from(_: u8) -> Self { Self }
+}
+
+impl From<u16> for Error {
+    fn from(_: u16) -> Self { Self }
+}
+";
+
+        let analysis = RustAnalyzer::analyze_source("src/error.rs", source).expect("Rust analysis");
+        let methods = analysis
+            .symbols
+            .iter()
+            .filter(|symbol| symbol.name == "from")
+            .map(|symbol| symbol.canonical_path.as_str())
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            methods,
+            vec![
+                "crate.error.Error.From<u16>.from",
+                "crate.error.Error.From<u8>.from"
+            ]
         );
     }
 }

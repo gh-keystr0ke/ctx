@@ -248,3 +248,13 @@ Next: document both mapping forms and dogfood the Rust analyzer on the ctx works
 - Enabled both `python` and `rust` in this repository and expanded its source scope from the small Python fixture to `crates` plus `fixtures`, so the product will index its own Rust implementation.
 
 Next: commit the shared scope, index the commit with the release binary, inspect the resulting graph, and run all release gates.
+
+## 2026-08-17 — Trait implementation identity found by dogfooding
+
+- The first full-workspace release index was rejected by SQLite's node-version uniqueness invariant and rolled back atomically; no partial graph state was committed.
+- Traced the collision to legal repeated trait method names: the workspace contains multiple `impl From<...> for CliError` blocks, while the initial Rust canonicalizer represented all of them as `ctx_cli.CliError.from`.
+- Namespaced trait-implementation methods by the complete implemented trait, including generic arguments, yielding distinct paths such as `CliError.From<std::io::Error>.from`.
+- Added a regression with both `impl From<u8>` and `impl From<u16>` for one type and documented the canonical rule.
+- Verified the focused parser test and strict adapter Clippy gate.
+
+Next: commit the corrected identity rule and repeat the release index from a clean commit.

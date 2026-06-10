@@ -258,3 +258,12 @@ Next: commit the shared scope, index the commit with the release binary, inspect
 - Verified the focused parser test and strict adapter Clippy gate.
 
 Next: commit the corrected identity rule and repeat the release index from a clean commit.
+
+## 2026-08-17 — Pre-storage identity diagnostics
+
+- A second full-workspace attempt still reached the node-version uniqueness guard, showing the first collision class was not the entire transition problem; the transaction again rolled back cleanly.
+- Added a permanent dogfood test that parses every tracked Rust source below `crates/` and checks the exact `(canonical path, symbol kind)` inputs used by graph identities. It currently proves all Rust analyzer outputs are unique across the workspace.
+- Added a core planner invariant that rejects duplicate stable-key writes before SQLite and reports the exact key, with a regression using conflicting file transitions.
+- Verified both focused regressions and strict Clippy for the affected core/adapter crates.
+
+Next: use the new planner diagnostic on a clean committed transition to isolate the remaining source-scope issue.

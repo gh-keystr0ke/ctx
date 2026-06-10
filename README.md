@@ -100,7 +100,7 @@ The other required fields are:
 
 Python files below `src/` omit that prefix: `src/billing/subscription.py` plus `class SubscriptionService` and `def cancel` becomes `billing.subscription.SubscriptionService.cancel`.
 
-Rust paths include a crate namespace. A root `src/lib.rs` uses `crate`, while a workspace file such as `crates/ctx-core/src/indexing.rs` uses the Cargo-directory name: `ctx_core.indexing.plan_incremental_index`. Inherent methods use their implemented type and trait declarations use their trait, for example `ctx_core.Service.run` and `ctx_core.Runnable.run`.
+Rust paths include a crate namespace. A root `src/lib.rs` uses `crate`, while a workspace file such as `crates/ctx-core/src/indexing.rs` uses the Cargo-directory name: `ctx_core.indexing.plan_incremental_index`. Inherent methods use their implemented type and trait declarations use their trait. Trait implementations include the implemented trait, including type arguments when needed to prevent collisions: `ctx_cli.CliError.From<std::io::Error>.from`.
 
 Canonical names are normally enough. If two enabled languages produce the same canonical name, use the exact language-qualified stable key in the mapping, such as `symbol:rust:app.run:Function` or `symbol:python:app.run:Function`; `ctx status`, review JSON, and query output expose these keys.
 

@@ -612,6 +612,7 @@ mod tests {
         FileAnalysis {
             path: path.to_owned(),
             language: "python".to_owned(),
+            analysis_version: "python-tree-sitter-v1".to_owned(),
             content_hash: symbol.body_hash.clone(),
             symbols: vec![symbol],
         }

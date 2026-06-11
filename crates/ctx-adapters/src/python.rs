@@ -62,6 +62,7 @@ impl PythonAnalyzer {
         Ok(FileAnalysis {
             path: relative_path.to_owned(),
             language: "python".to_owned(),
+            analysis_version: "python-tree-sitter-v1".to_owned(),
             content_hash: blake3::hash(source.as_bytes()).to_hex().to_string(),
             symbols,
         })
@@ -69,6 +70,10 @@ impl PythonAnalyzer {
 }
 
 impl LanguageAnalyzer for PythonAnalyzer {
+    fn analysis_version(&self, _relative_path: &str) -> Result<String, PortError> {
+        Ok("python-tree-sitter-v1".to_owned())
+    }
+
     fn analyze(&self, relative_path: &str) -> Result<FileAnalysis, PortError> {
         let path = self.root.join(relative_path);
         let bytes = fs::read(&path).map_err(|source| {

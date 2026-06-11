@@ -101,6 +101,11 @@ pub trait GitRepository {
 }
 
 pub trait LanguageAnalyzer {
+    /// Returns the cache/schema version for the analyzer selected for a path.
+    ///
+    /// # Errors
+    /// Returns [`PortError`] when no enabled analyzer handles the path.
+    fn analysis_version(&self, relative_path: &str) -> Result<String, PortError>;
     /// Produces normalized IR for a complete source-file version.
     ///
     /// # Errors

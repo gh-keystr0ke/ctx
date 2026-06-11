@@ -28,6 +28,8 @@ pub struct IndexedFile {
     pub stable_key: StableKey,
     pub path: String,
     pub language: String,
+    #[serde(default)]
+    pub analysis_version: String,
     pub content_hash: String,
     pub symbols: Vec<IndexedSymbol>,
 }
@@ -96,6 +98,29 @@ pub fn reconcile_source_scope(
     reconciled
 }
 
+/// Adds deterministic reparses when the responsible analyzer's normalization
+/// schema changed even though Git source bytes did not.
+#[must_use]
+pub fn reconcile_analysis_versions(
+    changes: &[FileChange],
+    snapshot: &RepositorySnapshot,
+    expected_versions: &BTreeMap<String, String>,
+) -> Vec<FileChange> {
+    let mut reconciled = changes.to_vec();
+    let covered_current = changes
+        .iter()
+        .filter_map(FileChange::current_path)
+        .collect::<BTreeSet<_>>();
+    reconciled.extend(expected_versions.iter().filter_map(|(path, expected)| {
+        let indexed = snapshot.files.get(path)?;
+        (indexed.analysis_version != *expected && !covered_current.contains(path.as_str()))
+            .then(|| FileChange::Modified { path: path.clone() })
+    }));
+    reconciled.sort_by(|left, right| change_sort_key(left).cmp(&change_sort_key(right)));
+    reconciled.dedup();
+    reconciled
+}
+
 fn previous_path(change: &FileChange) -> Option<&str> {
     match change {
         FileChange::Modified { path } | FileChange::Deleted { path } => Some(path),
@@ -126,6 +151,8 @@ pub enum PlannedNodeAttributes {
     File {
         path: String,
         language: String,
+        #[serde(default)]
+        analysis_version: String,
     },
     Symbol {
         file_path: String,
@@ -281,6 +308,7 @@ fn plan_changed_file(
         attributes: PlannedNodeAttributes::File {
             path: path.to_owned(),
             language: file_analysis.language.clone(),
+            analysis_version: file_analysis.analysis_version.clone(),
         },
         mutation: if snapshot.files.contains_key(path) {
             NodeMutationKind::Version
@@ -519,7 +547,7 @@ fn structural_edge(
 
 fn add_resolved_calls(plan: &mut IndexPlan, symbols: &[IndexedSymbol]) {
     let mut names: BTreeMap<(&str, &str), Vec<&IndexedSymbol>> = BTreeMap::new();
-    for symbol in symbols {
+    for symbol in symbols.iter().filter(|symbol| is_callable(symbol.kind)) {
         names
             .entry((&symbol.language, &symbol.name))
             .or_default()
@@ -552,6 +580,17 @@ fn add_resolved_calls(plan: &mut IndexPlan, symbols: &[IndexedSymbol]) {
             }
         }
     }
+}
+
+const fn is_callable(kind: SymbolKind) -> bool {
+    matches!(
+        kind,
+        SymbolKind::Function
+            | SymbolKind::Method
+            | SymbolKind::Class
+            | SymbolKind::Struct
+            | SymbolKind::Test
+    )
 }
 
 fn normalize_plan(plan: &mut IndexPlan) -> Result<(), IndexPlanError> {
@@ -631,6 +670,7 @@ mod tests {
             stable_key: file_key(path).expect("file key"),
             path: path.to_owned(),
             language: "python".to_owned(),
+            analysis_version: "python-tree-sitter-v1".to_owned(),
             content_hash: "old-file".to_owned(),
             symbols: vec![IndexedSymbol {
                 stable_key: symbol_key("python", definition).expect("symbol key"),
@@ -661,6 +701,7 @@ mod tests {
             FileAnalysis {
                 path: "billing.py".to_owned(),
                 language: "python".to_owned(),
+                analysis_version: "python-tree-sitter-v1".to_owned(),
                 content_hash: "new-file".to_owned(),
                 symbols: vec![new],
             },
@@ -695,6 +736,7 @@ mod tests {
             FileAnalysis {
                 path: "new.py".to_owned(),
                 language: "python".to_owned(),
+                analysis_version: "python-tree-sitter-v1".to_owned(),
                 content_hash: "new-file".to_owned(),
                 symbols: vec![new],
             },
@@ -730,6 +772,7 @@ mod tests {
             FileAnalysis {
                 path: "billing.py".to_owned(),
                 language: "python".to_owned(),
+                analysis_version: "python-tree-sitter-v1".to_owned(),
                 content_hash: "file".to_owned(),
                 symbols: vec![caller, target_definition],
             },
@@ -754,6 +797,40 @@ mod tests {
     }
 
     #[test]
+    fn calls_do_not_resolve_to_non_callable_type_aliases() {
+        let mut caller = definition("parse", "app.parse", "caller", "caller-shape");
+        caller.calls.push(CallSite {
+            callee: "Err".to_owned(),
+            range: range(),
+        });
+        let mut associated_type = definition("Err", "Parser.Err", "type", "type-shape");
+        associated_type.kind = SymbolKind::TypeAlias;
+        let analyses = BTreeMap::from([(
+            "app.rs".to_owned(),
+            FileAnalysis {
+                path: "app.rs".to_owned(),
+                language: "rust".to_owned(),
+                analysis_version: "rust-tree-sitter-v2".to_owned(),
+                content_hash: "file".to_owned(),
+                symbols: vec![caller, associated_type],
+            },
+        )]);
+
+        let plan = plan_incremental_index(
+            &RepositorySnapshot::default(),
+            &analyses,
+            &[FileChange::Added {
+                path: "app.rs".to_owned(),
+            }],
+        )
+        .expect("plan");
+
+        assert!(!plan.edges_to_create.iter().any(|edge| {
+            edge.kind == RelationKind::Calls && edge.target.as_str().contains("Parser.Err")
+        }));
+    }
+
+    #[test]
     fn identical_symbols_in_different_languages_keep_distinct_identities() {
         let definition = definition("run", "app.run", "same-body", "same-shape");
         let analyses = BTreeMap::from([
@@ -762,6 +839,7 @@ mod tests {
                 FileAnalysis {
                     path: "app.py".to_owned(),
                     language: "python".to_owned(),
+                    analysis_version: "python-tree-sitter-v1".to_owned(),
                     content_hash: "python-file".to_owned(),
                     symbols: vec![definition.clone()],
                 },
@@ -771,6 +849,7 @@ mod tests {
                 FileAnalysis {
                     path: "app.rs".to_owned(),
                     language: "rust".to_owned(),
+                    analysis_version: "rust-tree-sitter-v2".to_owned(),
                     content_hash: "rust-file".to_owned(),
                     symbols: vec![definition],
                 },
@@ -810,6 +889,7 @@ mod tests {
             FileAnalysis {
                 path: "app.py".to_owned(),
                 language: "python".to_owned(),
+                analysis_version: "python-tree-sitter-v1".to_owned(),
                 content_hash: "file".to_owned(),
                 symbols: vec![definition],
             },
@@ -845,6 +925,7 @@ mod tests {
                 FileAnalysis {
                     path: "alpha.py".to_owned(),
                     language: "python".to_owned(),
+                    analysis_version: "python-tree-sitter-v1".to_owned(),
                     content_hash: "alpha-file".to_owned(),
                     symbols: vec![first],
                 },
@@ -854,6 +935,7 @@ mod tests {
                 FileAnalysis {
                     path: "beta.py".to_owned(),
                     language: "python".to_owned(),
+                    analysis_version: "python-tree-sitter-v1".to_owned(),
                     content_hash: "beta-file".to_owned(),
                     symbols: vec![second],
                 },
@@ -916,6 +998,26 @@ mod tests {
     }
 
     #[test]
+    fn analyzer_version_change_reparses_an_unchanged_file_once() {
+        let definition = definition("run", "app.run", "body", "shape");
+        let snapshot = RepositorySnapshot {
+            files: BTreeMap::from([("app.py".to_owned(), indexed_file("app.py", &definition))]),
+        };
+        let expected = BTreeMap::from([("app.py".to_owned(), "python-tree-sitter-v2".to_owned())]);
+
+        let changes = reconcile_analysis_versions(&[], &snapshot, &expected);
+        let already_changed = reconcile_analysis_versions(&changes, &snapshot, &expected);
+
+        assert_eq!(
+            changes,
+            vec![FileChange::Modified {
+                path: "app.py".to_owned()
+            }]
+        );
+        assert_eq!(already_changed, changes);
+    }
+
+    #[test]
     fn repeated_add_for_an_existing_snapshot_closes_prior_structural_facts() {
         let old = definition("cancel", "billing.cancel", "body", "shape");
         let snapshot = RepositorySnapshot {
@@ -926,6 +1028,7 @@ mod tests {
             FileAnalysis {
                 path: "billing.py".to_owned(),
                 language: "python".to_owned(),
+                analysis_version: "python-tree-sitter-v1".to_owned(),
                 content_hash: "same-file".to_owned(),
                 symbols: vec![old],
             },

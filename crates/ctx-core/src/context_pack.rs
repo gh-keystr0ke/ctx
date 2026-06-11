@@ -359,7 +359,7 @@ fn node_content(node: &GraphNode) -> String {
                 calls.join(", ")
             }
         ),
-        PlannedNodeAttributes::File { path, language } => {
+        PlannedNodeAttributes::File { path, language, .. } => {
             format!("{language} source file: {path}")
         }
     }

@@ -177,13 +177,19 @@ impl SqliteStore {
             let (stable_key, content_hash, attributes) = row.map_err(database_error)?;
             let attributes: PlannedNodeAttributes =
                 serde_json::from_str(&attributes).map_err(serialization_error)?;
-            if let PlannedNodeAttributes::File { path, language } = attributes {
+            if let PlannedNodeAttributes::File {
+                path,
+                language,
+                analysis_version,
+            } = attributes
+            {
                 files.insert(
                     path.clone(),
                     IndexedFile {
                         stable_key: StableKey::new(stable_key).map_err(domain_error)?,
                         path,
                         language,
+                        analysis_version,
                         content_hash,
                         symbols: Vec::new(),
                     },

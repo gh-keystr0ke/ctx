@@ -99,6 +99,11 @@ impl AnalyzerRegistry {
 }
 
 impl LanguageAnalyzer for AnalyzerRegistry {
+    fn analysis_version(&self, relative_path: &str) -> Result<String, PortError> {
+        self.module_for_path(relative_path)?
+            .analysis_version(relative_path)
+    }
+
     fn analyze(&self, relative_path: &str) -> Result<FileAnalysis, PortError> {
         self.module_for_path(relative_path)?.analyze(relative_path)
     }

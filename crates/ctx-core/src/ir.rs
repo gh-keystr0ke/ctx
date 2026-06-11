@@ -49,6 +49,8 @@ pub struct SymbolDefinition {
 pub struct FileAnalysis {
     pub path: String,
     pub language: String,
+    #[serde(default)]
+    pub analysis_version: String,
     pub content_hash: String,
     pub symbols: Vec<SymbolDefinition>,
 }

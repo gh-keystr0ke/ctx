@@ -1,6 +1,8 @@
 use std::collections::BTreeMap;
 
-use ctx_core::indexing::{IndexStats, plan_incremental_index, reconcile_source_scope};
+use ctx_core::indexing::{
+    IndexStats, plan_incremental_index, reconcile_analysis_versions, reconcile_source_scope,
+};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -72,17 +74,6 @@ where
             .store
             .latest_commit(&repository.id)
             .map_err(IndexError::Storage)?;
-        if previous
-            .as_ref()
-            .is_some_and(|commit| commit.oid == head.oid)
-        {
-            return Ok(IndexReport {
-                commit: head.oid.to_string(),
-                already_current: true,
-                stats: IndexStats::default(),
-            });
-        }
-
         let current_paths = self.git.all_source_files().map_err(IndexError::Git)?;
         let changes = previous
             .as_ref()
@@ -101,8 +92,32 @@ where
             .store
             .load_snapshot(&repository.id)
             .map_err(IndexError::Storage)?;
-        let changes =
-            reconcile_source_scope(&changes, snapshot.files.keys().cloned(), current_paths);
+        let changes = reconcile_source_scope(
+            &changes,
+            snapshot.files.keys().cloned(),
+            current_paths.iter().cloned(),
+        );
+        let expected_versions = current_paths
+            .iter()
+            .map(|path| {
+                self.analyzer
+                    .analysis_version(path)
+                    .map(|version| (path.clone(), version))
+            })
+            .collect::<Result<BTreeMap<_, _>, _>>()
+            .map_err(IndexError::Analysis)?;
+        let changes = reconcile_analysis_versions(&changes, &snapshot, &expected_versions);
+        if changes.is_empty()
+            && previous
+                .as_ref()
+                .is_some_and(|commit| commit.oid == head.oid)
+        {
+            return Ok(IndexReport {
+                commit: head.oid.to_string(),
+                already_current: true,
+                stats: IndexStats::default(),
+            });
+        }
         let mut analyses = BTreeMap::new();
         for path in changes.iter().filter_map(|change| change.current_path()) {
             let file_ir = self.analyzer.analyze(path).map_err(IndexError::Analysis)?;

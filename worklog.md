@@ -267,3 +267,13 @@ Next: commit the corrected identity rule and repeat the release index from a cle
 - Verified both focused regressions and strict Clippy for the affected core/adapter crates.
 
 Next: use the new planner diagnostic on a clean committed transition to isolate the remaining source-scope issue.
+
+## 2026-08-17 — Historical matching isolated from the current transition
+
+- The pre-storage invariant identified the exact duplicate: `symbol:rust:ctx_adapters.business_context.YamlBusinessContextReader.new:Method`.
+- Root cause was language-neutral incremental logic, not another Rust parse collision. During a large initial scope expansion, symbols already planned earlier in the same transition were incorrectly admitted as historical rename/fingerprint candidates. A later, structurally similar `new` method inherited the earlier method's key.
+- Split the immutable historical snapshot from the evolving current symbol set. Identity matching now consults only symbols that existed before the transition; call resolution still sees the fully assembled current set.
+- Added a regression proving two structurally equal symbols added in separate files in one transition receive their own canonical stable keys.
+- Verified the focused planner regression and strict core Clippy gate.
+
+Next: commit the matcher fix and repeat the full release dogfood index.

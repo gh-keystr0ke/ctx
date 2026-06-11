@@ -218,7 +218,8 @@ pub fn plan_incremental_index(
 ) -> Result<IndexPlan, IndexPlanError> {
     let mut plan = IndexPlan::default();
     let mut retired = BTreeSet::new();
-    let mut current_symbols = all_symbols(snapshot);
+    let historical_symbols = all_symbols(snapshot);
+    let mut current_symbols = historical_symbols.clone();
 
     for change in changes {
         let replaced_path = match change {
@@ -241,6 +242,7 @@ pub fn plan_incremental_index(
             change,
             &mut plan,
             &mut retired,
+            &historical_symbols,
             &mut current_symbols,
         )?;
     }
@@ -257,6 +259,7 @@ fn plan_changed_file(
     change: &FileChange,
     plan: &mut IndexPlan,
     retired: &mut BTreeSet<StableKey>,
+    historical_symbols: &[IndexedSymbol],
     current_symbols: &mut Vec<IndexedSymbol>,
 ) -> Result<(), IndexPlanError> {
     let Some(path) = change.current_path() else {
@@ -294,7 +297,7 @@ fn plan_changed_file(
         &file_analysis.language,
         &file_analysis.symbols,
         prior_symbols,
-        current_symbols,
+        historical_symbols,
     )?;
     let matched_keys: BTreeSet<_> = matched.iter().map(|(_, key)| key.clone()).collect();
     for prior in prior_symbols {
@@ -830,6 +833,56 @@ mod tests {
             error,
             IndexPlanError::DuplicateNodeWrite("file:app.py".to_owned())
         );
+    }
+
+    #[test]
+    fn structurally_equal_symbols_added_together_do_not_impersonate_history() {
+        let first = definition("new", "alpha.Reader.new", "same-body", "same-shape");
+        let second = definition("new", "beta.Reader.new", "same-body", "same-shape");
+        let analyses = BTreeMap::from([
+            (
+                "alpha.py".to_owned(),
+                FileAnalysis {
+                    path: "alpha.py".to_owned(),
+                    language: "python".to_owned(),
+                    content_hash: "alpha-file".to_owned(),
+                    symbols: vec![first],
+                },
+            ),
+            (
+                "beta.py".to_owned(),
+                FileAnalysis {
+                    path: "beta.py".to_owned(),
+                    language: "python".to_owned(),
+                    content_hash: "beta-file".to_owned(),
+                    symbols: vec![second],
+                },
+            ),
+        ]);
+
+        let plan = plan_incremental_index(
+            &RepositorySnapshot::default(),
+            &analyses,
+            &[
+                FileChange::Added {
+                    path: "alpha.py".to_owned(),
+                },
+                FileChange::Added {
+                    path: "beta.py".to_owned(),
+                },
+            ],
+        )
+        .expect("independent additions");
+        let symbol_keys = plan
+            .nodes_to_write
+            .iter()
+            .filter(|node| node.kind == NodeKind::CodeSymbol)
+            .map(|node| node.stable_key.as_str())
+            .collect::<BTreeSet<_>>();
+
+        assert_eq!(symbol_keys.len(), 2);
+        assert!(symbol_keys.contains("symbol:python:alpha.Reader.new:Function"));
+        assert!(symbol_keys.contains("symbol:python:beta.Reader.new:Function"));
     }
 
     #[test]

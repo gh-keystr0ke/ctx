@@ -277,3 +277,14 @@ Next: use the new planner diagnostic on a clean committed transition to isolate 
 - Verified the focused planner regression and strict core Clippy gate.
 
 Next: commit the matcher fix and repeat the full release dogfood index.
+
+## 2026-08-17 — Analyzer-version cache invalidation and callable targets
+
+- The corrected matcher enabled a successful full release index at `8ac5f24`: 35 newly scoped Rust files were parsed, 637 nodes created, and 1,102 Rust structural facts added. The resulting current graph had 37 files, 608 symbols, and 1,113 active structural facts; a second index parsed zero files.
+- Queried `ctx_core.indexing.plan_incremental_index` and `ctx_adapters.rust.RustAnalyzer.analyze_source` through the release CLI to confirm canonical selection and Rust adjacency/test traversal.
+- That inspection exposed a false call edge from `Err(...)` to an associated `type Err`. Restricted call targets to callable symbol kinds and added a regression for the alias case.
+- Added per-file analyzer normalization versions to the IR and persisted file snapshot. Indexing now checks these versions before returning a same-commit no-op and reparses unchanged files after analyzer semantics change.
+- Added a regression proving one version mismatch schedules exactly one deterministic `Modified` transition. Documented version bumps as part of the language-module contract.
+- Ran formatting, strict workspace Clippy, and the complete workspace suite (45 tests passed).
+
+Next: commit the cache/call-quality changes, prove same-HEAD analyzer-version reindexing on the dogfood database, then run the final release gates.

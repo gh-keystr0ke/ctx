@@ -195,7 +195,7 @@ Language support is isolated behind `AnalyzerModule` and the normalized `FileAna
 
 1. Add one parser adapter that implements `LanguageAnalyzer` and `AnalyzerModule`, including its language name and extensions.
 2. Declare the language in `language.rs` and register its constructor in `AnalyzerRegistry::builtins`.
-3. Normalize definitions, ranges, signatures, body/structure fingerprints, and calls into the existing IR; never expose parser nodes above the adapter crate.
+3. Normalize definitions, ranges, signatures, body/structure fingerprints, and calls into the existing IR; never expose parser nodes above the adapter crate. Bump the module's analysis version whenever those semantics change so existing repositories are safely reparsed.
 4. Add parser-unit coverage plus a mixed-language executable test before enabling it in the default config.
 
 The registry rejects duplicate language names and extension ownership. Indexing, review, CLI, MCP, persistence, and graph algorithms require no language-specific branch.

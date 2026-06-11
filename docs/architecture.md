@@ -43,6 +43,8 @@ The core has no dependency on filesystem paths as handles, database row IDs, SQL
 
 Repeated indexing at the same commit performs no source parsing. Changed source bodies mark attached non-fact claims stale. Structural facts owned by the analyzer are closed and rebuilt; semantic assertions are never silently recreated as facts.
 
+Each persisted file records its analyzer normalization version. If an upgraded module changes extraction or call-resolution semantics, version reconciliation schedules affected files for reparse even when Git bytes and `HEAD` are unchanged. A true same-commit no-op is returned only after source scope and analyzer versions are current.
+
 ## Identity and validity
 
 Stable keys are derived from repository-relative file paths, language-qualified canonical symbols, or human-owned business IDs. Symbol matching never crosses a language boundary and tries, in order:

@@ -282,9 +282,14 @@ fn insert_commit(
     indexed_at: &str,
 ) -> Result<i64, PortError> {
     transaction
-        .execute(
+        .query_row(
             "INSERT INTO commits(repository_id, oid, parent_oid, authored_at, indexed_at)
-             VALUES (?1, ?2, ?3, ?4, ?5)",
+             VALUES (?1, ?2, ?3, ?4, ?5)
+             ON CONFLICT(repository_id, oid) DO UPDATE SET
+                parent_oid = excluded.parent_oid,
+                authored_at = excluded.authored_at,
+                indexed_at = excluded.indexed_at
+             RETURNING id",
             params![
                 repository_row,
                 commit.oid.as_str(),
@@ -292,9 +297,9 @@ fn insert_commit(
                 commit.authored_at,
                 indexed_at
             ],
+            |row| row.get(0),
         )
-        .map_err(database_error)?;
-    Ok(transaction.last_insert_rowid())
+        .map_err(database_error)
 }
 
 fn close_derived_edges(
@@ -378,7 +383,7 @@ fn persist_node(
     transaction
         .execute(
             "UPDATE node_versions SET valid_to = ?1
-             WHERE node_id = ?2 AND valid_to IS NULL",
+             WHERE node_id = ?2 AND valid_to IS NULL AND valid_from != ?1",
             params![commit_row, node_row],
         )
         .map_err(database_error)?;
@@ -387,7 +392,12 @@ fn persist_node(
         .execute(
             "INSERT INTO node_versions(
                 node_id, valid_from, name, content_hash, attributes_json
-             ) VALUES (?1, ?2, ?3, ?4, ?5)",
+             ) VALUES (?1, ?2, ?3, ?4, ?5)
+             ON CONFLICT(node_id, valid_from) DO UPDATE SET
+                valid_to = NULL,
+                name = excluded.name,
+                content_hash = excluded.content_hash,
+                attributes_json = excluded.attributes_json",
             params![
                 node_row,
                 commit_row,
@@ -571,4 +581,92 @@ fn serialization_error(error: serde_json::Error) -> PortError {
 #[allow(clippy::needless_pass_by_value)]
 fn domain_error(error: ctx_core::domain::InvalidIdentifier) -> PortError {
     PortError::new(format!("stored identifier is invalid: {error}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use ctx_app::ports::{CommitMetadata, IndexStore, RepositoryDescriptor};
+    use ctx_core::{
+        domain::{CommitOid, NodeKind, RepositoryId, StableKey},
+        indexing::{IndexPlan, NodeMutationKind, PlannedNode, PlannedNodeAttributes},
+    };
+    use tempfile::tempdir;
+
+    use super::*;
+
+    #[test]
+    fn same_commit_reanalysis_replaces_derived_node_version() {
+        let directory = tempdir().expect("temporary directory");
+        let mut store = SqliteStore::open(&directory.path().join("ctx.db")).expect("SQLite store");
+        let repository = RepositoryDescriptor {
+            id: RepositoryId::new("repo:test").expect("repository ID"),
+            root_path: "/repo".to_owned(),
+            remote_url: None,
+        };
+        let commit = CommitMetadata {
+            oid: CommitOid::new("aaaaaaaa").expect("commit OID"),
+            parent_oid: None,
+            authored_at: "2026-08-17T00:00:00Z".to_owned(),
+        };
+        store
+            .ensure_repository(&repository, "2026-08-17T00:00:01Z")
+            .expect("repository");
+        store
+            .apply_index(
+                &repository.id,
+                &commit,
+                "2026-08-17T00:00:01Z",
+                &file_plan("old", "rust-tree-sitter-v1", NodeMutationKind::Create),
+            )
+            .expect("first analysis");
+        store
+            .apply_index(
+                &repository.id,
+                &commit,
+                "2026-08-17T00:00:02Z",
+                &file_plan("new", "rust-tree-sitter-v2", NodeMutationKind::Version),
+            )
+            .expect("same-commit reanalysis");
+
+        let state: (i64, i64, String, String) = store
+            .connection()
+            .query_row(
+                "SELECT
+                    (SELECT COUNT(*) FROM commits),
+                    (SELECT COUNT(*) FROM node_versions),
+                    nv.content_hash,
+                    json_extract(nv.attributes_json, '$.analysis_version')
+                 FROM node_versions nv WHERE nv.valid_to IS NULL",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .expect("current reanalysis state");
+
+        assert_eq!(
+            state,
+            (1, 1, "new".to_owned(), "rust-tree-sitter-v2".to_owned())
+        );
+    }
+
+    fn file_plan(
+        content_hash: &str,
+        analysis_version: &str,
+        mutation: NodeMutationKind,
+    ) -> IndexPlan {
+        IndexPlan {
+            nodes_to_write: vec![PlannedNode {
+                stable_key: StableKey::new("file:src/lib.rs").expect("file key"),
+                kind: NodeKind::File,
+                name: "src/lib.rs".to_owned(),
+                content_hash: content_hash.to_owned(),
+                attributes: PlannedNodeAttributes::File {
+                    path: "src/lib.rs".to_owned(),
+                    language: "rust".to_owned(),
+                    analysis_version: analysis_version.to_owned(),
+                },
+                mutation,
+            }],
+            ..IndexPlan::default()
+        }
+    }
 }

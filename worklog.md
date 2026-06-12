@@ -298,3 +298,16 @@ Next: commit the cache/call-quality changes, prove same-HEAD analyzer-version re
 - Verified the focused persistence test and strict adapter Clippy gate.
 
 Next: commit the same-commit storage semantics, let the release binary repair the stale dogfood file, and complete the full gates.
+
+## 2026-08-17 — Final Rust-module release verification
+
+- Rebuilt the optimized workspace and indexed commit `58b5f75`. The pending deliberately stale analyzer marker plus the committed storage change reparsed 2 files; the next index was a zero-reparse no-op.
+- Repeated the cache-upgrade experiment at the same `HEAD`: changed exactly `crates/ctx-core/src/context_pack.rs` from persisted Rust analysis v2 to v1, then ran the release binary. It reparsed exactly 1 file, versioned 34 nodes, rebuilt 72 structural facts at the existing Git OID, restored v2, and the immediate next index was a no-op.
+- Final dogfood graph: 37 files, 619 symbols, 1,116 active structural facts, zero stale semantic edges, zero duplicate current edge fingerprints, and zero call edges targeting non-callable type/module/trait/constant symbols. Its honest health remains `needs product context` because this repository has no `.context` documents.
+- Ran `cargo fmt --all -- --check`: passed.
+- Ran strict locked workspace Clippy with all targets/features and `-D warnings`: passed.
+- Ran the locked complete workspace suite: all 46 tests passed, including both real-Git CLI journeys, full-workspace Rust identity dogfooding, same-commit persistence, migration integrity, MCP, and documentation-independent core policies.
+- Ran the locked optimized workspace build: passed; the release CLI reports `ctx 0.1.0`.
+- Validated normal and MCP Docker Compose profiles and checked whitespace/worktree state.
+
+Rust is now a first-class pluggable analyzer module beside Python, with a tested extension seam for TypeScript, Go, Java, and Zig.

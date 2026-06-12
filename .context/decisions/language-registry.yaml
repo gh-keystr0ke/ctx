@@ -1,0 +1,17 @@
+id: ADR-LANGUAGE-001
+type: decision
+feature: FEAT-INDEXING
+title: Compile language modules behind one normalized registry
+status: accepted
+decision: >
+  Language analyzers are self-describing compile-time modules selected by one
+  registry and emit a shared IR. New TypeScript, Go, Java, or Zig support should
+  add a parser module and registration without branching core or application use
+  cases; dynamic shared-library loading is deferred until a real need exists.
+implementation:
+  - symbol: ctx_adapters.analyzer.AnalyzerModule
+  - symbol: ctx_adapters.analyzer.AnalyzerRegistry.register
+  - symbol: ctx_adapters.rust.RustAnalyzer.analyze_source
+tests:
+  - symbol: crates.ctx-cli.tests.e2e.mixed_python_and_rust_repository_indexes_and_reviews_through_one_registry
+  - symbol: ctx_adapters.rust.tests.workspace_rust_symbols_produce_unique_graph_identities

@@ -288,3 +288,13 @@ Next: commit the matcher fix and repeat the full release dogfood index.
 - Ran formatting, strict workspace Clippy, and the complete workspace suite (45 tests passed).
 
 Next: commit the cache/call-quality changes, prove same-HEAD analyzer-version reindexing on the dogfood database, then run the final release gates.
+
+## 2026-08-17 — Same-commit derived analysis replacement
+
+- Deliberately changed the persisted analyzer version for exactly one current Rust file from v2 to v1, then ran the release index without changing `HEAD`.
+- The version detector correctly scheduled the file, but persistence rejected a second commit row because `(repository, oid)` is unique. The index transaction rolled back; the deliberately stale marker remained available for the repaired binary to consume.
+- Kept one Git validity point and made derived reanalysis idempotent there: commit metadata is upserted, a node version from an older commit is closed, and a node version already beginning at the same commit is atomically replaced and reopened.
+- Added a SQLite regression that applies two analyses at one OID and proves there is one commit, one current node version, and the v2 attributes/content win.
+- Verified the focused persistence test and strict adapter Clippy gate.
+
+Next: commit the same-commit storage semantics, let the release binary repair the stale dogfood file, and complete the full gates.

@@ -1,0 +1,7 @@
+id: FEAT-REVIEW
+type: feature
+name: Conservative product-aware review
+status: active
+description: >
+  Review code changes in terms of affected requirements and invariants while
+  preferring a few actionable, well-supported findings over broad speculation.

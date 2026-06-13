@@ -1,0 +1,15 @@
+id: INV-COMMIT-001
+type: invariant
+feature: FEAT-INDEXING
+status: active
+statement: >
+  Uncommitted configured source or business-context bytes must never be stored
+  as though they were valid for HEAD; an index transition must either commit
+  atomically or leave the prior graph intact.
+implementation:
+  - symbol: ctx_app.index.IndexRunner.run
+  - symbol: ctx_adapters.git.GitRepo.GitRepository.uncommitted_index_inputs
+  - symbol: ctx_adapters.sqlite.index.SqliteStore.IndexStore.apply_index
+tests:
+  - symbol: crates.ctx-cli.tests.e2e.complete_product_journey_is_deterministic_and_evidence_backed
+  - symbol: ctx_adapters.sqlite.index.tests.same_commit_reanalysis_replaces_derived_node_version

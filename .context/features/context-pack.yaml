@@ -1,0 +1,7 @@
+id: FEAT-CONTEXT-PACK
+type: feature
+name: Bounded context for coding agents
+status: active
+description: >
+  Compile a compact, prioritized Context Pack that explains relevant intent,
+  constraints, implementation, tests, evidence, and uncertainty within budget.

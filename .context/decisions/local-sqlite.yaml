@@ -1,0 +1,18 @@
+id: ADR-STORAGE-001
+type: decision
+feature: FEAT-INDEXING
+title: Use local SQLite as the temporal source of truth
+status: accepted
+decision: >
+  The MVP stores versioned claims, evidence, validity, annotations, and graph
+  adjacency in repository-local SQLite transactions; source analysis requires
+  neither a network service nor an LLM, and no graph database is introduced
+  without profiling evidence.
+implementation:
+  - symbol: ctx_adapters.sqlite.SqliteStore.open
+  - symbol: ctx_adapters.sqlite.index.SqliteStore.IndexStore.apply_index
+  - symbol: ctx_adapters.sqlite.graph.SqliteStore.GraphStore.load_graph
+tests:
+  - symbol: ctx_adapters.sqlite.tests.creates_and_reopens_a_repository_database
+  - symbol: ctx_adapters.sqlite.tests.migration_closes_duplicate_current_edges_and_enforces_uniqueness
+  - symbol: ctx_adapters.sqlite.index.tests.same_commit_reanalysis_replaces_derived_node_version

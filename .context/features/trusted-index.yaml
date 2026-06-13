@@ -1,0 +1,7 @@
+id: FEAT-INDEXING
+type: feature
+name: Trusted local repository index
+status: active
+description: >
+  Build and maintain a local, versioned graph of source structure and explicit
+  product knowledge that honestly describes a Git commit.

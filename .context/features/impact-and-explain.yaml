@@ -1,0 +1,7 @@
+id: FEAT-IMPACT
+type: feature
+name: Evidence-backed change impact
+status: active
+description: >
+  Show the small product and implementation neighborhood affected by a file,
+  symbol, or intent, and explain every stored relationship from evidence.

@@ -1,0 +1,14 @@
+id: INV-EPISTEMIC-001
+type: invariant
+feature: FEAT-IMPACT
+status: active
+statement: >
+  A machine inference must never become a fact or assertion without an explicit
+  human decision, and one inference must never recursively amplify another
+  inference in product-facing traversal.
+implementation:
+  - symbol: ctx_core.context_pack.traversable
+  - symbol: ctx_adapters.sqlite.verification.SqliteStore.VerificationStore.record_verification
+tests:
+  - symbol: ctx_core.context_pack.tests.never_chains_one_inference_through_another
+  - symbol: ctx_core.verification.tests.candidate_score_exposes_individual_heuristic_signals

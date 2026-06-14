@@ -1,0 +1,16 @@
+id: INV-DETERMINISM-001
+type: invariant
+feature: FEAT-INDEXING
+status: active
+statement: >
+  The same repository state and configuration must produce deterministic stable
+  identities and output, with at most one current edge version for each claim
+  fingerprint and no cross-language identity or call-resolution conflation.
+implementation:
+  - symbol: ctx_core.indexing.normalize_plan
+  - symbol: ctx_core.indexing.match_symbols
+  - symbol: ctx_adapters.sqlite.index.persist_edge
+tests:
+  - symbol: ctx_adapters.sqlite.tests.migration_closes_duplicate_current_edges_and_enforces_uniqueness
+  - symbol: ctx_core.indexing.tests.identical_symbols_in_different_languages_keep_distinct_identities
+  - symbol: ctx_adapters.rust.tests.workspace_rust_symbols_produce_unique_graph_identities

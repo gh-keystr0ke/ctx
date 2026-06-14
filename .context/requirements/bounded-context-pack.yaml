@@ -1,0 +1,15 @@
+id: REQ-CONTEXT-001
+type: requirement
+feature: FEAT-CONTEXT-PACK
+status: active
+statement: >
+  A Context Pack must never exceed its requested token budget and must preserve
+  directly relevant invariants and requirements ahead of tests, adjacent code,
+  and lower-confidence material as the budget shrinks.
+implementation:
+  - symbol: ctx_core.context_pack.compile_context_pack
+  - symbol: ctx_core.context_pack.truncate_to_tokens
+  - symbol: ctx_app.query.QueryService.context
+tests:
+  - symbol: ctx_core.context_pack.tests.preserves_invariants_first_and_respects_the_budget
+  - symbol: crates.ctx-cli.tests.e2e.complete_product_journey_is_deterministic_and_evidence_backed

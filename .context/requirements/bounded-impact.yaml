@@ -1,0 +1,15 @@
+id: REQ-IMPACT-001
+type: requirement
+feature: FEAT-IMPACT
+status: active
+statement: >
+  Impact and explanation queries must use bounded typed traversal, separate
+  product intent from implementation and tests, and surface stale or inferred
+  uncertainty together with the stored evidence behind each claim.
+implementation:
+  - symbol: ctx_core.impact.analyze_impact
+  - symbol: ctx_core.explain.explain
+  - symbol: ctx_app.query.QueryService.impact
+tests:
+  - symbol: ctx_core.impact.tests.follows_only_the_product_chain_and_surfaces_staleness
+  - symbol: ctx_adapters.sqlite.context.tests.explicit_links_persist_an_explainable_evidence_chain

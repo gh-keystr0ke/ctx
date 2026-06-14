@@ -1,0 +1,15 @@
+id: REQ-STATUS-001
+type: requirement
+feature: FEAT-INDEXING
+status: active
+statement: >
+  Status must distinguish index freshness from knowledge health, expose the
+  effective source scope and dirty inputs, and recommend an action instead of
+  presenting a large structural graph as ready product context.
+implementation:
+  - symbol: ctx_app.status.StatusService.inspect
+  - symbol: ctx_app.status.build_report
+  - symbol: ctx_app.status.classify_health
+tests:
+  - symbol: ctx_app.status.tests.structural_only_graph_does_not_report_ready
+  - symbol: ctx_app.status.tests.strong_current_assertions_make_the_graph_ready

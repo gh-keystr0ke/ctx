@@ -1,0 +1,15 @@
+id: INV-PROVENANCE-001
+type: invariant
+feature: FEAT-IMPACT
+status: active
+statement: >
+  Every semantic relationship surfaced to a user must retain its claim class,
+  provenance, confidence, status, validity, producer, source location, and
+  evidence so its rationale is reproducible rather than generated after fact.
+implementation:
+  - symbol: ctx_adapters.sqlite.context.create_claim_if_missing
+  - symbol: ctx_adapters.sqlite.context.persist_symbol_claim
+  - symbol: ctx_core.explain.explain
+tests:
+  - symbol: ctx_adapters.sqlite.context.tests.explicit_links_persist_an_explainable_evidence_chain
+  - symbol: ctx_core.business.tests.invariant_links_are_enforcement_assertions

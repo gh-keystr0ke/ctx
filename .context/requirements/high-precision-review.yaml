@@ -1,0 +1,16 @@
+id: REQ-REVIEW-001
+type: requirement
+feature: FEAT-REVIEW
+status: active
+statement: >
+  Default review output must suppress formatting, rename, and likely-refactor
+  noise and emit only strong behavior or contract findings with affected intent,
+  evidence, related tests, uncertainty, and a concrete reviewer action.
+implementation:
+  - symbol: ctx_core.review.build_review_findings
+  - symbol: ctx_core.review.classify_behavior_change
+  - symbol: ctx_app.review.ReviewRunner.run
+tests:
+  - symbol: ctx_core.review.tests.behavior_change_with_documented_requirement_creates_one_precise_finding
+  - symbol: ctx_core.review.tests.classifies_contract_and_formatting_changes_without_guessing_equivalence
+  - symbol: crates.ctx-cli.tests.e2e.complete_product_journey_is_deterministic_and_evidence_backed

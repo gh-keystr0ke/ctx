@@ -320,3 +320,13 @@ Rust is now a first-class pluggable analyzer module beside Python, with a tested
 - Mapped only policy/entry-point symbols and direct regression/e2e tests. Preflight validation parsed all 19 YAML files, proved IDs are unique, and checked every declared implementation/test canonical path resolves to exactly one current graph symbol.
 
 Next: commit the context corpus, import it through the release CLI, eliminate any importer-level unresolved links, and exercise status/impact/explain/Context Pack against ctx itself.
+
+## 2026-08-17 — Context import and graph-noise calibration
+
+- Imported the first-party corpus through the release CLI at `354d898`: 19 documents created, 92 explicit assertion edges created, and zero symbol mappings unresolved.
+- Status moved from `needs_context` to `ready` with 4 Features, 6 Requirements, 5 Invariants, 4 Decisions, no stale semantic relationships, and no suggested remediation.
+- `ctx explain REQ-REVIEW-001` returned seven stored claims covering its Feature, three implementation points, and three tests, each backed by context-file evidence.
+- The first impact/Context Pack query for `build_review_findings` exposed excessive expansion through `ADR-CORE-001`: mapping one cross-cutting decision to indexing, review, and Context Pack entry points turned it into a semantic hub.
+- Narrowed cross-cutting ADRs to representative ownership points and removed redundant implementation/test links. Requirements and Invariants retain the behavior-specific mappings; architectural documents remain discoverable without connecting unrelated product neighborhoods.
+
+Next: re-import the calibrated mappings and require review impact/context to contain only the conservative-review product neighborhood.

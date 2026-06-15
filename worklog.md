@@ -311,3 +311,12 @@ Next: commit the same-commit storage semantics, let the release binary repair th
 - Validated normal and MCP Docker Compose profiles and checked whitespace/worktree state.
 
 Rust is now a first-class pluggable analyzer module beside Python, with a tested extension seam for TypeScript, Go, Java, and Zig.
+
+## 2026-08-17 — First-party product context authored
+
+- Promoted ctx from a structural-only dogfood graph to a self-described product by extracting the highest-value contracts from `product_conclu.md`, `eng_conclu.md`, the shipped architecture, and the regression suite.
+- Added 19 deliberately compact Git-owned documents: 4 Features, 6 Requirements, 5 Invariants, and 4 Decisions. The taxonomy covers trusted indexing, evidence-backed impact/explain, conservative review, bounded agent context, language modules, actionable status, epistemic boundaries, provenance, committed inputs, determinism, budget safety, functional-core boundaries, local SQLite, and precision over recall.
+- Kept Features free of broad direct implementation mappings so review findings originate from specific Requirements, Invariants, and Decisions instead of generic capability labels.
+- Mapped only policy/entry-point symbols and direct regression/e2e tests. Preflight validation parsed all 19 YAML files, proved IDs are unique, and checked every declared implementation/test canonical path resolves to exactly one current graph symbol.
+
+Next: commit the context corpus, import it through the release CLI, eliminate any importer-level unresolved links, and exercise status/impact/explain/Context Pack against ctx itself.

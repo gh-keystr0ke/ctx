@@ -1,6 +1,5 @@
 id: ADR-CORE-001
 type: decision
-feature: FEAT-INDEXING
 title: Keep domain decisions in a functional core
 status: accepted
 decision: >
@@ -9,8 +8,5 @@ decision: >
   policy remain deterministic transformations in ctx-core.
 implementation:
   - symbol: ctx_core.indexing.plan_incremental_index
-  - symbol: ctx_core.review.build_review_findings
-  - symbol: ctx_core.context_pack.compile_context_pack
 tests:
   - symbol: ctx_core.indexing.tests.structurally_equal_symbols_added_together_do_not_impersonate_history
-  - symbol: ctx_core.review.tests.behavior_change_with_documented_requirement_creates_one_precise_finding

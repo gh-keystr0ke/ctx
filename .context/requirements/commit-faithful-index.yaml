@@ -1,0 +1,16 @@
+id: REQ-INDEX-001
+type: requirement
+feature: FEAT-INDEXING
+status: active
+statement: >
+  Indexing must incrementally reconcile Git changes, configured source scope,
+  and analyzer versions so the stored graph describes the selected commit and
+  stale derived analysis is rebuilt without requiring a source edit.
+implementation:
+  - symbol: ctx_app.index.IndexRunner.run
+  - symbol: ctx_core.indexing.plan_incremental_index
+  - symbol: ctx_core.indexing.reconcile_analysis_versions
+tests:
+  - symbol: crates.ctx-cli.tests.e2e.mixed_python_and_rust_repository_indexes_and_reviews_through_one_registry
+  - symbol: ctx_core.indexing.tests.analyzer_version_change_reparses_an_unchanged_file_once
+  - symbol: ctx_adapters.sqlite.index.tests.same_commit_reanalysis_replaces_derived_node_version

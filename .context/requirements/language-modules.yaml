@@ -1,0 +1,17 @@
+id: REQ-LANGUAGE-001
+type: requirement
+feature: FEAT-INDEXING
+status: active
+statement: >
+  Every enabled source language must be selected by one registered module and
+  normalized into the shared IR; language-specific parser types must not leak
+  into indexing, review, persistence, CLI, or MCP.
+implementation:
+  - symbol: ctx_adapters.analyzer.AnalyzerRegistry.builtins
+  - symbol: ctx_adapters.analyzer.AnalyzerRegistry.module_for_path
+  - symbol: ctx_adapters.python.PythonAnalyzer.analyze_source
+  - symbol: ctx_adapters.rust.RustAnalyzer.analyze_source
+tests:
+  - symbol: crates.ctx-cli.tests.e2e.mixed_python_and_rust_repository_indexes_and_reviews_through_one_registry
+  - symbol: ctx_adapters.python.tests.extracts_classes_methods_tests_and_calls
+  - symbol: ctx_adapters.rust.tests.extracts_rust_items_methods_tests_and_calls

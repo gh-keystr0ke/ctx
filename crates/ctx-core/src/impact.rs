@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, VecDeque};
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -125,43 +125,71 @@ fn expand_semantics(
     selected: &mut BTreeSet<StableKey>,
     uncertainties: &mut Vec<ImpactUncertainty>,
 ) {
-    let mut inferred_reached = BTreeSet::new();
-    for _ in 0..3 {
-        let before = selected.len();
-        for edge in graph.edges.iter().filter(|edge| edge.kind.is_semantic()) {
-            let source_selected = selected.contains(&edge.source);
-            let target_selected = selected.contains(&edge.target);
-            if source_selected == target_selected {
+    let roots = selected.clone();
+    let mut queue = roots
+        .iter()
+        .cloned()
+        .map(|key| (key, 0_usize, false))
+        .collect::<VecDeque<_>>();
+    let mut visited = roots
+        .into_iter()
+        .map(|key| (key, false))
+        .collect::<BTreeSet<_>>();
+
+    while let Some((key, distance, inferred)) = queue.pop_front() {
+        if distance >= 3 || !can_expand_semantics(graph, &key, distance) {
+            continue;
+        }
+        for edge in graph
+            .edges
+            .iter()
+            .filter(|edge| edge.kind.is_semantic() && touches(edge, &key))
+        {
+            if edge.status == ClaimStatus::Rejected {
                 continue;
             }
-            let known = if source_selected {
-                &edge.source
+            let candidate = if edge.source == key {
+                edge.target.clone()
             } else {
-                &edge.target
+                edge.source.clone()
             };
-            let candidate = if source_selected {
-                &edge.target
-            } else {
-                &edge.source
-            };
-            if edge.status != ClaimStatus::Active {
+            if edge.status == ClaimStatus::Stale {
                 uncertainties.push(uncertainty(edge, "stale relationship"));
-                selected.insert(candidate.clone());
+                selected.insert(candidate);
                 continue;
             }
+            let next_inferred = inferred || edge.claim_class == ClaimClass::Inference;
             if edge.claim_class == ClaimClass::Inference {
                 uncertainties.push(uncertainty(edge, "inferred relationship"));
-                if inferred_reached.contains(known) || edge.confidence.get() < 0.65 {
+                if inferred || edge.confidence.get() < 0.65 {
                     continue;
                 }
-                inferred_reached.insert(candidate.clone());
             }
             selected.insert(candidate.clone());
-        }
-        if selected.len() == before {
-            break;
+            if visited.insert((candidate.clone(), next_inferred)) {
+                queue.push_back((candidate, distance + 1, next_inferred));
+            }
         }
     }
+}
+
+fn can_expand_semantics(graph: &GraphSnapshot, key: &StableKey, distance: usize) -> bool {
+    if distance == 0 {
+        return true;
+    }
+    graph.nodes.get(key).is_some_and(|node| {
+        matches!(
+            node.kind,
+            NodeKind::Requirement
+                | NodeKind::Invariant
+                | NodeKind::Decision
+                | NodeKind::DomainConcept
+        )
+    })
+}
+
+fn touches(edge: &GraphEdge, key: &StableKey) -> bool {
+    edge.source == *key || edge.target == *key
 }
 
 fn uncertainty(edge: &GraphEdge, reason: &str) -> ImpactUncertainty {
@@ -265,6 +293,182 @@ mod tests {
         assert_eq!(report.uncertainties.len(), 1);
     }
 
+    #[test]
+    fn shared_tests_do_not_bridge_unrelated_product_intent() {
+        let code = symbol_node("code", "review.build", SymbolKind::Function);
+        let shared_test = symbol_node("test", "tests.complete_journey", SymbolKind::Test);
+        let requirement = intent_node("req", NodeKind::Requirement, "REQ-REVIEW-001");
+        let feature = intent_node("feature", NodeKind::Feature, "FEAT-REVIEW");
+        let unrelated = intent_node("other", NodeKind::Requirement, "REQ-INDEX-001");
+        let unrelated_feature = intent_node("other-feature", NodeKind::Feature, "FEAT-INDEX");
+        let nodes = [
+            code.clone(),
+            shared_test.clone(),
+            requirement.clone(),
+            feature.clone(),
+            unrelated.clone(),
+            unrelated_feature.clone(),
+        ]
+        .into_iter()
+        .map(|node| (node.stable_key.clone(), node))
+        .collect::<BTreeMap<_, _>>();
+        let edges = vec![
+            edge(
+                &code,
+                &requirement,
+                RelationKind::Implements,
+                ClaimStatus::Active,
+            ),
+            edge(
+                &requirement,
+                &shared_test,
+                RelationKind::CoveredBy,
+                ClaimStatus::Active,
+            ),
+            edge(
+                &unrelated,
+                &shared_test,
+                RelationKind::CoveredBy,
+                ClaimStatus::Active,
+            ),
+            edge(
+                &requirement,
+                &feature,
+                RelationKind::DependsOn,
+                ClaimStatus::Active,
+            ),
+            edge(
+                &unrelated,
+                &unrelated_feature,
+                RelationKind::DependsOn,
+                ClaimStatus::Active,
+            ),
+        ];
+
+        let report =
+            analyze_impact("review.build", &GraphSnapshot { nodes, edges }).expect("impact report");
+
+        assert_eq!(
+            report
+                .requirements
+                .iter()
+                .map(|node| node.identifier.as_str())
+                .collect::<Vec<_>>(),
+            vec!["REQ-REVIEW-001"]
+        );
+        assert_eq!(report.features[0].identifier, "FEAT-REVIEW");
+        assert_eq!(report.tests[0].identifier, "tests.complete_journey");
+    }
+
+    #[test]
+    fn semantic_expansion_stops_after_three_hops() {
+        let code = symbol_node("code", "billing.cancel", SymbolKind::Method);
+        let requirement = intent_node("req", NodeKind::Requirement, "REQ-SUB-014");
+        let decision = intent_node("decision", NodeKind::Decision, "ADR-SUB-001");
+        let invariant = intent_node("invariant", NodeKind::Invariant, "INV-SUB-003");
+        let too_distant = intent_node("feature", NodeKind::Feature, "FEAT-SUBSCRIPTIONS");
+        let nodes = [
+            code.clone(),
+            requirement.clone(),
+            decision.clone(),
+            invariant.clone(),
+            too_distant.clone(),
+        ]
+        .into_iter()
+        .map(|node| (node.stable_key.clone(), node))
+        .collect::<BTreeMap<_, _>>();
+        let edges = vec![
+            edge(
+                &code,
+                &requirement,
+                RelationKind::Implements,
+                ClaimStatus::Active,
+            ),
+            edge(
+                &requirement,
+                &decision,
+                RelationKind::DependsOn,
+                ClaimStatus::Active,
+            ),
+            edge(
+                &decision,
+                &invariant,
+                RelationKind::DependsOn,
+                ClaimStatus::Active,
+            ),
+            edge(
+                &invariant,
+                &too_distant,
+                RelationKind::DependsOn,
+                ClaimStatus::Active,
+            ),
+        ];
+
+        let report = analyze_impact("billing.cancel", &GraphSnapshot { nodes, edges })
+            .expect("impact report");
+
+        assert_eq!(report.requirements[0].identifier, "REQ-SUB-014");
+        assert_eq!(report.decisions[0].identifier, "ADR-SUB-001");
+        assert_eq!(report.invariants[0].identifier, "INV-SUB-003");
+        assert!(report.features.is_empty());
+    }
+
+    #[test]
+    fn rejected_relationships_are_excluded() {
+        let code = symbol_node("code", "billing.cancel", SymbolKind::Method);
+        let requirement = intent_node("req", NodeKind::Requirement, "REQ-SUB-014");
+        let nodes = [code.clone(), requirement.clone()]
+            .into_iter()
+            .map(|node| (node.stable_key.clone(), node))
+            .collect::<BTreeMap<_, _>>();
+        let edges = vec![edge(
+            &code,
+            &requirement,
+            RelationKind::Implements,
+            ClaimStatus::Rejected,
+        )];
+
+        let report = analyze_impact("billing.cancel", &GraphSnapshot { nodes, edges })
+            .expect("impact report");
+
+        assert!(report.requirements.is_empty());
+        assert!(report.uncertainties.is_empty());
+    }
+
+    #[test]
+    fn does_not_chain_one_inference_through_another() {
+        let code = symbol_node("code", "billing.cancel", SymbolKind::Method);
+        let requirement = intent_node("req", NodeKind::Requirement, "REQ-SUB-014");
+        let feature = intent_node("feature", NodeKind::Feature, "FEAT-SUBSCRIPTIONS");
+        let nodes = [code.clone(), requirement.clone(), feature.clone()]
+            .into_iter()
+            .map(|node| (node.stable_key.clone(), node))
+            .collect::<BTreeMap<_, _>>();
+        let edges = vec![
+            classified_edge(
+                &code,
+                &requirement,
+                RelationKind::Implements,
+                ClaimClass::Inference,
+                ClaimStatus::Active,
+            ),
+            classified_edge(
+                &requirement,
+                &feature,
+                RelationKind::DependsOn,
+                ClaimClass::Inference,
+                ClaimStatus::Active,
+            ),
+        ];
+
+        let report = analyze_impact("billing.cancel", &GraphSnapshot { nodes, edges })
+            .expect("impact report");
+
+        assert_eq!(report.requirements[0].identifier, "REQ-SUB-014");
+        assert!(report.features.is_empty());
+        assert_eq!(report.uncertainties.len(), 2);
+    }
+
     fn symbol_node(key: &str, canonical: &str, kind: SymbolKind) -> GraphNode {
         GraphNode {
             stable_key: StableKey::new(key).expect("stable key"),
@@ -310,11 +514,21 @@ mod tests {
         kind: RelationKind,
         status: ClaimStatus,
     ) -> GraphEdge {
+        classified_edge(source, target, kind, ClaimClass::Assertion, status)
+    }
+
+    fn classified_edge(
+        source: &GraphNode,
+        target: &GraphNode,
+        kind: RelationKind,
+        claim_class: ClaimClass,
+        status: ClaimStatus,
+    ) -> GraphEdge {
         GraphEdge {
             source: source.stable_key.clone(),
             target: target.stable_key.clone(),
             kind,
-            claim_class: ClaimClass::Assertion,
+            claim_class,
             source_kind: SourceKind::Documentation,
             confidence: Confidence::CERTAIN,
             status,

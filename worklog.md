@@ -348,3 +348,11 @@ Next: commit the traversal repair, rebuild/index the clean commit, and verify th
 - Added a Context Pack regression proving a shared journey test cannot connect review intent to an unrelated indexing requirement. All focused Context Pack tests and strict `ctx-core` Clippy pass.
 
 Next: commit, rebuild, and compare the release Context Pack against the pre-fix dogfood output before running all workspace and packaging gates.
+
+## 2026-08-17 — Context traversal dogfood verification
+
+- Rebuilt and indexed the Context Pack repair. The 5,000-token review query no longer includes `INV-COMMIT-001` or `REQ-CONTEXT-001`; its only product neighborhood is `FEAT-REVIEW`, `REQ-REVIEW-001`, and `ADR-PRECISION-001`, followed by directly related review code and tests.
+- The same release query confirms `ctx impact ctx_core.review.build_review_findings` remains isolated to the conservative-review neighborhood after the Context Pack change.
+- Indexing the changed `traversable` implementation correctly marked its explicit `INV-EPISTEMIC-001` enforcement claim stale. Refined that invariant to state the path-specific traversal rule explicitly so the documentation change re-establishes the claim instead of hiding or manually mutating graph state.
+
+Next: import the revalidated invariant at a clean commit, require `ctx status` to return `ready`, then run the complete release gate matrix.

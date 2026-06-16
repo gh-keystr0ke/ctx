@@ -356,3 +356,18 @@ Next: commit, rebuild, and compare the release Context Pack against the pre-fix 
 - Indexing the changed `traversable` implementation correctly marked its explicit `INV-EPISTEMIC-001` enforcement claim stale. Refined that invariant to state the path-specific traversal rule explicitly so the documentation change re-establishes the claim instead of hiding or manually mutating graph state.
 
 Next: import the revalidated invariant at a clean commit, require `ctx status` to return `ready`, then run the complete release gate matrix.
+
+## 2026-08-17 — First-party context release verification
+
+- Imported the refined epistemic invariant at `3164d02`: one document versioned, five explicit links recreated, and zero mappings unresolved. The stale enforcement edge was closed and replaced by a current evidence-backed assertion.
+- Final graph health is `ready`: 37 files, 627 symbols, 4 Features, 6 Requirements, 5 Invariants, 4 Decisions, 1,139 active structural facts, 83 active assertions, and zero stale semantics.
+- Validated all 19 YAML documents, unique IDs, and all 69 implementation/test mappings against exact current symbol resolution.
+- Product acceptance checks prove review impact contains exactly `FEAT-REVIEW`, `REQ-REVIEW-001`, `ADR-PRECISION-001`, and three directly linked tests. A 600-token Context Pack stays within budget and excludes the previously leaked indexing/context contracts.
+- Database integrity checks found zero duplicate current edge fingerprints, orphan current edges, active edges to retired nodes, and calls to non-callable symbol kinds.
+- `cargo fmt --all -- --check` passed.
+- Strict locked workspace Clippy with all targets/features and `-D warnings` passed.
+- The locked complete workspace suite passed all 51 tests, including the new traversal-boundary and shared-node isolation regressions.
+- The locked optimized workspace build passed; `ctx 0.1.0` runs from the release binary.
+- Normal and `mcp` Docker Compose configurations both validate.
+
+The repository now carries its own compact, tested product context and uses that corpus as a release-level dogfood fixture.

@@ -222,14 +222,22 @@ fn expand_candidates(
     let mut queue = seeds
         .iter()
         .cloned()
-        .map(|key| (key, 0_usize, false))
+        .map(|key| (key, 0_usize, false, true))
         .collect::<VecDeque<_>>();
-    while let Some((key, distance, inferred)) = queue.pop_front() {
+    let mut visited = seeds
+        .iter()
+        .cloned()
+        .map(|key| (key, false, true))
+        .collect::<BTreeSet<_>>();
+    while let Some((key, distance, inferred, semantic_root)) = queue.pop_front() {
         if distance >= 3 {
             continue;
         }
         for edge in graph.edges.iter().filter(|edge| touches(edge, &key)) {
-            if !traversable(edge, distance, inferred) {
+            let Some(node) = graph.nodes.get(&key) else {
+                continue;
+            };
+            if !traversable(edge, node.kind, distance, inferred, semantic_root) {
                 continue;
             }
             let next = if edge.source == key {
@@ -238,18 +246,17 @@ fn expand_candidates(
                 edge.source.clone()
             };
             let next_distance = distance + 1;
-            if distances
-                .get(&next)
-                .is_some_and(|known| *known <= next_distance)
+            distances
+                .entry(next.clone())
+                .and_modify(|known| *known = (*known).min(next_distance))
+                .or_insert(next_distance);
+            let next_inferred = inferred || edge.claim_class == ClaimClass::Inference;
+            let next_semantic_root = !edge.kind.is_semantic();
+            if edge.status == ClaimStatus::Active
+                && visited.insert((next.clone(), next_inferred, next_semantic_root))
             {
-                continue;
+                queue.push_back((next, next_distance, next_inferred, next_semantic_root));
             }
-            distances.insert(next.clone(), next_distance);
-            queue.push_back((
-                next,
-                next_distance,
-                inferred || edge.claim_class == ClaimClass::Inference,
-            ));
         }
     }
     let mut candidates = distances
@@ -275,15 +282,30 @@ fn expand_candidates(
     candidates
 }
 
-fn traversable(edge: &GraphEdge, distance: usize, inferred: bool) -> bool {
+fn traversable(
+    edge: &GraphEdge,
+    node_kind: NodeKind,
+    distance: usize,
+    inferred: bool,
+    semantic_root: bool,
+) -> bool {
     if edge.status == ClaimStatus::Rejected {
         return false;
     }
     if edge.claim_class == ClaimClass::Inference && (inferred || edge.confidence.get() < 0.65) {
         return false;
     }
-    edge.kind.is_semantic()
-        || (distance == 0 && matches!(edge.kind, RelationKind::Contains | RelationKind::Calls))
+    if edge.kind.is_semantic() {
+        return semantic_root
+            || matches!(
+                node_kind,
+                NodeKind::Requirement
+                    | NodeKind::Invariant
+                    | NodeKind::Decision
+                    | NodeKind::DomainConcept
+            );
+    }
+    distance == 0 && matches!(edge.kind, RelationKind::Contains | RelationKind::Calls)
 }
 
 fn touches(edge: &GraphEdge, key: &StableKey) -> bool {
@@ -564,6 +586,77 @@ mod tests {
         );
     }
 
+    #[test]
+    fn shared_tests_do_not_bridge_unrelated_product_intent() {
+        let code = symbol_node("code", "review.build");
+        let shared_test = symbol_node_with_kind("test", "tests.complete_journey", SymbolKind::Test);
+        let requirement = intent_node("requirement", NodeKind::Requirement, "REQ-REVIEW-001");
+        let feature = intent_node("feature", NodeKind::Feature, "FEAT-REVIEW");
+        let unrelated = intent_node("unrelated", NodeKind::Requirement, "REQ-INDEX-001");
+        let unrelated_feature = intent_node("unrelated-feature", NodeKind::Feature, "FEAT-INDEX");
+        let graph = graph_with(
+            &[
+                code.clone(),
+                shared_test.clone(),
+                requirement.clone(),
+                feature.clone(),
+                unrelated.clone(),
+                unrelated_feature.clone(),
+            ],
+            vec![
+                edge(
+                    &code,
+                    &requirement,
+                    RelationKind::Implements,
+                    ClaimClass::Assertion,
+                ),
+                edge(
+                    &requirement,
+                    &shared_test,
+                    RelationKind::CoveredBy,
+                    ClaimClass::Assertion,
+                ),
+                edge(
+                    &unrelated,
+                    &shared_test,
+                    RelationKind::CoveredBy,
+                    ClaimClass::Assertion,
+                ),
+                edge(
+                    &requirement,
+                    &feature,
+                    RelationKind::DependsOn,
+                    ClaimClass::Assertion,
+                ),
+                edge(
+                    &unrelated,
+                    &unrelated_feature,
+                    RelationKind::DependsOn,
+                    ClaimClass::Assertion,
+                ),
+            ],
+        );
+        let request = ContextRequest {
+            task: "zzznomatch".to_owned(),
+            files: Vec::new(),
+            symbols: vec!["review.build".to_owned()],
+            token_budget: 1_000,
+        };
+
+        let pack = compile_context_pack(&graph, &request).expect("context pack");
+        let identifiers = pack
+            .items
+            .iter()
+            .map(|item| item.identifier.as_str())
+            .collect::<BTreeSet<_>>();
+
+        assert!(identifiers.contains("REQ-REVIEW-001"));
+        assert!(identifiers.contains("FEAT-REVIEW"));
+        assert!(identifiers.contains("tests.complete_journey"));
+        assert!(!identifiers.contains("REQ-INDEX-001"));
+        assert!(!identifiers.contains("FEAT-INDEX"));
+    }
+
     fn graph_with(nodes: &[GraphNode], edges: Vec<GraphEdge>) -> GraphSnapshot {
         GraphSnapshot {
             nodes: nodes
@@ -576,6 +669,10 @@ mod tests {
     }
 
     fn symbol_node(key: &str, canonical: &str) -> GraphNode {
+        symbol_node_with_kind(key, canonical, SymbolKind::Method)
+    }
+
+    fn symbol_node_with_kind(key: &str, canonical: &str, symbol_kind: SymbolKind) -> GraphNode {
         GraphNode {
             stable_key: StableKey::new(key).expect("stable key"),
             kind: NodeKind::CodeSymbol,
@@ -584,7 +681,7 @@ mod tests {
             attributes: PlannedNodeAttributes::Symbol {
                 file_path: "billing.py".to_owned(),
                 canonical_path: canonical.to_owned(),
-                symbol_kind: SymbolKind::Method,
+                symbol_kind,
                 range: SourceRange {
                     start_byte: 0,
                     end_byte: 10,

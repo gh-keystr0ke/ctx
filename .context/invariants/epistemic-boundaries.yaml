@@ -4,8 +4,9 @@ feature: FEAT-IMPACT
 status: active
 statement: >
   A machine inference must never become a fact or assertion without an explicit
-  human decision, and one inference must never recursively amplify another
-  inference in product-facing traversal.
+  human decision. Traversal state must remain path-specific so an inferred
+  route cannot be mistaken for a verified route and one inference can never
+  recursively amplify another inference.
 implementation:
   - symbol: ctx_core.context_pack.traversable
   - symbol: ctx_adapters.sqlite.verification.SqliteStore.VerificationStore.record_verification

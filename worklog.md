@@ -330,3 +330,12 @@ Next: commit the context corpus, import it through the release CLI, eliminate an
 - Narrowed cross-cutting ADRs to representative ownership points and removed redundant implementation/test links. Requirements and Invariants retain the behavior-specific mappings; architectural documents remain discoverable without connecting unrelated product neighborhoods.
 
 Next: re-import the calibrated mappings and require review impact/context to contain only the conservative-review product neighborhood.
+
+## 2026-08-17 — Bounded typed impact traversal
+
+- Dogfooding the calibrated corpus exposed a core traversal defect rather than another documentation problem: `expand_semantics` mutated the selected set while scanning edges, so one nominal hop could consume an arbitrarily long edge chain and pull most of a connected component into `ctx impact`.
+- Replaced the scan with an explicit deterministic queue carrying graph distance and per-path inference state. Semantic expansion now stops after three actual hops, excludes rejected claims, reports but does not propagate through stale claims, and cannot chain one inference through another.
+- Made product intent the only non-root semantic intermediary. This keeps a shared end-to-end test or Feature from becoming a bridge into unrelated requirements while still returning the selected implementation's requirement/decision, its Feature, and its direct verification tests.
+- Added regressions for the exact three-hop boundary, shared-test isolation, rejected-claim exclusion, and inference non-amplification. All five focused impact tests and strict `ctx-core` Clippy pass.
+
+Next: commit the traversal repair, rebuild/index the clean commit, and verify the first-party review neighborhood through the release CLI before the complete workspace gates.

@@ -339,3 +339,12 @@ Next: re-import the calibrated mappings and require review impact/context to con
 - Added regressions for the exact three-hop boundary, shared-test isolation, rejected-claim exclusion, and inference non-amplification. All five focused impact tests and strict `ctx-core` Clippy pass.
 
 Next: commit the traversal repair, rebuild/index the clean commit, and verify the first-party review neighborhood through the release CLI before the complete workspace gates.
+
+## 2026-08-17 — Shared-node isolation in Context Pack
+
+- The corrected `ctx impact` result contained only `FEAT-REVIEW`, `REQ-REVIEW-001`, `ADR-PRECISION-001`, and the three direct review tests, but the same shared end-to-end test could still bridge Context Pack traversal from review into indexing and context-compilation contracts.
+- Added traversal state that distinguishes explicit/structural roots from nodes reached semantically. Direct seeds and their one-hop callers/callees may discover product intent; reached Requirements, Invariants, Decisions, and Domain Concepts may expose their direct implementation, Feature, and tests; reached tests, code, and Features do not fan out into unrelated intent.
+- Stale candidates remain visible for uncertainty but no longer propagate traversal. Rejected and weak/double-inferred edges remain non-traversable, and the existing combined three-hop budget is preserved.
+- Added a Context Pack regression proving a shared journey test cannot connect review intent to an unrelated indexing requirement. All focused Context Pack tests and strict `ctx-core` Clippy pass.
+
+Next: commit, rebuild, and compare the release Context Pack against the pre-fix dogfood output before running all workspace and packaging gates.

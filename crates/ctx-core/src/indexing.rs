@@ -231,7 +231,12 @@ pub enum IndexPlanError {
 /// Calculates all persistence effects for changed files without performing IO.
 ///
 /// Symbol matching deliberately uses a conservative sequence: canonical path,
-/// name/signature within the prior file, then a unique structural fingerprint.
+/// name/signature within the prior file, then a unique name plus structural
+/// fingerprint anywhere in the repository (a cross-file move). The name is
+/// required even for the fingerprint tier: a repository can easily contain
+/// two unrelated, differently named one-liners with an identical
+/// whitespace-stripped body, and matching on shape alone would silently
+/// merge them into one identity instead of treating the second as new.
 /// Ambiguous matches create a new identity instead of silently conflating code.
 ///
 /// # Errors
@@ -439,6 +444,7 @@ fn match_symbols(
                 unique_match(all_prior, |symbol| {
                     symbol.language == language
                         && symbol.kind == definition.kind
+                        && symbol.name == definition.name
                         && symbol.structural_fingerprint == definition.structural_fingerprint
                 }),
             ];
@@ -965,6 +971,57 @@ mod tests {
         assert_eq!(symbol_keys.len(), 2);
         assert!(symbol_keys.contains("symbol:python:alpha.Reader.new:Function"));
         assert!(symbol_keys.contains("symbol:python:beta.Reader.new:Function"));
+    }
+
+    /// A tiny, trivial function body ("return a shared shape") is common
+    /// enough that two unrelated files can define differently named
+    /// functions with an identical whitespace-stripped body. The
+    /// cross-repository fingerprint fallback must not merge a brand-new
+    /// function into an unrelated prior symbol just because their shapes
+    /// coincide; requiring the name to also match is what tells them apart.
+    #[test]
+    fn differently_named_symbols_with_the_same_shape_do_not_merge_across_files() {
+        let existing = definition("touches", "context_pack.touches", "same-body", "same-shape");
+        let existing_file = indexed_file("context_pack.py", &existing);
+        let existing_key = existing_file.symbols[0].stable_key.clone();
+        let snapshot = RepositorySnapshot {
+            files: BTreeMap::from([("context_pack.py".to_owned(), existing_file)]),
+        };
+        let new_symbol = definition("checks", "impact.checks", "same-body", "same-shape");
+        let analyses = BTreeMap::from([(
+            "impact.py".to_owned(),
+            FileAnalysis {
+                path: "impact.py".to_owned(),
+                language: "python".to_owned(),
+                analysis_version: "python-tree-sitter-v1".to_owned(),
+                content_hash: "impact-file".to_owned(),
+                symbols: vec![new_symbol],
+            },
+        )]);
+
+        let plan = plan_incremental_index(
+            &snapshot,
+            &analyses,
+            &[FileChange::Added {
+                path: "impact.py".to_owned(),
+            }],
+        )
+        .expect("independent addition alongside a same-shaped prior symbol");
+
+        let symbol_keys = plan
+            .nodes_to_write
+            .iter()
+            .filter(|node| node.kind == NodeKind::CodeSymbol)
+            .map(|node| node.stable_key.as_str())
+            .collect::<BTreeSet<_>>();
+
+        assert_eq!(
+            symbol_keys.len(),
+            1,
+            "must not also rewrite the unrelated prior symbol"
+        );
+        assert!(symbol_keys.contains("symbol:python:impact.checks:Function"));
+        assert!(!symbol_keys.contains(existing_key.as_str()));
     }
 
     #[test]

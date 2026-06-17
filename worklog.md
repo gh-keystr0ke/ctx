@@ -371,3 +371,11 @@ Next: import the revalidated invariant at a clean commit, require `ctx status` t
 - Normal and `mcp` Docker Compose configurations both validate.
 
 The repository now carries its own compact, tested product context and uses that corpus as a release-level dogfood fixture.
+
+## 2026-08-17 — Next-agent handoff
+
+- Audited the delivered implementation against the MVP, milestones, evaluation plan, future scope, and explicit non-goals in `product_conclu.md` and `eng_conclu.md`.
+- Confirmed that the local technical MVP and its public command surface are complete, while product-value experiments, a ground-truth historical PR corpus, richer M6 signals, and data-interaction extraction remain future work.
+- Added `prompt.md` as a self-contained handoff: current architecture and graph health, completed work, known gaps, protected invariants, non-goals, an evaluation-first next mission, release gates, and definition of done.
+
+Next: the following agent should build a small deterministic evaluation corpus/harness before expanding semantic automation or parser breadth.

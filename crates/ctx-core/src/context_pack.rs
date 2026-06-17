@@ -194,9 +194,17 @@ fn detect_seeds(
             seeds.insert(node.stable_key.clone());
         }
     }
+    // Tests are excluded from lexical auto-seeding: a task description
+    // incidentally overlapping with the identifiers a test happens to call
+    // (a common occurrence for a shared end-to-end test) is weak evidence,
+    // and unlike an explicitly named seed, a lexically guessed test would
+    // still be granted root rights to expose everything it covers. A
+    // relevant test remains reachable through its covering
+    // requirement/invariant or through an explicit seed's own call graph.
     let mut lexical = graph
         .nodes
         .values()
+        .filter(|node| !node.is_test())
         .filter_map(|node| {
             let score = lexical_score(node, task_terms);
             (score > 0).then_some((score, node.stable_key.clone()))
@@ -251,7 +259,16 @@ fn expand_candidates(
                 .and_modify(|known| *known = (*known).min(next_distance))
                 .or_insert(next_distance);
             let next_inferred = inferred || edge.claim_class == ClaimClass::Inference;
-            let next_semantic_root = !edge.kind.is_semantic();
+            // A structural (Contains/Calls) hop normally grants the reached
+            // node root rights to discover its own product intent, matching
+            // the policy that a seed's one-hop callers/callees may surface
+            // their own claims. A test is the one exception: tests are a
+            // common fan-in point (several requirements can share one
+            // end-to-end test), so reaching a test through the seed's own
+            // call graph must not license that test to bridge into whatever
+            // *else* it happens to cover.
+            let next_is_test = graph.nodes.get(&next).is_some_and(GraphNode::is_test);
+            let next_semantic_root = !edge.kind.is_semantic() && !next_is_test;
             if edge.status == ClaimStatus::Active
                 && visited.insert((next.clone(), next_inferred, next_semantic_root))
             {
@@ -655,6 +672,102 @@ mod tests {
         assert!(identifiers.contains("tests.complete_journey"));
         assert!(!identifiers.contains("REQ-INDEX-001"));
         assert!(!identifiers.contains("FEAT-INDEX"));
+    }
+
+    /// A shared test that structurally *calls* the seed is a legitimate
+    /// one-hop callee neighbor, which the traversal is meant to expose. It
+    /// must not, in turn, bridge into whatever *else* that test covers: only
+    /// the seed itself gets unconditional root rights, not every node
+    /// discovered through the seed's one-hop call graph.
+    #[test]
+    fn shared_test_reached_through_the_seeds_call_graph_does_not_bridge_unrelated_intent() {
+        let code = symbol_node("code", "billing.subscription.cancel");
+        let shared_test = symbol_node_with_kind("test", "tests.workflow", SymbolKind::Test);
+        let requirement = intent_node("requirement", NodeKind::Requirement, "REQ-SUB-014");
+        let unrelated = intent_node("unrelated", NodeKind::Requirement, "REQ-REFUND-001");
+        let graph = graph_with(
+            &[
+                code.clone(),
+                shared_test.clone(),
+                requirement.clone(),
+                unrelated.clone(),
+            ],
+            vec![
+                edge(
+                    &code,
+                    &requirement,
+                    RelationKind::Implements,
+                    ClaimClass::Assertion,
+                ),
+                edge(&shared_test, &code, RelationKind::Calls, ClaimClass::Fact),
+                edge(
+                    &requirement,
+                    &shared_test,
+                    RelationKind::CoveredBy,
+                    ClaimClass::Assertion,
+                ),
+                edge(
+                    &unrelated,
+                    &shared_test,
+                    RelationKind::CoveredBy,
+                    ClaimClass::Assertion,
+                ),
+            ],
+        );
+        let request = ContextRequest {
+            task: "zzznomatch".to_owned(),
+            files: Vec::new(),
+            symbols: vec!["billing.subscription.cancel".to_owned()],
+            token_budget: 1_000,
+        };
+
+        let pack = compile_context_pack(&graph, &request).expect("context pack");
+        let identifiers = pack
+            .items
+            .iter()
+            .map(|item| item.identifier.as_str())
+            .collect::<BTreeSet<_>>();
+
+        assert!(identifiers.contains("REQ-SUB-014"));
+        assert!(identifiers.contains("tests.workflow"));
+        assert!(!identifiers.contains("REQ-REFUND-001"));
+    }
+
+    /// A task description that happens to lexically overlap with the
+    /// identifiers a shared test calls (a common occurrence for an
+    /// end-to-end test) must not auto-seed that test: an auto-seeded node
+    /// gets full root rights and would otherwise expose everything else the
+    /// test covers.
+    #[test]
+    fn lexical_seed_detection_never_auto_seeds_a_test() {
+        let code = symbol_node("code", "billing.subscription.cancel");
+        let shared_test = symbol_node_with_kind("test", "tests.workflow", SymbolKind::Test);
+        let unrelated = intent_node("unrelated", NodeKind::Requirement, "REQ-REFUND-001");
+        let graph = graph_with(
+            &[code.clone(), shared_test.clone(), unrelated.clone()],
+            vec![edge(
+                &unrelated,
+                &shared_test,
+                RelationKind::CoveredBy,
+                ClaimClass::Assertion,
+            )],
+        );
+        let request = ContextRequest {
+            task: "workflow".to_owned(),
+            files: Vec::new(),
+            symbols: vec!["billing.subscription.cancel".to_owned()],
+            token_budget: 1_000,
+        };
+
+        let pack = compile_context_pack(&graph, &request).expect("context pack");
+        let identifiers = pack
+            .items
+            .iter()
+            .map(|item| item.identifier.as_str())
+            .collect::<BTreeSet<_>>();
+
+        assert!(!identifiers.contains("tests.workflow"));
+        assert!(!identifiers.contains("REQ-REFUND-001"));
     }
 
     fn graph_with(nodes: &[GraphNode], edges: Vec<GraphEdge>) -> GraphSnapshot {

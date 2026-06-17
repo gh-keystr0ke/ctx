@@ -53,7 +53,7 @@ pub fn analyze_impact(query: &str, graph: &GraphSnapshot) -> Result<ImpactReport
     let mut selected = seed_keys.clone();
     expand_structural_seed_neighborhood(graph, &seed_keys, &mut selected);
     let mut uncertainties = Vec::new();
-    expand_semantics(graph, &mut selected, &mut uncertainties);
+    expand_semantics(graph, &seed_keys, &mut selected, &mut uncertainties);
 
     let mut report = ImpactReport {
         query: query.to_owned(),
@@ -122,6 +122,7 @@ fn expand_structural_seed_neighborhood(
 
 fn expand_semantics(
     graph: &GraphSnapshot,
+    seed_keys: &BTreeSet<StableKey>,
     selected: &mut BTreeSet<StableKey>,
     uncertainties: &mut Vec<ImpactUncertainty>,
 ) {
@@ -129,15 +130,18 @@ fn expand_semantics(
     let mut queue = roots
         .iter()
         .cloned()
-        .map(|key| (key, 0_usize, false))
+        .map(|key| {
+            let is_seed = seed_keys.contains(&key);
+            (key, 0_usize, false, is_seed)
+        })
         .collect::<VecDeque<_>>();
     let mut visited = roots
         .into_iter()
         .map(|key| (key, false))
         .collect::<BTreeSet<_>>();
 
-    while let Some((key, distance, inferred)) = queue.pop_front() {
-        if distance >= 3 || !can_expand_semantics(graph, &key, distance) {
+    while let Some((key, distance, inferred, is_seed)) = queue.pop_front() {
+        if distance >= 3 || !can_expand_semantics(graph, &key, distance, is_seed) {
             continue;
         }
         for edge in graph
@@ -167,25 +171,41 @@ fn expand_semantics(
             }
             selected.insert(candidate.clone());
             if visited.insert((candidate.clone(), next_inferred)) {
-                queue.push_back((candidate, distance + 1, next_inferred));
+                queue.push_back((candidate, distance + 1, next_inferred, false));
             }
         }
     }
 }
 
-fn can_expand_semantics(graph: &GraphSnapshot, key: &StableKey, distance: usize) -> bool {
+/// Governs whether `key`'s own semantic edges may be followed.
+///
+/// A node reached only through the seed's one-hop structural neighborhood
+/// (a caller/callee, added by [`expand_structural_seed_neighborhood`]) may
+/// still expose its *own* direct claims, matching `ctx-core`'s traversal
+/// policy that direct seeds and their one-hop callers/callees may discover
+/// product intent. A test is the one exception: tests are a common fan-in
+/// point (many requirements can share one end-to-end test), so a test must
+/// never bridge into unrelated intent unless it is itself the explicit seed
+/// being queried.
+fn can_expand_semantics(
+    graph: &GraphSnapshot,
+    key: &StableKey,
+    distance: usize,
+    is_seed: bool,
+) -> bool {
+    let Some(node) = graph.nodes.get(key) else {
+        return false;
+    };
+    if node.is_test() && !is_seed {
+        return false;
+    }
     if distance == 0 {
         return true;
     }
-    graph.nodes.get(key).is_some_and(|node| {
-        matches!(
-            node.kind,
-            NodeKind::Requirement
-                | NodeKind::Invariant
-                | NodeKind::Decision
-                | NodeKind::DomainConcept
-        )
-    })
+    matches!(
+        node.kind,
+        NodeKind::Requirement | NodeKind::Invariant | NodeKind::Decision | NodeKind::DomainConcept
+    )
 }
 
 fn touches(edge: &GraphEdge, key: &StableKey) -> bool {
@@ -358,6 +378,75 @@ mod tests {
         );
         assert_eq!(report.features[0].identifier, "FEAT-REVIEW");
         assert_eq!(report.tests[0].identifier, "tests.complete_journey");
+    }
+
+    /// A shared test that structurally *calls* the seed (not merely reached
+    /// through a covering requirement's semantic edge) is exactly the
+    /// caller/callee case the seed's one-hop structural neighborhood is
+    /// meant to surface. It must still not become a free root for its own
+    /// unrelated coverage: `expand_structural_seed_neighborhood` pulls such
+    /// a test into `selected` at "distance zero" alongside the true seeds,
+    /// and without the `is_seed` guard in `can_expand_semantics` that zero
+    /// distance alone used to be enough to let it fan out into whatever else
+    /// it covers.
+    #[test]
+    fn shared_test_reached_through_the_seeds_call_graph_does_not_bridge_unrelated_intent() {
+        let code = symbol_node("code", "billing.subscription.cancel", SymbolKind::Method);
+        let shared_test = symbol_node("test", "tests.workflow", SymbolKind::Test);
+        let requirement = intent_node("req", NodeKind::Requirement, "REQ-SUB-014");
+        let unrelated = intent_node("other", NodeKind::Requirement, "REQ-REFUND-001");
+        let nodes = [
+            code.clone(),
+            shared_test.clone(),
+            requirement.clone(),
+            unrelated.clone(),
+        ]
+        .into_iter()
+        .map(|node| (node.stable_key.clone(), node))
+        .collect::<BTreeMap<_, _>>();
+        let edges = vec![
+            edge(
+                &code,
+                &requirement,
+                RelationKind::Implements,
+                ClaimStatus::Active,
+            ),
+            classified_edge(
+                &shared_test,
+                &code,
+                RelationKind::Calls,
+                ClaimClass::Fact,
+                ClaimStatus::Active,
+            ),
+            edge(
+                &requirement,
+                &shared_test,
+                RelationKind::CoveredBy,
+                ClaimStatus::Active,
+            ),
+            edge(
+                &unrelated,
+                &shared_test,
+                RelationKind::CoveredBy,
+                ClaimStatus::Active,
+            ),
+        ];
+
+        let report = analyze_impact(
+            "billing.subscription.cancel",
+            &GraphSnapshot { nodes, edges },
+        )
+        .expect("impact report");
+
+        assert_eq!(
+            report
+                .requirements
+                .iter()
+                .map(|node| node.identifier.as_str())
+                .collect::<Vec<_>>(),
+            vec!["REQ-SUB-014"]
+        );
+        assert_eq!(report.tests[0].identifier, "tests.workflow");
     }
 
     #[test]

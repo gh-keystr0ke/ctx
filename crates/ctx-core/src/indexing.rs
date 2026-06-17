@@ -252,6 +252,14 @@ pub fn plan_incremental_index(
     let mut retired = BTreeSet::new();
     let historical_symbols = all_symbols(snapshot);
     let mut current_symbols = historical_symbols.clone();
+    // Shared across every file in this transition: once one file's symbol
+    // claims a prior identity (typically via its own unchanged canonical
+    // path), that identity is spoken for and must not also be handed to an
+    // unrelated symbol in a different file via the same-shape fallback.
+    // Scoping this per file instead of per transition is exactly how two
+    // trivial, differently-scoped one-line helpers with an identical
+    // whitespace-stripped body ended up silently sharing one node identity.
+    let mut used = BTreeSet::new();
 
     for change in changes {
         let replaced_path = match change {
@@ -272,10 +280,13 @@ pub fn plan_incremental_index(
             snapshot,
             analyses,
             change,
-            &mut plan,
-            &mut retired,
+            &mut RetirementLedger {
+                plan: &mut plan,
+                retired: &mut retired,
+            },
             &historical_symbols,
             &mut current_symbols,
+            &mut used,
         )?;
     }
 
@@ -285,14 +296,23 @@ pub fn plan_incremental_index(
     Ok(plan)
 }
 
+/// The plan being assembled and the retired-key ledger that keeps
+/// `retire_symbol`/`retire_file_identity` idempotent across one transition.
+/// Grouped so the changed-file planning functions stay under the workspace's
+/// argument-count lint without losing either accumulator's own identity.
+struct RetirementLedger<'a> {
+    plan: &'a mut IndexPlan,
+    retired: &'a mut BTreeSet<StableKey>,
+}
+
 fn plan_changed_file(
     snapshot: &RepositorySnapshot,
     analyses: &BTreeMap<String, FileAnalysis>,
     change: &FileChange,
-    plan: &mut IndexPlan,
-    retired: &mut BTreeSet<StableKey>,
+    ledger: &mut RetirementLedger<'_>,
     historical_symbols: &[IndexedSymbol],
     current_symbols: &mut Vec<IndexedSymbol>,
+    used: &mut BTreeSet<StableKey>,
 ) -> Result<(), IndexPlanError> {
     let Some(path) = change.current_path() else {
         return Ok(());
@@ -305,7 +325,7 @@ fn plan_changed_file(
         _ => path,
     };
     let file_key = file_key(path)?;
-    plan.nodes_to_write.push(PlannedNode {
+    ledger.plan.nodes_to_write.push(PlannedNode {
         stable_key: file_key.clone(),
         kind: NodeKind::File,
         name: path.to_owned(),
@@ -331,15 +351,16 @@ fn plan_changed_file(
         &file_analysis.symbols,
         prior_symbols,
         historical_symbols,
+        used,
     )?;
     let matched_keys: BTreeSet<_> = matched.iter().map(|(_, key)| key.clone()).collect();
     for prior in prior_symbols {
         if !matched_keys.contains(&prior.stable_key) {
-            retire_symbol(prior, plan, retired);
+            retire_symbol(prior, ledger.plan, ledger.retired);
         }
     }
     if prior_path != path {
-        retire_file_identity(snapshot, prior_path, plan, retired);
+        retire_file_identity(snapshot, prior_path, ledger.plan, ledger.retired);
     }
     for (definition, stable_key) in matched {
         write_symbol(
@@ -349,7 +370,7 @@ fn plan_changed_file(
             path,
             file_analysis,
             current_symbols,
-            plan,
+            ledger.plan,
         );
     }
     Ok(())
@@ -425,8 +446,8 @@ fn match_symbols(
     definitions: &[SymbolDefinition],
     prior_file: &[IndexedSymbol],
     all_prior: &[IndexedSymbol],
+    used: &mut BTreeSet<StableKey>,
 ) -> Result<Vec<(SymbolDefinition, StableKey)>, IndexPlanError> {
-    let mut used = BTreeSet::new();
     definitions
         .iter()
         .map(|definition| {
@@ -1022,6 +1043,90 @@ mod tests {
         );
         assert!(symbol_keys.contains("symbol:python:impact.checks:Function"));
         assert!(!symbol_keys.contains(existing_key.as_str()));
+    }
+
+    /// Reproduces the exact defect dogfooding this repository found:
+    /// `impact.rs` and `context_pack.rs` each define a same-named, one-line
+    /// `touches` helper with an identical whitespace-stripped body. Only
+    /// `context_pack.touches` has ever been stored under its own canonical
+    /// path (`impact.touches` was historically mismatched away by the same
+    /// fingerprint fallback, elsewhere fixed by requiring name equality).
+    /// Once both files are modified in the same transition, the same-shape
+    /// fallback must not hand `impact.touches` the identity that
+    /// `context_pack.touches` already claimed via its own exact canonical
+    /// path in this same pass, even though both share a name.
+    #[test]
+    fn same_named_same_shaped_symbols_in_different_files_claim_distinct_identities() {
+        let context_pack_definition =
+            definition("touches", "context_pack.touches", "same-body", "same-shape");
+        let context_pack_file = indexed_file("context_pack.py", &context_pack_definition);
+        let context_pack_key = context_pack_file.symbols[0].stable_key.clone();
+        let impact_file_without_its_own_identity = IndexedFile {
+            stable_key: file_key("impact.py").expect("file key"),
+            path: "impact.py".to_owned(),
+            language: "python".to_owned(),
+            analysis_version: "python-tree-sitter-v1".to_owned(),
+            content_hash: "impact-file".to_owned(),
+            symbols: Vec::new(),
+        };
+        let snapshot = RepositorySnapshot {
+            files: BTreeMap::from([
+                ("context_pack.py".to_owned(), context_pack_file),
+                ("impact.py".to_owned(), impact_file_without_its_own_identity),
+            ]),
+        };
+        let impact_definition = definition("touches", "impact.touches", "same-body", "same-shape");
+        let analyses = BTreeMap::from([
+            (
+                "context_pack.py".to_owned(),
+                FileAnalysis {
+                    path: "context_pack.py".to_owned(),
+                    language: "python".to_owned(),
+                    analysis_version: "python-tree-sitter-v1".to_owned(),
+                    content_hash: "context-pack-file-v2".to_owned(),
+                    symbols: vec![context_pack_definition],
+                },
+            ),
+            (
+                "impact.py".to_owned(),
+                FileAnalysis {
+                    path: "impact.py".to_owned(),
+                    language: "python".to_owned(),
+                    analysis_version: "python-tree-sitter-v1".to_owned(),
+                    content_hash: "impact-file-v2".to_owned(),
+                    symbols: vec![impact_definition],
+                },
+            ),
+        ]);
+
+        let plan = plan_incremental_index(
+            &snapshot,
+            &analyses,
+            &[
+                FileChange::Modified {
+                    path: "context_pack.py".to_owned(),
+                },
+                FileChange::Modified {
+                    path: "impact.py".to_owned(),
+                },
+            ],
+        )
+        .expect("both files claim distinct identities");
+
+        let symbol_keys = plan
+            .nodes_to_write
+            .iter()
+            .filter(|node| node.kind == NodeKind::CodeSymbol)
+            .map(|node| node.stable_key.as_str())
+            .collect::<BTreeSet<_>>();
+
+        assert_eq!(
+            symbol_keys.len(),
+            2,
+            "each file's touches must keep its own identity"
+        );
+        assert!(symbol_keys.contains(context_pack_key.as_str()));
+        assert!(symbol_keys.contains("symbol:python:impact.touches:Function"));
     }
 
     #[test]

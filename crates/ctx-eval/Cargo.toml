@@ -1,0 +1,22 @@
+[package]
+name = "ctx-eval"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "ctx-eval"
+path = "src/main.rs"
+
+[dependencies]
+chrono.workspace = true
+ctx-adapters = { path = "../ctx-adapters" }
+ctx-app = { path = "../ctx-app" }
+ctx-core = { path = "../ctx-core" }
+serde.workspace = true
+serde_json.workspace = true
+tempfile.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

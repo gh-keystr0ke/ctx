@@ -262,6 +262,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "ctx-eval"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "ctx-adapters",
+ "ctx-app",
+ "ctx-core",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+]
+
+[[package]]
 name = "ctx-mcp"
 version = "0.1.0"
 dependencies = [

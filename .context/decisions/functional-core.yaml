@@ -10,3 +10,4 @@ implementation:
   - symbol: ctx_core.indexing.plan_incremental_index
 tests:
   - symbol: ctx_core.indexing.tests.structurally_equal_symbols_added_together_do_not_impersonate_history
+  - symbol: ctx_core.indexing.tests.same_named_same_shaped_symbols_in_different_files_claim_distinct_identities

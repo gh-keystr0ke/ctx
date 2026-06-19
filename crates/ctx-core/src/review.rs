@@ -161,6 +161,7 @@ pub fn resolve_changed_entities(graph: &GraphSnapshot, input: &ReviewInput) -> V
             &mut entities,
         );
     }
+    let mut entities = merge_cross_file_moves(entities);
     entities.sort_by(|left, right| {
         left.file_path
             .cmp(&right.file_path)
@@ -168,6 +169,57 @@ pub fn resolve_changed_entities(graph: &GraphSnapshot, input: &ReviewInput) -> V
             .then_with(|| left.before.cmp(&right.before))
     });
     entities
+}
+
+/// `pair_symbols` only ever sees one [`FileChange`] at a time, so a symbol
+/// moved between two files it already owns (Git reports this as a deletion
+/// from the old file plus an addition in the new one, never a rename) comes
+/// out as two independent `BehaviorPotentiallyChanged` entities even though
+/// they resolve to the identical stored identity via `graph_symbol_key`'s
+/// fingerprint fallback. Left unmerged, both sides can independently surface
+/// findings against the same intent, doubling every finding. Collapse a
+/// delete/add pair that shares one stable key back into the single `Rename`
+/// they already represent at the graph level.
+fn merge_cross_file_moves(entities: Vec<ChangedEntity>) -> Vec<ChangedEntity> {
+    let mut by_key: BTreeMap<StableKey, Vec<usize>> = BTreeMap::new();
+    for (index, entity) in entities.iter().enumerate() {
+        if let Some(key) = &entity.stable_key {
+            by_key.entry(key.clone()).or_default().push(index);
+        }
+    }
+    let mut removed = BTreeSet::new();
+    let mut merged = Vec::new();
+    for indices in by_key.values() {
+        let [first, second] = indices.as_slice() else {
+            continue;
+        };
+        let (one, other) = (&entities[*first], &entities[*second]);
+        let Some((deleted, added)) = (if one.after.is_none() && other.before.is_none() {
+            Some((one, other))
+        } else if other.after.is_none() && one.before.is_none() {
+            Some((other, one))
+        } else {
+            None
+        }) else {
+            continue;
+        };
+        removed.insert(*first);
+        removed.insert(*second);
+        merged.push(ChangedEntity {
+            stable_key: deleted.stable_key.clone(),
+            before: deleted.before.clone(),
+            after: added.after.clone(),
+            file_path: added.file_path.clone(),
+            change_kind: ChangeKind::Rename,
+            signals: vec!["symbol renamed or moved".to_owned()],
+        });
+    }
+    entities
+        .into_iter()
+        .enumerate()
+        .filter_map(|(index, entity)| (!removed.contains(&index)).then_some(entity))
+        .chain(merged)
+        .collect()
 }
 
 #[derive(Clone, Copy)]
@@ -237,6 +289,21 @@ fn changed_entity(
     }
 }
 
+/// Note on `ChangeKind::RefactorLikely`: the branch below is unreachable from
+/// `pair_symbols`, which only calls this function on a pair where at least
+/// one of `body_hash`, `signature`, or `canonical_path` differs. Whenever
+/// `body_hash` matches, the underlying bytes are identical, so
+/// `structural_fingerprint` (a hash of the same bytes with whitespace
+/// stripped) matches too — meaning any `canonical_path` change already took
+/// the `Rename` branch above, and an unchanged `canonical_path` plus matching
+/// `signature`/`body_hash` would never have produced a pair to classify in
+/// the first place. This is left as-is rather than wired up with a weaker
+/// signal (e.g. "body changed but the call set didn't"): that would suppress
+/// exactly the failure class `cancellation-behavior-change` in the eval
+/// corpus exists to catch — a guard condition removed while the surrounding
+/// calls stay the same — and `eng_conclu.md` §38 explicitly rules out trying
+/// to prove semantic equivalence. Kept as a documented, tested gap rather
+/// than silently dead code; see `refactor_likely_is_intentionally_unreachable`.
 pub fn classify_behavior_change(
     before: Option<&SymbolDefinition>,
     after: Option<&SymbolDefinition>,
@@ -590,6 +657,158 @@ mod tests {
         assert_eq!(report.findings[0].related_tests.len(), 1);
         assert!(!report.findings[0].tests_modified);
         assert!(report.findings[0].possible_requirement_drift);
+    }
+
+    #[test]
+    fn cross_file_move_merges_into_one_silent_rename() {
+        let code_key = StableKey::new("code").expect("code key");
+        let requirement_key = StableKey::new("requirement").expect("requirement key");
+        let code = code_node(
+            &code_key,
+            "billing.subscription.SubscriptionService.cancel",
+            SymbolKind::Method,
+            "src/billing/subscription.py",
+        );
+        let requirement = intent_node(&requirement_key, NodeKind::Requirement, "REQ-SUB-014");
+        let nodes = [code, requirement]
+            .into_iter()
+            .map(|node| (node.stable_key.clone(), node))
+            .collect();
+        let edges = vec![semantic_edge(
+            &code_key,
+            &requirement_key,
+            RelationKind::Implements,
+            true,
+        )];
+        let moved_out = SymbolDefinition {
+            name: "cancel".to_owned(),
+            canonical_path: "billing.subscription.SubscriptionService.cancel".to_owned(),
+            kind: SymbolKind::Method,
+            range: source_range(),
+            signature: Some("(self, subscription, now)".to_owned()),
+            body_hash: "identical-body".to_owned(),
+            structural_fingerprint: "shape".to_owned(),
+            calls: Vec::new(),
+        };
+        let moved_in = SymbolDefinition {
+            canonical_path: "billing.cancellation.SubscriptionService.cancel".to_owned(),
+            ..moved_out.clone()
+        };
+        let input = ReviewInput {
+            base: "HEAD".to_owned(),
+            changes: vec![
+                FileChange::Modified {
+                    path: "src/billing/subscription.py".to_owned(),
+                },
+                FileChange::Added {
+                    path: "src/billing/cancellation.py".to_owned(),
+                },
+            ],
+            before: BTreeMap::from([(
+                "src/billing/subscription.py".to_owned(),
+                analysis("src/billing/subscription.py", moved_out),
+            )]),
+            after: BTreeMap::from([
+                (
+                    "src/billing/subscription.py".to_owned(),
+                    FileAnalysis {
+                        path: "src/billing/subscription.py".to_owned(),
+                        language: "python".to_owned(),
+                        analysis_version: "python-tree-sitter-v1".to_owned(),
+                        content_hash: "after-subscription".to_owned(),
+                        symbols: Vec::new(),
+                    },
+                ),
+                (
+                    "src/billing/cancellation.py".to_owned(),
+                    analysis("src/billing/cancellation.py", moved_in),
+                ),
+            ]),
+            changed_context_files: BTreeSet::new(),
+            verbose: false,
+        };
+
+        let report = build_review_findings(&GraphSnapshot { nodes, edges }, &input);
+
+        assert_eq!(report.changed_entities.len(), 1);
+        assert_eq!(report.changed_entities[0].change_kind, ChangeKind::Rename);
+        assert!(report.findings.is_empty());
+        assert_eq!(report.suppressed_non_behavioral_changes, 1);
+    }
+
+    /// Documents (and guards) the gap explained on `classify_behavior_change`:
+    /// no pair `pair_symbols` actually assembles into a `ChangedEntity` can
+    /// classify as `RefactorLikely`, across every boundary its own matching
+    /// and entity-creation gate distinguish. If this starts failing, either
+    /// the gate changed or a real distinguishing signal was added — either
+    /// way, `RefactorLikely`'s "silently suppressed" review treatment needs a
+    /// fresh look before this assertion is updated.
+    #[test]
+    fn refactor_likely_is_unreachable_through_pair_symbols() {
+        let empty_graph = GraphSnapshot {
+            nodes: BTreeMap::new(),
+            edges: Vec::new(),
+        };
+        let run = |before: SymbolDefinition, after: SymbolDefinition| {
+            let mut entities = Vec::new();
+            pair_symbols(
+                &empty_graph,
+                AnalyzedSymbols {
+                    path: Some("a.py"),
+                    language: Some("python"),
+                    symbols: &[before],
+                },
+                AnalyzedSymbols {
+                    path: Some("a.py"),
+                    language: Some("python"),
+                    symbols: &[after],
+                },
+                &mut entities,
+            );
+            entities
+        };
+        let base = symbol("body-a", "shape-a", "(value)");
+
+        let real_change = run(
+            base.clone(),
+            SymbolDefinition {
+                body_hash: "body-b".to_owned(),
+                structural_fingerprint: "shape-b".to_owned(),
+                ..base.clone()
+            },
+        );
+        assert_eq!(real_change.len(), 1);
+        assert_ne!(real_change[0].change_kind, ChangeKind::RefactorLikely);
+
+        let formatting_only = run(
+            base.clone(),
+            SymbolDefinition {
+                body_hash: "body-b".to_owned(),
+                ..base.clone()
+            },
+        );
+        assert_eq!(formatting_only.len(), 1);
+        assert_eq!(formatting_only[0].change_kind, ChangeKind::FormattingOnly);
+
+        let moved = run(
+            base.clone(),
+            SymbolDefinition {
+                canonical_path: "billing.cancel_v2".to_owned(),
+                ..base.clone()
+            },
+        );
+        assert_eq!(moved.len(), 1);
+        assert_eq!(moved[0].change_kind, ChangeKind::Rename);
+
+        let contract_changed = run(
+            base.clone(),
+            SymbolDefinition {
+                signature: Some("(value, force=False)".to_owned()),
+                ..base.clone()
+            },
+        );
+        assert_eq!(contract_changed.len(), 1);
+        assert_eq!(contract_changed[0].change_kind, ChangeKind::ContractChanged);
     }
 
     fn symbol(body_hash: &str, fingerprint: &str, signature: &str) -> SymbolDefinition {

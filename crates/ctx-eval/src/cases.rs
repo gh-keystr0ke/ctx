@@ -84,10 +84,11 @@ fn subscription_base_files() -> Vec<(&'static str, String)> {
 
 /// The full evaluation corpus. See `prompt.md`'s priority mission for the
 /// minimum case list this satisfies: a meaningful behavior change,
-/// formatting-only noise, an unrelated refactor, a rename/move, a deleted
-/// contract implementation, a stale semantic mapping, shared-test isolation,
-/// a newly added call edge, and a realistic multi-commit history (as opposed
-/// to every other case's single synthetic diff).
+/// formatting-only noise, an unrelated refactor, an in-file rename, a
+/// cross-file symbol move, a deleted contract implementation, a stale
+/// semantic mapping, shared-test isolation, a newly added call edge, and a
+/// realistic multi-commit history (as opposed to every other case's single
+/// synthetic diff).
 #[must_use]
 pub fn corpus() -> Vec<EvaluationCase> {
     vec![
@@ -95,6 +96,7 @@ pub fn corpus() -> Vec<EvaluationCase> {
         formatting_only_noise(),
         unrelated_refactor_noise(),
         rename_or_move_noise(),
+        symbol_move_across_files_noise(),
         deleted_contract_implementation(),
         stale_semantic_mapping(),
         shared_test_does_not_bridge_requirements(),
@@ -217,6 +219,42 @@ fn rename_or_move_noise() -> EvaluationCase {
         checks: vec![
             Check::ChangeKindIs {
                 canonical_path: SUBSCRIPTION_SERVICE,
+                kind: ChangeKind::Rename,
+            },
+            Check::NoFindings,
+            Check::FindingIntentAbsent("INV-SUB-003"),
+            Check::FindingIntentAbsent("REQ-SUB-014"),
+        ],
+    }
+}
+
+/// Relocate the mapped `SubscriptionService` class, body byte-identical, from
+/// `subscription.py` to a new `cancellation.py`. Git reports this as one
+/// `Modified` (old file, symbol removed) plus one `Added` (new file, symbol
+/// present), never a `Renamed`. Before the cross-file move merge in
+/// `resolve_changed_entities`, this produced two independent
+/// `BehaviorPotentiallyChanged` entities sharing the same stored stable key
+/// (fingerprint-matched), which doubled every finding on the untouched
+/// invariant/requirement it implements.
+fn symbol_move_across_files_noise() -> EvaluationCase {
+    let without_service = "from dataclasses import dataclass\nfrom datetime import datetime\n\nfrom billing.cancellation import SubscriptionService\n\n\n@dataclass\nclass Subscription:\n    status: str\n    paid_until: datetime\n\n\nclass StripeWebhookHandler:\n    def handle_subscription_update(\n        self, subscription: Subscription, now: datetime\n    ) -> None:\n        SubscriptionService().cancel(subscription, now)\n";
+    let moved_service = "from datetime import datetime\n\nfrom billing.subscription import Subscription\n\n\nclass SubscriptionService:\n    def cancel(self, subscription: Subscription, now: datetime) -> None:\n        if subscription.paid_until > now:\n            subscription.status = \"canceling\"\n        else:\n            subscription.status = \"inactive\"\n";
+    EvaluationCase {
+        id: "symbol-move-across-files",
+        description: "moving a mapped class to a new file, body unchanged, must classify as a rename and stay silent",
+        steps: vec![
+            Step::WriteFiles(subscription_base_files()),
+            Step::Commit("base"),
+            Step::Index,
+            Step::WriteFiles(vec![
+                ("src/billing/subscription.py", without_service.to_owned()),
+                ("src/billing/cancellation.py", moved_service.to_owned()),
+            ]),
+            Step::Review { base: "HEAD" },
+        ],
+        checks: vec![
+            Check::ChangeKindIs {
+                canonical_path: "billing.cancellation.SubscriptionService.cancel",
                 kind: ChangeKind::Rename,
             },
             Check::NoFindings,

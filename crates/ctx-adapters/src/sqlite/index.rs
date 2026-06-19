@@ -95,7 +95,7 @@ impl IndexStore for SqliteStore {
         }
         mark_semantic_edges_stale(&transaction, repository_row, plan)?;
         for edge in &plan.edges_to_create {
-            persist_edge(&transaction, repository_row, commit_row, edge)?;
+            persist_edge(&transaction, repository_row, commit_row, indexed_at, edge)?;
         }
         transaction.commit().map_err(database_error)
     }
@@ -118,6 +118,7 @@ impl IndexStore for SqliteStore {
             last_indexed_commit: latest.map(|commit| commit.oid),
             files: count_current_nodes(&self.connection, repository_row, "file")?,
             symbols: count_current_nodes(&self.connection, repository_row, "code_symbol")?,
+            db_entities: count_current_nodes(&self.connection, repository_row, "db_entity")?,
             features: count_current_nodes(&self.connection, repository_row, "feature")?,
             requirements: count_current_nodes(&self.connection, repository_row, "requirement")?,
             invariants: count_current_nodes(&self.connection, repository_row, "invariant")?,
@@ -238,6 +239,7 @@ impl SqliteStore {
                 signature,
                 structural_fingerprint,
                 calls,
+                database_accesses,
             } = attributes
             else {
                 continue;
@@ -255,6 +257,7 @@ impl SqliteStore {
                     body_hash,
                     structural_fingerprint,
                     calls,
+                    database_accesses,
                 });
             }
         }
@@ -436,6 +439,7 @@ fn persist_edge(
     transaction: &Transaction<'_>,
     repository_row: i64,
     commit_row: i64,
+    indexed_at: &str,
     edge: &PlannedEdge,
 ) -> Result<(), PortError> {
     let source_row = node_row(transaction, repository_row, &edge.source)?
@@ -474,6 +478,66 @@ fn persist_edge(
                 edge.source_uri,
                 edge.input_fingerprint
             ],
+        )
+        .map_err(database_error)?;
+    if let Some(locator) = &edge.evidence_locator {
+        persist_static_evidence(
+            transaction,
+            repository_row,
+            commit_row,
+            indexed_at,
+            edge_row,
+            edge,
+            locator,
+        )?;
+    }
+    Ok(())
+}
+
+fn persist_static_evidence(
+    transaction: &Transaction<'_>,
+    repository_row: i64,
+    commit_row: i64,
+    indexed_at: &str,
+    edge_row: i64,
+    edge: &PlannedEdge,
+    locator: &str,
+) -> Result<(), PortError> {
+    transaction
+        .execute(
+            "INSERT INTO sources(
+                repository_id, kind, uri, commit_id, author, timestamp,
+                content_hash, metadata_json
+             ) VALUES (?1, 'staticanalysis', ?2, ?3, NULL, ?4, ?5, ?6)",
+            params![
+                repository_row,
+                edge.source_uri,
+                commit_row,
+                indexed_at,
+                edge.input_fingerprint,
+                format!(r#"{{"producer":"{}"}}"#, edge.producer)
+            ],
+        )
+        .map_err(database_error)?;
+    let source_row = transaction.last_insert_rowid();
+    transaction
+        .execute(
+            "INSERT INTO evidence(
+                source_id, locator, excerpt_hash, strength, attributes_json
+             ) VALUES (?1, ?2, ?3, ?4, '{}')",
+            params![
+                source_row,
+                locator,
+                edge.input_fingerprint,
+                f64::from(edge.confidence.get())
+            ],
+        )
+        .map_err(database_error)?;
+    let evidence_row = transaction.last_insert_rowid();
+    transaction
+        .execute(
+            "INSERT INTO edge_evidence(edge_id, evidence_id) VALUES (?1, ?2)",
+            params![edge_row, evidence_row],
         )
         .map_err(database_error)?;
     Ok(())
@@ -546,9 +610,17 @@ fn count_current_edges_by_class(
 
 const fn node_kind(node: &PlannedNode) -> &'static str {
     match node.kind {
+        ctx_core::domain::NodeKind::Feature => "feature",
+        ctx_core::domain::NodeKind::Requirement => "requirement",
+        ctx_core::domain::NodeKind::Invariant => "invariant",
+        ctx_core::domain::NodeKind::Decision => "decision",
+        ctx_core::domain::NodeKind::DomainConcept => "domain_concept",
+        ctx_core::domain::NodeKind::ExternalSystem => "external_system",
         ctx_core::domain::NodeKind::File => "file",
         ctx_core::domain::NodeKind::CodeSymbol => "code_symbol",
-        _ => "other",
+        ctx_core::domain::NodeKind::Endpoint => "endpoint",
+        ctx_core::domain::NodeKind::DbEntity => "db_entity",
+        ctx_core::domain::NodeKind::Event => "event",
     }
 }
 
@@ -585,10 +657,14 @@ fn domain_error(error: ctx_core::domain::InvalidIdentifier) -> PortError {
 
 #[cfg(test)]
 mod tests {
-    use ctx_app::ports::{CommitMetadata, IndexStore, RepositoryDescriptor};
+    use ctx_app::ports::{CommitMetadata, GraphStore, IndexStore, RepositoryDescriptor};
     use ctx_core::{
-        domain::{CommitOid, NodeKind, RepositoryId, StableKey},
-        indexing::{IndexPlan, NodeMutationKind, PlannedNode, PlannedNodeAttributes},
+        domain::{
+            ClaimClass, ClaimStatus, CommitOid, Confidence, NodeKind, RelationKind, RepositoryId,
+            SourceKind, StableKey,
+        },
+        indexing::{IndexPlan, NodeMutationKind, PlannedEdge, PlannedNode, PlannedNodeAttributes},
+        ir::{SourceRange, SymbolKind},
     };
     use tempfile::tempdir;
 
@@ -648,6 +724,45 @@ mod tests {
         );
     }
 
+    #[test]
+    fn database_facts_persist_with_static_evidence_and_status_counts() {
+        let directory = tempdir().expect("temporary directory");
+        let mut store = SqliteStore::open(&directory.path().join("ctx.db")).expect("SQLite store");
+        let repository = RepositoryDescriptor {
+            id: RepositoryId::new("repo:data").expect("repository ID"),
+            root_path: "/repo".to_owned(),
+            remote_url: None,
+        };
+        let commit = CommitMetadata {
+            oid: CommitOid::new("bbbbbbbb").expect("commit OID"),
+            parent_oid: None,
+            authored_at: "2026-08-17T00:00:00Z".to_owned(),
+        };
+        store
+            .ensure_repository(&repository, "2026-08-17T00:00:01Z")
+            .expect("repository");
+        store
+            .apply_index(
+                &repository.id,
+                &commit,
+                "2026-08-17T00:00:01Z",
+                &database_plan(),
+            )
+            .expect("database fact");
+
+        let graph = store.load_graph(&repository.id).expect("graph");
+        let edge = graph
+            .edges
+            .iter()
+            .find(|edge| edge.kind == RelationKind::WritesTo)
+            .expect("write fact");
+        assert_eq!(edge.claim_class, ClaimClass::Fact);
+        assert_eq!(edge.source_kind, SourceKind::StaticAnalysis);
+        assert_eq!(edge.evidence.len(), 1);
+        assert_eq!(edge.evidence[0].locator, "lines:12");
+        assert_eq!(store.status(&repository.id).expect("status").db_entities, 1);
+    }
+
     fn file_plan(
         content_hash: &str,
         analysis_version: &str,
@@ -665,6 +780,62 @@ mod tests {
                     analysis_version: analysis_version.to_owned(),
                 },
                 mutation,
+            }],
+            ..IndexPlan::default()
+        }
+    }
+
+    fn database_plan() -> IndexPlan {
+        let symbol = StableKey::new("symbol:python:billing.persist:Function").expect("symbol key");
+        let database = StableKey::new("db:subscriptions").expect("database key");
+        IndexPlan {
+            nodes_to_write: vec![
+                PlannedNode {
+                    stable_key: symbol.clone(),
+                    kind: NodeKind::CodeSymbol,
+                    name: "persist".to_owned(),
+                    content_hash: "body".to_owned(),
+                    attributes: PlannedNodeAttributes::Symbol {
+                        file_path: "src/billing.py".to_owned(),
+                        canonical_path: "billing.persist".to_owned(),
+                        symbol_kind: SymbolKind::Function,
+                        range: SourceRange {
+                            start_byte: 0,
+                            end_byte: 20,
+                            start_line: 10,
+                            end_line: 14,
+                        },
+                        signature: Some("()".to_owned()),
+                        structural_fingerprint: "shape".to_owned(),
+                        calls: Vec::new(),
+                        database_accesses: Vec::new(),
+                    },
+                    mutation: NodeMutationKind::Create,
+                },
+                PlannedNode {
+                    stable_key: database.clone(),
+                    kind: NodeKind::DbEntity,
+                    name: "subscriptions".to_owned(),
+                    content_hash: "db-entity:subscriptions".to_owned(),
+                    attributes: PlannedNodeAttributes::Interaction {
+                        identifier: "subscriptions".to_owned(),
+                    },
+                    mutation: NodeMutationKind::Create,
+                },
+            ],
+            edges_to_create: vec![PlannedEdge {
+                source: symbol,
+                target: database,
+                kind: RelationKind::WritesTo,
+                claim_class: ClaimClass::Fact,
+                source_kind: SourceKind::StaticAnalysis,
+                confidence: Confidence::CERTAIN,
+                status: ClaimStatus::Active,
+                producer: "python_tree_sitter".to_owned(),
+                fingerprint: "write:subscriptions".to_owned(),
+                source_uri: "src/billing.py".to_owned(),
+                input_fingerprint: "sql-hash".to_owned(),
+                evidence_locator: Some("lines:12".to_owned()),
             }],
             ..IndexPlan::default()
         }

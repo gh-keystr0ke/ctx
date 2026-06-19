@@ -5,7 +5,9 @@ use thiserror::Error;
 
 use crate::{
     domain::{ClaimClass, ClaimStatus, Confidence, NodeKind, RelationKind, SourceKind, StableKey},
-    ir::{FileAnalysis, SourceRange, SymbolDefinition, SymbolKind},
+    ir::{
+        DatabaseAccess, DatabaseAccessKind, FileAnalysis, SourceRange, SymbolDefinition, SymbolKind,
+    },
 };
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -21,6 +23,8 @@ pub struct IndexedSymbol {
     pub body_hash: String,
     pub structural_fingerprint: String,
     pub calls: Vec<String>,
+    #[serde(default)]
+    pub database_accesses: Vec<DatabaseAccess>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -162,6 +166,11 @@ pub enum PlannedNodeAttributes {
         signature: Option<String>,
         structural_fingerprint: String,
         calls: Vec<String>,
+        #[serde(default)]
+        database_accesses: Vec<DatabaseAccess>,
+    },
+    Interaction {
+        identifier: String,
     },
     Business {
         id: String,
@@ -195,6 +204,7 @@ pub struct PlannedEdge {
     pub fingerprint: String,
     pub source_uri: String,
     pub input_fingerprint: String,
+    pub evidence_locator: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
@@ -251,6 +261,7 @@ pub fn plan_incremental_index(
     let mut plan = IndexPlan::default();
     let mut retired = BTreeSet::new();
     let historical_symbols = all_symbols(snapshot);
+    let historical_database_entities = database_entities(&historical_symbols);
     let mut current_symbols = historical_symbols.clone();
     // Shared across every file in this transition: once one file's symbol
     // claims a prior identity (typically via its own unchanged canonical
@@ -292,6 +303,7 @@ pub fn plan_incremental_index(
 
     current_symbols.retain(|symbol| !retired.contains(&symbol.stable_key));
     add_resolved_calls(&mut plan, &current_symbols);
+    add_database_facts(&mut plan, &historical_database_entities, &current_symbols)?;
     normalize_plan(&mut plan)?;
     Ok(plan)
 }
@@ -414,6 +426,7 @@ fn write_symbol(
             signature: definition.signature.clone(),
             structural_fingerprint: definition.structural_fingerprint.clone(),
             calls: calls.clone(),
+            database_accesses: definition.database_accesses.clone(),
         },
         mutation,
     });
@@ -430,6 +443,7 @@ fn write_symbol(
         body_hash: definition.body_hash.clone(),
         structural_fingerprint: definition.structural_fingerprint.clone(),
         calls,
+        database_accesses: definition.database_accesses.clone(),
     });
     plan.edges_to_create.push(structural_edge(
         file_key,
@@ -438,6 +452,7 @@ fn write_symbol(
         path,
         &file_analysis.content_hash,
         &file_analysis.language,
+        None,
     ));
 }
 
@@ -556,6 +571,7 @@ fn structural_edge(
     source_uri: &str,
     input_fingerprint: &str,
     language: &str,
+    evidence_locator: Option<String>,
 ) -> PlannedEdge {
     PlannedEdge {
         source: source.clone(),
@@ -569,6 +585,7 @@ fn structural_edge(
         fingerprint: format!("{}:{kind:?}:{}", source.as_str(), target.as_str()),
         source_uri: source_uri.to_owned(),
         input_fingerprint: input_fingerprint.to_owned(),
+        evidence_locator,
     }
 }
 
@@ -603,10 +620,107 @@ fn add_resolved_calls(plan: &mut IndexPlan, symbols: &[IndexedSymbol]) {
                     &caller.file_path,
                     &caller.body_hash,
                     &caller.language,
+                    None,
                 ));
             }
         }
     }
+}
+
+fn database_entities(symbols: &[IndexedSymbol]) -> BTreeSet<String> {
+    symbols
+        .iter()
+        .flat_map(|symbol| {
+            symbol
+                .database_accesses
+                .iter()
+                .map(|access| access.entity.clone())
+        })
+        .collect()
+}
+
+fn add_database_facts(
+    plan: &mut IndexPlan,
+    historical_entities: &BTreeSet<String>,
+    symbols: &[IndexedSymbol],
+) -> Result<(), IndexPlanError> {
+    let current_entities = database_entities(symbols);
+    for entity in current_entities.difference(historical_entities) {
+        let stable_key = database_entity_key(entity)?;
+        plan.nodes_to_write.push(PlannedNode {
+            stable_key,
+            kind: NodeKind::DbEntity,
+            name: entity.clone(),
+            content_hash: format!("db-entity:{entity}"),
+            attributes: PlannedNodeAttributes::Interaction {
+                identifier: entity.clone(),
+            },
+            mutation: NodeMutationKind::Create,
+        });
+    }
+    for entity in historical_entities.difference(&current_entities) {
+        plan.nodes_to_retire.push(database_entity_key(entity)?);
+    }
+
+    let changed = plan
+        .nodes_to_write
+        .iter()
+        .filter(|node| node.kind == NodeKind::CodeSymbol)
+        .map(|node| node.stable_key.clone())
+        .collect::<BTreeSet<_>>();
+    for symbol in symbols
+        .iter()
+        .filter(|symbol| changed.contains(&symbol.stable_key))
+    {
+        let mut grouped = BTreeMap::<(DatabaseAccessKind, &str), Vec<&DatabaseAccess>>::new();
+        for access in &symbol.database_accesses {
+            grouped
+                .entry((access.kind, access.entity.as_str()))
+                .or_default()
+                .push(access);
+        }
+        for ((kind, entity), accesses) in grouped {
+            let target = database_entity_key(entity)?;
+            let relation = match kind {
+                DatabaseAccessKind::Read => RelationKind::ReadsFrom,
+                DatabaseAccessKind::Write => RelationKind::WritesTo,
+            };
+            let mut statement_hashes = accesses
+                .iter()
+                .map(|access| access.statement_hash.as_str())
+                .collect::<Vec<_>>();
+            statement_hashes.sort_unstable();
+            statement_hashes.dedup();
+            let mut lines = accesses
+                .iter()
+                .map(|access| access.range.start_line)
+                .collect::<Vec<_>>();
+            lines.sort_unstable();
+            lines.dedup();
+            plan.edges_to_create.push(structural_edge(
+                &symbol.stable_key,
+                &target,
+                relation,
+                &symbol.file_path,
+                &statement_hashes.join(":"),
+                &symbol.language,
+                Some(format!(
+                    "lines:{}",
+                    lines
+                        .iter()
+                        .map(usize::to_string)
+                        .collect::<Vec<_>>()
+                        .join(",")
+                )),
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn database_entity_key(entity: &str) -> Result<StableKey, IndexPlanError> {
+    StableKey::new(format!("db:{entity}"))
+        .map_err(|error| IndexPlanError::InvalidStableKey(error.to_string()))
 }
 
 const fn is_callable(kind: SymbolKind) -> bool {
@@ -668,7 +782,7 @@ fn normalize_plan(plan: &mut IndexPlan) -> Result<(), IndexPlanError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::CallSite;
+    use crate::ir::{CallSite, DatabaseAccess};
 
     fn range() -> SourceRange {
         SourceRange {
@@ -689,6 +803,7 @@ mod tests {
             body_hash: body.to_owned(),
             structural_fingerprint: fingerprint.to_owned(),
             calls: Vec::new(),
+            database_accesses: Vec::new(),
         }
     }
 
@@ -711,6 +826,7 @@ mod tests {
                 body_hash: definition.body_hash.clone(),
                 structural_fingerprint: definition.structural_fingerprint.clone(),
                 calls: Vec::new(),
+                database_accesses: definition.database_accesses.clone(),
             }],
         }
     }
@@ -821,6 +937,65 @@ mod tests {
                 .count(),
             1
         );
+    }
+
+    #[test]
+    fn database_entities_and_facts_follow_the_current_symbol_snapshot() {
+        let mut old = definition("persist", "billing.persist", "body-v1", "shape-v1");
+        old.database_accesses.push(DatabaseAccess {
+            entity: "subscriptions".to_owned(),
+            kind: DatabaseAccessKind::Write,
+            range: range(),
+            statement_hash: "sql-v1".to_owned(),
+        });
+        let mut snapshot = RepositorySnapshot::default();
+        snapshot
+            .files
+            .insert("billing.py".to_owned(), indexed_file("billing.py", &old));
+
+        let mut new = definition("persist", "billing.persist", "body-v2", "shape-v2");
+        new.database_accesses.push(DatabaseAccess {
+            entity: "subscription_archive".to_owned(),
+            kind: DatabaseAccessKind::Write,
+            range: range(),
+            statement_hash: "sql-v2".to_owned(),
+        });
+        let analyses = BTreeMap::from([(
+            "billing.py".to_owned(),
+            FileAnalysis {
+                path: "billing.py".to_owned(),
+                language: "python".to_owned(),
+                analysis_version: "python-tree-sitter-v2".to_owned(),
+                content_hash: "file-v2".to_owned(),
+                symbols: vec![new],
+            },
+        )]);
+
+        let plan = plan_incremental_index(
+            &snapshot,
+            &analyses,
+            &[FileChange::Modified {
+                path: "billing.py".to_owned(),
+            }],
+        )
+        .expect("database transition");
+
+        assert!(
+            plan.nodes_to_retire
+                .iter()
+                .any(|key| key.as_str() == "db:subscriptions")
+        );
+        assert!(plan.nodes_to_write.iter().any(|node| {
+            node.kind == NodeKind::DbEntity && node.stable_key.as_str() == "db:subscription_archive"
+        }));
+        let edge = plan
+            .edges_to_create
+            .iter()
+            .find(|edge| edge.kind == RelationKind::WritesTo)
+            .expect("write fact");
+        assert_eq!(edge.target.as_str(), "db:subscription_archive");
+        assert_eq!(edge.claim_class, ClaimClass::Fact);
+        assert_eq!(edge.evidence_locator.as_deref(), Some("lines:1"));
     }
 
     #[test]

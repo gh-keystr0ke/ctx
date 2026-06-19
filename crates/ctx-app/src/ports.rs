@@ -50,6 +50,7 @@ pub struct RepositoryStatus {
     pub last_indexed_commit: Option<CommitOid>,
     pub files: usize,
     pub symbols: usize,
+    pub db_entities: usize,
     pub features: usize,
     pub requirements: usize,
     pub invariants: usize,

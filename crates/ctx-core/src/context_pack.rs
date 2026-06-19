@@ -322,7 +322,17 @@ fn traversable(
                     | NodeKind::DomainConcept
             );
     }
-    distance == 0 && matches!(edge.kind, RelationKind::Contains | RelationKind::Calls)
+    distance == 0
+        && matches!(
+            edge.kind,
+            RelationKind::Contains
+                | RelationKind::Calls
+                | RelationKind::References
+                | RelationKind::ReadsFrom
+                | RelationKind::WritesTo
+                | RelationKind::Emits
+                | RelationKind::Handles
+        )
 }
 
 fn touches(edge: &GraphEdge, key: &StableKey) -> bool {
@@ -385,22 +395,51 @@ fn node_content(node: &GraphNode) -> String {
             range,
             signature,
             calls,
+            database_accesses,
             ..
-        } => format!(
-            "{}:{}-{}\nSignature: {}\nCalls: {}",
-            file_path,
-            range.start_line,
-            range.end_line,
-            signature.as_deref().unwrap_or("unknown"),
-            if calls.is_empty() {
-                "none".to_owned()
-            } else {
-                calls.join(", ")
-            }
-        ),
+        } => {
+            let reads = database_entities(database_accesses, crate::ir::DatabaseAccessKind::Read);
+            let writes = database_entities(database_accesses, crate::ir::DatabaseAccessKind::Write);
+            format!(
+                "{}:{}-{}\nSignature: {}\nCalls: {}\nDB reads: {}\nDB writes: {}",
+                file_path,
+                range.start_line,
+                range.end_line,
+                signature.as_deref().unwrap_or("unknown"),
+                if calls.is_empty() {
+                    "none".to_owned()
+                } else {
+                    calls.join(", ")
+                },
+                render_entities(&reads),
+                render_entities(&writes),
+            )
+        }
         PlannedNodeAttributes::File { path, language, .. } => {
             format!("{language} source file: {path}")
         }
+        PlannedNodeAttributes::Interaction { identifier } => {
+            format!("Statically discovered data or external contract: {identifier}")
+        }
+    }
+}
+
+fn database_entities(
+    accesses: &[crate::ir::DatabaseAccess],
+    kind: crate::ir::DatabaseAccessKind,
+) -> BTreeSet<&str> {
+    accesses
+        .iter()
+        .filter(|access| access.kind == kind)
+        .map(|access| access.entity.as_str())
+        .collect()
+}
+
+fn render_entities(entities: &BTreeSet<&str>) -> String {
+    if entities.is_empty() {
+        "none".to_owned()
+    } else {
+        entities.iter().copied().collect::<Vec<_>>().join(", ")
     }
 }
 
@@ -416,7 +455,7 @@ fn compile_evidence(
         .filter(|edge| {
             selected.contains(&edge.source)
                 && selected.contains(&edge.target)
-                && edge.kind.is_semantic()
+                && (edge.kind.is_semantic() || !edge.evidence.is_empty())
         })
         .collect::<Vec<_>>();
     relevant_edges.sort_by(|left, right| {
@@ -601,6 +640,37 @@ mod tests {
                 .iter()
                 .any(|item| item.identifier == "FEAT-SUBSCRIPTIONS")
         );
+    }
+
+    #[test]
+    fn includes_direct_database_contracts_as_prioritized_context() {
+        let code = symbol_node("code", "billing.persist");
+        let database = interaction_node("db:subscriptions", "subscriptions", NodeKind::DbEntity);
+        let graph = graph_with(
+            &[code.clone(), database.clone()],
+            vec![edge(
+                &code,
+                &database,
+                RelationKind::WritesTo,
+                ClaimClass::Fact,
+            )],
+        );
+        let request = ContextRequest {
+            task: "change subscription persistence".to_owned(),
+            files: Vec::new(),
+            symbols: vec!["billing.persist".to_owned()],
+            token_budget: 500,
+        };
+
+        let pack = compile_context_pack(&graph, &request).expect("database context");
+        let data = pack
+            .items
+            .iter()
+            .find(|item| item.identifier == "subscriptions")
+            .expect("database contract");
+
+        assert_eq!(data.priority, ContextPriority::DataContract);
+        assert!(pack.estimated_tokens <= pack.token_budget);
     }
 
     #[test]
@@ -804,6 +874,7 @@ mod tests {
                 signature: Some("()".to_owned()),
                 structural_fingerprint: "shape".to_owned(),
                 calls: Vec::new(),
+                database_accesses: Vec::new(),
             },
         }
     }
@@ -820,6 +891,18 @@ mod tests {
                 body: "Paid access remains active until paid_until.".to_owned(),
                 feature: None,
                 source_uri: "context.yaml".to_owned(),
+            },
+        }
+    }
+
+    fn interaction_node(key: &str, identifier: &str, kind: NodeKind) -> GraphNode {
+        GraphNode {
+            stable_key: StableKey::new(key).expect("interaction key"),
+            kind,
+            name: identifier.to_owned(),
+            content_hash: identifier.to_owned(),
+            attributes: PlannedNodeAttributes::Interaction {
+                identifier: identifier.to_owned(),
             },
         }
     }

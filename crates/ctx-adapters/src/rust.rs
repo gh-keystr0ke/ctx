@@ -1,11 +1,16 @@
 use std::{fs, path::PathBuf};
 
 use ctx_app::ports::{LanguageAnalyzer, PortError};
-use ctx_core::ir::{CallSite, FileAnalysis, SourceRange, SymbolDefinition, SymbolKind};
+use ctx_core::ir::{
+    CallSite, DatabaseAccess, FileAnalysis, SourceRange, SymbolDefinition, SymbolKind,
+};
 use thiserror::Error;
 use tree_sitter::{Node, Parser, TreeCursor};
 
-use crate::analyzer::AnalyzerModule;
+use crate::{
+    analyzer::AnalyzerModule,
+    database::{sql_entities, static_string_content},
+};
 
 #[derive(Debug, Error)]
 pub enum RustAnalysisError {
@@ -72,7 +77,7 @@ impl RustAnalyzer {
         Ok(FileAnalysis {
             path: relative_path.to_owned(),
             language: "rust".to_owned(),
-            analysis_version: "rust-tree-sitter-v2".to_owned(),
+            analysis_version: "rust-tree-sitter-v3".to_owned(),
             content_hash: blake3::hash(source.as_bytes()).to_hex().to_string(),
             symbols,
         })
@@ -81,7 +86,7 @@ impl RustAnalyzer {
 
 impl LanguageAnalyzer for RustAnalyzer {
     fn analysis_version(&self, _relative_path: &str) -> Result<String, PortError> {
-        Ok("rust-tree-sitter-v2".to_owned())
+        Ok("rust-tree-sitter-v3".to_owned())
     }
 
     fn analyze(&self, relative_path: &str) -> Result<FileAnalysis, PortError> {
@@ -231,6 +236,7 @@ fn parse_named_item(
         body_hash: hash_bytes(&source[body.byte_range()]),
         structural_fingerprint: structural_fingerprint(&source[body.byte_range()]),
         calls: Vec::new(),
+        database_accesses: Vec::new(),
     })
 }
 
@@ -263,6 +269,7 @@ fn parse_function(
         body_hash: hash_bytes(&source[body.byte_range()]),
         structural_fingerprint: structural_fingerprint(&source[body.byte_range()]),
         calls: collect_calls(body, source),
+        database_accesses: collect_database_accesses(body, source),
     })
 }
 
@@ -292,6 +299,7 @@ fn parse_function_signature(
         body_hash: hash_bytes(signature.as_bytes()),
         structural_fingerprint: structural_fingerprint(signature.as_bytes()),
         calls: Vec::new(),
+        database_accesses: Vec::new(),
     })
 }
 
@@ -394,6 +402,105 @@ fn callee_name(expression: &str) -> Option<String> {
         .find(|part| !part.is_empty())?
         .trim();
     (!candidate.is_empty()).then(|| candidate.to_owned())
+}
+
+fn collect_database_accesses(node: Node<'_>, source: &[u8]) -> Vec<DatabaseAccess> {
+    let mut accesses = Vec::new();
+    let mut cursor = node.walk();
+    visit_database_calls(&mut cursor, source, &mut accesses, true);
+    accesses.sort_by(|left, right| {
+        left.entity
+            .cmp(&right.entity)
+            .then_with(|| left.kind.cmp(&right.kind))
+            .then_with(|| left.range.start_byte.cmp(&right.range.start_byte))
+    });
+    accesses.dedup_by(|left, right| {
+        left.entity == right.entity
+            && left.kind == right.kind
+            && left.statement_hash == right.statement_hash
+    });
+    accesses
+}
+
+fn visit_database_calls(
+    cursor: &mut TreeCursor<'_>,
+    source: &[u8],
+    accesses: &mut Vec<DatabaseAccess>,
+    root: bool,
+) {
+    let node = cursor.node();
+    if !root && node.kind() == "function_item" {
+        return;
+    }
+    if node.kind() == "call_expression"
+        && let Some(function) = node.child_by_field_name("function")
+        && function
+            .utf8_text(source)
+            .ok()
+            .and_then(callee_name)
+            .is_some_and(|callee| is_database_execution_call(&callee))
+        && let Some(arguments) = node.child_by_field_name("arguments")
+    {
+        collect_sql_literals(arguments, source, accesses);
+    } else if node.kind() == "macro_invocation"
+        && node
+            .utf8_text(source)
+            .ok()
+            .and_then(|text| text.split('!').next())
+            .and_then(callee_name)
+            .is_some_and(|callee| is_database_execution_call(&callee))
+    {
+        collect_sql_literals(node, source, accesses);
+    }
+    if cursor.goto_first_child() {
+        loop {
+            visit_database_calls(cursor, source, accesses, false);
+            if !cursor.goto_next_sibling() {
+                break;
+            }
+        }
+        cursor.goto_parent();
+    }
+}
+
+fn is_database_execution_call(callee: &str) -> bool {
+    matches!(
+        callee.trim_end_matches('!'),
+        "execute"
+            | "execute_batch"
+            | "query"
+            | "query_as"
+            | "query_scalar"
+            | "query_file"
+            | "query_file_as"
+            | "fetch"
+            | "fetch_one"
+            | "fetch_all"
+            | "fetch_optional"
+            | "sql_query"
+    )
+}
+
+fn collect_sql_literals(node: Node<'_>, source: &[u8], accesses: &mut Vec<DatabaseAccess>) {
+    if matches!(node.kind(), "string_literal" | "raw_string_literal")
+        && let Ok(literal) = node.utf8_text(source)
+        && let Some(statement) = static_string_content(literal)
+    {
+        let statement_hash = hash_bytes(statement.as_bytes());
+        for (kind, entity) in sql_entities(&statement) {
+            accesses.push(DatabaseAccess {
+                entity,
+                kind,
+                range: source_range(node),
+                statement_hash: statement_hash.clone(),
+            });
+        }
+        return;
+    }
+    let mut cursor = node.walk();
+    for child in node.named_children(&mut cursor) {
+        collect_sql_literals(child, source, accesses);
+    }
 }
 
 fn signature_before(node: Node<'_>, body: Node<'_>, source: &[u8]) -> Option<String> {
@@ -533,6 +640,39 @@ mod tests {
             .expect_err("invalid Rust must fail");
 
         assert!(matches!(error, RustAnalysisError::Syntax(_)));
+    }
+
+    #[test]
+    fn extracts_sqlx_and_rusqlite_static_database_accesses() {
+        let source = r##"
+fn archive(connection: &Connection) {
+    let ignored = "DELETE FROM should_not_be_a_fact";
+    sqlx::query!(r#"SELECT id FROM subscriptions JOIN accounts ON accounts.id = subscriptions.account_id"#);
+    connection.execute("INSERT INTO subscription_archive(id) VALUES (?1)", []);
+}
+"##;
+        let analysis = RustAnalyzer::analyze_source("src/storage.rs", source).expect("Rust SQL");
+        let function = analysis
+            .symbols
+            .iter()
+            .find(|symbol| symbol.name == "archive")
+            .expect("archive function");
+        let accesses = function
+            .database_accesses
+            .iter()
+            .map(|access| (access.kind, access.entity.as_str()))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            accesses,
+            vec![
+                (ctx_core::ir::DatabaseAccessKind::Read, "accounts"),
+                (
+                    ctx_core::ir::DatabaseAccessKind::Write,
+                    "subscription_archive"
+                ),
+                (ctx_core::ir::DatabaseAccessKind::Read, "subscriptions"),
+            ]
+        );
     }
 
     #[test]

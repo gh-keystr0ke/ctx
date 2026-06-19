@@ -23,6 +23,7 @@ pub struct ImpactReport {
     pub requirements: Vec<NodeSummary>,
     pub invariants: Vec<NodeSummary>,
     pub decisions: Vec<NodeSummary>,
+    pub data_contracts: Vec<NodeSummary>,
     pub implementation: Vec<NodeSummary>,
     pub tests: Vec<NodeSummary>,
     pub uncertainties: Vec<ImpactUncertainty>,
@@ -38,8 +39,9 @@ pub enum ImpactError {
 
 /// Compiles a bounded intent-to-implementation impact view.
 ///
-/// The policy expands file containment and calls only one hop, then follows at
-/// most three semantic hops. An inference can never lead to another inference.
+/// The policy expands file containment, calls, and statically proven data or
+/// external interactions only one hop, then follows at most three semantic
+/// hops. An inference can never lead to another inference.
 ///
 /// # Errors
 ///
@@ -71,9 +73,15 @@ pub fn analyze_impact(query: &str, graph: &GraphSnapshot) -> Result<ImpactReport
             NodeKind::Requirement => report.requirements.push(summary),
             NodeKind::Invariant => report.invariants.push(summary),
             NodeKind::Decision => report.decisions.push(summary),
+            NodeKind::DbEntity
+            | NodeKind::ExternalSystem
+            | NodeKind::Endpoint
+            | NodeKind::Event => {
+                report.data_contracts.push(summary);
+            }
             NodeKind::CodeSymbol if node.is_test() => report.tests.push(summary),
             NodeKind::CodeSymbol | NodeKind::File => report.implementation.push(summary),
-            _ => {}
+            NodeKind::DomainConcept => {}
         }
     }
     sort_report(&mut report);
@@ -112,7 +120,18 @@ fn expand_structural_seed_neighborhood(
         .filter(|edge| edge.status == ClaimStatus::Active)
     {
         let touches_seed = seeds.contains(&edge.source) || seeds.contains(&edge.target);
-        if !touches_seed || !matches!(edge.kind, RelationKind::Contains | RelationKind::Calls) {
+        if !touches_seed
+            || !matches!(
+                edge.kind,
+                RelationKind::Contains
+                    | RelationKind::Calls
+                    | RelationKind::References
+                    | RelationKind::ReadsFrom
+                    | RelationKind::WritesTo
+                    | RelationKind::Emits
+                    | RelationKind::Handles
+            )
+        {
             continue;
         }
         selected.insert(edge.source.clone());
@@ -230,6 +249,7 @@ fn sort_report(report: &mut ImpactReport) {
         &mut report.requirements,
         &mut report.invariants,
         &mut report.decisions,
+        &mut report.data_contracts,
         &mut report.implementation,
         &mut report.tests,
     ] {
@@ -525,6 +545,44 @@ mod tests {
     }
 
     #[test]
+    fn includes_a_direct_database_contract_without_expanding_the_whole_data_graph() {
+        let code = symbol_node("code", "billing.persist", SymbolKind::Function);
+        let other = symbol_node("other", "reporting.read", SymbolKind::Function);
+        let database = interaction_node("db:subscriptions", "subscriptions", NodeKind::DbEntity);
+        let nodes = [code.clone(), other.clone(), database.clone()]
+            .into_iter()
+            .map(|node| (node.stable_key.clone(), node))
+            .collect::<BTreeMap<_, _>>();
+        let edges = vec![
+            classified_edge(
+                &code,
+                &database,
+                RelationKind::WritesTo,
+                ClaimClass::Fact,
+                ClaimStatus::Active,
+            ),
+            classified_edge(
+                &other,
+                &database,
+                RelationKind::ReadsFrom,
+                ClaimClass::Fact,
+                ClaimStatus::Active,
+            ),
+        ];
+
+        let report = analyze_impact("billing.persist", &GraphSnapshot { nodes, edges })
+            .expect("database impact");
+
+        assert_eq!(report.data_contracts[0].identifier, "subscriptions");
+        assert!(
+            !report
+                .implementation
+                .iter()
+                .any(|node| node.identifier == "reporting.read")
+        );
+    }
+
+    #[test]
     fn does_not_chain_one_inference_through_another() {
         let code = symbol_node("code", "billing.cancel", SymbolKind::Method);
         let requirement = intent_node("req", NodeKind::Requirement, "REQ-SUB-014");
@@ -577,6 +635,7 @@ mod tests {
                 signature: None,
                 structural_fingerprint: "shape".to_owned(),
                 calls: Vec::new(),
+                database_accesses: Vec::new(),
             },
         }
     }
@@ -593,6 +652,18 @@ mod tests {
                 body: "body".to_owned(),
                 feature: None,
                 source_uri: "context.yaml".to_owned(),
+            },
+        }
+    }
+
+    fn interaction_node(key: &str, identifier: &str, kind: NodeKind) -> GraphNode {
+        GraphNode {
+            stable_key: StableKey::new(key).expect("interaction key"),
+            kind,
+            name: identifier.to_owned(),
+            content_hash: identifier.to_owned(),
+            attributes: PlannedNodeAttributes::Interaction {
+                identifier: identifier.to_owned(),
             },
         }
     }

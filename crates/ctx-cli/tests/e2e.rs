@@ -257,9 +257,10 @@ fn assert_index_shape(status: &Value) {
     assert_eq!(status["index_state"], "current");
     assert_eq!(status["knowledge"]["files"], 2);
     assert_eq!(status["knowledge"]["symbols"], 6);
-    assert_eq!(status["knowledge"]["structural_facts"], 11);
+    assert_eq!(status["knowledge"]["db_entities"], 1);
+    assert_eq!(status["knowledge"]["structural_facts"], 12);
     assert_eq!(status["knowledge"]["active_assertions"], 7);
-    assert_eq!(status["knowledge"]["active_edges"], 18);
+    assert_eq!(status["knowledge"]["active_edges"], 19);
     assert_eq!(status["knowledge"]["stale_semantic_edges"], 0);
 }
 
@@ -269,6 +270,7 @@ fn assert_product_impact(impact: &Value) {
         "FEAT-SUBSCRIPTIONS",
         "REQ-SUB-014",
         "INV-SUB-003",
+        "subscriptions",
         "test_cancel_keeps_access_until_paid_until",
     ] {
         assert!(serialized.contains(expected), "impact omitted {expected}");

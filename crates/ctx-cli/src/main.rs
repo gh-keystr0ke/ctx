@@ -586,6 +586,7 @@ fn status(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
     println!("Code:");
     println!("  Files: {}", status.knowledge.files);
     println!("  Symbols: {}", status.knowledge.symbols);
+    println!("  Database entities: {}", status.knowledge.db_entities);
     println!("Product context:");
     println!("  Features: {}", status.knowledge.features);
     println!("  Requirements: {}", status.knowledge.requirements);

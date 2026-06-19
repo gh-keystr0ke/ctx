@@ -45,8 +45,14 @@ pub enum Check {
         canonical_path: &'static str,
         kind: ChangeKind,
     },
+    ChangeSignalContains {
+        canonical_path: &'static str,
+        needle: &'static str,
+    },
     ImpactIntentPresent(&'static str),
     ImpactIntentAbsent(&'static str),
+    ImpactDataContractPresent(&'static str),
+    ImpactDataContractAbsent(&'static str),
     ContextIdentifierPresent(&'static str),
     ContextIdentifierAbsent(&'static str),
     ContextWithinBudget,
@@ -58,14 +64,17 @@ impl Check {
         match self {
             Self::FindingIntentPresent(_)
             | Self::ImpactIntentPresent(_)
+            | Self::ImpactDataContractPresent(_)
             | Self::ContextIdentifierPresent(_) => CheckKind::Recall,
             Self::FindingIntentAbsent(_)
             | Self::NoFindings
             | Self::ImpactIntentAbsent(_)
+            | Self::ImpactDataContractAbsent(_)
             | Self::ContextIdentifierAbsent(_) => CheckKind::Precision,
             Self::FindingSeverity(..)
             | Self::StaleRelationshipContains(_)
-            | Self::ChangeKindIs { .. } => CheckKind::Classification,
+            | Self::ChangeKindIs { .. }
+            | Self::ChangeSignalContains { .. } => CheckKind::Classification,
             Self::ContextWithinBudget => CheckKind::Budget,
         }
     }
@@ -86,8 +95,18 @@ impl Check {
                 canonical_path,
                 kind,
             } => format!("{canonical_path} is classified as {kind:?}"),
+            Self::ChangeSignalContains {
+                canonical_path,
+                needle,
+            } => format!("{canonical_path} reports change signal '{needle}'"),
             Self::ImpactIntentPresent(id) => format!("impact includes {id}"),
             Self::ImpactIntentAbsent(id) => format!("impact excludes {id}"),
+            Self::ImpactDataContractPresent(id) => {
+                format!("impact includes data contract {id}")
+            }
+            Self::ImpactDataContractAbsent(id) => {
+                format!("impact excludes data contract {id}")
+            }
             Self::ContextIdentifierPresent(id) => format!("context pack includes {id}"),
             Self::ContextIdentifierAbsent(id) => format!("context pack excludes {id}"),
             Self::ContextWithinBudget => "context pack stays within its token budget".to_owned(),
@@ -283,12 +302,34 @@ pub fn evaluate(run: &CaseRun, check: &Check) -> CheckOutcome {
             ),
             None => (false, format!("no changed entity for {canonical_path}")),
         },
+        Check::ChangeSignalContains {
+            canonical_path,
+            needle,
+        } => match matching_change_signals(run, canonical_path) {
+            Some(signals) => (
+                signals.iter().any(|signal| signal.contains(needle)),
+                format!("{canonical_path} signals: {signals:?}"),
+            ),
+            None => (false, format!("no changed entity for {canonical_path}")),
+        },
         Check::ImpactIntentPresent(id) => {
             membership_outcome(&impact_identifiers(run), id, true, "impact identifiers")
         }
         Check::ImpactIntentAbsent(id) => {
             membership_outcome(&impact_identifiers(run), id, false, "impact identifiers")
         }
+        Check::ImpactDataContractPresent(id) => membership_outcome(
+            &impact_data_contracts(run),
+            id,
+            true,
+            "impact data contracts",
+        ),
+        Check::ImpactDataContractAbsent(id) => membership_outcome(
+            &impact_data_contracts(run),
+            id,
+            false,
+            "impact data contracts",
+        ),
         Check::ContextIdentifierPresent(id) => {
             membership_outcome(&context_identifiers(run), id, true, "context identifiers")
         }
@@ -350,15 +391,29 @@ fn matching_change_kind(run: &CaseRun, canonical_path: &str) -> Option<ChangeKin
     })
 }
 
+fn matching_change_signals<'a>(run: &'a CaseRun, canonical_path: &str) -> Option<&'a [String]> {
+    run.review.as_ref().and_then(|report| {
+        report
+            .changed_entities
+            .iter()
+            .find(|entity| {
+                entity.before.as_deref() == Some(canonical_path)
+                    || entity.after.as_deref() == Some(canonical_path)
+            })
+            .map(|entity| entity.signals.as_slice())
+    })
+}
+
 fn impact_identifiers(run: &CaseRun) -> BTreeSet<&str> {
     let Some(report) = &run.impact else {
         return BTreeSet::new();
     };
-    let groups: [&[NodeSummary]; 6] = [
+    let groups: [&[NodeSummary]; 7] = [
         &report.features,
         &report.requirements,
         &report.invariants,
         &report.decisions,
+        &report.data_contracts,
         &report.implementation,
         &report.tests,
     ];
@@ -367,6 +422,19 @@ fn impact_identifiers(run: &CaseRun) -> BTreeSet<&str> {
         .flatten()
         .map(|node| node.identifier.as_str())
         .collect()
+}
+
+fn impact_data_contracts(run: &CaseRun) -> BTreeSet<&str> {
+    run.impact
+        .as_ref()
+        .map(|report| {
+            report
+                .data_contracts
+                .iter()
+                .map(|node| node.identifier.as_str())
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 fn context_identifiers(run: &CaseRun) -> BTreeSet<&str> {

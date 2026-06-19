@@ -2,6 +2,7 @@
 
 pub mod analyzer;
 pub mod business_context;
+mod database;
 pub mod git;
 pub mod language;
 pub mod python;

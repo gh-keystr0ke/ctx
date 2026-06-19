@@ -21,6 +21,7 @@ impl GraphNode {
         match &self.attributes {
             PlannedNodeAttributes::File { path, .. } => path,
             PlannedNodeAttributes::Symbol { canonical_path, .. } => canonical_path,
+            PlannedNodeAttributes::Interaction { identifier } => identifier,
             PlannedNodeAttributes::Business { id, .. } => id,
         }
     }

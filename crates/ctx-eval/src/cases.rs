@@ -85,10 +85,10 @@ fn subscription_base_files() -> Vec<(&'static str, String)> {
 /// The full evaluation corpus. See `prompt.md`'s priority mission for the
 /// minimum case list this satisfies: a meaningful behavior change,
 /// formatting-only noise, an unrelated refactor, an in-file rename, a
-/// cross-file symbol move, a deleted contract implementation, a stale
-/// semantic mapping, shared-test isolation, a newly added call edge, and a
-/// realistic multi-commit history (as opposed to every other case's single
-/// synthetic diff).
+/// cross-file symbol move, a deleted contract implementation, a changed DB
+/// write, a stale semantic mapping, shared-test isolation, a newly added call
+/// edge, and a realistic multi-commit history (as opposed to every other
+/// case's single synthetic diff).
 #[must_use]
 pub fn corpus() -> Vec<EvaluationCase> {
     vec![
@@ -98,6 +98,7 @@ pub fn corpus() -> Vec<EvaluationCase> {
         rename_or_move_noise(),
         symbol_move_across_files_noise(),
         deleted_contract_implementation(),
+        changed_database_write(),
         stale_semantic_mapping(),
         shared_test_does_not_bridge_requirements(),
         added_call_discovers_intent(),
@@ -238,7 +239,7 @@ fn rename_or_move_noise() -> EvaluationCase {
 /// invariant/requirement it implements.
 fn symbol_move_across_files_noise() -> EvaluationCase {
     let without_service = "from dataclasses import dataclass\nfrom datetime import datetime\n\nfrom billing.cancellation import SubscriptionService\n\n\n@dataclass\nclass Subscription:\n    status: str\n    paid_until: datetime\n\n\nclass StripeWebhookHandler:\n    def handle_subscription_update(\n        self, subscription: Subscription, now: datetime\n    ) -> None:\n        SubscriptionService().cancel(subscription, now)\n";
-    let moved_service = "from datetime import datetime\n\nfrom billing.subscription import Subscription\n\n\nclass SubscriptionService:\n    def cancel(self, subscription: Subscription, now: datetime) -> None:\n        if subscription.paid_until > now:\n            subscription.status = \"canceling\"\n        else:\n            subscription.status = \"inactive\"\n";
+    let moved_service = "from datetime import datetime\n\nfrom billing.subscription import Subscription\n\n\nclass SubscriptionService:\n    database = None\n\n    def cancel(self, subscription: Subscription, now: datetime) -> None:\n        if subscription.paid_until > now:\n            subscription.status = \"canceling\"\n        else:\n            subscription.status = \"inactive\"\n        if self.database is not None:\n            self.database.execute(\n                \"UPDATE subscriptions SET status = ? WHERE paid_until = ?\",\n                (subscription.status, subscription.paid_until),\n            )\n";
     EvaluationCase {
         id: "symbol-move-across-files",
         description: "moving a mapped class to a new file, body unchanged, must classify as a rename and stay silent",
@@ -297,6 +298,57 @@ fn deleted_contract_implementation() -> EvaluationCase {
             Check::FindingSeverity("ADR-SUB-001", Severity::Medium),
             Check::FindingIntentAbsent("INV-SUB-003"),
             Check::FindingIntentAbsent("REQ-SUB-014"),
+        ],
+    }
+}
+
+/// The final missing fixture-matrix point: a mapped behavior changes the
+/// database entity it writes. Review must expose both the product contracts
+/// and the concrete write-change signal; after the commit is indexed, impact
+/// and Context Pack must contain the new data contract and retire the old one.
+fn changed_database_write() -> EvaluationCase {
+    let changed = BASE_SUBSCRIPTION_PY.replace(
+        "UPDATE subscriptions SET status = ? WHERE paid_until = ?",
+        "INSERT INTO subscription_archive(status, paid_until) VALUES (?, ?)",
+    );
+    assert_ne!(changed, BASE_SUBSCRIPTION_PY, "database statement moved");
+    EvaluationCase {
+        id: "changed-database-write",
+        description: "changing a mapped symbol's SQL write target must be reviewable and update impact/context data contracts",
+        steps: vec![
+            Step::WriteFiles(subscription_base_files()),
+            Step::Commit("base"),
+            Step::Index,
+            Step::WriteFiles(vec![("src/billing/subscription.py", changed)]),
+            Step::Review { base: "HEAD" },
+            Step::Commit("archive canceled subscriptions"),
+            Step::Index,
+            Step::Impact {
+                target: SUBSCRIPTION_SERVICE,
+            },
+            Step::Context {
+                task: "archive subscription cancellation state",
+                symbols: vec![SUBSCRIPTION_SERVICE],
+                token_budget: 1_000,
+            },
+        ],
+        checks: vec![
+            Check::ChangeKindIs {
+                canonical_path: SUBSCRIPTION_SERVICE,
+                kind: ChangeKind::BehaviorPotentiallyChanged,
+            },
+            Check::ChangeSignalContains {
+                canonical_path: SUBSCRIPTION_SERVICE,
+                needle: "database writes changed: subscriptions -> subscription_archive",
+            },
+            Check::FindingIntentPresent("INV-SUB-003"),
+            Check::FindingIntentPresent("REQ-SUB-014"),
+            Check::FindingIntentAbsent("ADR-SUB-001"),
+            Check::ImpactDataContractPresent("subscription_archive"),
+            Check::ImpactDataContractAbsent("subscriptions"),
+            Check::ContextIdentifierPresent("subscription_archive"),
+            Check::ContextIdentifierAbsent("subscriptions"),
+            Check::ContextWithinBudget,
         ],
     }
 }

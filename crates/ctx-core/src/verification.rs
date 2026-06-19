@@ -15,6 +15,7 @@ pub struct ResolutionScore {
     pub lexical: f32,
     pub structural: f32,
     pub test_correlation: f32,
+    pub data_interaction: f32,
     pub semantic_similarity: Option<f32>,
     pub total: f32,
 }
@@ -112,13 +113,21 @@ fn score_candidate(
     };
     let structural = structural_signal(graph, symbol, intent);
     let test_correlation = test_signal(graph, symbol, intent);
-    let total = lexical.mul_add(0.45, structural.mul_add(0.35, test_correlation * 0.20));
+    let data_interaction = data_interaction_signal(graph, symbol, intent);
+    let total = lexical.mul_add(
+        0.40,
+        structural.mul_add(
+            0.35,
+            test_correlation.mul_add(0.15, data_interaction * 0.10),
+        ),
+    );
     ResolutionScore {
         explicit: 0.0,
         alias: 0.0,
         lexical,
         structural,
         test_correlation,
+        data_interaction,
         semantic_similarity: None,
         total,
     }
@@ -180,6 +189,58 @@ fn test_signal(graph: &GraphSnapshot, symbol: &GraphNode, intent: &GraphNode) ->
     }
 }
 
+fn data_interaction_signal(graph: &GraphSnapshot, symbol: &GraphNode, intent: &GraphNode) -> f32 {
+    let verified_symbols = graph
+        .edges
+        .iter()
+        .filter(|edge| {
+            edge.target == intent.stable_key
+                && edge.status == ClaimStatus::Active
+                && matches!(
+                    edge.kind,
+                    RelationKind::Implements | RelationKind::Enforces | RelationKind::Satisfies
+                )
+        })
+        .map(|edge| &edge.source)
+        .collect::<BTreeSet<_>>();
+    let candidate_interactions = graph
+        .edges
+        .iter()
+        .filter(|edge| {
+            edge.source == symbol.stable_key
+                && edge.status == ClaimStatus::Active
+                && matches!(edge.kind, RelationKind::ReadsFrom | RelationKind::WritesTo)
+        })
+        .map(|edge| (&edge.target, edge.kind))
+        .collect::<BTreeSet<_>>();
+    let verified_interactions = graph
+        .edges
+        .iter()
+        .filter(|edge| {
+            verified_symbols.contains(&edge.source)
+                && edge.status == ClaimStatus::Active
+                && matches!(edge.kind, RelationKind::ReadsFrom | RelationKind::WritesTo)
+        })
+        .map(|edge| (&edge.target, edge.kind))
+        .collect::<BTreeSet<_>>();
+    if candidate_interactions
+        .intersection(&verified_interactions)
+        .next()
+        .is_some()
+    {
+        return 1.0;
+    }
+    if candidate_interactions.iter().any(|(candidate, _)| {
+        verified_interactions
+            .iter()
+            .any(|(verified, _)| candidate == verified)
+    }) {
+        0.6
+    } else {
+        0.0
+    }
+}
+
 fn score_evidence(score: &ResolutionScore) -> Vec<String> {
     let mut evidence = Vec::new();
     if score.lexical > 0.0 {
@@ -190,6 +251,12 @@ fn score_evidence(score: &ResolutionScore) -> Vec<String> {
     }
     if score.test_correlation > 0.0 {
         evidence.push(format!("test correlation {:.2}", score.test_correlation));
+    }
+    if score.data_interaction > 0.0 {
+        evidence.push(format!(
+            "shared database interaction {:.2}",
+            score.data_interaction
+        ));
     }
     evidence
 }
@@ -215,6 +282,7 @@ fn node_terms(node: &GraphNode) -> BTreeSet<String> {
         PlannedNodeAttributes::Business { body, .. } => body.as_str(),
         PlannedNodeAttributes::Symbol { canonical_path, .. } => canonical_path.as_str(),
         PlannedNodeAttributes::File { path, .. } => path.as_str(),
+        PlannedNodeAttributes::Interaction { identifier } => identifier.as_str(),
     };
     format!("{} {} {content}", node.identifier(), node.name)
         .split(|character: char| !character.is_alphanumeric())
@@ -282,14 +350,22 @@ mod tests {
         let intent = intent_node();
         let existing = symbol_node("existing", "subscription.cancel_access_existing");
         let candidate = symbol_node("candidate", "subscription.cancel_access_handler");
+        let database = interaction_node("db:subscriptions", "subscriptions");
         let graph = GraphSnapshot {
-            nodes: [intent.clone(), existing.clone(), candidate.clone()]
-                .into_iter()
-                .map(|node| (node.stable_key.clone(), node))
-                .collect(),
+            nodes: [
+                intent.clone(),
+                existing.clone(),
+                candidate.clone(),
+                database.clone(),
+            ]
+            .into_iter()
+            .map(|node| (node.stable_key.clone(), node))
+            .collect(),
             edges: vec![
                 edge(&existing, &intent, RelationKind::Implements),
                 edge(&candidate, &existing, RelationKind::Calls),
+                edge(&existing, &database, RelationKind::WritesTo),
+                edge(&candidate, &database, RelationKind::WritesTo),
             ],
         };
 
@@ -301,8 +377,9 @@ mod tests {
 
         assert!(proposal.score.lexical > 0.0);
         assert!((proposal.score.structural - 1.0).abs() < f32::EPSILON);
+        assert!((proposal.score.data_interaction - 1.0).abs() < f32::EPSILON);
         assert!(proposal.score.total >= 0.65);
-        assert!(proposal.evidence.len() >= 2);
+        assert!(proposal.evidence.len() >= 3);
     }
 
     fn intent_node() -> GraphNode {
@@ -340,6 +417,19 @@ mod tests {
                 signature: None,
                 structural_fingerprint: key.to_owned(),
                 calls: Vec::new(),
+                database_accesses: Vec::new(),
+            },
+        }
+    }
+
+    fn interaction_node(key: &str, identifier: &str) -> GraphNode {
+        GraphNode {
+            stable_key: StableKey::new(key).expect("interaction key"),
+            kind: NodeKind::DbEntity,
+            name: identifier.to_owned(),
+            content_hash: identifier.to_owned(),
+            attributes: PlannedNodeAttributes::Interaction {
+                identifier: identifier.to_owned(),
             },
         }
     }
@@ -349,10 +439,10 @@ mod tests {
             source: source.stable_key.clone(),
             target: target.stable_key.clone(),
             kind,
-            claim_class: if kind == RelationKind::Calls {
-                ClaimClass::Fact
-            } else {
+            claim_class: if kind.is_semantic() {
                 ClaimClass::Assertion
+            } else {
+                ClaimClass::Fact
             },
             source_kind: SourceKind::StaticAnalysis,
             confidence: Confidence::CERTAIN,

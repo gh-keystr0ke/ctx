@@ -6,7 +6,7 @@ use crate::{
     domain::{ClaimStatus, NodeKind, RelationKind, StableKey},
     graph::{GraphEdge, GraphNode, GraphSnapshot, NodeSummary},
     indexing::{FileChange, PlannedNodeAttributes},
-    ir::{FileAnalysis, SymbolDefinition},
+    ir::{DatabaseAccessKind, FileAnalysis, SymbolDefinition},
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -350,6 +350,18 @@ pub fn classify_behavior_change(
     if before_calls != after_calls {
         signals.push("called functions changed".to_owned());
     }
+    push_database_change_signal(
+        &mut signals,
+        "reads",
+        &database_entities(before, DatabaseAccessKind::Read),
+        &database_entities(after, DatabaseAccessKind::Read),
+    );
+    push_database_change_signal(
+        &mut signals,
+        "writes",
+        &database_entities(before, DatabaseAccessKind::Write),
+        &database_entities(after, DatabaseAccessKind::Write),
+    );
     (ChangeKind::BehaviorPotentiallyChanged, signals)
 }
 
@@ -359,6 +371,38 @@ fn call_names(symbol: &SymbolDefinition) -> BTreeSet<&str> {
         .iter()
         .map(|call| call.callee.as_str())
         .collect()
+}
+
+fn database_entities(symbol: &SymbolDefinition, kind: DatabaseAccessKind) -> BTreeSet<&str> {
+    symbol
+        .database_accesses
+        .iter()
+        .filter(|access| access.kind == kind)
+        .map(|access| access.entity.as_str())
+        .collect()
+}
+
+fn push_database_change_signal(
+    signals: &mut Vec<String>,
+    operation: &str,
+    before: &BTreeSet<&str>,
+    after: &BTreeSet<&str>,
+) {
+    if before == after {
+        return;
+    }
+    let render = |entities: &BTreeSet<&str>| {
+        if entities.is_empty() {
+            "none".to_owned()
+        } else {
+            entities.iter().copied().collect::<Vec<_>>().join(", ")
+        }
+    };
+    signals.push(format!(
+        "database {operation} changed: {} -> {}",
+        render(before),
+        render(after)
+    ));
 }
 
 fn graph_symbol_key(
@@ -584,7 +628,7 @@ mod tests {
     use crate::{
         domain::{ClaimClass, Confidence, SourceKind},
         graph::{GraphEvidence, GraphNode},
-        ir::{CallSite, SourceRange, SymbolKind},
+        ir::{CallSite, DatabaseAccess, SourceRange, SymbolKind},
     };
 
     use super::*;
@@ -603,6 +647,31 @@ mod tests {
             classify_behavior_change(Some(&before), Some(&contract)).0,
             ChangeKind::ContractChanged
         );
+    }
+
+    #[test]
+    fn reports_changed_database_reads_and_writes_as_behavior_signals() {
+        let mut before = symbol("body-a", "shape-a", "(value)");
+        before.database_accesses = vec![DatabaseAccess {
+            entity: "subscriptions".to_owned(),
+            kind: DatabaseAccessKind::Write,
+            range: source_range(),
+            statement_hash: "sql-a".to_owned(),
+        }];
+        let mut after = symbol("body-b", "shape-b", "(value)");
+        after.database_accesses = vec![DatabaseAccess {
+            entity: "subscription_archive".to_owned(),
+            kind: DatabaseAccessKind::Write,
+            range: source_range(),
+            statement_hash: "sql-b".to_owned(),
+        }];
+
+        let (kind, signals) = classify_behavior_change(Some(&before), Some(&after));
+
+        assert_eq!(kind, ChangeKind::BehaviorPotentiallyChanged);
+        assert!(signals.iter().any(|signal| {
+            signal == "database writes changed: subscriptions -> subscription_archive"
+        }));
     }
 
     #[test]
@@ -689,6 +758,7 @@ mod tests {
             body_hash: "identical-body".to_owned(),
             structural_fingerprint: "shape".to_owned(),
             calls: Vec::new(),
+            database_accesses: Vec::new(),
         };
         let moved_in = SymbolDefinition {
             canonical_path: "billing.cancellation.SubscriptionService.cancel".to_owned(),
@@ -824,6 +894,7 @@ mod tests {
                 callee: "persist".to_owned(),
                 range: source_range(),
             }],
+            database_accesses: Vec::new(),
         }
     }
 
@@ -860,6 +931,7 @@ mod tests {
                 signature: None,
                 structural_fingerprint: "shape".to_owned(),
                 calls: Vec::new(),
+                database_accesses: Vec::new(),
             },
         }
     }

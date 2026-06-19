@@ -1,11 +1,16 @@
 use std::{fs, path::PathBuf};
 
 use ctx_app::ports::{LanguageAnalyzer, PortError};
-use ctx_core::ir::{CallSite, FileAnalysis, SourceRange, SymbolDefinition, SymbolKind};
+use ctx_core::ir::{
+    CallSite, DatabaseAccess, FileAnalysis, SourceRange, SymbolDefinition, SymbolKind,
+};
 use thiserror::Error;
 use tree_sitter::{Node, Parser, TreeCursor};
 
-use crate::analyzer::AnalyzerModule;
+use crate::{
+    analyzer::AnalyzerModule,
+    database::{sql_entities, static_string_content},
+};
 
 #[derive(Debug, Error)]
 pub enum PythonAnalysisError {
@@ -62,7 +67,7 @@ impl PythonAnalyzer {
         Ok(FileAnalysis {
             path: relative_path.to_owned(),
             language: "python".to_owned(),
-            analysis_version: "python-tree-sitter-v1".to_owned(),
+            analysis_version: "python-tree-sitter-v2".to_owned(),
             content_hash: blake3::hash(source.as_bytes()).to_hex().to_string(),
             symbols,
         })
@@ -71,7 +76,7 @@ impl PythonAnalyzer {
 
 impl LanguageAnalyzer for PythonAnalyzer {
     fn analysis_version(&self, _relative_path: &str) -> Result<String, PortError> {
-        Ok("python-tree-sitter-v1".to_owned())
+        Ok("python-tree-sitter-v2".to_owned())
     }
 
     fn analyze(&self, relative_path: &str) -> Result<FileAnalysis, PortError> {
@@ -179,6 +184,11 @@ fn parse_definition(
     } else {
         collect_calls(body, source)
     };
+    let database_accesses = if is_class {
+        Vec::new()
+    } else {
+        collect_database_accesses(body, source)
+    };
     Some(SymbolDefinition {
         name,
         canonical_path,
@@ -188,6 +198,7 @@ fn parse_definition(
         body_hash: blake3::hash(body_bytes).to_hex().to_string(),
         structural_fingerprint: structural_fingerprint(body_bytes),
         calls,
+        database_accesses,
     })
 }
 
@@ -231,6 +242,93 @@ fn visit_calls(cursor: &mut TreeCursor<'_>, source: &[u8], calls: &mut Vec<CallS
             }
         }
         cursor.goto_parent();
+    }
+}
+
+fn collect_database_accesses(node: Node<'_>, source: &[u8]) -> Vec<DatabaseAccess> {
+    let mut accesses = Vec::new();
+    let mut cursor = node.walk();
+    visit_database_calls(&mut cursor, source, &mut accesses, true);
+    accesses.sort_by(|left, right| {
+        left.entity
+            .cmp(&right.entity)
+            .then_with(|| left.kind.cmp(&right.kind))
+            .then_with(|| left.range.start_byte.cmp(&right.range.start_byte))
+    });
+    accesses.dedup_by(|left, right| {
+        left.entity == right.entity
+            && left.kind == right.kind
+            && left.statement_hash == right.statement_hash
+    });
+    accesses
+}
+
+fn visit_database_calls(
+    cursor: &mut TreeCursor<'_>,
+    source: &[u8],
+    accesses: &mut Vec<DatabaseAccess>,
+    root: bool,
+) {
+    let node = cursor.node();
+    if !root && matches!(node.kind(), "function_definition" | "class_definition") {
+        return;
+    }
+    if node.kind() == "call"
+        && let Some(function) = node.child_by_field_name("function")
+        && function
+            .utf8_text(source)
+            .is_ok_and(is_database_execution_call)
+        && let Some(arguments) = node.child_by_field_name("arguments")
+    {
+        collect_sql_literals(arguments, source, accesses);
+    }
+    if cursor.goto_first_child() {
+        loop {
+            visit_database_calls(cursor, source, accesses, false);
+            if !cursor.goto_next_sibling() {
+                break;
+            }
+        }
+        cursor.goto_parent();
+    }
+}
+
+fn is_database_execution_call(expression: &str) -> bool {
+    matches!(
+        expression.rsplit('.').next().unwrap_or(expression),
+        "execute"
+            | "executemany"
+            | "execute_sql"
+            | "query"
+            | "query_one"
+            | "query_all"
+            | "fetch"
+            | "fetchone"
+            | "fetchall"
+            | "fetch_one"
+            | "fetch_all"
+    )
+}
+
+fn collect_sql_literals(node: Node<'_>, source: &[u8], accesses: &mut Vec<DatabaseAccess>) {
+    if node.kind() == "string"
+        && let Ok(literal) = node.utf8_text(source)
+        && let Some(statement) = static_string_content(literal)
+    {
+        let statement_hash = blake3::hash(statement.as_bytes()).to_hex().to_string();
+        for (kind, entity) in sql_entities(&statement) {
+            accesses.push(DatabaseAccess {
+                entity,
+                kind,
+                range: source_range(node),
+                statement_hash: statement_hash.clone(),
+            });
+        }
+        return;
+    }
+    let mut cursor = node.walk();
+    for child in node.named_children(&mut cursor) {
+        collect_sql_literals(child, source, accesses);
     }
 }
 
@@ -297,5 +395,40 @@ def test_cancel_keeps_access():
             .find(|symbol| symbol.name == "cancel")
             .expect("cancel method");
         assert_eq!(cancel.calls[0].callee, "preserve");
+    }
+
+    #[test]
+    fn extracts_static_sql_reads_and_writes_only_from_execution_calls() {
+        let source = r#"
+def load_and_archive(connection):
+    ignored = "DELETE FROM should_not_be_a_fact"
+    rows = connection.execute(
+        "SELECT id FROM subscriptions JOIN accounts ON accounts.id = subscriptions.account_id"
+    )
+    connection.executemany("INSERT INTO subscription_archive(id) VALUES (?)", rows)
+"#;
+        let analysis =
+            PythonAnalyzer::analyze_source("src/billing/storage.py", source).expect("valid Python");
+        let function = analysis
+            .symbols
+            .iter()
+            .find(|symbol| symbol.name == "load_and_archive")
+            .expect("storage function");
+        let accesses = function
+            .database_accesses
+            .iter()
+            .map(|access| (access.kind, access.entity.as_str()))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            accesses,
+            vec![
+                (ctx_core::ir::DatabaseAccessKind::Read, "accounts"),
+                (
+                    ctx_core::ir::DatabaseAccessKind::Write,
+                    "subscription_archive"
+                ),
+                (ctx_core::ir::DatabaseAccessKind::Read, "subscriptions"),
+            ]
+        );
     }
 }

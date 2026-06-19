@@ -722,6 +722,7 @@ mod tests {
                     signature: Some("()".to_owned()),
                     structural_fingerprint: "shape".to_owned(),
                     calls: Vec::new(),
+                    database_accesses: Vec::new(),
                 },
                 mutation: NodeMutationKind::Create,
             }],

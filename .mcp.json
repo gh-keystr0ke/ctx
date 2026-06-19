@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "ctx": {
+      "command": "/home/ks/coding/ctx/target/release/ctx",
+      "args": ["serve", "--mcp"],
+      "cwd": "/home/ks/coding/ctx"
+    }
+  }
+}

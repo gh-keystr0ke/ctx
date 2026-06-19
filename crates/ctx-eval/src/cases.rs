@@ -85,8 +85,9 @@ fn subscription_base_files() -> Vec<(&'static str, String)> {
 /// The full evaluation corpus. See `prompt.md`'s priority mission for the
 /// minimum case list this satisfies: a meaningful behavior change,
 /// formatting-only noise, an unrelated refactor, a rename/move, a deleted
-/// contract implementation, a stale semantic mapping, and shared-test
-/// isolation.
+/// contract implementation, a stale semantic mapping, shared-test isolation,
+/// a newly added call edge, and a realistic multi-commit history (as opposed
+/// to every other case's single synthetic diff).
 #[must_use]
 pub fn corpus() -> Vec<EvaluationCase> {
     vec![
@@ -97,6 +98,8 @@ pub fn corpus() -> Vec<EvaluationCase> {
         deleted_contract_implementation(),
         stale_semantic_mapping(),
         shared_test_does_not_bridge_requirements(),
+        added_call_discovers_intent(),
+        multi_commit_feature_evolution(),
     ]
 }
 
@@ -351,6 +354,114 @@ fn shared_test_does_not_bridge_requirements() -> EvaluationCase {
             Check::ContextIdentifierPresent("REQ-SUB-014"),
             Check::ContextIdentifierAbsent("REQ-REFUND-001"),
             Check::ContextWithinBudget,
+        ],
+    }
+}
+
+/// A brand-new caller added elsewhere in the repository, with no `.context`
+/// mapping of its own, must still surface the product intent it now reaches:
+/// the fresh structural (`FACT`) call edge to a mapped symbol grants the
+/// caller the same one-hop semantic-discovery rights as any other direct
+/// structural neighbor. This is the corpus's "added call" fixture point from
+/// `prompt.md`'s evaluation matrix.
+fn added_call_discovers_intent() -> EvaluationCase {
+    const SCHEDULER_SWEEP: &str = "billing.scheduler.run_daily_cancellation_sweep";
+    let scheduler_py = "from datetime import datetime\n\nfrom billing.subscription import Subscription, SubscriptionService\n\n\ndef run_daily_cancellation_sweep(subscription: Subscription, now: datetime) -> None:\n    SubscriptionService().cancel(subscription, now)\n";
+    EvaluationCase {
+        id: "added-call-discovers-intent",
+        description: "a newly added, unmapped caller of a mapped symbol must discover that symbol's product intent through the fresh structural call edge",
+        steps: vec![
+            Step::WriteFiles(subscription_base_files()),
+            Step::Commit("base"),
+            Step::Index,
+            Step::WriteFiles(vec![("src/billing/scheduler.py", scheduler_py.to_owned())]),
+            Step::Commit("add daily cancellation sweep"),
+            Step::Index,
+            Step::Review { base: "HEAD~1" },
+            Step::Impact {
+                target: SCHEDULER_SWEEP,
+            },
+        ],
+        checks: vec![
+            Check::ChangeKindIs {
+                canonical_path: SCHEDULER_SWEEP,
+                kind: ChangeKind::BehaviorPotentiallyChanged,
+            },
+            Check::FindingIntentAbsent("INV-SUB-003"),
+            Check::FindingIntentAbsent("REQ-SUB-014"),
+            Check::ImpactIntentPresent("REQ-SUB-014"),
+            Check::ImpactIntentPresent("INV-SUB-003"),
+            Check::ImpactIntentAbsent("ADR-SUB-001"),
+        ],
+    }
+}
+
+/// A realistic three-commit history, unlike every other case's single
+/// synthetic diff: a real behavior change (extending cancellation with a
+/// grace period) followed by an unrelated signature-only follow-up (an
+/// unused `dry_run` flag). Indexing the first (real) commit already marks
+/// the invariant/requirement assertions on `cancel` stale, the same way
+/// `stale_semantic_mapping` demonstrates for a single-commit case; nothing
+/// in the second commit re-verifies them, so they are still stale, not
+/// re-surfaced as fresh findings, when the whole span is reviewed at once.
+/// Reviewing the whole span at once, the way a reviewer would look at a
+/// multi-commit PR, must still classify the aggregate change correctly (a
+/// changed public signature makes the whole span `ContractChanged`, not just
+/// `BehaviorPotentiallyChanged`). The final impact query also guards against
+/// the cross-file identity-conflation defect this repository hit
+/// historically, this time across three sequential indexing transitions
+/// instead of one.
+fn multi_commit_feature_evolution() -> EvaluationCase {
+    let grace_period_added = BASE_SUBSCRIPTION_PY
+        .replace(
+            "from datetime import datetime",
+            "from datetime import datetime, timedelta",
+        )
+        .replace(
+            "        if subscription.paid_until > now:\n            subscription.status = \"canceling\"\n        else:\n            subscription.status = \"inactive\"",
+            "        grace_period = timedelta(days=3)\n        if subscription.paid_until + grace_period > now:\n            subscription.status = \"canceling\"\n        else:\n            subscription.status = \"inactive\"",
+        );
+    assert_ne!(
+        grace_period_added, BASE_SUBSCRIPTION_PY,
+        "grace period text moved"
+    );
+    let dry_run_param_added = grace_period_added.replace(
+        "def cancel(self, subscription: Subscription, now: datetime) -> None:",
+        "def cancel(self, subscription: Subscription, now: datetime, *, dry_run: bool = False) -> None:",
+    );
+    assert_ne!(
+        dry_run_param_added, grace_period_added,
+        "dry_run parameter text moved"
+    );
+    EvaluationCase {
+        id: "multi-commit-feature-evolution",
+        description: "a real three-commit history must classify and score correctly when reviewed as one span, and identity must survive three sequential indexing transitions",
+        steps: vec![
+            Step::WriteFiles(subscription_base_files()),
+            Step::Commit("base"),
+            Step::Index,
+            Step::WriteFiles(vec![("src/billing/subscription.py", grace_period_added)]),
+            Step::Commit("add grace period to cancellation"),
+            Step::Index,
+            Step::WriteFiles(vec![("src/billing/subscription.py", dry_run_param_added)]),
+            Step::Commit("add dry_run flag to cancel"),
+            Step::Index,
+            Step::Review { base: "HEAD~2" },
+            Step::Impact {
+                target: SUBSCRIPTION_SERVICE,
+            },
+        ],
+        checks: vec![
+            Check::ChangeKindIs {
+                canonical_path: SUBSCRIPTION_SERVICE,
+                kind: ChangeKind::ContractChanged,
+            },
+            Check::NoFindings,
+            Check::StaleRelationshipContains("INV-SUB-003"),
+            Check::StaleRelationshipContains("REQ-SUB-014"),
+            Check::FindingIntentAbsent("ADR-SUB-001"),
+            Check::ImpactIntentPresent("REQ-SUB-014"),
+            Check::ImpactIntentPresent("INV-SUB-003"),
         ],
     }
 }

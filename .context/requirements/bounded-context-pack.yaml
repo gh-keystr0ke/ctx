@@ -5,7 +5,8 @@ status: active
 statement: >
   A Context Pack must never exceed its requested token budget and must preserve
   directly relevant invariants and requirements ahead of tests, adjacent code,
-  and lower-confidence material as the budget shrinks.
+  data contracts, and lower-confidence material as the budget shrinks while
+  retaining directly relevant database entities when space permits.
 implementation:
   - symbol: ctx_core.context_pack.compile_context_pack
   - symbol: ctx_core.context_pack.truncate_to_tokens
@@ -13,3 +14,4 @@ implementation:
 tests:
   - symbol: ctx_core.context_pack.tests.preserves_invariants_first_and_respects_the_budget
   - symbol: crates.ctx-cli.tests.e2e.complete_product_journey_is_deterministic_and_evidence_backed
+  - symbol: ctx_core.context_pack.tests.includes_direct_database_contracts_as_prioritized_context

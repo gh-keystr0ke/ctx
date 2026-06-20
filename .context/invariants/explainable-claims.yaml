@@ -5,7 +5,9 @@ status: active
 statement: >
   Every semantic relationship surfaced to a user must retain its claim class,
   provenance, confidence, status, validity, producer, source location, and
-  evidence so its rationale is reproducible rather than generated after fact.
+  evidence so its rationale is reproducible rather than generated after fact;
+  statically extracted database relationships must expose the same source and
+  locator trail as first-class FACT claims.
 implementation:
   - symbol: ctx_adapters.sqlite.context.create_claim_if_missing
   - symbol: ctx_adapters.sqlite.context.persist_symbol_claim
@@ -13,3 +15,4 @@ implementation:
 tests:
   - symbol: ctx_adapters.sqlite.context.tests.explicit_links_persist_an_explainable_evidence_chain
   - symbol: ctx_core.business.tests.invariant_links_are_enforcement_assertions
+  - symbol: ctx_adapters.sqlite.index.tests.database_facts_persist_with_static_evidence_and_status_counts

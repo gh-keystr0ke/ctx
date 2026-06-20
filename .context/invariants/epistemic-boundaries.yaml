@@ -8,7 +8,9 @@ statement: >
   route cannot be mistaken for a verified route, one inference can never
   recursively amplify another inference, and a node reached only through the
   seed's own structural call graph (such as a shared test) must not inherit
-  root rights to bridge into intent unrelated to the seed.
+  root rights to bridge into intent unrelated to the seed. Static database
+  facts require a literal SQL statement inside a recognized execution call;
+  dynamic or unsupported text remains unknown instead of being guessed.
 implementation:
   - symbol: ctx_core.context_pack.traversable
   - symbol: ctx_adapters.sqlite.verification.SqliteStore.VerificationStore.record_verification
@@ -16,3 +18,4 @@ tests:
   - symbol: ctx_core.context_pack.tests.never_chains_one_inference_through_another
   - symbol: ctx_core.verification.tests.candidate_score_exposes_individual_heuristic_signals
   - symbol: ctx_core.context_pack.tests.shared_test_reached_through_the_seeds_call_graph_does_not_bridge_unrelated_intent
+  - symbol: ctx_adapters.database.tests.ignores_non_sql_and_unquotes_python_and_rust_literals

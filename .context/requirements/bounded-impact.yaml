@@ -4,10 +4,10 @@ feature: FEAT-IMPACT
 status: active
 statement: >
   Impact and explanation queries must use bounded typed traversal, separate
-  product intent from implementation and tests, surface stale or inferred
-  uncertainty together with the stored evidence behind each claim, and never
-  let a node reached only through the seed's own one-hop call graph (such as
-  a shared test) bridge into a different seed's unrelated requirements.
+  product intent, data contracts, implementation, and tests, surface stale or
+  inferred uncertainty together with the stored evidence behind each claim,
+  and never let a node reached only through the seed's own one-hop call graph
+  (such as a shared test) bridge into a different seed's unrelated requirements.
 implementation:
   - symbol: ctx_core.impact.analyze_impact
   - symbol: ctx_core.explain.explain
@@ -16,3 +16,4 @@ tests:
   - symbol: ctx_core.impact.tests.follows_only_the_product_chain_and_surfaces_staleness
   - symbol: ctx_adapters.sqlite.context.tests.explicit_links_persist_an_explainable_evidence_chain
   - symbol: ctx_core.impact.tests.shared_test_reached_through_the_seeds_call_graph_does_not_bridge_unrelated_intent
+  - symbol: ctx_core.impact.tests.includes_a_direct_database_contract_without_expanding_the_whole_data_graph

@@ -194,6 +194,13 @@ fn detect_seeds(
             seeds.insert(node.stable_key.clone());
         }
     }
+    // A resolved explicit seed is a scope boundary, not merely a hint. Its
+    // graph neighborhood supplies the related context; adding independent
+    // lexical roots can spend the budget on unrelated task-word matches and
+    // push direct contracts out of the pack.
+    if !seeds.is_empty() {
+        return Ok(seeds);
+    }
     // Tests are excluded from lexical auto-seeding: a task description
     // incidentally overlapping with the identifiers a test happens to call
     // (a common occurrence for a shared end-to-end test) is weak evidence,
@@ -838,6 +845,39 @@ mod tests {
 
         assert!(!identifiers.contains("tests.workflow"));
         assert!(!identifiers.contains("REQ-REFUND-001"));
+    }
+
+    #[test]
+    fn explicit_seed_prevents_unrelated_lexical_roots() {
+        let explicit = symbol_node("explicit", "billing.subscription.cancel");
+        let lexical = symbol_node("lexical", "database.write.change.safely");
+        let database = interaction_node("db:subscriptions", "subscriptions", NodeKind::DbEntity);
+        let graph = graph_with(
+            &[explicit.clone(), lexical, database.clone()],
+            vec![edge(
+                &explicit,
+                &database,
+                RelationKind::WritesTo,
+                ClaimClass::Fact,
+            )],
+        );
+        let request = ContextRequest {
+            task: "change database write safely".to_owned(),
+            files: Vec::new(),
+            symbols: vec!["billing.subscription.cancel".to_owned()],
+            token_budget: 500,
+        };
+
+        let pack = compile_context_pack(&graph, &request).expect("bounded explicit context");
+        let identifiers = pack
+            .items
+            .iter()
+            .map(|item| item.identifier.as_str())
+            .collect::<BTreeSet<_>>();
+
+        assert_eq!(pack.seeds, ["billing.subscription.cancel"]);
+        assert!(identifiers.contains("subscriptions"));
+        assert!(!identifiers.contains("database.write.change.safely"));
     }
 
     fn graph_with(nodes: &[GraphNode], edges: Vec<GraphEdge>) -> GraphSnapshot {

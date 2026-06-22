@@ -8,6 +8,7 @@ The current release is deterministic and works without an LLM or network service
 
 - Git-aware incremental Python and Rust indexing with Tree-sitter
 - file, class, struct, enum, trait, module, function, method, test, containment, and call relationships
+- evidence-backed database entities plus `READS_FROM`/`WRITES_TO` facts from static SQL in Python and Rust
 - YAML or Markdown-front-matter product context under `.context/`
 - evidence-backed `impact`, `explain`, and high-precision `review`
 - token-budgeted Context Packs
@@ -41,6 +42,7 @@ git commit -m "docs: add product context"
 ctx index
 
 ctx impact billing.subscription.SubscriptionService.cancel
+ctx explain "billing.subscription.SubscriptionService.cancel -> subscriptions"
 ctx explain REQ-SUB-014
 ctx context "preserve paid access during subscription cancellation" \
   --symbol billing.subscription.SubscriptionService.cancel \
@@ -140,6 +142,8 @@ Add global `--json` for stable machine-readable output. Add `-v` to review for l
 
 `ctx status` is a health report, not just a graph-size counter. It compares the indexed commit with `HEAD`, shows the effective source scope, separates structural facts from assertions and inferences, counts each product-context type, reports dirty inputs/stale/rejected claims, and suggests the next action. A current structural graph without product documents is reported as `needs product context`, not `ready`.
 
+Impact JSON separates `data_contracts` from implementation and tests. Database entities use their normalized SQL identifier (for example `subscriptions` or `billing.subscriptions`) and can be queried or explained like any other node. Static data facts retain parser provenance, commit validity, and source-line evidence.
+
 Review deliberately favors precision over recall. Formatting-only changes, renames, and likely refactors are suppressed. Findings require a strong implementation claim and always include the affected intent, stored evidence, linked tests, uncertainty, and a reviewer action.
 
 ## MCP integration
@@ -189,13 +193,21 @@ cargo test --workspace
 
 The end-to-end tests build temporary real Git repositories. They cover the complete subscriptions product journey and a mixed Python/Rust repository through initialization, indexing, language-scoped call resolution, status, and Rust diff review.
 
+Run the deterministic product-quality corpus separately:
+
+```bash
+cargo run --locked -p ctx-eval
+```
+
+It currently covers 11 Git-history cases and 59 typed checks across recall, precision/noise, classification, and Context Pack budgets, including changed DB writes. This is a reproducible regression baseline, not a statistically significant product study. See [docs/evaluation.md](docs/evaluation.md) for the case matrix, current result, and the human/agent experiments that still require real participants or historical PR ground truth.
+
 ### Add another language module
 
 Language support is isolated behind `AnalyzerModule` and the normalized `FileAnalysis` IR. To add TypeScript, Go, Java, or Zig:
 
 1. Add one parser adapter that implements `LanguageAnalyzer` and `AnalyzerModule`, including its language name and extensions.
 2. Declare the language in `language.rs` and register its constructor in `AnalyzerRegistry::builtins`.
-3. Normalize definitions, ranges, signatures, body/structure fingerprints, and calls into the existing IR; never expose parser nodes above the adapter crate. Bump the module's analysis version whenever those semantics change so existing repositories are safely reparsed.
+3. Normalize definitions, ranges, signatures, body/structure fingerprints, calls, and any supported static interactions into the existing IR; never expose parser nodes above the adapter crate. Bump the module's analysis version whenever those semantics change so existing repositories are safely reparsed.
 4. Add parser-unit coverage plus a mixed-language executable test before enabling it in the default config.
 
 The registry rejects duplicate language names and extension ownership. Indexing, review, CLI, MCP, persistence, and graph algorithms require no language-specific branch.
@@ -207,7 +219,9 @@ See [docs/architecture.md](docs/architecture.md) for boundaries and persistence 
 - Python and Rust are the built-in parsers; TypeScript, Go, Java, and Zig modules are not implemented yet.
 - Language modules are compiled into the binary; dynamic shared-library loading is not supported.
 - Explicit symbol mappings are exact; unresolved mappings are reported instead of guessed.
-- Heuristic suggestions use lexical/structural/test signals, not embeddings or an LLM.
+- Static database extraction recognizes literal SQL inside known Python/Rust execution calls and common `SELECT`/`INSERT`/`UPDATE`/`DELETE`/`MERGE` forms. Dynamic SQL, ORM expression trees, stored procedures, and dialect-complete parsing remain unknown rather than guessed.
+- Heuristic suggestions use lexical, structural, test, and shared-database-interaction signals, not embeddings or an LLM.
+- Endpoint, event, and external-system node types are reserved in the domain model but are not yet extracted from source.
 - There is no web UI, cloud backend, runtime tracing, multi-repository graph, or external ticket/document integration.
 - Review is a conservative aid, not a proof that behavior is correct.
 

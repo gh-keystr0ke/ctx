@@ -6,12 +6,16 @@ statement: >
   A Context Pack must never exceed its requested token budget and must preserve
   directly relevant invariants and requirements ahead of tests, adjacent code,
   data contracts, and lower-confidence material as the budget shrinks while
-  retaining directly relevant database entities when space permits.
+  retaining directly relevant database entities when space permits. Once an
+  explicit file or symbol seed resolves, it must remain the scope boundary and
+  lexical auto-seeding must not add unrelated roots.
 implementation:
   - symbol: ctx_core.context_pack.compile_context_pack
+  - symbol: ctx_core.context_pack.detect_seeds
   - symbol: ctx_core.context_pack.truncate_to_tokens
   - symbol: ctx_app.query.QueryService.context
 tests:
   - symbol: ctx_core.context_pack.tests.preserves_invariants_first_and_respects_the_budget
   - symbol: crates.ctx-cli.tests.e2e.complete_product_journey_is_deterministic_and_evidence_backed
   - symbol: ctx_core.context_pack.tests.includes_direct_database_contracts_as_prioritized_context
+  - symbol: ctx_core.context_pack.tests.explicit_seed_prevents_unrelated_lexical_roots

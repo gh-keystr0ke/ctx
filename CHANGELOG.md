@@ -17,7 +17,8 @@ All notable changes to `ctx` are documented here. The project follows semantic v
 
 - Python and Rust analyzer versions now invalidate older cached analysis so existing repositories receive the new normalized interaction facts;
 - the subscriptions fixture now demonstrates an evidence-backed `subscriptions` write;
-- status reports the current database-entity count.
+- status reports the current database-entity count;
+- resolved explicit Context Pack seeds now remain hard scope boundaries instead of competing with unrelated lexical roots.
 
 ## 0.1.0 — 2026-08-17
 

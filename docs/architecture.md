@@ -37,8 +37,8 @@ The core has no dependency on filesystem paths as handles, database row IDs, SQL
 
 1. Git resolves `HEAD`, verifies that configured source and `.context` inputs are committed, and reports changed paths.
 2. The configured current source set is reconciled with the stored snapshot, covering config-only include/exclude changes.
-3. The analyzer registry dispatches each added, modified, or renamed source by extension; its Tree-sitter module emits a complete language-neutral `FileAnalysis`.
-4. The pure incremental planner matches identities conservatively and emits node writes, retirements, structural invalidation/rebuild, and semantic-staleness effects.
+3. The analyzer registry dispatches each added, modified, or renamed source by extension; its Tree-sitter module emits a complete language-neutral `FileAnalysis`, including supported static database interactions.
+4. The pure incremental planner matches identities conservatively and emits node writes, retirements, structural/data-fact invalidation and rebuild, and semantic-staleness effects.
 5. SQLite applies the plan and commit marker in one transaction; business documents and explicit claims are synchronized in a second bounded transaction.
 
 Repeated indexing at the same commit performs no source parsing. Changed source bodies mark attached non-fact claims stale. Structural facts owned by the analyzer are closed and rebuilt; semantic assertions are never silently recreated as facts.
@@ -61,9 +61,17 @@ Stable symbol keys have the form `symbol:<language>:<canonical-path>:<kind>`. Hu
 
 `AnalyzerRegistry` is the only analyzer passed to indexing and review. It owns independent self-describing `AnalyzerModule` implementations and routes by source extension. Git filtering uses the same supported-language declarations, so configured discovery and parser dispatch cannot disagree.
 
-Python and Rust are built in today. A future TypeScript, Go, Java, or Zig adapter supplies parser-specific extraction but must return the common IR: complete-file hash, symbol kind/name/canonical path, version range, signature, body hash, whitespace-insensitive structural fingerprint, and simple call sites. Parser syntax types remain inside `ctx-adapters`; application and core crates stay unchanged. Duplicate module names or extension claims are rejected when the registry is built.
+Python and Rust are built in today. A future TypeScript, Go, Java, or Zig adapter supplies parser-specific extraction but must return the common IR: complete-file hash, symbol kind/name/canonical path, version range, signature, body hash, whitespace-insensitive structural fingerprint, simple call sites, and normalized interactions it can prove. Parser syntax types remain inside `ctx-adapters`; application and core crates stay unchanged. Duplicate module names or extension claims are rejected when the registry is built.
 
 Rust canonical paths use `crate` for a root `src/` tree and the workspace crate directory for `crates/<name>/src/`. Inline modules and implemented types extend that namespace. Trait-implementation methods additionally include the complete trait name (including generic arguments), so legal pairs such as `impl From<u8>` and `impl From<u16>` cannot collide. Syntax-error trees are rejected rather than partially indexed.
+
+## Static database interactions
+
+Language adapters inspect only recognized execution calls and macros. A shared deterministic SQL recognizer extracts normalized entity identifiers from common static `SELECT ... FROM/JOIN`, `INSERT INTO`, `UPDATE`, `DELETE FROM`, and `MERGE INTO/USING` forms. Interpolated/dynamic SQL and unsupported syntax produce no fact.
+
+The normalized IR attaches typed reads/writes to their owning symbol. The core planner derives repository-scoped `DbEntity` nodes and `READS_FROM`/`WRITES_TO` `FACT` edges, deduplicates repeated accesses, retires entities after the last current access disappears, and gives every edge a static-analysis producer, commit boundary, source file, line locator, and statement fingerprint. Analyzer-version bumps force a same-commit reparse when extraction semantics change.
+
+Impact and Context Pack treat a direct data interaction as one bounded structural hop and report database entities separately from implementation. Review compares before/after access sets and reports a concrete database-read/write change signal; it does not claim the related product contract is violated. Verification scoring can use a shared database interaction as one explained signal, never as an assertion by itself.
 
 ## Claims and provenance
 
@@ -79,7 +87,7 @@ Evidence records source kind, URI, locator, commit, author/timestamp when releva
 
 Impact and Context Pack traversal are bounded and typed. Structural adjacency is limited to the seed neighborhood, semantic expansion is capped, rejected claims are excluded, and an inferred edge cannot recursively amplify another inference. Deterministic ordering is used throughout user-visible output.
 
-Context compilation reserves budget for evidence and prioritizes invariants and requirements before implementation, tests, adjacency, and low-confidence material. Its token estimate is deliberately conservative and never reports a pack above the requested limit.
+Context compilation reserves budget for evidence and prioritizes invariants and requirements before implementation, tests, direct data contracts, adjacency, and low-confidence material. Its token estimate is deliberately conservative and never reports a pack above the requested limit.
 
 Review compares normalized symbols before and after a Git diff, classifies the change, then joins only strong implementation claims to product intent and linked tests. Non-behavioral changes are suppressed by default. A finding is rendered from stored claims and evidence; the reviewer-facing rationale is not generated by an LLM.
 

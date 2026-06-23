@@ -427,3 +427,31 @@ Next: either resolve the two observations above (confirm/fix the cross-file move
 - Verified `cargo fmt --all -- --check`, strict locked workspace Clippy (`-D warnings`, one `clippy::match_same_arms` finding from the first merge draft, fixed by restructuring the match), the full locked workspace suite (64 non-eval tests, up from 61: 34 core + 18 adapters + 2 app + 2 CLI e2e + 2 MCP + 5 eval unit + 1 eval regression), and a locked release build.
 
 Next: re-index this repository at the clean commit, confirm `ctx status` is `ready` with a no-op second index, then either move on to the mission's next priority (DB/interaction extraction) or continue closing remaining fixture-matrix/secondary gaps noted in `prompt.md`.
+
+## 2026-08-17 — Evidence-backed database interactions
+
+- Added one language-neutral database-access IR and deterministic static SQL recognition for common `SELECT`/`INSERT`/`UPDATE`/`DELETE`/`MERGE` forms. Python and Rust adapters only inspect literals inside known execution calls/macros; Python f-strings, dynamic SQL, arbitrary prose, ORM expressions, and unsupported syntax remain unknown instead of becoming guessed facts.
+- Persisted repository-scoped `DbEntity` nodes plus temporal `ReadsFrom`/`WritesTo` facts with parser provenance, exact commit validity, statement hash, and source-line evidence. Entity lifetime follows the complete current symbol snapshot, including retirement after the last access disappears and deduplication of repeated access facts.
+- Integrated data contracts into `status`, `impact`, `explain`, Context Packs, semantic-candidate evidence, and review. Review now emits a concrete signal such as `database writes changed: subscriptions -> subscription_archive` without calling that signal a proven requirement violation.
+- Extended the corpus with `changed-database-write`; the baseline is now 11 cases / 59 checks (15 recall, 26 precision, 16 classification, 2 budget), all green with zero harness errors.
+- Promoted the workspace to 0.2.0 and published the operator/developer documentation set: README, architecture, changelog, evaluation methodology, refreshed first-party context, and a current `prompt.md` handoff. The documentation explicitly distinguishes deterministic regression evidence from the external historical-PR and participant experiments that have not been run and cannot be fabricated locally.
+
+## 2026-08-17 — Explicit Context Pack seed isolation
+
+- Release dogfooding with an 800-token request and an explicit cancellation symbol found that `detect_seeds` still added five unrelated lexical roots. They consumed the budget before the seed's direct `subscriptions` contract could be selected.
+- Made any successfully resolved explicit file/symbol seed a hard scope boundary. Lexical auto-seeding now runs only when no explicit seed resolves; semantic and structural traversal from the explicit seed still supplies bounded related context.
+- Added `explicit_seed_prevents_unrelated_lexical_roots` and promoted the rule into `REQ-CONTEXT-001`. The same release query now uses exactly one seed, returns the direct `WritesTo subscriptions` data contract and evidence, consumes 338/800 estimated tokens, and contains no unrelated lexical roots.
+
+## 2026-08-17 — 0.2.0 release verification
+
+- First-party index at `2bf128c` is `current` and `ready`: 45 files, 752 symbols, 12 database entities, 4 Features, 7 Requirements, 5 Invariants, 4 Decisions, 1,524 active edges, 1,414 structural facts, 110 assertions, and zero inferred, stale, or rejected semantic edges.
+- Static explanation for `fixtures.subscriptions.src.billing.subscription.SubscriptionService.cancel -> subscriptions` returns one active `WritesTo` FACT at confidence 1.0 with `python_tree_sitter` provenance and `fixtures/subscriptions/src/billing/subscription.py#lines:21` evidence.
+- Full-span self-review reported 11 expected high-confidence contract re-verification items and 2 medium architectural items, with zero stale relationships. Every high item has modified direct tests and `possible_requirement_drift: false`; the complete gates below re-ran those tests.
+- `cargo fmt --all -- --check` passed; strict locked workspace Clippy with all targets/features and `-D warnings` passed.
+- The locked complete workspace suite passed 74 tests: 23 adapters, 2 app, 2 CLI e2e, 39 core, 5 eval unit, 1 eval corpus regression, and 2 MCP.
+- The executable evaluation report passed all 11 cases / 59 checks with zero errors.
+- The locked optimized workspace and rustdoc for all six crates built successfully; the release binary reports `ctx 0.2.0`.
+- Normal and MCP Docker Compose profiles validate. A clean multi-stage Docker build produced `ctx:0.2.0` with non-root `ctx:ctx`; running the image reports `ctx 0.2.0`.
+- SQLite `integrity_check` is `ok`, with zero duplicate current edge fingerprints, current edges without current endpoints, current edges to retired nodes, or calls to non-callable targets.
+
+The remaining work is deliberately external product validation rather than hidden local implementation debt: review precision on labeled historical PRs, impact-understanding time, agent A/B task success and token efficiency, mapping-maintenance cost, and the published kill-criteria evaluation all require real repositories or participants. The reproducible local 0.2.0 release is complete without pretending those experiments have already happened.

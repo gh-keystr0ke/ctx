@@ -193,6 +193,7 @@ fn collect_type_specs(
             structural_fingerprint: structural_fingerprint(&source[spec.byte_range()]),
             calls: Vec::new(),
             database_accesses: Vec::new(),
+            schema_tables: Vec::new(),
         });
     }
 }
@@ -224,6 +225,7 @@ fn collect_value_specs(
                 structural_fingerprint: structural_fingerprint(&source[spec.byte_range()]),
                 calls: Vec::new(),
                 database_accesses: Vec::new(),
+                schema_tables: Vec::new(),
             });
         }
     }
@@ -281,6 +283,7 @@ fn parse_function(
         structural_fingerprint,
         calls,
         database_accesses,
+        schema_tables: Vec::new(),
     })
 }
 

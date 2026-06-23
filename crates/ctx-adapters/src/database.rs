@@ -225,6 +225,267 @@ fn is_clause_keyword(word: &str) -> bool {
     .any(|keyword| word.eq_ignore_ascii_case(keyword))
 }
 
+/// Recognizes the table name and column definitions from a static `CREATE
+/// TABLE` or `ALTER TABLE ... ADD COLUMN` statement.
+///
+/// This is a conservative recognizer for common goose/Postgres/MySQL/SQLite
+/// migration syntax, not a SQL dialect parser: table-level constraints
+/// (`PRIMARY KEY`, `FOREIGN KEY`, `UNIQUE`, `CHECK`, `CONSTRAINT`, `INDEX`)
+/// are skipped rather than misread as columns, per-column constraints are
+/// left attached to the raw declared type text instead of being stripped,
+/// and anything it cannot confidently locate a table name and at least one
+/// column for yields `None` instead of a guessed schema.
+pub(crate) fn ddl_table_columns(statement: &str) -> Option<(String, Vec<(String, String)>)> {
+    let cleaned = strip_sql_comments(statement);
+    let upper = cleaned.to_ascii_uppercase();
+    if let Some(after_keywords) = find_keyword_pair(&upper, "CREATE", "TABLE") {
+        let rest = &cleaned[after_keywords..];
+        let rest = strip_word_ci(rest, "IF")
+            .and_then(|rest| strip_word_ci(rest, "NOT"))
+            .and_then(|rest| strip_word_ci(rest, "EXISTS"))
+            .unwrap_or_else(|| rest.trim_start());
+        let (name, after_name) = leading_identifier(rest)?;
+        let (open, close) = matching_parens(after_name)?;
+        let columns = split_top_level(&after_name[open + 1..close])
+            .into_iter()
+            .filter_map(parse_column_definition)
+            .collect::<Vec<_>>();
+        return (!columns.is_empty()).then_some((name, columns));
+    }
+    if let Some(after_keywords) = find_keyword_pair(&upper, "ALTER", "TABLE") {
+        let rest = &cleaned[after_keywords..];
+        let (name, after_name) = leading_identifier(rest)?;
+        let columns = parse_add_column_clauses(after_name);
+        return (!columns.is_empty()).then_some((name, columns));
+    }
+    None
+}
+
+fn strip_sql_comments(text: &str) -> String {
+    let bytes = text.as_bytes();
+    let mut result = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        match bytes[index] {
+            b'-' if bytes.get(index + 1) == Some(&b'-') => {
+                index += 2;
+                while index < bytes.len() && bytes[index] != b'\n' {
+                    index += 1;
+                }
+            }
+            b'/' if bytes.get(index + 1) == Some(&b'*') => {
+                index += 2;
+                while index + 1 < bytes.len() && !(bytes[index] == b'*' && bytes[index + 1] == b'/')
+                {
+                    index += 1;
+                }
+                index = (index + 2).min(bytes.len());
+            }
+            byte => {
+                result.push(byte);
+                index += 1;
+            }
+        }
+    }
+    String::from_utf8_lossy(&result).into_owned()
+}
+
+/// Finds `first` then, separated only by whitespace, `second` as whole words
+/// in an already-uppercased haystack. Returns the byte offset right after
+/// `second`.
+fn find_keyword_pair(upper: &str, first: &str, second: &str) -> Option<usize> {
+    let first_at = find_whole_word(upper, first, 0)?;
+    let after_first = first_at + first.len();
+    let second_at = find_whole_word(upper, second, after_first)?;
+    upper[after_first..second_at]
+        .trim()
+        .is_empty()
+        .then_some(second_at + second.len())
+}
+
+fn find_whole_word(haystack: &str, word: &str, from: usize) -> Option<usize> {
+    let mut search_from = from;
+    while let Some(relative) = haystack.get(search_from..)?.find(word) {
+        let start = search_from + relative;
+        let end = start + word.len();
+        let before_ok = start == 0 || !is_word_byte(haystack.as_bytes()[start - 1]);
+        let after_ok = end == haystack.len() || !is_word_byte(haystack.as_bytes()[end]);
+        if before_ok && after_ok {
+            return Some(start);
+        }
+        search_from = start + 1;
+    }
+    None
+}
+
+fn is_word_byte(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || byte == b'_'
+}
+
+/// If `text` (after leading whitespace) begins with `word` as a whole word,
+/// case-insensitively, returns the remainder with the word and any following
+/// whitespace stripped.
+fn strip_word_ci<'a>(text: &'a str, word: &str) -> Option<&'a str> {
+    let trimmed = text.trim_start();
+    if trimmed.len() < word.len() || !trimmed[..word.len()].eq_ignore_ascii_case(word) {
+        return None;
+    }
+    let after = &trimmed[word.len()..];
+    let boundary_ok = after
+        .as_bytes()
+        .first()
+        .is_none_or(|byte| !is_word_byte(*byte));
+    boundary_ok.then(|| after.trim_start())
+}
+
+/// Parses a possibly schema-qualified, possibly quoted identifier from the
+/// start of `text` (for example `public.subscriptions` or `` `orders` ``).
+/// Returns the lowercased, dot-joined name and the remaining text.
+fn leading_identifier(text: &str) -> Option<(String, &str)> {
+    let mut parts = Vec::new();
+    let mut rest = text.trim_start();
+    loop {
+        let (part, remainder) = leading_identifier_part(rest)?;
+        parts.push(part);
+        if let Some(after_dot) = remainder.strip_prefix('.') {
+            rest = after_dot;
+        } else {
+            rest = remainder;
+            break;
+        }
+    }
+    Some((parts.join(".").to_ascii_lowercase(), rest))
+}
+
+fn leading_identifier_part(text: &str) -> Option<(String, &str)> {
+    let bytes = text.as_bytes();
+    if matches!(bytes.first(), Some(b'"' | b'`')) {
+        let quote = bytes[0];
+        let mut index = 1;
+        while index < bytes.len() && bytes[index] != quote {
+            index += 1;
+        }
+        return (index < bytes.len()).then(|| (text[1..index].to_owned(), &text[index + 1..]));
+    }
+    let end = text
+        .find(|character: char| !(character.is_ascii_alphanumeric() || character == '_'))
+        .unwrap_or(text.len());
+    (end > 0).then(|| (text[..end].to_owned(), &text[end..]))
+}
+
+/// Finds the parenthesized group starting at (after leading whitespace) the
+/// front of `text` and returns its open/close byte offsets, respecting
+/// nested parentheses and skipping single-quoted content.
+fn matching_parens(text: &str) -> Option<(usize, usize)> {
+    let open = text.len() - text.trim_start().len();
+    let bytes = text.as_bytes();
+    if bytes.get(open) != Some(&b'(') {
+        return None;
+    }
+    let mut depth = 0i32;
+    let mut index = open;
+    while index < bytes.len() {
+        match bytes[index] {
+            b'(' => depth += 1,
+            b')' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some((open, index));
+                }
+            }
+            b'\'' => {
+                index += 1;
+                while index < bytes.len() && bytes[index] != b'\'' {
+                    index += 1;
+                }
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+    None
+}
+
+/// Splits `body` on top-level commas, respecting nested parentheses and
+/// quoted content so a type's own comma (`NUMERIC(10, 2)`) is not mistaken
+/// for a column separator.
+fn split_top_level(body: &str) -> Vec<&str> {
+    let bytes = body.as_bytes();
+    let mut parts = Vec::new();
+    let mut depth = 0i32;
+    let mut start = 0usize;
+    let mut index = 0usize;
+    while index < bytes.len() {
+        match bytes[index] {
+            b'(' => depth += 1,
+            b')' => depth -= 1,
+            b'\'' | b'"' | b'`' => {
+                let quote = bytes[index];
+                index += 1;
+                while index < bytes.len() && bytes[index] != quote {
+                    index += 1;
+                }
+            }
+            b',' if depth == 0 => {
+                parts.push(&body[start..index]);
+                start = index + 1;
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+    parts.push(&body[start..]);
+    parts
+}
+
+fn first_word(text: &str) -> Option<&str> {
+    let text = text.trim_start();
+    if text.is_empty() {
+        return None;
+    }
+    let end = text.find(char::is_whitespace).unwrap_or(text.len());
+    Some(&text[..end])
+}
+
+fn unquote_identifier(token: &str) -> String {
+    for quote in ['"', '`', '\''] {
+        if token.len() >= 2 && token.starts_with(quote) && token.ends_with(quote) {
+            return token[1..token.len() - 1].to_owned();
+        }
+    }
+    token.to_owned()
+}
+
+fn parse_column_definition(chunk: &str) -> Option<(String, String)> {
+    let chunk = chunk.trim();
+    let name_token = first_word(chunk)?;
+    if matches!(
+        name_token.to_ascii_uppercase().as_str(),
+        "PRIMARY" | "FOREIGN" | "UNIQUE" | "CONSTRAINT" | "CHECK" | "KEY" | "INDEX"
+    ) {
+        return None;
+    }
+    let rest = chunk[name_token.len()..].trim_start();
+    let type_token = first_word(rest)?;
+    let name = unquote_identifier(name_token).to_ascii_lowercase();
+    (!name.is_empty()).then_some((name, type_token.to_owned()))
+}
+
+fn parse_add_column_clauses(rest: &str) -> Vec<(String, String)> {
+    split_top_level(rest)
+        .into_iter()
+        .filter_map(|clause| {
+            let after_add = strip_word_ci(clause, "ADD")?;
+            let after_column = strip_word_ci(after_add, "COLUMN").unwrap_or(after_add);
+            let after_if_not_exists = strip_word_ci(after_column, "IF")
+                .and_then(|rest| strip_word_ci(rest, "NOT"))
+                .and_then(|rest| strip_word_ci(rest, "EXISTS"))
+                .unwrap_or(after_column);
+            parse_column_definition(after_if_not_exists)
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -268,5 +529,67 @@ mod tests {
             Some("UPDATE subscriptions SET status = ?")
         );
         assert!(static_string_content("f\"SELECT * FROM {table}\"").is_none());
+    }
+
+    #[test]
+    fn recognizes_backtick_raw_strings_as_static_content() {
+        assert_eq!(
+            static_string_content("`SELECT * FROM subscriptions`").as_deref(),
+            Some("SELECT * FROM subscriptions")
+        );
+    }
+
+    #[test]
+    fn extracts_create_table_columns_skipping_table_constraints() {
+        let (table, columns) = ddl_table_columns(
+            "CREATE TABLE IF NOT EXISTS public.subscriptions (
+                id UUID PRIMARY KEY,
+                account_id UUID NOT NULL,
+                status VARCHAR(50) NOT NULL DEFAULT 'active',
+                amount NUMERIC(10, 2),
+                FOREIGN KEY (account_id) REFERENCES accounts(id)
+            )",
+        )
+        .expect("create table columns");
+
+        assert_eq!(table, "public.subscriptions");
+        assert_eq!(
+            columns,
+            vec![
+                ("id".to_owned(), "UUID".to_owned()),
+                ("account_id".to_owned(), "UUID".to_owned()),
+                ("status".to_owned(), "VARCHAR(50)".to_owned()),
+                ("amount".to_owned(), "NUMERIC(10,".to_owned()),
+            ]
+        );
+    }
+
+    #[test]
+    fn extracts_alter_table_add_column_clauses() {
+        let (table, columns) = ddl_table_columns(
+            "ALTER TABLE subscriptions ADD COLUMN grace_period_days INT, ADD COLUMN dry_run BOOLEAN DEFAULT false",
+        )
+        .expect("alter table columns");
+
+        assert_eq!(table, "subscriptions");
+        assert_eq!(
+            columns,
+            vec![
+                ("grace_period_days".to_owned(), "INT".to_owned()),
+                ("dry_run".to_owned(), "BOOLEAN".to_owned()),
+            ]
+        );
+    }
+
+    #[test]
+    fn ddl_table_columns_ignores_unrecognized_ddl_and_comments() {
+        assert!(ddl_table_columns("DROP TABLE subscriptions").is_none());
+        assert!(ddl_table_columns("ALTER TABLE subscriptions DROP COLUMN status").is_none());
+        assert!(
+            ddl_table_columns(
+                "-- comment before\nCREATE TABLE empty_table (\n  /* no real columns */\n)"
+            )
+            .is_none()
+        );
     }
 }

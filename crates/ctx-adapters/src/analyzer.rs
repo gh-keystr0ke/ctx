@@ -4,7 +4,8 @@ use ctx_app::ports::{LanguageAnalyzer, PortError};
 use ctx_core::ir::FileAnalysis;
 
 use crate::{
-    go::GoAnalyzer, language::SupportedLanguage, python::PythonAnalyzer, rust::RustAnalyzer,
+    go::GoAnalyzer, goose::GooseAnalyzer, language::SupportedLanguage, python::PythonAnalyzer,
+    rust::RustAnalyzer,
 };
 
 /// A self-describing language adapter that can be installed in the registry.
@@ -44,6 +45,9 @@ impl AnalyzerRegistry {
                 }
                 Some(SupportedLanguage::Go) => {
                     registry.register(Box::new(GoAnalyzer::new(root.to_path_buf())))?;
+                }
+                Some(SupportedLanguage::GooseMigrations) => {
+                    registry.register(Box::new(GooseAnalyzer::new(root.to_path_buf())))?;
                 }
                 None => {
                     return Err(PortError::new(format!(

@@ -237,6 +237,7 @@ fn parse_named_item(
         structural_fingerprint: structural_fingerprint(&source[body.byte_range()]),
         calls: Vec::new(),
         database_accesses: Vec::new(),
+        schema_tables: Vec::new(),
     })
 }
 
@@ -270,6 +271,7 @@ fn parse_function(
         structural_fingerprint: structural_fingerprint(&source[body.byte_range()]),
         calls: collect_calls(body, source),
         database_accesses: collect_database_accesses(body, source),
+        schema_tables: Vec::new(),
     })
 }
 
@@ -300,6 +302,7 @@ fn parse_function_signature(
         structural_fingerprint: structural_fingerprint(signature.as_bytes()),
         calls: Vec::new(),
         database_accesses: Vec::new(),
+        schema_tables: Vec::new(),
     })
 }
 

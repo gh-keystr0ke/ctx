@@ -23,6 +23,9 @@ pub enum SymbolKind {
     TypeAlias,
     Constant,
     Test,
+    /// One versioned migration file (for example a goose `-- +goose Up`
+    /// script) that declares or alters a database table's schema.
+    SchemaMigration,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -49,6 +52,27 @@ pub struct DatabaseAccess {
     pub statement_hash: String,
 }
 
+/// One column named by a static `CREATE TABLE`/`ALTER TABLE` recognizer.
+/// `data_type` is the raw declared type text (for example `VARCHAR(255)`); it
+/// is not normalized or validated against a SQL dialect.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct SchemaColumn {
+    pub name: String,
+    pub data_type: String,
+}
+
+/// One statically recognized table declaration or alteration inside a
+/// migration file. Parser adapters are responsible for recognizing the
+/// migration-tool syntax; the core only consumes this normalized,
+/// explainable fact, and never merges declarations across migration files
+/// into one computed "current" schema.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct SchemaTableDefinition {
+    pub entity: String,
+    pub columns: Vec<SchemaColumn>,
+    pub range: SourceRange,
+}
+
 /// Language-neutral symbol definition produced by a parser adapter.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct SymbolDefinition {
@@ -62,6 +86,8 @@ pub struct SymbolDefinition {
     pub calls: Vec<CallSite>,
     #[serde(default)]
     pub database_accesses: Vec<DatabaseAccess>,
+    #[serde(default)]
+    pub schema_tables: Vec<SchemaTableDefinition>,
 }
 
 /// Language-neutral analysis for one complete source file version.

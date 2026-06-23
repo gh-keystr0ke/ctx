@@ -218,6 +218,7 @@ fn parse_relation_kind(value: &str) -> Result<RelationKind, PortError> {
         "references" => Ok(RelationKind::References),
         "readsfrom" | "reads_from" => Ok(RelationKind::ReadsFrom),
         "writesto" | "writes_to" => Ok(RelationKind::WritesTo),
+        "definesschema" | "defines_schema" => Ok(RelationKind::DefinesSchema),
         "emits" => Ok(RelationKind::Emits),
         "handles" => Ok(RelationKind::Handles),
         "implements" => Ok(RelationKind::Implements),

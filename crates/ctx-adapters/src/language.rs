@@ -10,6 +10,7 @@ pub enum SupportedLanguage {
     Python,
     Rust,
     Go,
+    GooseMigrations,
 }
 
 impl SupportedLanguage {
@@ -18,6 +19,7 @@ impl SupportedLanguage {
             Self::Python => "python",
             Self::Rust => "rust",
             Self::Go => "go",
+            Self::GooseMigrations => "goose",
         }
     }
 
@@ -26,6 +28,7 @@ impl SupportedLanguage {
             Self::Python => &["py"],
             Self::Rust => &["rs"],
             Self::Go => &["go"],
+            Self::GooseMigrations => &["sql"],
         }
     }
 
@@ -34,6 +37,7 @@ impl SupportedLanguage {
             "python" => Some(Self::Python),
             "rust" => Some(Self::Rust),
             "go" => Some(Self::Go),
+            "goose" => Some(Self::GooseMigrations),
             _ => None,
         }
     }

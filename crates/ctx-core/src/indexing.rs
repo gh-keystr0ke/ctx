@@ -6,7 +6,8 @@ use thiserror::Error;
 use crate::{
     domain::{ClaimClass, ClaimStatus, Confidence, NodeKind, RelationKind, SourceKind, StableKey},
     ir::{
-        DatabaseAccess, DatabaseAccessKind, FileAnalysis, SourceRange, SymbolDefinition, SymbolKind,
+        DatabaseAccess, DatabaseAccessKind, FileAnalysis, SchemaTableDefinition, SourceRange,
+        SymbolDefinition, SymbolKind,
     },
 };
 
@@ -25,6 +26,8 @@ pub struct IndexedSymbol {
     pub calls: Vec<String>,
     #[serde(default)]
     pub database_accesses: Vec<DatabaseAccess>,
+    #[serde(default)]
+    pub schema_tables: Vec<SchemaTableDefinition>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -168,6 +171,8 @@ pub enum PlannedNodeAttributes {
         calls: Vec<String>,
         #[serde(default)]
         database_accesses: Vec<DatabaseAccess>,
+        #[serde(default)]
+        schema_tables: Vec<SchemaTableDefinition>,
     },
     Interaction {
         identifier: String,
@@ -427,6 +432,7 @@ fn write_symbol(
             structural_fingerprint: definition.structural_fingerprint.clone(),
             calls: calls.clone(),
             database_accesses: definition.database_accesses.clone(),
+            schema_tables: definition.schema_tables.clone(),
         },
         mutation,
     });
@@ -444,6 +450,7 @@ fn write_symbol(
         structural_fingerprint: definition.structural_fingerprint.clone(),
         calls,
         database_accesses: definition.database_accesses.clone(),
+        schema_tables: definition.schema_tables.clone(),
     });
     plan.edges_to_create.push(structural_edge(
         file_key,
@@ -581,11 +588,24 @@ fn structural_edge(
         source_kind: SourceKind::StaticAnalysis,
         confidence: Confidence::CERTAIN,
         status: ClaimStatus::Active,
-        producer: format!("{language}_tree_sitter"),
+        producer: producer_name(language),
         fingerprint: format!("{}:{kind:?}:{}", source.as_str(), target.as_str()),
         source_uri: source_uri.to_owned(),
         input_fingerprint: input_fingerprint.to_owned(),
         evidence_locator,
+    }
+}
+
+/// Names the deterministic extraction technique behind a structural fact.
+/// Every Tree-sitter-backed module keeps the historical `<language>_tree_sitter`
+/// form; goose migrations are recognized with a dedicated DDL-statement
+/// reader rather than a grammar, so its provenance says so instead of
+/// implying a parser that was never involved.
+fn producer_name(language: &str) -> String {
+    if language == "goose" {
+        "goose_ddl_recognizer".to_owned()
+    } else {
+        format!("{language}_tree_sitter")
     }
 }
 
@@ -631,10 +651,9 @@ fn database_entities(symbols: &[IndexedSymbol]) -> BTreeSet<String> {
     symbols
         .iter()
         .flat_map(|symbol| {
-            symbol
-                .database_accesses
-                .iter()
-                .map(|access| access.entity.clone())
+            let accesses = symbol.database_accesses.iter().map(|access| &access.entity);
+            let schemas = symbol.schema_tables.iter().map(|table| &table.entity);
+            accesses.chain(schemas).cloned()
         })
         .collect()
 }
@@ -672,48 +691,103 @@ fn add_database_facts(
         .iter()
         .filter(|symbol| changed.contains(&symbol.stable_key))
     {
-        let mut grouped = BTreeMap::<(DatabaseAccessKind, &str), Vec<&DatabaseAccess>>::new();
-        for access in &symbol.database_accesses {
-            grouped
-                .entry((access.kind, access.entity.as_str()))
-                .or_default()
-                .push(access);
-        }
-        for ((kind, entity), accesses) in grouped {
-            let target = database_entity_key(entity)?;
-            let relation = match kind {
-                DatabaseAccessKind::Read => RelationKind::ReadsFrom,
-                DatabaseAccessKind::Write => RelationKind::WritesTo,
-            };
-            let mut statement_hashes = accesses
-                .iter()
-                .map(|access| access.statement_hash.as_str())
-                .collect::<Vec<_>>();
-            statement_hashes.sort_unstable();
-            statement_hashes.dedup();
-            let mut lines = accesses
-                .iter()
-                .map(|access| access.range.start_line)
-                .collect::<Vec<_>>();
-            lines.sort_unstable();
-            lines.dedup();
-            plan.edges_to_create.push(structural_edge(
-                &symbol.stable_key,
-                &target,
-                relation,
-                &symbol.file_path,
-                &statement_hashes.join(":"),
-                &symbol.language,
-                Some(format!(
-                    "lines:{}",
-                    lines
-                        .iter()
-                        .map(usize::to_string)
-                        .collect::<Vec<_>>()
-                        .join(",")
-                )),
-            ));
-        }
+        add_database_access_edges(plan, symbol)?;
+        add_schema_definition_edges(plan, symbol)?;
+    }
+    Ok(())
+}
+
+fn add_database_access_edges(
+    plan: &mut IndexPlan,
+    symbol: &IndexedSymbol,
+) -> Result<(), IndexPlanError> {
+    let mut grouped = BTreeMap::<(DatabaseAccessKind, &str), Vec<&DatabaseAccess>>::new();
+    for access in &symbol.database_accesses {
+        grouped
+            .entry((access.kind, access.entity.as_str()))
+            .or_default()
+            .push(access);
+    }
+    for ((kind, entity), accesses) in grouped {
+        let target = database_entity_key(entity)?;
+        let relation = match kind {
+            DatabaseAccessKind::Read => RelationKind::ReadsFrom,
+            DatabaseAccessKind::Write => RelationKind::WritesTo,
+        };
+        let mut statement_hashes = accesses
+            .iter()
+            .map(|access| access.statement_hash.as_str())
+            .collect::<Vec<_>>();
+        statement_hashes.sort_unstable();
+        statement_hashes.dedup();
+        let mut lines = accesses
+            .iter()
+            .map(|access| access.range.start_line)
+            .collect::<Vec<_>>();
+        lines.sort_unstable();
+        lines.dedup();
+        plan.edges_to_create.push(structural_edge(
+            &symbol.stable_key,
+            &target,
+            relation,
+            &symbol.file_path,
+            &statement_hashes.join(":"),
+            &symbol.language,
+            Some(format!(
+                "lines:{}",
+                lines
+                    .iter()
+                    .map(usize::to_string)
+                    .collect::<Vec<_>>()
+                    .join(",")
+            )),
+        ));
+    }
+    Ok(())
+}
+
+fn add_schema_definition_edges(
+    plan: &mut IndexPlan,
+    symbol: &IndexedSymbol,
+) -> Result<(), IndexPlanError> {
+    let mut tables_by_entity = BTreeMap::<&str, Vec<&SchemaTableDefinition>>::new();
+    for table in &symbol.schema_tables {
+        tables_by_entity
+            .entry(table.entity.as_str())
+            .or_default()
+            .push(table);
+    }
+    for (entity, tables) in tables_by_entity {
+        let target = database_entity_key(entity)?;
+        let mut columns = tables
+            .iter()
+            .flat_map(|table| &table.columns)
+            .map(|column| format!("{}:{}", column.name, column.data_type))
+            .collect::<Vec<_>>();
+        columns.sort_unstable();
+        columns.dedup();
+        let mut lines = tables
+            .iter()
+            .map(|table| table.range.start_line)
+            .collect::<Vec<_>>();
+        lines.sort_unstable();
+        lines.dedup();
+        plan.edges_to_create.push(structural_edge(
+            &symbol.stable_key,
+            &target,
+            RelationKind::DefinesSchema,
+            &symbol.file_path,
+            &format!(
+                "lines:{}",
+                lines
+                    .iter()
+                    .map(usize::to_string)
+                    .collect::<Vec<_>>()
+                    .join(",")
+            ),
+            &symbol.language,
+            Some(format!("columns:{}", columns.join(","))),
+        ));
     }
     Ok(())
 }
@@ -804,6 +878,7 @@ mod tests {
             structural_fingerprint: fingerprint.to_owned(),
             calls: Vec::new(),
             database_accesses: Vec::new(),
+            schema_tables: Vec::new(),
         }
     }
 
@@ -827,6 +902,7 @@ mod tests {
                 structural_fingerprint: definition.structural_fingerprint.clone(),
                 calls: Vec::new(),
                 database_accesses: definition.database_accesses.clone(),
+                schema_tables: definition.schema_tables.clone(),
             }],
         }
     }
@@ -996,6 +1072,101 @@ mod tests {
         assert_eq!(edge.target.as_str(), "db:subscription_archive");
         assert_eq!(edge.claim_class, ClaimClass::Fact);
         assert_eq!(edge.evidence_locator.as_deref(), Some("lines:1"));
+    }
+
+    #[test]
+    fn schema_migrations_and_code_database_accesses_share_one_db_entity() {
+        let mut migration = definition(
+            "migrations.001_create_subscriptions",
+            "migrations.001_create_subscriptions",
+            "migration-body",
+            "migration-shape",
+        );
+        migration.kind = SymbolKind::SchemaMigration;
+        migration.schema_tables.push(SchemaTableDefinition {
+            entity: "subscriptions".to_owned(),
+            columns: vec![
+                crate::ir::SchemaColumn {
+                    name: "id".to_owned(),
+                    data_type: "UUID".to_owned(),
+                },
+                crate::ir::SchemaColumn {
+                    name: "status".to_owned(),
+                    data_type: "VARCHAR(50)".to_owned(),
+                },
+            ],
+            range: range(),
+        });
+        let mut reader = definition("cancel", "billing.cancel", "reader-body", "reader-shape");
+        reader.database_accesses.push(DatabaseAccess {
+            entity: "subscriptions".to_owned(),
+            kind: DatabaseAccessKind::Write,
+            range: range(),
+            statement_hash: "sql".to_owned(),
+        });
+        let analyses = BTreeMap::from([
+            (
+                "migrations/001.sql".to_owned(),
+                FileAnalysis {
+                    path: "migrations/001.sql".to_owned(),
+                    language: "goose".to_owned(),
+                    analysis_version: "goose-migration-v1".to_owned(),
+                    content_hash: "migration-file".to_owned(),
+                    symbols: vec![migration],
+                },
+            ),
+            (
+                "billing.py".to_owned(),
+                FileAnalysis {
+                    path: "billing.py".to_owned(),
+                    language: "python".to_owned(),
+                    analysis_version: "python-tree-sitter-v2".to_owned(),
+                    content_hash: "billing-file".to_owned(),
+                    symbols: vec![reader],
+                },
+            ),
+        ]);
+
+        let plan = plan_incremental_index(
+            &RepositorySnapshot::default(),
+            &analyses,
+            &[
+                FileChange::Added {
+                    path: "migrations/001.sql".to_owned(),
+                },
+                FileChange::Added {
+                    path: "billing.py".to_owned(),
+                },
+            ],
+        )
+        .expect("schema and access plan");
+
+        let db_entity_nodes = plan
+            .nodes_to_write
+            .iter()
+            .filter(|node| {
+                node.kind == NodeKind::DbEntity && node.stable_key.as_str() == "db:subscriptions"
+            })
+            .count();
+        assert_eq!(db_entity_nodes, 1, "one DbEntity, not one per fact source");
+
+        let schema_edge = plan
+            .edges_to_create
+            .iter()
+            .find(|edge| edge.kind == RelationKind::DefinesSchema)
+            .expect("defines-schema fact");
+        assert_eq!(schema_edge.target.as_str(), "db:subscriptions");
+        assert_eq!(
+            schema_edge.evidence_locator.as_deref(),
+            Some("columns:id:UUID,status:VARCHAR(50)")
+        );
+
+        assert!(
+            plan.edges_to_create
+                .iter()
+                .any(|edge| edge.kind == RelationKind::WritesTo
+                    && edge.target.as_str() == "db:subscriptions")
+        );
     }
 
     #[test]

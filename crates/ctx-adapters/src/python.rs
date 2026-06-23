@@ -199,6 +199,7 @@ fn parse_definition(
         structural_fingerprint: structural_fingerprint(body_bytes),
         calls,
         database_accesses,
+        schema_tables: Vec::new(),
     })
 }
 

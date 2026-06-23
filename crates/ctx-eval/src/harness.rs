@@ -66,11 +66,15 @@ pub fn run_case(case: &EvaluationCase) -> Result<CaseRun, HarnessError> {
     init_repository(root)?;
     fs::create_dir_all(root.join(".ctx"))?;
     let mut store = SqliteStore::open(&root.join(".ctx").join("ctx.db"))?;
-    let git = GitRepo::discover(root)?;
-    let analyzer = AnalyzerRegistry::builtins(root, &git.source_scope().languages)?;
 
     let mut run = CaseRun::default();
     for step in &case.steps {
+        // Rediscovered on every step, matching how each real `ctx` invocation
+        // re-reads `.ctx/config.toml` from disk: a case that writes its own
+        // config (for example to enable a non-default language) must take
+        // effect immediately, not only for a case run before it wrote one.
+        let git = GitRepo::discover(root)?;
+        let analyzer = AnalyzerRegistry::builtins(root, &git.source_scope().languages)?;
         match step {
             Step::WriteFiles(files) => write_files(root, files)?,
             Step::Commit(message) => commit_all(root, message)?,

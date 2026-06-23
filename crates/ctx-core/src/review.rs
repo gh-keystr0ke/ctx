@@ -759,6 +759,7 @@ mod tests {
             structural_fingerprint: "shape".to_owned(),
             calls: Vec::new(),
             database_accesses: Vec::new(),
+            schema_tables: Vec::new(),
         };
         let moved_in = SymbolDefinition {
             canonical_path: "billing.cancellation.SubscriptionService.cancel".to_owned(),
@@ -895,6 +896,7 @@ mod tests {
                 range: source_range(),
             }],
             database_accesses: Vec::new(),
+            schema_tables: Vec::new(),
         }
     }
 
@@ -932,6 +934,7 @@ mod tests {
                 structural_fingerprint: "shape".to_owned(),
                 calls: Vec::new(),
                 database_accesses: Vec::new(),
+                schema_tables: Vec::new(),
             },
         }
     }

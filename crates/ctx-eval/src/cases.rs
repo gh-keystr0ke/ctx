@@ -99,6 +99,7 @@ pub fn corpus() -> Vec<EvaluationCase> {
         symbol_move_across_files_noise(),
         deleted_contract_implementation(),
         changed_database_write(),
+        goose_migration_declares_schema_without_code_access(),
         stale_semantic_mapping(),
         shared_test_does_not_bridge_requirements(),
         added_call_discovers_intent(),
@@ -348,6 +349,46 @@ fn changed_database_write() -> EvaluationCase {
             Check::ImpactDataContractAbsent("subscriptions"),
             Check::ContextIdentifierPresent("subscription_archive"),
             Check::ContextIdentifierAbsent("subscriptions"),
+            Check::ContextWithinBudget,
+        ],
+    }
+}
+
+/// A table declared purely by a goose migration, with no code ever reading
+/// or writing it, must still surface as a data contract through `ctx
+/// impact`/`ctx context` — schema knowledge comes from migrations as well as
+/// from code's SQL literals, and the two must resolve to the same `DbEntity`.
+fn goose_migration_declares_schema_without_code_access() -> EvaluationCase {
+    const MIGRATION: &str = "migrations.20240101000000_create_audit_log";
+    let config = "languages = [\"python\", \"goose\"]\n\n[paths]\ninclude = [\"src\", \"tests\", \"migrations\"]\n";
+    let migration_sql = "-- +goose Up\nCREATE TABLE audit_log (\n    id UUID PRIMARY KEY,\n    actor VARCHAR(255) NOT NULL,\n    occurred_at TIMESTAMP NOT NULL\n);\n\n-- +goose Down\nDROP TABLE audit_log;\n";
+    let mut files = subscription_base_files();
+    files.push((".ctx/config.toml", config.to_owned()));
+    EvaluationCase {
+        id: "goose-migration-declares-schema-without-code-access",
+        description: "a goose-declared table with no code access must still appear as a data contract, and adding it must not produce review noise",
+        steps: vec![
+            Step::WriteFiles(files),
+            Step::Commit("base"),
+            Step::Index,
+            Step::WriteFiles(vec![(
+                "migrations/20240101000000_create_audit_log.sql",
+                migration_sql.to_owned(),
+            )]),
+            Step::Review { base: "HEAD" },
+            Step::Commit("add audit_log migration"),
+            Step::Index,
+            Step::Impact { target: MIGRATION },
+            Step::Context {
+                task: "audit log schema",
+                symbols: vec![MIGRATION],
+                token_budget: 500,
+            },
+        ],
+        checks: vec![
+            Check::NoFindings,
+            Check::ImpactDataContractPresent("audit_log"),
+            Check::ContextIdentifierPresent("audit_log"),
             Check::ContextWithinBudget,
         ],
     }

@@ -418,6 +418,7 @@ mod tests {
                 structural_fingerprint: key.to_owned(),
                 calls: Vec::new(),
                 database_accesses: Vec::new(),
+                schema_tables: Vec::new(),
             },
         }
     }

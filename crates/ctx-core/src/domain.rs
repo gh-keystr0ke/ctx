@@ -167,6 +167,7 @@ pub enum RelationKind {
     References,
     ReadsFrom,
     WritesTo,
+    DefinesSchema,
     Emits,
     Handles,
     Implements,

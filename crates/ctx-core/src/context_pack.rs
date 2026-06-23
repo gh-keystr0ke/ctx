@@ -337,6 +337,7 @@ fn traversable(
                 | RelationKind::References
                 | RelationKind::ReadsFrom
                 | RelationKind::WritesTo
+                | RelationKind::DefinesSchema
                 | RelationKind::Emits
                 | RelationKind::Handles
         )
@@ -403,12 +404,18 @@ fn node_content(node: &GraphNode) -> String {
             signature,
             calls,
             database_accesses,
+            schema_tables,
             ..
         } => {
             let reads = database_entities(database_accesses, crate::ir::DatabaseAccessKind::Read);
             let writes = database_entities(database_accesses, crate::ir::DatabaseAccessKind::Write);
+            let schema_line = if schema_tables.is_empty() {
+                String::new()
+            } else {
+                format!("\nDefines schema: {}", render_schema(schema_tables))
+            };
             format!(
-                "{}:{}-{}\nSignature: {}\nCalls: {}\nDB reads: {}\nDB writes: {}",
+                "{}:{}-{}\nSignature: {}\nCalls: {}\nDB reads: {}\nDB writes: {}{}",
                 file_path,
                 range.start_line,
                 range.end_line,
@@ -420,6 +427,7 @@ fn node_content(node: &GraphNode) -> String {
                 },
                 render_entities(&reads),
                 render_entities(&writes),
+                schema_line,
             )
         }
         PlannedNodeAttributes::File { path, language, .. } => {
@@ -448,6 +456,22 @@ fn render_entities(entities: &BTreeSet<&str>) -> String {
     } else {
         entities.iter().copied().collect::<Vec<_>>().join(", ")
     }
+}
+
+fn render_schema(tables: &[crate::ir::SchemaTableDefinition]) -> String {
+    tables
+        .iter()
+        .map(|table| {
+            let columns = table
+                .columns
+                .iter()
+                .map(|column| format!("{} {}", column.name, column.data_type))
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("{}({columns})", table.entity)
+        })
+        .collect::<Vec<_>>()
+        .join("; ")
 }
 
 fn compile_evidence(
@@ -512,6 +536,7 @@ const fn evidence_priority(kind: RelationKind) -> usize {
         | RelationKind::References
         | RelationKind::ReadsFrom
         | RelationKind::WritesTo
+        | RelationKind::DefinesSchema
         | RelationKind::Emits
         | RelationKind::Handles => 5,
     }
@@ -915,6 +940,7 @@ mod tests {
                 structural_fingerprint: "shape".to_owned(),
                 calls: Vec::new(),
                 database_accesses: Vec::new(),
+                schema_tables: Vec::new(),
             },
         }
     }

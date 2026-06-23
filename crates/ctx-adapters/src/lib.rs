@@ -5,6 +5,7 @@ pub mod business_context;
 mod database;
 pub mod git;
 pub mod go;
+pub mod goose;
 pub mod language;
 pub mod python;
 pub mod rust;

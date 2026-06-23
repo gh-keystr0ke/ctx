@@ -240,6 +240,7 @@ impl SqliteStore {
                 structural_fingerprint,
                 calls,
                 database_accesses,
+                schema_tables,
             } = attributes
             else {
                 continue;
@@ -258,6 +259,7 @@ impl SqliteStore {
                     structural_fingerprint,
                     calls,
                     database_accesses,
+                    schema_tables,
                 });
             }
         }
@@ -809,6 +811,7 @@ mod tests {
                         structural_fingerprint: "shape".to_owned(),
                         calls: Vec::new(),
                         database_accesses: Vec::new(),
+                        schema_tables: Vec::new(),
                     },
                     mutation: NodeMutationKind::Create,
                 },

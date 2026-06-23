@@ -635,6 +635,7 @@ const fn relation_kind(kind: RelationKind) -> &'static str {
         RelationKind::References => "references",
         RelationKind::ReadsFrom => "readsfrom",
         RelationKind::WritesTo => "writesto",
+        RelationKind::DefinesSchema => "definesschema",
         RelationKind::Emits => "emits",
         RelationKind::Handles => "handles",
     }
@@ -723,6 +724,7 @@ mod tests {
                     structural_fingerprint: "shape".to_owned(),
                     calls: Vec::new(),
                     database_accesses: Vec::new(),
+                    schema_tables: Vec::new(),
                 },
                 mutation: NodeMutationKind::Create,
             }],

@@ -128,6 +128,7 @@ fn expand_structural_seed_neighborhood(
                     | RelationKind::References
                     | RelationKind::ReadsFrom
                     | RelationKind::WritesTo
+                    | RelationKind::DefinesSchema
                     | RelationKind::Emits
                     | RelationKind::Handles
             )
@@ -636,6 +637,7 @@ mod tests {
                 structural_fingerprint: "shape".to_owned(),
                 calls: Vec::new(),
                 database_accesses: Vec::new(),
+                schema_tables: Vec::new(),
             },
         }
     }

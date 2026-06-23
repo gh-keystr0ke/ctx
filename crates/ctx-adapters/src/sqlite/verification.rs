@@ -282,6 +282,7 @@ const fn relation_name(kind: RelationKind) -> &'static str {
         RelationKind::References => "references",
         RelationKind::ReadsFrom => "readsfrom",
         RelationKind::WritesTo => "writesto",
+        RelationKind::DefinesSchema => "definesschema",
         RelationKind::Emits => "emits",
         RelationKind::Handles => "handles",
     }

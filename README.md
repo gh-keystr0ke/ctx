@@ -1,14 +1,14 @@
 # ctx
 
-`ctx` is a local-first product-context engine for Python and Rust repositories. It connects a small, explicit set of features, requirements, invariants, and decisions to code and tests, then uses those claims to answer impact questions, review diffs, and compile bounded context for coding agents.
+`ctx` is a local-first product-context engine for Python, Rust, and Go repositories. It connects a small, explicit set of features, requirements, invariants, and decisions to code and tests, then uses those claims to answer impact questions, review diffs, and compile bounded context for coding agents.
 
 The current release is deterministic and works without an LLM or network service. Semantic findings carry their origin, evidence, confidence, validity, and staleness instead of being silently promoted to facts.
 
 ## What works
 
-- Git-aware incremental Python and Rust indexing with Tree-sitter
-- file, class, struct, enum, trait, module, function, method, test, containment, and call relationships
-- evidence-backed database entities plus `READS_FROM`/`WRITES_TO` facts from static SQL in Python and Rust
+- Git-aware incremental Python, Rust, and Go indexing with Tree-sitter
+- file, class, struct, enum, interface, trait, module, function, method, test, containment, and call relationships
+- evidence-backed database entities plus `READS_FROM`/`WRITES_TO` facts from static SQL in Python, Rust, and Go
 - YAML or Markdown-front-matter product context under `.context/`
 - evidence-backed `impact`, `explain`, and high-precision `review`
 - token-budgeted Context Packs
@@ -104,6 +104,8 @@ Python files below `src/` omit that prefix: `src/billing/subscription.py` plus `
 
 Rust paths include a crate namespace. A root `src/lib.rs` uses `crate`, while a workspace file such as `crates/ctx-core/src/indexing.rs` uses the Cargo-directory name: `ctx_core.indexing.plan_incremental_index`. Inherent methods use their implemented type and trait declarations use their trait. Trait implementations include the implemented trait, including type arguments when needed to prevent collisions: `ctx_cli.CliError.From<std::io::Error>.from`.
 
+Go paths use the source directory as the package path (matching Go's one-package-per-directory convention), not the file name and not `go.mod`'s module path: `billing/subscription.go` with `func (s *SubscriptionService) Cancel` becomes `billing.SubscriptionService.Cancel`. A root-level file with no directory uses `main`. Interfaces are indexed as traits.
+
 Canonical names are normally enough. If two enabled languages produce the same canonical name, use the exact language-qualified stable key in the mapping, such as `symbol:rust:app.run:Function` or `symbol:python:app.run:Function`; `ctx status`, review JSON, and query output expose these keys.
 
 ## Configuration
@@ -193,7 +195,7 @@ cargo clippy --all-targets --all-features -- -D warnings
 cargo test --workspace
 ```
 
-The end-to-end tests build temporary real Git repositories. They cover the complete subscriptions product journey and a mixed Python/Rust repository through initialization, indexing, language-scoped call resolution, status, and Rust diff review.
+The end-to-end tests build temporary real Git repositories. They cover the complete subscriptions product journey and a mixed Python/Rust/Go repository through initialization, indexing, language-scoped call resolution, status, and Rust/Go diff review.
 
 Run the deterministic product-quality corpus separately:
 
@@ -205,7 +207,7 @@ It currently covers 11 Git-history cases and 59 typed checks across recall, prec
 
 ### Add another language module
 
-Language support is isolated behind `AnalyzerModule` and the normalized `FileAnalysis` IR. To add TypeScript, Go, Java, or Zig:
+Language support is isolated behind `AnalyzerModule` and the normalized `FileAnalysis` IR. To add TypeScript, Java, or Zig:
 
 1. Add one parser adapter that implements `LanguageAnalyzer` and `AnalyzerModule`, including its language name and extensions.
 2. Declare the language in `language.rs` and register its constructor in `AnalyzerRegistry::builtins`.
@@ -218,10 +220,10 @@ See [docs/architecture.md](docs/architecture.md) for boundaries and persistence 
 
 ## Current limits
 
-- Python and Rust are the built-in parsers; TypeScript, Go, Java, and Zig modules are not implemented yet.
+- Python, Rust, and Go are the built-in parsers; TypeScript, Java, and Zig modules are not implemented yet.
 - Language modules are compiled into the binary; dynamic shared-library loading is not supported.
 - Explicit symbol mappings are exact; unresolved mappings are reported instead of guessed.
-- Static database extraction recognizes literal SQL inside known Python/Rust execution calls and common `SELECT`/`INSERT`/`UPDATE`/`DELETE`/`MERGE` forms. Dynamic SQL, ORM expression trees, stored procedures, and dialect-complete parsing remain unknown rather than guessed.
+- Static database extraction recognizes literal SQL inside known Python/Rust/Go execution calls and common `SELECT`/`INSERT`/`UPDATE`/`DELETE`/`MERGE` forms. Dynamic SQL, ORM expression trees, stored procedures, and dialect-complete parsing remain unknown rather than guessed.
 - Heuristic suggestions use lexical, structural, test, and shared-database-interaction signals, not embeddings or an LLM.
 - Endpoint, event, and external-system node types are reserved in the domain model but are not yet extracted from source.
 - There is no web UI, cloud backend, runtime tracing, multi-repository graph, or external ticket/document integration.

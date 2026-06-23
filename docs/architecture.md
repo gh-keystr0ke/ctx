@@ -27,7 +27,7 @@ Git + .context + configured languages
 | --- | --- |
 | `ctx-core` | Domain types and pure incremental planning, impact, review, context compilation, and verification scoring |
 | `ctx-app` | Narrow ports and use-case orchestration |
-| `ctx-adapters` | Git inspection, analyzer registry, Python/Rust Tree-sitter normalization, `.context` parsing, and SQLite transactions |
+| `ctx-adapters` | Git inspection, analyzer registry, Python/Rust/Go Tree-sitter normalization, `.context` parsing, and SQLite transactions |
 | `ctx-cli` | Human and JSON command surface |
 | `ctx-mcp` | Thin stdio protocol adapter over the application services |
 
@@ -61,9 +61,11 @@ Stable symbol keys have the form `symbol:<language>:<canonical-path>:<kind>`. Hu
 
 `AnalyzerRegistry` is the only analyzer passed to indexing and review. It owns independent self-describing `AnalyzerModule` implementations and routes by source extension. Git filtering uses the same supported-language declarations, so configured discovery and parser dispatch cannot disagree.
 
-Python and Rust are built in today. A future TypeScript, Go, Java, or Zig adapter supplies parser-specific extraction but must return the common IR: complete-file hash, symbol kind/name/canonical path, version range, signature, body hash, whitespace-insensitive structural fingerprint, simple call sites, and normalized interactions it can prove. Parser syntax types remain inside `ctx-adapters`; application and core crates stay unchanged. Duplicate module names or extension claims are rejected when the registry is built.
+Python, Rust, and Go are built in today. A future TypeScript, Java, or Zig adapter supplies parser-specific extraction but must return the common IR: complete-file hash, symbol kind/name/canonical path, version range, signature, body hash, whitespace-insensitive structural fingerprint, simple call sites, and normalized interactions it can prove. Parser syntax types remain inside `ctx-adapters`; application and core crates stay unchanged. Duplicate module names or extension claims are rejected when the registry is built.
 
 Rust canonical paths use `crate` for a root `src/` tree and the workspace crate directory for `crates/<name>/src/`. Inline modules and implemented types extend that namespace. Trait-implementation methods additionally include the complete trait name (including generic arguments), so legal pairs such as `impl From<u8>` and `impl From<u16>` cannot collide. Syntax-error trees are rejected rather than partially indexed.
+
+Go canonical paths are directory-based rather than file-based, matching Go's one-package-per-directory convention: every `.go` file in a directory shares that directory's package namespace regardless of its declared `package` clause, and a root-level file with no directory falls back to `main`. Methods are namespaced under their receiver's innermost named type (pointer and generic receivers unwrap to that name). Interfaces map to the shared `Trait` symbol kind; defined/alias types that are not `struct`/`interface` map to `TypeAlias`. `const`/`var` blocks emit one symbol per bound identifier. Go raw (backtick) string literals reuse the same static-SQL-literal recognizer as Python/Rust since they cannot contain escapes or interpolation. Syntax-error trees are rejected rather than partially indexed, matching the other modules.
 
 ## Static database interactions
 

@@ -49,10 +49,12 @@ pub(crate) fn sql_entities(statement: &str) -> Vec<(DatabaseAccessKind, String)>
     accesses.into_iter().collect()
 }
 
-/// Returns the bytes inside a plain Python or Rust string literal. Interpolated
-/// Python strings are rejected because their SQL is not a static fact.
+/// Returns the bytes inside a plain Python, Rust, or Go string literal.
+/// Interpolated Python strings are rejected because their SQL is not a static
+/// fact. Go backtick raw strings never contain escapes, so the same
+/// quote-stripping logic applies to them unchanged.
 pub(crate) fn static_string_content(literal: &str) -> Option<String> {
-    let quote_index = literal.find(['\'', '"'])?;
+    let quote_index = literal.find(['\'', '"', '`'])?;
     let prefix = &literal[..quote_index];
     if prefix
         .chars()

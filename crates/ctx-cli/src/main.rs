@@ -27,7 +27,7 @@ use serde::Serialize;
 use serde_json::json;
 use thiserror::Error;
 
-const DEFAULT_CONFIG: &str = r#"languages = ["python", "rust"]
+const DEFAULT_CONFIG: &str = r#"languages = ["python", "rust", "go"]
 
 [paths]
 include = ["src", "tests"]

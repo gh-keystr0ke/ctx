@@ -18,7 +18,7 @@ impl MixedLanguageRepository {
         fs::create_dir_all(directory.path().join(".ctx")).expect("ctx directory");
         fs::write(
             directory.path().join(".ctx/config.toml"),
-            "languages = [\"python\", \"rust\"]\n\n[paths]\ninclude = [\"src\"]\n",
+            "languages = [\"python\", \"rust\", \"go\"]\n\n[paths]\ninclude = [\"src\"]\n",
         )
         .expect("mixed configuration");
         fs::write(
@@ -31,6 +31,11 @@ impl MixedLanguageRepository {
             "pub fn run() {\n    helper();\n}\n\nfn helper() -> u8 {\n    1\n}\n",
         )
         .expect("Rust source");
+        fs::write(
+            directory.path().join("src/main.go"),
+            "package main\n\nfunc Run() {\n\thelper()\n}\n\nfunc helper() int {\n\treturn 1\n}\n",
+        )
+        .expect("Go source");
         run_git(directory.path(), &["init", "--quiet"]);
         run_git(directory.path(), &["config", "user.name", "ctx tests"]);
         run_git(
@@ -199,35 +204,44 @@ fn complete_product_journey_is_deterministic_and_evidence_backed() {
 }
 
 #[test]
-fn mixed_python_and_rust_repository_indexes_and_reviews_through_one_registry() {
+fn mixed_python_rust_and_go_repository_indexes_and_reviews_through_one_registry() {
     let repository = MixedLanguageRepository::new();
 
     repository.ctx(&["init"]);
     let indexed = repository.ctx(&["index"]);
-    assert_eq!(indexed["stats"]["files_reparsed"], 2);
-    assert_eq!(indexed["stats"]["nodes_created"], 6);
-    assert_eq!(indexed["stats"]["edges_recomputed"], 6);
+    assert_eq!(indexed["stats"]["files_reparsed"], 3);
+    assert_eq!(indexed["stats"]["nodes_created"], 9);
+    assert_eq!(indexed["stats"]["edges_recomputed"], 9);
 
     let status = repository.ctx(&["status"]);
     assert_eq!(
         status["source_scope"]["languages"],
-        json_array(&["python", "rust"])
+        json_array(&["python", "rust", "go"])
     );
-    assert_eq!(status["knowledge"]["files"], 2);
-    assert_eq!(status["knowledge"]["symbols"], 4);
-    assert_eq!(status["knowledge"]["structural_facts"], 6);
+    assert_eq!(status["knowledge"]["files"], 3);
+    assert_eq!(status["knowledge"]["symbols"], 6);
+    assert_eq!(status["knowledge"]["structural_facts"], 9);
 
     fs::write(
         repository.root().join("src/lib.rs"),
         "pub fn run() {\n    helper();\n    helper();\n}\n\nfn helper() -> u8 {\n    1\n}\n",
     )
     .expect("Rust change");
+    fs::write(
+        repository.root().join("src/main.go"),
+        "package main\n\nfunc Run() {\n\thelper()\n\thelper()\n}\n\nfunc helper() int {\n\treturn 1\n}\n",
+    )
+    .expect("Go change");
     let review = repository.ctx(&["review", "--base", "HEAD"]);
     let changed = review["changed_entities"]
         .as_array()
-        .expect("changed Rust entities");
+        .expect("changed Rust and Go entities");
     assert!(changed.iter().any(|entity| {
         entity["stable_key"] == "symbol:rust:crate.run:Function"
+            && entity["change_kind"] == "behavior_potentially_changed"
+    }));
+    assert!(changed.iter().any(|entity| {
+        entity["stable_key"] == "symbol:go:main.Run:Function"
             && entity["change_kind"] == "behavior_potentially_changed"
     }));
 }

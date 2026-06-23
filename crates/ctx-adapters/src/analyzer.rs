@@ -3,7 +3,9 @@ use std::{collections::BTreeMap, path::Path};
 use ctx_app::ports::{LanguageAnalyzer, PortError};
 use ctx_core::ir::FileAnalysis;
 
-use crate::{language::SupportedLanguage, python::PythonAnalyzer, rust::RustAnalyzer};
+use crate::{
+    go::GoAnalyzer, language::SupportedLanguage, python::PythonAnalyzer, rust::RustAnalyzer,
+};
 
 /// A self-describing language adapter that can be installed in the registry.
 pub trait AnalyzerModule: LanguageAnalyzer {
@@ -39,6 +41,9 @@ impl AnalyzerRegistry {
                 }
                 Some(SupportedLanguage::Rust) => {
                     registry.register(Box::new(RustAnalyzer::new(root.to_path_buf())))?;
+                }
+                Some(SupportedLanguage::Go) => {
+                    registry.register(Box::new(GoAnalyzer::new(root.to_path_buf())))?;
                 }
                 None => {
                     return Err(PortError::new(format!(

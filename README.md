@@ -144,6 +144,8 @@ Add global `--json` for stable machine-readable output. Add `-v` to review for l
 
 Impact JSON separates `data_contracts` from implementation and tests. Database entities use their normalized SQL identifier (for example `subscriptions` or `billing.subscriptions`) and can be queried or explained like any other node. Static data facts retain parser provenance, commit validity, and source-line evidence.
 
+For Context Packs, a resolved `--file` or `--symbol` is a hard scope boundary: related context comes from that seed's bounded graph neighborhood, and independent lexical matches are not added as competing roots. Lexical auto-seeding is used only when no explicit seed resolves.
+
 Review deliberately favors precision over recall. Formatting-only changes, renames, and likely refactors are suppressed. Findings require a strong implementation claim and always include the affected intent, stored evidence, linked tests, uncertainty, and a reviewer action.
 
 ## MCP integration

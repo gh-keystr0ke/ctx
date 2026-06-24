@@ -9,7 +9,7 @@ The current release is deterministic and works without an LLM or network service
 - Git-aware incremental Python, Rust, and Go indexing with Tree-sitter
 - file, class, struct, enum, interface, trait, module, function, method, test, containment, and call relationships
 - evidence-backed database entities plus `READS_FROM`/`WRITES_TO` facts from static SQL in Python, Rust, and Go
-- table/column-level `DEFINES_SCHEMA` facts read from goose SQL migrations, sharing the same `DbEntity` graph
+- table/column-level `DEFINES_SCHEMA` facts read from goose SQL migrations and SQLAlchemy declarative models, sharing the same `DbEntity` graph
 - YAML or Markdown-front-matter product context under `.context/`
 - evidence-backed `impact`, `explain`, and high-precision `review`
 - token-budgeted Context Packs
@@ -226,6 +226,7 @@ See [docs/architecture.md](docs/architecture.md) for boundaries and persistence 
 - Explicit symbol mappings are exact; unresolved mappings are reported instead of guessed.
 - Static database extraction recognizes literal SQL inside known Python/Rust/Go execution calls and common `SELECT`/`INSERT`/`UPDATE`/`DELETE`/`MERGE` forms. Dynamic SQL, ORM expression trees, stored procedures, and dialect-complete parsing remain unknown rather than guessed.
 - goose migration parsing reads only `-- +goose Up` and recognizes common `CREATE TABLE`/`ALTER TABLE ... ADD COLUMN` forms; it is a deterministic recognizer, not a SQL dialect parser, and never merges multiple migrations into one computed "current" schema — each migration file's declaration stays its own fact.
+- SQLAlchemy model recognition requires a static `__tablename__` string literal and reads `Column(...)`/`mapped_column(...)` attribute assignments; it does not resolve `Base`/inheritance, relationships, mixins, or Alembic migration history.
 - Heuristic suggestions use lexical, structural, test, and shared-database-interaction signals, not embeddings or an LLM.
 - Endpoint, event, and external-system node types are reserved in the domain model but are not yet extracted from source.
 - There is no web UI, cloud backend, runtime tracing, multi-repository graph, or external ticket/document integration.

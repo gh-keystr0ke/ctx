@@ -9,6 +9,7 @@ The current release is deterministic and works without an LLM or network service
 - Git-aware incremental Python, Rust, and Go indexing with Tree-sitter
 - file, class, struct, enum, interface, trait, module, function, method, test, containment, and call relationships
 - evidence-backed database entities plus `READS_FROM`/`WRITES_TO` facts from static SQL in Python, Rust, and Go
+- table/column-level `DEFINES_SCHEMA` facts read from goose SQL migrations, sharing the same `DbEntity` graph
 - YAML or Markdown-front-matter product context under `.context/`
 - evidence-backed `impact`, `explain`, and high-precision `review`
 - token-budgeted Context Packs
@@ -113,14 +114,14 @@ Canonical names are normally enough. If two enabled languages produce the same c
 `.ctx/config.toml` is intentionally small:
 
 ```toml
-languages = ["python", "rust"]
+languages = ["python", "rust", "go"]
 
 [paths]
 include = ["src", "tests"]
 exclude = ["generated", "vendor", "build", "dist", "target", ".venv"]
 ```
 
-`languages` enables any subset of the built-in `python` and `rust` modules. The legacy singular `language = "python"` form remains accepted; do not set both forms. Unsupported or empty language sets fail during repository discovery instead of silently skipping code.
+`languages` enables any subset of the built-in `python`, `rust`, `go`, and `goose` modules. `goose` reads goose SQL migration files (`.sql`) instead of a programming language; add it, and a directory such as `migrations`, to `paths.include`, to pick up schema declarations. The legacy singular `language = "python"` form remains accepted; do not set both forms. Unsupported or empty language sets fail during repository discovery instead of silently skipping code.
 
 Include and exclude entries are repository-relative directory prefixes. Exclusions win. Generated, vendor, build, virtual-environment, cache, and non-configured source paths are also protected by built-in filtering. Commit the config when a team should share it. Changing languages or path boundaries is reconciled against the stored snapshot on the next index.
 
@@ -224,6 +225,7 @@ See [docs/architecture.md](docs/architecture.md) for boundaries and persistence 
 - Language modules are compiled into the binary; dynamic shared-library loading is not supported.
 - Explicit symbol mappings are exact; unresolved mappings are reported instead of guessed.
 - Static database extraction recognizes literal SQL inside known Python/Rust/Go execution calls and common `SELECT`/`INSERT`/`UPDATE`/`DELETE`/`MERGE` forms. Dynamic SQL, ORM expression trees, stored procedures, and dialect-complete parsing remain unknown rather than guessed.
+- goose migration parsing reads only `-- +goose Up` and recognizes common `CREATE TABLE`/`ALTER TABLE ... ADD COLUMN` forms; it is a deterministic recognizer, not a SQL dialect parser, and never merges multiple migrations into one computed "current" schema — each migration file's declaration stays its own fact.
 - Heuristic suggestions use lexical, structural, test, and shared-database-interaction signals, not embeddings or an LLM.
 - Endpoint, event, and external-system node types are reserved in the domain model but are not yet extracted from source.
 - There is no web UI, cloud backend, runtime tracing, multi-repository graph, or external ticket/document integration.

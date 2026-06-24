@@ -100,6 +100,7 @@ pub fn corpus() -> Vec<EvaluationCase> {
         deleted_contract_implementation(),
         changed_database_write(),
         goose_migration_declares_schema_without_code_access(),
+        sqlalchemy_model_declares_schema_without_sql_access(),
         stale_semantic_mapping(),
         shared_test_does_not_bridge_requirements(),
         added_call_discovers_intent(),
@@ -389,6 +390,41 @@ fn goose_migration_declares_schema_without_code_access() -> EvaluationCase {
             Check::NoFindings,
             Check::ImpactDataContractPresent("audit_log"),
             Check::ContextIdentifierPresent("audit_log"),
+            Check::ContextWithinBudget,
+        ],
+    }
+}
+
+/// A table declared purely by a `SQLAlchemy` declarative model, with no
+/// static SQL literal ever touching it, must still surface as a data
+/// contract — schema knowledge comes from ORM model declarations as well as
+/// SQL literals and goose migrations, and all three must resolve to the same
+/// `DbEntity`.
+fn sqlalchemy_model_declares_schema_without_sql_access() -> EvaluationCase {
+    const MODEL: &str = "billing.models.SubscriptionEvent";
+    let model_py = "from sqlalchemy import Column, String, Integer\nfrom sqlalchemy.orm import Mapped, mapped_column\n\n\nclass SubscriptionEvent(Base):\n    __tablename__ = \"subscription_events\"\n\n    id = Column(Integer, primary_key=True)\n    subscription_id: Mapped[int] = mapped_column(Integer)\n    kind = Column(String(50))\n";
+    EvaluationCase {
+        id: "sqlalchemy-model-declares-schema-without-sql-access",
+        description: "a SQLAlchemy-declared table with no static SQL access must still appear as a data contract, and adding it must not produce review noise",
+        steps: vec![
+            Step::WriteFiles(subscription_base_files()),
+            Step::Commit("base"),
+            Step::Index,
+            Step::WriteFiles(vec![("src/billing/models.py", model_py.to_owned())]),
+            Step::Review { base: "HEAD" },
+            Step::Commit("add SubscriptionEvent model"),
+            Step::Index,
+            Step::Impact { target: MODEL },
+            Step::Context {
+                task: "subscription event schema",
+                symbols: vec![MODEL],
+                token_budget: 500,
+            },
+        ],
+        checks: vec![
+            Check::NoFindings,
+            Check::ImpactDataContractPresent("subscription_events"),
+            Check::ContextIdentifierPresent("subscription_events"),
             Check::ContextWithinBudget,
         ],
     }

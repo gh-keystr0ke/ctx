@@ -2,7 +2,8 @@ use std::{fs, path::PathBuf};
 
 use ctx_app::ports::{LanguageAnalyzer, PortError};
 use ctx_core::ir::{
-    CallSite, DatabaseAccess, FileAnalysis, SourceRange, SymbolDefinition, SymbolKind,
+    CallSite, DatabaseAccess, FileAnalysis, SchemaColumn, SchemaTableDefinition, SourceRange,
+    SymbolDefinition, SymbolKind,
 };
 use thiserror::Error;
 use tree_sitter::{Node, Parser, TreeCursor};
@@ -67,7 +68,7 @@ impl PythonAnalyzer {
         Ok(FileAnalysis {
             path: relative_path.to_owned(),
             language: "python".to_owned(),
-            analysis_version: "python-tree-sitter-v2".to_owned(),
+            analysis_version: "python-tree-sitter-v3".to_owned(),
             content_hash: blake3::hash(source.as_bytes()).to_hex().to_string(),
             symbols,
         })
@@ -76,7 +77,7 @@ impl PythonAnalyzer {
 
 impl LanguageAnalyzer for PythonAnalyzer {
     fn analysis_version(&self, _relative_path: &str) -> Result<String, PortError> {
-        Ok("python-tree-sitter-v2".to_owned())
+        Ok("python-tree-sitter-v3".to_owned())
     }
 
     fn analyze(&self, relative_path: &str) -> Result<FileAnalysis, PortError> {
@@ -189,6 +190,11 @@ fn parse_definition(
     } else {
         collect_database_accesses(body, source)
     };
+    let schema_tables = if is_class {
+        sqlalchemy_schema_table(body, source).into_iter().collect()
+    } else {
+        Vec::new()
+    };
     Some(SymbolDefinition {
         name,
         canonical_path,
@@ -199,7 +205,7 @@ fn parse_definition(
         structural_fingerprint: structural_fingerprint(body_bytes),
         calls,
         database_accesses,
-        schema_tables: Vec::new(),
+        schema_tables,
     })
 }
 
@@ -308,6 +314,99 @@ fn is_database_execution_call(expression: &str) -> bool {
             | "fetchall"
             | "fetch_one"
             | "fetch_all"
+    )
+}
+
+/// Recognizes a `SQLAlchemy` declarative model directly in the class body:
+/// `__tablename__ = "..."` (the standard declarative-mapping marker) plus
+/// `name = Column(...)`/`name = mapped_column(...)` attribute assignments.
+/// Only classes that assign a static string to `__tablename__` are treated
+/// as models at all, so an unrelated class that happens to define an
+/// attribute named `Column` is not misread as ORM schema. Declarative base
+/// detection (resolving `class X(Base):`) is deliberately not attempted:
+/// aliasing and inheritance make it unreliable without import resolution,
+/// while `__tablename__` is unambiguous and framework-mandated.
+fn sqlalchemy_schema_table(class_body: Node<'_>, source: &[u8]) -> Option<SchemaTableDefinition> {
+    let mut entity = None;
+    let mut columns = Vec::new();
+    let mut range = None;
+    let mut cursor = class_body.walk();
+    for statement in class_body.named_children(&mut cursor) {
+        let Some(assignment) = direct_assignment(statement) else {
+            continue;
+        };
+        let Some(left_name) = assignment
+            .child_by_field_name("left")
+            .filter(|left| left.kind() == "identifier")
+            .and_then(|left| left.utf8_text(source).ok())
+        else {
+            continue;
+        };
+        let Some(right) = assignment.child_by_field_name("right") else {
+            continue;
+        };
+        if left_name == "__tablename__" {
+            if right.kind() == "string"
+                && let Ok(literal) = right.utf8_text(source)
+                && let Some(table_name) = static_string_content(literal)
+            {
+                entity = Some(table_name);
+                range = Some(source_range(statement));
+            }
+            continue;
+        }
+        if let Some(data_type) = sqlalchemy_column_type(assignment, right, source) {
+            columns.push(SchemaColumn {
+                name: left_name.to_owned(),
+                data_type,
+            });
+        }
+    }
+    let entity = entity?;
+    Some(SchemaTableDefinition {
+        entity,
+        columns,
+        range: range.unwrap_or_else(|| source_range(class_body)),
+    })
+}
+
+/// A class body statement is `expression_statement > assignment` for both
+/// plain (`x = ...`) and annotated (`x: T = ...`) attribute assignments.
+fn direct_assignment(statement: Node<'_>) -> Option<Node<'_>> {
+    if statement.kind() != "expression_statement" {
+        return None;
+    }
+    let assignment = statement.named_child(0)?;
+    (assignment.kind() == "assignment").then_some(assignment)
+}
+
+fn sqlalchemy_column_type(assignment: Node<'_>, right: Node<'_>, source: &[u8]) -> Option<String> {
+    if right.kind() != "call" {
+        return None;
+    }
+    let function = right.child_by_field_name("function")?;
+    let callee = function.utf8_text(source).ok().and_then(|text| {
+        text.rsplit('.')
+            .find(|part| !part.is_empty())
+            .map(str::to_owned)
+    })?;
+    if !matches!(callee.as_str(), "Column" | "mapped_column") {
+        return None;
+    }
+    let arguments = right.child_by_field_name("arguments")?;
+    let mut cursor = arguments.walk();
+    let first_positional = arguments
+        .named_children(&mut cursor)
+        .find(|argument| argument.kind() != "keyword_argument")
+        .and_then(|argument| argument.utf8_text(source).ok());
+    if let Some(type_text) = first_positional {
+        return Some(type_text.to_owned());
+    }
+    Some(
+        assignment
+            .child_by_field_name("type")
+            .and_then(|annotation| annotation.utf8_text(source).ok())
+            .map_or_else(|| "unknown".to_owned(), str::to_owned),
     )
 }
 
@@ -430,6 +529,80 @@ def load_and_archive(connection):
                 ),
                 (ctx_core::ir::DatabaseAccessKind::Read, "subscriptions"),
             ]
+        );
+    }
+
+    #[test]
+    fn extracts_sqlalchemy_declarative_model_columns() {
+        let source = r#"
+class Subscription(Base):
+    __tablename__ = "subscriptions"
+
+    id = Column(String, primary_key=True)
+    status = Column(String(50), nullable=False)
+    amount: Mapped[int] = mapped_column(Numeric(10, 2))
+    note = mapped_column(Text)
+"#;
+        let analysis =
+            PythonAnalyzer::analyze_source("models.py", source).expect("SQLAlchemy model");
+        let class_symbol = analysis
+            .symbols
+            .iter()
+            .find(|symbol| symbol.name == "Subscription")
+            .expect("model class");
+        assert_eq!(class_symbol.schema_tables.len(), 1);
+        let table = &class_symbol.schema_tables[0];
+        assert_eq!(table.entity, "subscriptions");
+        assert_eq!(
+            table
+                .columns
+                .iter()
+                .map(|column| (column.name.as_str(), column.data_type.as_str()))
+                .collect::<Vec<_>>(),
+            vec![
+                ("id", "String"),
+                ("status", "String(50)"),
+                ("amount", "Numeric(10, 2)"),
+                ("note", "Text"),
+            ]
+        );
+    }
+
+    #[test]
+    fn ignores_classes_without_a_static_tablename() {
+        let source = r"
+class Column:
+    pass
+
+class PlainDataclass:
+    id = Column()
+    Column = 5
+";
+        let analysis =
+            PythonAnalyzer::analyze_source("plain.py", source).expect("non-model classes");
+        assert!(
+            analysis
+                .symbols
+                .iter()
+                .all(|symbol| symbol.schema_tables.is_empty())
+        );
+    }
+
+    #[test]
+    fn ignores_a_dynamic_tablename() {
+        let source = r"
+class Subscription(Base):
+    __tablename__ = table_name_from(config)
+
+    id = Column(String)
+";
+        let analysis =
+            PythonAnalyzer::analyze_source("dynamic.py", source).expect("dynamic tablename");
+        assert!(
+            analysis
+                .symbols
+                .iter()
+                .all(|symbol| symbol.schema_tables.is_empty())
         );
     }
 }

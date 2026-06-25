@@ -327,7 +327,11 @@ fn is_word_byte(byte: u8) -> bool {
 /// whitespace stripped.
 fn strip_word_ci<'a>(text: &'a str, word: &str) -> Option<&'a str> {
     let trimmed = text.trim_start();
-    if trimmed.len() < word.len() || !trimmed[..word.len()].eq_ignore_ascii_case(word) {
+    // `word` is always a plain ASCII keyword, but `trimmed` is arbitrary
+    // UTF-8; `get` (not `[..]`) avoids a panic when `word.len()` does not
+    // land on a `trimmed` char boundary (for example a multi-byte character
+    // positioned right where an ASCII keyword would start).
+    if !trimmed.get(..word.len())?.eq_ignore_ascii_case(word) {
         return None;
     }
     let after = &trimmed[word.len()..];
@@ -578,6 +582,25 @@ mod tests {
                 ("grace_period_days".to_owned(), "INT".to_owned()),
                 ("dry_run".to_owned(), "BOOLEAN".to_owned()),
             ]
+        );
+    }
+
+    #[test]
+    fn ddl_table_columns_never_panics_on_multi_byte_utf8_near_a_keyword_boundary() {
+        // A 3-byte character positioned so an ASCII keyword's byte length
+        // would slice into the middle of it must not panic; it should just
+        // fail to recognize that clause instead of guessing.
+        assert!(ddl_table_columns("ALTER TABLE t xy見ADD COLUMN x INT").is_none());
+        assert!(ddl_table_columns("CREATE TABLE 見x (id INT)").is_none());
+        assert_eq!(
+            ddl_table_columns("CREATE TABLE t (id INT, 見 TEXT)"),
+            Some((
+                "t".to_owned(),
+                vec![
+                    ("id".to_owned(), "INT".to_owned()),
+                    ("見".to_owned(), "TEXT".to_owned()),
+                ]
+            ))
         );
     }
 

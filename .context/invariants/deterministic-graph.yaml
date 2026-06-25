@@ -4,7 +4,8 @@ feature: FEAT-INDEXING
 status: active
 statement: >
   The same repository state and configuration must produce deterministic stable
-  identities and output, with at most one current edge version for each claim
+  identities and output, independent of the order changed files happen to be
+  processed in, with at most one current edge version for each claim
   fingerprint, deterministic database-entity lifecycle, and no cross-language,
   cross-file, or same-shape identity conflation: two unrelated symbols must
   never be silently merged into one node just because they share a structural
@@ -12,6 +13,7 @@ statement: >
 implementation:
   - symbol: ctx_core.indexing.normalize_plan
   - symbol: ctx_core.indexing.match_symbols
+  - symbol: ctx_core.indexing.reserve_exact_canonical_matches
   - symbol: ctx_adapters.sqlite.index.persist_edge
 tests:
   - symbol: ctx_adapters.sqlite.tests.migration_closes_duplicate_current_edges_and_enforces_uniqueness
@@ -19,4 +21,5 @@ tests:
   - symbol: ctx_adapters.rust.tests.workspace_rust_symbols_produce_unique_graph_identities
   - symbol: ctx_core.indexing.tests.differently_named_symbols_with_the_same_shape_do_not_merge_across_files
   - symbol: ctx_core.indexing.tests.same_named_same_shaped_symbols_in_different_files_claim_distinct_identities
+  - symbol: ctx_core.indexing.tests.same_named_same_shaped_symbols_claim_distinct_identities_regardless_of_file_order
   - symbol: ctx_core.indexing.tests.database_entities_and_facts_follow_the_current_symbol_snapshot

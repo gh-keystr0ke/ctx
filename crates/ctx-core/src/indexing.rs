@@ -277,6 +277,32 @@ pub fn plan_incremental_index(
     // whitespace-stripped body ended up silently sharing one node identity.
     let mut used = BTreeSet::new();
 
+    // Reserve every unchanged symbol's own exact-canonical-path identity
+    // before any file's same-shape cross-file fallback (tier 3 in
+    // `match_symbols`) runs. Without this pre-pass, processing order alone
+    // decided outcomes: a new file whose helper happened to share another
+    // *unprocessed* file's name and whitespace-stripped shape could steal
+    // that file's still-unclaimed historical identity via the fallback: the
+    // rightful owner, matched later by its own unchanged canonical path,
+    // would then find its own key already `used` and fall through every
+    // tier back to the very same canonical-path-derived key, producing two
+    // writes for one stable key instead of one correct match plus one
+    // correctly distinct new identity. Reserving first makes the outcome
+    // independent of `changes`' order.
+    for change in changes {
+        let Some(path) = change.current_path() else {
+            continue;
+        };
+        if let Some(file_analysis) = analyses.get(path) {
+            reserve_exact_canonical_matches(
+                &file_analysis.language,
+                &file_analysis.symbols,
+                &historical_symbols,
+                &mut used,
+            );
+        }
+    }
+
     for change in changes {
         let replaced_path = match change {
             FileChange::Added { path } if snapshot.files.contains_key(path) => Some(path.as_str()),
@@ -463,6 +489,35 @@ fn write_symbol(
     ));
 }
 
+/// Claims every definition's exact-canonical-path historical identity, if it
+/// uniquely exists, before any file's same-shape cross-file fallback can run.
+/// See the call site in `plan_incremental_index` for why this must happen as
+/// a pre-pass across the whole transition rather than per file.
+fn reserve_exact_canonical_matches(
+    language: &str,
+    definitions: &[SymbolDefinition],
+    all_prior: &[IndexedSymbol],
+    used: &mut BTreeSet<StableKey>,
+) {
+    for definition in definitions {
+        if let Some(key) = exact_canonical_match(all_prior, language, definition) {
+            used.insert(key.clone());
+        }
+    }
+}
+
+fn exact_canonical_match<'a>(
+    all_prior: &'a [IndexedSymbol],
+    language: &str,
+    definition: &SymbolDefinition,
+) -> Option<&'a StableKey> {
+    unique_match(all_prior, |symbol| {
+        symbol.language == language
+            && symbol.canonical_path == definition.canonical_path
+            && symbol.kind == definition.kind
+    })
+}
+
 fn match_symbols(
     language: &str,
     definitions: &[SymbolDefinition],
@@ -474,11 +529,7 @@ fn match_symbols(
         .iter()
         .map(|definition| {
             let candidates = [
-                unique_match(all_prior, |symbol| {
-                    symbol.language == language
-                        && symbol.canonical_path == definition.canonical_path
-                        && symbol.kind == definition.kind
-                }),
+                exact_canonical_match(all_prior, language, definition),
                 unique_match(prior_file, |symbol| {
                     symbol.name == definition.name
                         && symbol.kind == definition.kind
@@ -1470,6 +1521,96 @@ mod tests {
             symbol_keys.len(),
             2,
             "each file's touches must keep its own identity"
+        );
+        assert!(symbol_keys.contains(context_pack_key.as_str()));
+        assert!(symbol_keys.contains("symbol:python:impact.touches:Function"));
+    }
+
+    /// The same defect class as
+    /// `same_named_same_shaped_symbols_in_different_files_claim_distinct_identities`,
+    /// but with the two files in the opposite order. Dogfooding this
+    /// repository found that order matters without a transition-wide
+    /// reservation pass: processing the file that needs the same-shape
+    /// fallback *before* the file that owns the identity by its own
+    /// unchanged exact canonical path let the fallback claim that identity
+    /// first (it was not `used` yet). Its rightful owner, matched afterward
+    /// by its own canonical path, then found that key already `used`, fell
+    /// through every tier, and its final `symbol_key` fallback deterministically
+    /// recomputed the very same already-claimed key — two writes for one
+    /// stable key, caught only by the pre-storage duplicate-write guard.
+    #[test]
+    fn same_named_same_shaped_symbols_claim_distinct_identities_regardless_of_file_order() {
+        let context_pack_definition =
+            definition("touches", "context_pack.touches", "same-body", "same-shape");
+        let context_pack_file = indexed_file("context_pack.py", &context_pack_definition);
+        let context_pack_key = context_pack_file.symbols[0].stable_key.clone();
+        let impact_file_without_its_own_identity = IndexedFile {
+            stable_key: file_key("impact.py").expect("file key"),
+            path: "impact.py".to_owned(),
+            language: "python".to_owned(),
+            analysis_version: "python-tree-sitter-v1".to_owned(),
+            content_hash: "impact-file".to_owned(),
+            symbols: Vec::new(),
+        };
+        let snapshot = RepositorySnapshot {
+            files: BTreeMap::from([
+                ("context_pack.py".to_owned(), context_pack_file),
+                ("impact.py".to_owned(), impact_file_without_its_own_identity),
+            ]),
+        };
+        let impact_definition = definition("touches", "impact.touches", "same-body", "same-shape");
+        let analyses = BTreeMap::from([
+            (
+                "context_pack.py".to_owned(),
+                FileAnalysis {
+                    path: "context_pack.py".to_owned(),
+                    language: "python".to_owned(),
+                    analysis_version: "python-tree-sitter-v1".to_owned(),
+                    content_hash: "context-pack-file-v2".to_owned(),
+                    symbols: vec![context_pack_definition],
+                },
+            ),
+            (
+                "impact.py".to_owned(),
+                FileAnalysis {
+                    path: "impact.py".to_owned(),
+                    language: "python".to_owned(),
+                    analysis_version: "python-tree-sitter-v1".to_owned(),
+                    content_hash: "impact-file-v2".to_owned(),
+                    symbols: vec![impact_definition],
+                },
+            ),
+        ]);
+
+        // Reversed order versus the sibling test above: the file that needs
+        // the same-shape fallback (`impact.py`) is planned *before* the file
+        // that owns the identity by its own unchanged canonical path
+        // (`context_pack.py`).
+        let plan = plan_incremental_index(
+            &snapshot,
+            &analyses,
+            &[
+                FileChange::Modified {
+                    path: "impact.py".to_owned(),
+                },
+                FileChange::Modified {
+                    path: "context_pack.py".to_owned(),
+                },
+            ],
+        )
+        .expect("both files claim distinct identities regardless of processing order");
+
+        let symbol_keys = plan
+            .nodes_to_write
+            .iter()
+            .filter(|node| node.kind == NodeKind::CodeSymbol)
+            .map(|node| node.stable_key.as_str())
+            .collect::<BTreeSet<_>>();
+
+        assert_eq!(
+            symbol_keys.len(),
+            2,
+            "each file's touches must keep its own identity regardless of order"
         );
         assert!(symbol_keys.contains(context_pack_key.as_str()));
         assert!(symbol_keys.contains("symbol:python:impact.touches:Function"));

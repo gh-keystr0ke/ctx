@@ -9,8 +9,10 @@ statement: >
   recursively amplify another inference, and a node reached only through the
   seed's own structural call graph (such as a shared test) must not inherit
   root rights to bridge into intent unrelated to the seed. Static database
-  facts require a literal SQL statement inside a recognized execution call;
-  dynamic or unsupported text remains unknown instead of being guessed.
+  facts require a literal SQL statement inside a recognized execution call, a
+  recognized goose migration statement, or a `SQLAlchemy` model's static
+  `__tablename__`/`Column` declarations; dynamic or unsupported text remains
+  unknown instead of being guessed.
 implementation:
   - symbol: ctx_core.context_pack.traversable
   - symbol: ctx_adapters.sqlite.verification.SqliteStore.VerificationStore.record_verification

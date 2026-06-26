@@ -6,9 +6,10 @@ statement: >
   A Context Pack must never exceed its requested token budget and must preserve
   directly relevant invariants and requirements ahead of tests, adjacent code,
   data contracts, and lower-confidence material as the budget shrinks while
-  retaining directly relevant database entities when space permits. Once an
-  explicit file or symbol seed resolves, it must remain the scope boundary and
-  lexical auto-seeding must not add unrelated roots.
+  retaining directly relevant database entities when space permits, including
+  the declared columns behind a schema-migration or ORM-model data contract.
+  Once an explicit file or symbol seed resolves, it must remain the scope
+  boundary and lexical auto-seeding must not add unrelated roots.
 implementation:
   - symbol: ctx_core.context_pack.compile_context_pack
   - symbol: ctx_core.context_pack.detect_seeds

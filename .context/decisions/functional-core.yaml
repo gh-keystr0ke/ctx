@@ -4,9 +4,10 @@ title: Keep domain decisions in a functional core
 status: accepted
 decision: >
   Git, filesystems, parsers, SQLite, CLI, and MCP remain imperative adapters and
-  orchestrators; normalized database accesses enter through the same parser
-  boundary, while their lifecycle planning, impact, review, verification, and
-  Context Pack policy remain deterministic transformations in ctx-core.
+  orchestrators; normalized database accesses — SQL literals, goose migrations,
+  and ORM model declarations alike — enter through the same parser boundary,
+  while their lifecycle planning, impact, review, verification, and Context
+  Pack policy remain deterministic transformations in ctx-core.
 implementation:
   - symbol: ctx_core.indexing.plan_incremental_index
 tests:

@@ -1,0 +1,20 @@
+id: REQ-DATA-002
+type: requirement
+feature: FEAT-INDEXING
+status: active
+statement: >
+  Schema declared outside SQL literals — goose migration files and SQLAlchemy
+  declarative models — must produce the same evidence-backed, commit-bounded
+  database-entity facts as static SQL, sharing one entity per table name
+  instead of a parallel graph; unrecognized migration/model syntax must remain
+  unknown rather than becoming a guessed table or column.
+implementation:
+  - symbol: ctx_adapters.database.ddl_table_columns
+  - symbol: ctx_adapters.goose.GooseAnalyzer.analyze_source
+  - symbol: ctx_adapters.python.sqlalchemy_schema_table
+  - symbol: ctx_core.indexing.add_schema_definition_edges
+tests:
+  - symbol: ctx_adapters.database.tests.extracts_create_table_columns_skipping_table_constraints
+  - symbol: ctx_adapters.goose.tests.extracts_schema_from_the_up_section_only
+  - symbol: ctx_adapters.python.tests.extracts_sqlalchemy_declarative_model_columns
+  - symbol: ctx_core.indexing.tests.schema_migrations_and_code_database_accesses_share_one_db_entity

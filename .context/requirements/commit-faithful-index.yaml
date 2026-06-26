@@ -14,8 +14,9 @@ implementation:
   - symbol: ctx_core.indexing.plan_incremental_index
   - symbol: ctx_core.indexing.reconcile_analysis_versions
 tests:
-  - symbol: crates.ctx-cli.tests.e2e.mixed_python_and_rust_repository_indexes_and_reviews_through_one_registry
+  - symbol: crates.ctx-cli.tests.e2e.mixed_python_rust_and_go_repository_indexes_and_reviews_through_one_registry
   - symbol: ctx_core.indexing.tests.analyzer_version_change_reparses_an_unchanged_file_once
   - symbol: ctx_adapters.sqlite.index.tests.same_commit_reanalysis_replaces_derived_node_version
   - symbol: ctx_core.indexing.tests.same_named_same_shaped_symbols_in_different_files_claim_distinct_identities
+  - symbol: ctx_core.indexing.tests.same_named_same_shaped_symbols_claim_distinct_identities_regardless_of_file_order
   - symbol: ctx_core.indexing.tests.database_entities_and_facts_follow_the_current_symbol_snapshot

@@ -6,8 +6,9 @@ statement: >
   Every semantic relationship surfaced to a user must retain its claim class,
   provenance, confidence, status, validity, producer, source location, and
   evidence so its rationale is reproducible rather than generated after fact;
-  statically extracted database relationships must expose the same source and
-  locator trail as first-class FACT claims.
+  statically extracted database relationships — reads, writes, and declared
+  schema alike — must expose the same source and locator trail as first-class
+  FACT claims.
 implementation:
   - symbol: ctx_adapters.sqlite.context.create_claim_if_missing
   - symbol: ctx_adapters.sqlite.context.persist_symbol_claim

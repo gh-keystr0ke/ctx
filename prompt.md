@@ -13,17 +13,18 @@
 
 После чтения проверь `git status --short`, последние коммиты и `ctx status`. Не перезаписывай пользовательские или незнакомые изменения.
 
-## Состояние версии 0.2.0
+## Состояние версии 0.3.0
 
 - Workspace разделён на `ctx-core`, `ctx-app`, `ctx-adapters`, `ctx-cli`, `ctx-mcp` и `ctx-eval`.
 - Functional Core / Imperative Shell соблюдается: Git, Tree-sitter, SQLite, терминал и MCP не протекают в core policy.
 - Git-aware индекс хранит commit-bounded версии files/symbols/claims, provenance, evidence, staleness и human verification history.
-- Встроены Python и Rust modules с language-scoped identity/call resolution и analyzer-version refresh на том же commit.
-- Статические SQL-литералы внутри известных execution calls нормализуются в `DbEntity` и `READS_FROM`/`WRITES_TO` FACT edges. Факты имеют producer, validity, file/line evidence; dynamic SQL не угадывается.
+- Встроены Python, Rust и Go modules с language-scoped identity/call resolution и analyzer-version refresh на том же commit. Go canonical paths — directory-based (одно-пакет-на-директорию), а не file-based.
+- Статические SQL-литералы внутри известных execution calls (Python/Rust/Go) нормализуются в `DbEntity` и `READS_FROM`/`WRITES_TO` FACT edges. Факты имеют producer, validity, file/line evidence; dynamic SQL не угадывается.
+- Табличные/колоночные schema facts читаются также из goose SQL-миграций (`-- +goose Up` only, детерминированный DDL-reader, не dialect parser) и SQLAlchemy declarative моделей (`__tablename__` + `Column`/`mapped_column`) — новый `DEFINES_SCHEMA` FACT edge kind, тот же `DbEntity` граф, то же incremental versioning/evidence, что и у SQL-литералов. Таблица, объявленная только миграцией или ORM-моделью и никогда не читаемая/записываемая кодом, всё равно становится `DbEntity`.
 - Data contracts участвуют в `impact`, `explain`, Context Pack, review change signals, status и semantic-candidate scoring.
 - Реализованы Git-owned Feature / Requirement / Invariant / Decision, exact mappings, bounded typed traversal, conservative review, token-budgeted Context Packs, heuristic suggestions и accept/reject verification.
 - CLI/JSON и read-only stdio MCP используют те же application services. Docker/Compose и non-root runtime включены.
-- `ctx-eval` содержит 11 Git-history cases / 59 typed checks, включая formatting noise, rename/move, deletion, added call, stale mapping, shared-test isolation, multi-commit evolution и changed DB write.
+- `ctx-eval` содержит 13 Git-history cases / 67 typed checks, включая formatting noise, rename/move, deletion, added call, stale mapping, shared-test isolation, multi-commit evolution, changed DB write, goose-only schema и SQLAlchemy-only schema.
 - Публичная документация: `README.md`, `docs/architecture.md`, `docs/evaluation.md`, `CHANGELOG.md`, Apache-2.0 license.
 
 Точные graph/test counts меняются вместе с кодом; бери их из текущего `ctx status` и финального test output, а не копируй из старого handoff.
@@ -34,12 +35,14 @@ MVP MUST HAVE и базовый SHOULD HAVE из исходных докумен
 
 Engineering M0–M7 имеют рабочие vertical slices. После MVP добавлены:
 
-- pluggable Python/Rust registry;
-- first-party product context;
+- pluggable Python/Rust/Go registry;
+- first-party product context (включая новый REQ-DATA-002 для schema extraction);
 - deterministic product-quality harness;
 - исправления bounded traversal, shared-node isolation, graph identity и cross-file moves;
-- evidence-backed static database interaction extraction;
-- полный fixture-matrix point `changed DB write`.
+- evidence-backed static database interaction extraction (Python/Rust/Go);
+- table/column-level schema extraction из goose migrations и SQLAlchemy models;
+- полный fixture-matrix point `changed DB write`;
+- **order-independent cross-file symbol identity matching** — найден и исправлен реальный latent bug 2026-08-18: два файла с одинаково названным/одинаково устроенным helper'ом могли получить корректные отдельные identity только в зависимости от порядка обработки файлов в транзакции (`plan_incremental_index` теперь резервирует exact-canonical-path identity для всей транзакции заранее, до любого same-shape fallback). Это тот же класс бага, что уже дважды чинили раньше (см. `worklog.md`), но впервые сделан по-настоящему order-independent.
 
 ## Что честно не закрыто
 
@@ -57,12 +60,14 @@ Engineering M0–M7 имеют рабочие vertical slices. После MVP д
 
 ### Технические границы
 
-- SQL extraction сознательно неполный: нет dynamic SQL, ORM AST, stored procedures и полного dialect parser.
+- SQL extraction сознательно неполный: нет dynamic SQL, полного ORM query AST (только declarative model schema, не queries), stored procedures и полного dialect parser.
+- goose parsing читает только `-- +goose Up`, не строит accumulated "current schema" через несколько миграций (каждая миграция — свой отдельный FACT); SQLAlchemy recognition требует статического `__tablename__` и не резолвит `Base`/inheritance/relationships/mixins/Alembic history.
 - `Endpoint`, `Event`, `ExternalSystem`, `EMITS` и `HANDLES` есть в domain model, но source extraction ещё не реализован.
 - Semantic suggestions всё ещё deterministic: без embeddings/LLM; explicit/alias signals требуют реального alias use case.
-- TypeScript, Go, Java и Zig modules не реализованы; добавлять каждый отдельно с parser unit + mixed-language e2e.
+- TypeScript, Java и Zig modules не реализованы (Go теперь есть); добавлять каждый отдельно с parser unit + mixed-language e2e.
+- Go/goose/SQLAlchemy имеют только synthetic fixture/eval покрытие — нет большого реального Go- или SQLAlchemy-репозитория для dogfooding (у самого `ctx` нет Go/SQL исходников).
 - Нет систематического large-repository performance benchmark.
-- `-v/-vv` и duration diagnostics остаются вторичной observability gap.
+- `-v/-vv` и duration diagnostics остаются вторичной observability gap — конкретно не хватает способа узнать через CLI/JSON, **какие именно** semantic relationships stale (сейчас только count; 2026-08-18 пришлось запрашивать `.ctx/ctx.db` напрямую через `sqlite3`, чтобы найти конкретную stale edge).
 
 ## Предпочтительный следующий этап
 
@@ -74,7 +79,11 @@ Engineering M0–M7 имеют рабочие vertical slices. После MVP д
 4. записать true/false positives, missed intent, context relevance и maintenance events;
 5. только по результатам менять ranking/scoring.
 
-Если внешнего corpus нет, следующий безопасный technical vertical slice — один доказуемый external interaction type (например HTTP endpoint/client call или emitted/handled event), через тот же normalized IR → temporal FACT → evidence → impact/review/context → eval путь. Не строй generic interaction framework заранее.
+Если внешнего corpus нет, следующие безопасные technical vertical slices, в порядке убывания уверенности, что это не преждевременная генерализация:
+
+1. `ctx status -vv` (или отдельная команда) должен перечислять конкретные stale/rejected relationships вместо одного count — сейчас единственный способ найти конкретную stale edge — прямой `sqlite3` запрос к `.ctx/ctx.db`, что не должно быть штатным способом работы с продуктом.
+2. один доказуемый external interaction type (например HTTP endpoint/client call или emitted/handled event), через тот же normalized IR → temporal FACT → evidence → impact/review/context → eval путь. Не строй generic interaction framework заранее.
+3. large-repository performance benchmark — сейчас нет ни одного числа о том, как `ctx index`/`ctx impact` масштабируются за пределами этого репозитория (~850 symbols).
 
 ## Неприкосновенные правила
 
@@ -105,3 +114,7 @@ git status --short
 ```
 
 Финальный graph должен быть current/ready, без unresolved mappings, stale semantics, duplicate current fingerprints, orphan current edges или active calls to non-callable targets. Повторный `ctx index` должен быть no-op.
+
+CLI пока не даёт способа проверить последние три условия напрямую — используй `sqlite3 .ctx/ctx.db` (репозиторий этого проекта см. `worklog.md` 2026-08-18 для точных запросов): `PRAGMA integrity_check`, дубликаты `(repository_id, fingerprint)` среди current edges, current edges на retired nodes, `calls` edges на non-callable `symbol_kind`.
+
+Если меняешь что-то в `crates/`, переиндексируй **сам `ctx`** (`target/release/ctx index` в корне репозитория) до финальных gates, а не только запускай test suite — именно так 2026-08-18 нашёлся реальный order-dependent identity bug, который ни один unit-тест до этого не поймал.

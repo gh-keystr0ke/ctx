@@ -25,15 +25,17 @@ The command prints machine-readable JSON and exits non-zero when a case, harness
 | `shared-test-isolation` | a shared test cannot bridge unrelated requirements |
 | `added-call-discovers-intent` | a new unmapped caller discovers intent through a deterministic call fact |
 | `multi-commit-feature-evolution` | a three-commit span preserves identity, staleness, and aggregate classification |
+| `goose-migration-declares-schema-without-code-access` | a table declared only by a goose migration still appears as a data contract, without review noise |
+| `sqlalchemy-model-declares-schema-without-sql-access` | a table declared only by a SQLAlchemy model still appears as a data contract, without review noise |
 
 ## Recorded baseline
 
-Version 0.2.0 passes all 11 cases and all 59 checks:
+Version 0.3.0 passes all 13 cases and all 67 checks:
 
-- recall-shaped checks: 15/15;
-- precision/noise checks: 26/26;
+- recall-shaped checks: 19/19;
+- precision/noise checks: 28/28;
 - classification checks: 16/16;
-- budget checks: 2/2;
+- budget checks: 4/4;
 - harness errors: 0.
 
 These are exact regression counts for a small synthetic fixture family. They are not calibrated precision/recall estimates and are not statistically significant.

@@ -8,6 +8,9 @@ statement: >
   inferred uncertainty together with the stored evidence behind each claim,
   and never let a node reached only through the seed's own one-hop call graph
   (such as a shared test) bridge into a different seed's unrelated requirements.
+  A data contract reached this way includes schema declared by a migration or
+  ORM model, not only a static SQL literal; both share the same one-hop
+  structural treatment and the same database entity.
 implementation:
   - symbol: ctx_core.impact.analyze_impact
   - symbol: ctx_core.explain.explain

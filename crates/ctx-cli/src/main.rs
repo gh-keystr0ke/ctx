@@ -392,6 +392,7 @@ fn review(cli: &Cli, git: &GitRepo, base: &str) -> Result<(), CliError> {
         println!("Suggested reviewer action: {}", finding.suggested_action);
         println!();
     }
+    print_schema_findings(&report.schema_findings);
     if !report.stale_relationships.is_empty() {
         println!("Stale semantic relationships touching changed code:");
         for relationship in report.stale_relationships {
@@ -405,6 +406,56 @@ fn review(cli: &Cli, git: &GitRepo, base: &str) -> Result<(), CliError> {
         );
     }
     Ok(())
+}
+
+fn print_schema_findings(findings: &[ctx_core::review::SchemaFinding]) {
+    if findings.is_empty() {
+        return;
+    }
+    println!("Observed schema changes (deterministic; not proven requirement impact):");
+    for finding in findings {
+        println!(
+            "{} — {}",
+            if finding.destructive {
+                "DESTRUCTIVE"
+            } else {
+                "informational"
+            },
+            finding.source_symbol
+        );
+        for change in &finding.changes {
+            println!(
+                "  - [{}] {}",
+                if change.destructive {
+                    "destructive"
+                } else {
+                    "informational"
+                },
+                change.description()
+            );
+        }
+        if finding.related_intents.is_empty() {
+            println!("  Possible product impact: no known mapping found (not proven unrelated).");
+        } else {
+            let intents = finding
+                .related_intents
+                .iter()
+                .map(|intent| intent.identifier.as_str())
+                .collect::<Vec<_>>()
+                .join(", ");
+            println!("  Possible product impact: {intents}");
+        }
+        if !finding.related_tests.is_empty() {
+            let tests = finding
+                .related_tests
+                .iter()
+                .map(|test| test.identifier.as_str())
+                .collect::<Vec<_>>()
+                .join(", ");
+            println!("  Related tests: {tests}");
+        }
+        println!();
+    }
 }
 
 fn impact(cli: &Cli, git: &GitRepo, target: &str) -> Result<(), CliError> {

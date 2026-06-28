@@ -6,7 +6,8 @@ use crate::{
     domain::{ClaimStatus, NodeKind, RelationKind, StableKey},
     graph::{GraphEdge, GraphNode, GraphSnapshot, NodeSummary},
     indexing::{FileChange, PlannedNodeAttributes},
-    ir::{DatabaseAccessKind, FileAnalysis, SymbolDefinition},
+    ir::{DatabaseAccessKind, FileAnalysis, SymbolDefinition, SymbolKind},
+    schema::{SchemaChange, declared_schema_changes, diff_schema_tables},
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -54,11 +55,29 @@ pub struct ReviewFinding {
     pub suggested_action: String,
 }
 
+/// A deterministic schema change observed directly in a diff's migration or
+/// ORM model files, kept structurally separate from [`ReviewFinding`]: this
+/// is an *observed schema change*, not a *proven requirement violation*.
+/// `related_intents`/`related_tests` are a bounded, best-effort advisory
+/// neighborhood (the table's directly connected code, and that code's own
+/// mapped intent/tests) — empty means "no known product mapping was found",
+/// not "this schema change is unrelated to the product".
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct SchemaFinding {
+    pub source_symbol: String,
+    pub file_path: String,
+    pub destructive: bool,
+    pub changes: Vec<SchemaChange>,
+    pub related_intents: Vec<NodeSummary>,
+    pub related_tests: Vec<NodeSummary>,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct ReviewReport {
     pub base: String,
     pub changed_entities: Vec<ChangedEntity>,
     pub findings: Vec<ReviewFinding>,
+    pub schema_findings: Vec<SchemaFinding>,
     pub stale_relationships: Vec<String>,
     pub suppressed_non_behavioral_changes: usize,
 }
@@ -133,9 +152,159 @@ pub fn build_review_findings(graph: &GraphSnapshot, input: &ReviewInput) -> Revi
         base: input.base.clone(),
         changed_entities,
         findings,
+        schema_findings: schema_change_findings(graph, input),
         stale_relationships,
         suppressed_non_behavioral_changes: suppressed,
     }
+}
+
+/// Surfaces deterministic schema changes directly from a diff's migration
+/// and ORM model files. A migration's own declared operations
+/// (`declared_schema_changes`) are always used for `SchemaMigration` symbols
+/// — goose migrations are historical, append-only records, so what a
+/// statement declares matters regardless of whether the file is new or
+/// edited. Every other schema-declaring symbol kind (currently only
+/// `SQLAlchemy`'s declarative `Class`) is structurally diffed against its
+/// matched prior version when one exists, since an ORM model genuinely is
+/// edited over its lifetime.
+fn schema_change_findings(graph: &GraphSnapshot, input: &ReviewInput) -> Vec<SchemaFinding> {
+    let mut findings = Vec::new();
+    for change in &input.changes {
+        let (old_path, new_path) = change_paths(change);
+        let before_symbols = old_path
+            .and_then(|path| input.before.get(path))
+            .map_or(&[][..], |analysis| analysis.symbols.as_slice());
+        let after_symbols = new_path
+            .and_then(|path| input.after.get(path))
+            .map_or(&[][..], |analysis| analysis.symbols.as_slice());
+
+        for after_symbol in after_symbols {
+            if after_symbol.schema_tables.is_empty() {
+                continue;
+            }
+            let before_symbol = (after_symbol.kind != SymbolKind::SchemaMigration)
+                .then(|| {
+                    before_symbols
+                        .iter()
+                        .find(|symbol| symbol.canonical_path == after_symbol.canonical_path)
+                })
+                .flatten();
+            let changes = schema_symbol_changes(before_symbol, after_symbol);
+            if changes.is_empty() {
+                continue;
+            }
+            let destructive = changes.iter().any(|change| change.destructive);
+            let (related_intents, related_tests) = changes
+                .iter()
+                .map(|change| change.entity.as_str())
+                .collect::<BTreeSet<_>>()
+                .into_iter()
+                .fold(
+                    (Vec::new(), Vec::new()),
+                    |(mut intents, mut tests), entity| {
+                        let (entity_intents, entity_tests) = db_entity_neighborhood(graph, entity);
+                        intents.extend(entity_intents);
+                        tests.extend(entity_tests);
+                        (intents, tests)
+                    },
+                );
+            findings.push(SchemaFinding {
+                source_symbol: after_symbol.canonical_path.clone(),
+                file_path: new_path.unwrap_or("unknown").to_owned(),
+                destructive,
+                changes,
+                related_intents: dedup_summaries(related_intents),
+                related_tests: dedup_summaries(related_tests),
+            });
+        }
+    }
+    findings.sort_by(|left, right| left.source_symbol.cmp(&right.source_symbol));
+    findings
+}
+
+fn schema_symbol_changes(
+    before: Option<&SymbolDefinition>,
+    after: &SymbolDefinition,
+) -> Vec<SchemaChange> {
+    after
+        .schema_tables
+        .iter()
+        .flat_map(|after_table| {
+            let matched_before = before.and_then(|before| {
+                before
+                    .schema_tables
+                    .iter()
+                    .find(|table| table.entity == after_table.entity)
+            });
+            match matched_before {
+                Some(before_table) => diff_schema_tables(before_table, after_table),
+                None => declared_schema_changes(after_table),
+            }
+        })
+        .collect()
+}
+
+/// A bounded, one-hop-then-one-hop advisory lookup from a `DbEntity` stable
+/// key: the code that directly reads/writes/declares it, and that code's own
+/// mapped intent/tests. Deliberately shallow (no further semantic
+/// expansion) so a widely used table cannot bridge into unrelated product
+/// areas the way a fuller traversal policy must otherwise guard against.
+fn db_entity_neighborhood(
+    graph: &GraphSnapshot,
+    entity: &str,
+) -> (Vec<NodeSummary>, Vec<NodeSummary>) {
+    let Ok(db_key) = StableKey::new(format!("db:{entity}")) else {
+        return (Vec::new(), Vec::new());
+    };
+    if !graph.nodes.contains_key(&db_key) {
+        return (Vec::new(), Vec::new());
+    }
+    let code_symbols = graph
+        .edges
+        .iter()
+        .filter(|edge| {
+            edge.target == db_key
+                && edge.status == ClaimStatus::Active
+                && matches!(
+                    edge.kind,
+                    RelationKind::ReadsFrom | RelationKind::WritesTo | RelationKind::DefinesSchema
+                )
+        })
+        .map(|edge| edge.source.clone())
+        .collect::<BTreeSet<_>>();
+    let mut intents = Vec::new();
+    let mut tests = Vec::new();
+    for symbol_key in &code_symbols {
+        for edge in &graph.edges {
+            if edge.source != *symbol_key || edge.status != ClaimStatus::Active {
+                continue;
+            }
+            match edge.kind {
+                RelationKind::Implements | RelationKind::Enforces | RelationKind::Satisfies => {
+                    if let Some(node) = graph.nodes.get(&edge.target) {
+                        intents.push(NodeSummary::from(node));
+                    }
+                }
+                RelationKind::CoveredBy => {
+                    if let Some(node) = graph.nodes.get(&edge.target).filter(|node| node.is_test())
+                    {
+                        tests.push(NodeSummary::from(node));
+                    }
+                }
+                _ => {}
+            }
+        }
+        if let Some(node) = graph.nodes.get(symbol_key).filter(|node| node.is_test()) {
+            tests.push(NodeSummary::from(node));
+        }
+    }
+    (intents, tests)
+}
+
+fn dedup_summaries(mut summaries: Vec<NodeSummary>) -> Vec<NodeSummary> {
+    summaries.sort_by(|left, right| left.stable_key.cmp(&right.stable_key));
+    summaries.dedup_by(|left, right| left.stable_key == right.stable_key);
+    summaries
 }
 
 pub fn resolve_changed_entities(graph: &GraphSnapshot, input: &ReviewInput) -> Vec<ChangedEntity> {

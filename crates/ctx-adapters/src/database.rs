@@ -278,6 +278,7 @@ fn parse_create_table(rest: &str) -> Option<SchemaTableDefinition> {
     }
     (!columns.is_empty() || !checks.is_empty()).then_some(SchemaTableDefinition {
         entity: name,
+        table_created: true,
         columns,
         checks,
         ..SchemaTableDefinition::default()

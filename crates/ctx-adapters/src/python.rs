@@ -363,6 +363,7 @@ fn sqlalchemy_schema_table(class_body: Node<'_>, source: &[u8]) -> Option<Schema
     let entity = entity?;
     Some(SchemaTableDefinition {
         entity,
+        table_created: true,
         columns,
         range: range.unwrap_or_else(|| source_range(class_body)),
         ..SchemaTableDefinition::default()

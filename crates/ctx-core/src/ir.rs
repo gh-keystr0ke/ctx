@@ -118,6 +118,14 @@ pub struct SchemaIndex {
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct SchemaTableDefinition {
     pub entity: String,
+    /// Set only by a `CREATE TABLE` statement. Distinguishes `columns` being
+    /// a brand-new table's initial column set from an `ALTER TABLE ... ADD
+    /// COLUMN`'s additions to an already-existing table, which matters for
+    /// review (adding a `NOT NULL` column without a default to an existing
+    /// table is a well-known destructive migration pattern; the same column
+    /// in a table's initial `CREATE TABLE` is not).
+    #[serde(default)]
+    pub table_created: bool,
     pub columns: Vec<SchemaColumn>,
     #[serde(default)]
     pub dropped_columns: Vec<String>,

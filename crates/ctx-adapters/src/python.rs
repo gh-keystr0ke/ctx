@@ -2,8 +2,8 @@ use std::{fs, path::PathBuf};
 
 use ctx_app::ports::{LanguageAnalyzer, PortError};
 use ctx_core::ir::{
-    CallSite, DatabaseAccess, FileAnalysis, SchemaColumn, SchemaTableDefinition, SourceRange,
-    SymbolDefinition, SymbolKind,
+    CallSite, DatabaseAccess, FileAnalysis, ForeignKeyRef, SchemaColumn, SchemaTableDefinition,
+    SourceRange, SymbolDefinition, SymbolKind,
 };
 use thiserror::Error;
 use tree_sitter::{Node, Parser, TreeCursor};
@@ -355,11 +355,9 @@ fn sqlalchemy_schema_table(class_body: Node<'_>, source: &[u8]) -> Option<Schema
             }
             continue;
         }
-        if let Some(data_type) = sqlalchemy_column_type(assignment, right, source) {
-            columns.push(SchemaColumn {
-                name: left_name.to_owned(),
-                data_type,
-            });
+        if let Some(mut column) = sqlalchemy_column(assignment, right, source) {
+            left_name.clone_into(&mut column.name);
+            columns.push(column);
         }
     }
     let entity = entity?;
@@ -367,6 +365,7 @@ fn sqlalchemy_schema_table(class_body: Node<'_>, source: &[u8]) -> Option<Schema
         entity,
         columns,
         range: range.unwrap_or_else(|| source_range(class_body)),
+        ..SchemaTableDefinition::default()
     })
 }
 
@@ -380,7 +379,17 @@ fn direct_assignment(statement: Node<'_>) -> Option<Node<'_>> {
     (assignment.kind() == "assignment").then_some(assignment)
 }
 
-fn sqlalchemy_column_type(assignment: Node<'_>, right: Node<'_>, source: &[u8]) -> Option<String> {
+/// Recognizes one `Column(...)`/`mapped_column(...)` attribute assignment.
+/// The declared type comes from the constructor's first positional argument
+/// (covers both classic `Column(String)`/`Column(String(50))` and
+/// `SQLAlchemy` 2.0 `mapped_column(Numeric(10, 2))`); when there is no
+/// positional type argument at all, falls back to the variable's type
+/// annotation text, then to the literal string `"unknown"`. `nullable`,
+/// `primary_key`, `unique`, `default`/`server_default`, and a `ForeignKey(...)`
+/// argument (positional or nested in a keyword argument's value) are read
+/// from the call's keyword and positional arguments; a `name` field is left
+/// empty for the caller to fill in from the assignment's left-hand side.
+fn sqlalchemy_column(assignment: Node<'_>, right: Node<'_>, source: &[u8]) -> Option<SchemaColumn> {
     if right.kind() != "call" {
         return None;
     }
@@ -397,17 +406,90 @@ fn sqlalchemy_column_type(assignment: Node<'_>, right: Node<'_>, source: &[u8]) 
     let mut cursor = arguments.walk();
     let first_positional = arguments
         .named_children(&mut cursor)
-        .find(|argument| argument.kind() != "keyword_argument")
-        .and_then(|argument| argument.utf8_text(source).ok());
-    if let Some(type_text) = first_positional {
-        return Some(type_text.to_owned());
+        .find(|argument| argument.kind() != "keyword_argument");
+    let data_type = first_positional
+        .and_then(|argument| argument.utf8_text(source).ok())
+        .map_or_else(
+            || {
+                assignment
+                    .child_by_field_name("type")
+                    .and_then(|annotation| annotation.utf8_text(source).ok())
+                    .map_or_else(|| "unknown".to_owned(), str::to_owned)
+            },
+            str::to_owned,
+        );
+
+    let mut column = SchemaColumn {
+        name: String::new(),
+        data_type,
+        ..SchemaColumn::default()
+    };
+    let mut cursor = arguments.walk();
+    for argument in arguments.named_children(&mut cursor) {
+        if argument.kind() == "keyword_argument" {
+            let (Some(name_node), Some(value)) = (
+                argument.child_by_field_name("name"),
+                argument.child_by_field_name("value"),
+            ) else {
+                continue;
+            };
+            match name_node.utf8_text(source).unwrap_or_default() {
+                "nullable" => column.nullable = python_bool_literal(value, source),
+                "primary_key" => {
+                    column.primary_key = python_bool_literal(value, source).unwrap_or(false);
+                }
+                "unique" => column.unique = python_bool_literal(value, source).unwrap_or(false),
+                "default" | "server_default" => {
+                    column.default = value.utf8_text(source).ok().map(str::to_owned);
+                }
+                _ => {}
+            }
+            if let Some(foreign_key) = foreign_key_from_call(value, source) {
+                column.foreign_key = Some(foreign_key);
+            }
+        } else if let Some(foreign_key) = foreign_key_from_call(argument, source) {
+            column.foreign_key = Some(foreign_key);
+        }
     }
-    Some(
-        assignment
-            .child_by_field_name("type")
-            .and_then(|annotation| annotation.utf8_text(source).ok())
-            .map_or_else(|| "unknown".to_owned(), str::to_owned),
-    )
+    Some(column)
+}
+
+fn python_bool_literal(value: Node<'_>, source: &[u8]) -> Option<bool> {
+    match value.utf8_text(source).ok()? {
+        "True" => Some(true),
+        "False" => Some(false),
+        _ => None,
+    }
+}
+
+/// Recognizes a `ForeignKey("table.column")` call and extracts its target.
+/// Only a single static string argument in the standard `table.column` form
+/// is recognized; anything else (a dynamic expression, a bare table name
+/// with no column) yields `None` instead of a guess.
+fn foreign_key_from_call(node: Node<'_>, source: &[u8]) -> Option<ForeignKeyRef> {
+    if node.kind() != "call" {
+        return None;
+    }
+    let function = node.child_by_field_name("function")?;
+    let callee = function.utf8_text(source).ok()?;
+    if callee.rsplit('.').next().unwrap_or(callee) != "ForeignKey" {
+        return None;
+    }
+    let arguments = node.child_by_field_name("arguments")?;
+    let mut cursor = arguments.walk();
+    let first = arguments
+        .named_children(&mut cursor)
+        .find(|argument| argument.kind() != "keyword_argument")?;
+    if first.kind() != "string" {
+        return None;
+    }
+    let literal = first.utf8_text(source).ok()?;
+    let target = static_string_content(literal)?;
+    let (table, column) = target.rsplit_once('.')?;
+    Some(ForeignKeyRef {
+        table: table.to_owned(),
+        column: Some(column.to_owned()),
+    })
 }
 
 fn collect_sql_literals(node: Node<'_>, source: &[u8], accesses: &mut Vec<DatabaseAccess>) {
@@ -566,6 +648,51 @@ class Subscription(Base):
                 ("note", "Text"),
             ]
         );
+    }
+
+    #[test]
+    fn extracts_sqlalchemy_column_constraints() {
+        let source = r#"
+class Subscription(Base):
+    __tablename__ = "subscriptions"
+
+    id = Column(String, primary_key=True)
+    account_id = Column(String, ForeignKey("accounts.id"), nullable=False)
+    status = Column(String(50), nullable=False, default="active")
+    email = Column(String(255), unique=True)
+"#;
+        let analysis =
+            PythonAnalyzer::analyze_source("models.py", source).expect("SQLAlchemy model");
+        let table = &analysis
+            .symbols
+            .iter()
+            .find(|symbol| symbol.name == "Subscription")
+            .expect("model class")
+            .schema_tables[0];
+
+        let id = table.columns.iter().find(|c| c.name == "id").unwrap();
+        assert!(id.primary_key);
+
+        let account_id = table
+            .columns
+            .iter()
+            .find(|c| c.name == "account_id")
+            .unwrap();
+        assert_eq!(account_id.nullable, Some(false));
+        assert_eq!(
+            account_id.foreign_key,
+            Some(ForeignKeyRef {
+                table: "accounts".to_owned(),
+                column: Some("id".to_owned()),
+            })
+        );
+
+        let status = table.columns.iter().find(|c| c.name == "status").unwrap();
+        assert_eq!(status.nullable, Some(false));
+        assert_eq!(status.default.as_deref(), Some("\"active\""));
+
+        let email = table.columns.iter().find(|c| c.name == "email").unwrap();
+        assert!(email.unique);
     }
 
     #[test]

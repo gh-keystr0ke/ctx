@@ -1140,13 +1140,16 @@ mod tests {
                 crate::ir::SchemaColumn {
                     name: "id".to_owned(),
                     data_type: "UUID".to_owned(),
+                    ..crate::ir::SchemaColumn::default()
                 },
                 crate::ir::SchemaColumn {
                     name: "status".to_owned(),
                     data_type: "VARCHAR(50)".to_owned(),
+                    ..crate::ir::SchemaColumn::default()
                 },
             ],
             range: range(),
+            ..SchemaTableDefinition::default()
         });
         let mut reader = definition("cancel", "billing.cancel", "reader-body", "reader-shape");
         reader.database_accesses.push(DatabaseAccess {

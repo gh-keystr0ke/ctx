@@ -1,6 +1,9 @@
 use std::collections::BTreeSet;
 
-use ctx_core::ir::DatabaseAccessKind;
+use ctx_core::ir::{
+    ColumnRename, DatabaseAccessKind, ForeignKeyRef, SchemaColumn, SchemaIndex,
+    SchemaTableDefinition,
+};
 
 /// Extracts the database entities named by a static SQL statement.
 ///
@@ -225,40 +228,286 @@ fn is_clause_keyword(word: &str) -> bool {
     .any(|keyword| word.eq_ignore_ascii_case(keyword))
 }
 
-/// Recognizes the table name and column definitions from a static `CREATE
-/// TABLE` or `ALTER TABLE ... ADD COLUMN` statement.
+/// Recognizes one statically declared schema operation from a `CREATE
+/// TABLE`, `ALTER TABLE`, `DROP TABLE`, `CREATE [UNIQUE] INDEX`, or `DROP
+/// INDEX ... ON ...` statement.
 ///
 /// This is a conservative recognizer for common goose/Postgres/MySQL/SQLite
-/// migration syntax, not a SQL dialect parser: table-level constraints
-/// (`PRIMARY KEY`, `FOREIGN KEY`, `UNIQUE`, `CHECK`, `CONSTRAINT`, `INDEX`)
-/// are skipped rather than misread as columns, per-column constraints are
-/// left attached to the raw declared type text instead of being stripped,
-/// and anything it cannot confidently locate a table name and at least one
-/// column for yields `None` instead of a guessed schema.
-pub(crate) fn ddl_table_columns(statement: &str) -> Option<(String, Vec<(String, String)>)> {
+/// migration syntax, not a SQL dialect parser. `ALTER TABLE ... ADD/DROP
+/// CONSTRAINT` is deliberately unsupported (recognizing a constraint's target
+/// columns without the table's already-declared column list is unreliable)
+/// and yields `None` rather than a guessed partial fact. The returned
+/// `SchemaTableDefinition.range` is left at its default; callers own line
+/// evidence, since only the caller knows the statement's offset in its file.
+pub(crate) fn parse_ddl_statement(statement: &str) -> Option<SchemaTableDefinition> {
     let cleaned = strip_sql_comments(statement);
     let upper = cleaned.to_ascii_uppercase();
     if let Some(after_keywords) = find_keyword_pair(&upper, "CREATE", "TABLE") {
-        let rest = &cleaned[after_keywords..];
-        let rest = strip_word_ci(rest, "IF")
-            .and_then(|rest| strip_word_ci(rest, "NOT"))
-            .and_then(|rest| strip_word_ci(rest, "EXISTS"))
-            .unwrap_or_else(|| rest.trim_start());
-        let (name, after_name) = leading_identifier(rest)?;
-        let (open, close) = matching_parens(after_name)?;
-        let columns = split_top_level(&after_name[open + 1..close])
-            .into_iter()
-            .filter_map(parse_column_definition)
-            .collect::<Vec<_>>();
-        return (!columns.is_empty()).then_some((name, columns));
+        return parse_create_table(&cleaned[after_keywords..]);
     }
     if let Some(after_keywords) = find_keyword_pair(&upper, "ALTER", "TABLE") {
-        let rest = &cleaned[after_keywords..];
-        let (name, after_name) = leading_identifier(rest)?;
-        let columns = parse_add_column_clauses(after_name);
-        return (!columns.is_empty()).then_some((name, columns));
+        return parse_alter_table(&cleaned[after_keywords..]);
+    }
+    if let Some(after_keywords) = find_keyword_pair(&upper, "DROP", "TABLE") {
+        return parse_drop_table(&cleaned[after_keywords..]);
+    }
+    if let Some(parsed) = parse_create_index(&cleaned, &upper) {
+        return Some(parsed);
+    }
+    if let Some(after_keywords) = find_keyword_pair(&upper, "DROP", "INDEX") {
+        return parse_drop_index(&cleaned[after_keywords..]);
     }
     None
+}
+
+fn parse_create_table(rest: &str) -> Option<SchemaTableDefinition> {
+    let rest = strip_word_ci(rest, "IF")
+        .and_then(|rest| strip_word_ci(rest, "NOT"))
+        .and_then(|rest| strip_word_ci(rest, "EXISTS"))
+        .unwrap_or_else(|| rest.trim_start());
+    let (name, after_name) = leading_identifier(rest)?;
+    let (open, close) = matching_parens(after_name)?;
+    let mut columns = Vec::new();
+    let mut checks = Vec::new();
+    for chunk in split_top_level(&after_name[open + 1..close]) {
+        if let Some(column) = parse_column_definition(chunk) {
+            columns.push(column);
+        } else {
+            apply_table_level_constraint(chunk, &mut columns, &mut checks);
+        }
+    }
+    (!columns.is_empty() || !checks.is_empty()).then_some(SchemaTableDefinition {
+        entity: name,
+        columns,
+        checks,
+        ..SchemaTableDefinition::default()
+    })
+}
+
+fn parse_alter_table(rest: &str) -> Option<SchemaTableDefinition> {
+    let (name, after_name) = leading_identifier(rest)?;
+    let mut table = SchemaTableDefinition {
+        entity: name,
+        ..SchemaTableDefinition::default()
+    };
+    let mut recognized_any = false;
+    for clause in split_top_level(after_name) {
+        let clause = clause.trim();
+        if clause.is_empty() {
+            continue;
+        }
+        if let Some(after) = strip_word_ci(clause, "ADD") {
+            let after_column = strip_word_ci(after, "COLUMN").unwrap_or(after);
+            let after_if_not_exists = strip_word_ci(after_column, "IF")
+                .and_then(|rest| strip_word_ci(rest, "NOT"))
+                .and_then(|rest| strip_word_ci(rest, "EXISTS"))
+                .unwrap_or(after_column);
+            if let Some(column) = parse_column_definition(after_if_not_exists) {
+                table.columns.push(column);
+                recognized_any = true;
+            }
+        } else if let Some(after) = strip_word_ci(clause, "DROP") {
+            // `DROP CONSTRAINT name` is a different operation from `DROP
+            // [COLUMN] name`; without the table's already-declared columns
+            // there is no reliable way to know what a constraint name
+            // refers to, so it is left unrecognized rather than misread as
+            // dropping a column literally named `constraint`.
+            if strip_word_ci(after, "CONSTRAINT").is_some() {
+                continue;
+            }
+            let after_column = strip_word_ci(after, "COLUMN").unwrap_or(after);
+            let after_if_exists = strip_word_ci(after_column, "IF")
+                .and_then(|rest| strip_word_ci(rest, "EXISTS"))
+                .unwrap_or(after_column);
+            if let Some((name, _)) = leading_identifier(after_if_exists) {
+                table.dropped_columns.push(name);
+                recognized_any = true;
+            }
+        } else if let Some(after) = strip_word_ci(clause, "RENAME") {
+            if let Some(after_to) = strip_word_ci(after, "TO") {
+                if let Some((new_name, _)) = leading_identifier(after_to) {
+                    table.renamed_from = Some(table.entity.clone());
+                    table.entity = new_name;
+                    recognized_any = true;
+                }
+            } else if let Some((old_name, after_old)) =
+                strip_word_ci(after, "COLUMN").and_then(leading_identifier)
+                && let Some((new_name, _)) =
+                    strip_word_ci(after_old, "TO").and_then(leading_identifier)
+            {
+                table.renamed_columns.push(ColumnRename {
+                    previous_name: old_name,
+                    new_name,
+                });
+                recognized_any = true;
+            }
+        }
+        // `ADD CONSTRAINT`/`DROP CONSTRAINT` are left unrecognized: without the
+        // table's already-declared columns there is no reliable way to know
+        // which columns a bare constraint name refers to.
+    }
+    recognized_any.then_some(table)
+}
+
+fn parse_drop_table(rest: &str) -> Option<SchemaTableDefinition> {
+    let rest = strip_word_ci(rest, "IF")
+        .and_then(|rest| strip_word_ci(rest, "EXISTS"))
+        .unwrap_or_else(|| rest.trim_start());
+    let (name, _) = leading_identifier(rest)?;
+    Some(SchemaTableDefinition {
+        entity: name,
+        table_dropped: true,
+        ..SchemaTableDefinition::default()
+    })
+}
+
+fn parse_create_index(cleaned: &str, upper: &str) -> Option<SchemaTableDefinition> {
+    let (after_keywords, unique) = if let Some(after) = find_keyword_pair(upper, "CREATE", "INDEX")
+    {
+        (after, false)
+    } else {
+        let first_at = find_whole_word(upper, "CREATE", 0)?;
+        let after_create = first_at + "CREATE".len();
+        let unique_at = find_whole_word(upper, "UNIQUE", after_create)?;
+        if !upper[after_create..unique_at].trim().is_empty() {
+            return None;
+        }
+        let after_unique = unique_at + "UNIQUE".len();
+        let index_at = find_whole_word(upper, "INDEX", after_unique)?;
+        if !upper[after_unique..index_at].trim().is_empty() {
+            return None;
+        }
+        (index_at + "INDEX".len(), true)
+    };
+    let rest = &cleaned[after_keywords..];
+    let rest = strip_word_ci(rest, "IF")
+        .and_then(|rest| strip_word_ci(rest, "NOT"))
+        .and_then(|rest| strip_word_ci(rest, "EXISTS"))
+        .unwrap_or_else(|| rest.trim_start());
+    let (index_name, after_index_name) = leading_identifier(rest)?;
+    let after_on = strip_word_ci(after_index_name, "ON")?;
+    let (table_name, after_table) = leading_identifier(after_on)?;
+    let (open, close) = matching_parens(after_table.trim_start())?;
+    let body = &after_table.trim_start()[open + 1..close];
+    let columns = split_top_level(body)
+        .into_iter()
+        .filter_map(|chunk| leading_identifier(chunk.trim()).map(|(name, _)| name))
+        .collect::<Vec<_>>();
+    (!columns.is_empty()).then_some(SchemaTableDefinition {
+        entity: table_name,
+        indexes_added: vec![SchemaIndex {
+            name: Some(index_name),
+            columns,
+            unique,
+        }],
+        ..SchemaTableDefinition::default()
+    })
+}
+
+fn parse_drop_index(rest: &str) -> Option<SchemaTableDefinition> {
+    let rest = strip_word_ci(rest, "IF")
+        .and_then(|rest| strip_word_ci(rest, "EXISTS"))
+        .unwrap_or_else(|| rest.trim_start());
+    let (index_name, after_name) = leading_identifier(rest)?;
+    // Only the `DROP INDEX name ON table` form names a table; the bare
+    // `DROP INDEX name` form (Postgres/SQLite, where an index name alone is
+    // enough) cannot be resolved to a table without already knowing every
+    // index this repository has declared, so it is left unrecognized.
+    let after_on = strip_word_ci(after_name, "ON")?;
+    let (table_name, _) = leading_identifier(after_on)?;
+    Some(SchemaTableDefinition {
+        entity: table_name,
+        indexes_dropped: vec![index_name],
+        ..SchemaTableDefinition::default()
+    })
+}
+
+/// Applies a table-level constraint clause (`PRIMARY KEY (...)`, `UNIQUE
+/// (...)`, `FOREIGN KEY (...) REFERENCES ...`, `CHECK (...)`, optionally
+/// prefixed with `CONSTRAINT name`) onto the columns already parsed from the
+/// same `CREATE TABLE` body. A clause this function cannot confidently
+/// recognize (an unsupported constraint form, or one naming a column not
+/// present in `columns`) is silently skipped rather than guessed.
+fn apply_table_level_constraint(
+    chunk: &str,
+    columns: &mut [SchemaColumn],
+    checks: &mut Vec<String>,
+) {
+    let chunk = chunk.trim();
+    let chunk = strip_word_ci(chunk, "CONSTRAINT")
+        .and_then(|rest| leading_identifier(rest).map(|(_, rest)| rest.trim_start()))
+        .unwrap_or(chunk);
+    if let Some(after) = strip_word_ci(chunk, "PRIMARY").and_then(|rest| strip_word_ci(rest, "KEY"))
+    {
+        for name in constraint_column_names(after) {
+            mark_column(columns, &name, |column| {
+                column.primary_key = true;
+                if column.nullable.is_none() {
+                    column.nullable = Some(false);
+                }
+            });
+        }
+    } else if let Some(after) = strip_word_ci(chunk, "UNIQUE") {
+        for name in constraint_column_names(after) {
+            mark_column(columns, &name, |column| column.unique = true);
+        }
+    } else if let Some(after) =
+        strip_word_ci(chunk, "FOREIGN").and_then(|rest| strip_word_ci(rest, "KEY"))
+    {
+        let Some((open, close)) = matching_parens(after.trim_start()) else {
+            return;
+        };
+        let names = constraint_column_names_from_body(&after.trim_start()[open + 1..close]);
+        let remainder = &after.trim_start()[close + 1..];
+        let Some(after_references) = strip_word_ci(remainder, "REFERENCES") else {
+            return;
+        };
+        let Some((table, after_table)) = leading_identifier(after_references) else {
+            return;
+        };
+        let ref_column = matching_parens(after_table.trim_start()).and_then(|(open, close)| {
+            leading_identifier(&after_table.trim_start()[open + 1..close]).map(|(name, _)| name)
+        });
+        if let Some(first_name) = names.first() {
+            mark_column(columns, first_name, |column| {
+                column.foreign_key = Some(ForeignKeyRef {
+                    table: table.clone(),
+                    column: ref_column.clone(),
+                });
+            });
+        }
+    } else if let Some(after) = strip_word_ci(chunk, "CHECK")
+        && let Some((open, close)) = matching_parens(after.trim_start())
+    {
+        let expression = after.trim_start()[open + 1..close]
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
+        if !expression.is_empty() {
+            checks.push(expression);
+        }
+    }
+}
+
+fn constraint_column_names(after_keyword: &str) -> Vec<String> {
+    matching_parens(after_keyword.trim_start())
+        .map(|(open, close)| {
+            constraint_column_names_from_body(&after_keyword.trim_start()[open + 1..close])
+        })
+        .unwrap_or_default()
+}
+
+fn constraint_column_names_from_body(body: &str) -> Vec<String> {
+    split_top_level(body)
+        .into_iter()
+        .filter_map(|chunk| leading_identifier(chunk.trim()).map(|(name, _)| name))
+        .collect()
+}
+
+fn mark_column(columns: &mut [SchemaColumn], name: &str, apply: impl FnOnce(&mut SchemaColumn)) {
+    if let Some(column) = columns.iter_mut().find(|column| column.name == name) {
+        apply(column);
+    }
 }
 
 fn strip_sql_comments(text: &str) -> String {
@@ -460,7 +709,7 @@ fn unquote_identifier(token: &str) -> String {
     token.to_owned()
 }
 
-fn parse_column_definition(chunk: &str) -> Option<(String, String)> {
+fn parse_column_definition(chunk: &str) -> Option<SchemaColumn> {
     let chunk = chunk.trim();
     let name_token = first_word(chunk)?;
     if matches!(
@@ -470,24 +719,136 @@ fn parse_column_definition(chunk: &str) -> Option<(String, String)> {
         return None;
     }
     let rest = chunk[name_token.len()..].trim_start();
-    let type_token = first_word(rest)?;
+    let (data_type, rest) = parse_column_type(rest)?;
     let name = unquote_identifier(name_token).to_ascii_lowercase();
-    (!name.is_empty()).then_some((name, type_token.to_owned()))
+    if name.is_empty() {
+        return None;
+    }
+    let mut column = SchemaColumn {
+        name,
+        data_type,
+        ..SchemaColumn::default()
+    };
+    apply_column_constraints(rest, &mut column);
+    Some(column)
 }
 
-fn parse_add_column_clauses(rest: &str) -> Vec<(String, String)> {
-    split_top_level(rest)
-        .into_iter()
-        .filter_map(|clause| {
-            let after_add = strip_word_ci(clause, "ADD")?;
-            let after_column = strip_word_ci(after_add, "COLUMN").unwrap_or(after_add);
-            let after_if_not_exists = strip_word_ci(after_column, "IF")
-                .and_then(|rest| strip_word_ci(rest, "NOT"))
-                .and_then(|rest| strip_word_ci(rest, "EXISTS"))
-                .unwrap_or(after_column);
-            parse_column_definition(after_if_not_exists)
-        })
-        .collect()
+/// Parses a column's declared type, including a trailing parenthesized
+/// argument list (`NUMERIC(10, 2)`), so an internal-comma type never gets
+/// truncated at the first whitespace inside its own parentheses.
+fn parse_column_type(text: &str) -> Option<(String, &str)> {
+    let text = text.trim_start();
+    let (base, after_base) = leading_identifier_part(text)?;
+    if after_base.starts_with('(') {
+        let (_, close) = matching_parens(after_base)?;
+        let end = base.len() + close + 1;
+        Some((text[..end].to_owned(), &text[end..]))
+    } else {
+        Some((base, after_base))
+    }
+}
+
+fn apply_column_constraints(mut rest: &str, column: &mut SchemaColumn) {
+    loop {
+        rest = rest.trim_start();
+        if rest.is_empty() {
+            break;
+        }
+        if let Some(after) = strip_word_ci(rest, "NOT").and_then(|rest| strip_word_ci(rest, "NULL"))
+        {
+            column.nullable = Some(false);
+            rest = after;
+        } else if let Some(after) = strip_word_ci(rest, "NULL") {
+            column.nullable = Some(true);
+            rest = after;
+        } else if let Some(after) =
+            strip_word_ci(rest, "PRIMARY").and_then(|rest| strip_word_ci(rest, "KEY"))
+        {
+            column.primary_key = true;
+            if column.nullable.is_none() {
+                column.nullable = Some(false);
+            }
+            rest = after;
+        } else if let Some(after) = strip_word_ci(rest, "UNIQUE") {
+            column.unique = true;
+            rest = after;
+        } else if let Some(after) = strip_word_ci(rest, "DEFAULT") {
+            let Some((value, remainder)) = parse_default_value(after) else {
+                break;
+            };
+            column.default = Some(value);
+            rest = remainder;
+        } else if let Some(after) = strip_word_ci(rest, "REFERENCES") {
+            let Some((table, after_table)) = leading_identifier(after) else {
+                break;
+            };
+            let after_table = after_table.trim_start();
+            if let Some((open, close)) = matching_parens(after_table) {
+                let column_name =
+                    leading_identifier(&after_table[open + 1..close]).map(|(name, _)| name);
+                column.foreign_key = Some(ForeignKeyRef {
+                    table,
+                    column: column_name,
+                });
+                rest = &after_table[close + 1..];
+            } else {
+                column.foreign_key = Some(ForeignKeyRef {
+                    table,
+                    column: None,
+                });
+                rest = after_table;
+            }
+        } else if let Some(after) = strip_word_ci(rest, "CHECK") {
+            let trimmed = after.trim_start();
+            let Some((_, close)) = matching_parens(trimmed) else {
+                break;
+            };
+            rest = &trimmed[close + 1..];
+        } else {
+            // An unrecognized clause (COLLATE, GENERATED ALWAYS, a
+            // dialect-specific attribute, ...): stop rather than misread it,
+            // keeping every constraint already parsed from earlier clauses.
+            break;
+        }
+    }
+}
+
+/// Parses a `DEFAULT` value expression: a single-quoted string literal
+/// (respecting `''` escaping), or a bare token that may itself be a function
+/// call (`now()`), extended to its matching close parenthesis so an argument
+/// list's internal whitespace/commas are not mistaken for the end of the
+/// value.
+fn parse_default_value(text: &str) -> Option<(String, &str)> {
+    let text = text.trim_start();
+    if text.is_empty() {
+        return None;
+    }
+    if text.starts_with('\'') {
+        let bytes = text.as_bytes();
+        let mut index = 1;
+        while index < bytes.len() {
+            if bytes[index] == b'\'' {
+                index += 1;
+                if bytes.get(index) == Some(&b'\'') {
+                    index += 1;
+                    continue;
+                }
+                break;
+            }
+            index += 1;
+        }
+        return Some((text[..index].to_owned(), &text[index..]));
+    }
+    let mut end = text.find(char::is_whitespace).unwrap_or(text.len());
+    if end == 0 {
+        return None;
+    }
+    if let Some(paren_start) = text[..end].find('(')
+        && let Some((_, close)) = matching_parens(&text[paren_start..])
+    {
+        end = paren_start + close + 1;
+    }
+    Some((text[..end].to_owned(), &text[end..]))
 }
 
 #[cfg(test)]
@@ -543,73 +904,165 @@ mod tests {
         );
     }
 
+    fn column<'a>(table: &'a SchemaTableDefinition, name: &str) -> &'a SchemaColumn {
+        table
+            .columns
+            .iter()
+            .find(|column| column.name == name)
+            .unwrap_or_else(|| panic!("no column named {name}"))
+    }
+
     #[test]
-    fn extracts_create_table_columns_skipping_table_constraints() {
-        let (table, columns) = ddl_table_columns(
+    fn extracts_create_table_columns_with_inline_and_table_level_constraints() {
+        let table = parse_ddl_statement(
             "CREATE TABLE IF NOT EXISTS public.subscriptions (
                 id UUID PRIMARY KEY,
                 account_id UUID NOT NULL,
                 status VARCHAR(50) NOT NULL DEFAULT 'active',
                 amount NUMERIC(10, 2),
+                email VARCHAR(255) UNIQUE,
+                CHECK (amount >= 0),
                 FOREIGN KEY (account_id) REFERENCES accounts(id)
             )",
         )
         .expect("create table columns");
 
-        assert_eq!(table, "public.subscriptions");
+        assert_eq!(table.entity, "public.subscriptions");
         assert_eq!(
-            columns,
-            vec![
-                ("id".to_owned(), "UUID".to_owned()),
-                ("account_id".to_owned(), "UUID".to_owned()),
-                ("status".to_owned(), "VARCHAR(50)".to_owned()),
-                ("amount".to_owned(), "NUMERIC(10,".to_owned()),
-            ]
+            table
+                .columns
+                .iter()
+                .map(|c| c.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["id", "account_id", "status", "amount", "email"]
         );
+        let id = column(&table, "id");
+        assert!(id.primary_key);
+        assert_eq!(id.nullable, Some(false));
+        let account_id = column(&table, "account_id");
+        assert_eq!(account_id.nullable, Some(false));
+        assert_eq!(
+            account_id.foreign_key,
+            Some(ForeignKeyRef {
+                table: "accounts".to_owned(),
+                column: Some("id".to_owned()),
+            })
+        );
+        let status = column(&table, "status");
+        assert_eq!(status.data_type, "VARCHAR(50)");
+        assert_eq!(status.nullable, Some(false));
+        assert_eq!(status.default.as_deref(), Some("'active'"));
+        let amount = column(&table, "amount");
+        assert_eq!(amount.data_type, "NUMERIC(10, 2)");
+        assert!(column(&table, "email").unique);
+        assert_eq!(table.checks, vec!["amount >= 0".to_owned()]);
     }
 
     #[test]
-    fn extracts_alter_table_add_column_clauses() {
-        let (table, columns) = ddl_table_columns(
-            "ALTER TABLE subscriptions ADD COLUMN grace_period_days INT, ADD COLUMN dry_run BOOLEAN DEFAULT false",
+    fn extracts_alter_table_add_drop_and_rename_column_clauses() {
+        let table = parse_ddl_statement(
+            "ALTER TABLE subscriptions ADD COLUMN grace_period_days INT, DROP COLUMN legacy_flag, RENAME COLUMN status TO state",
         )
-        .expect("alter table columns");
+        .expect("alter table clauses");
 
-        assert_eq!(table, "subscriptions");
+        assert_eq!(table.entity, "subscriptions");
         assert_eq!(
-            columns,
-            vec![
-                ("grace_period_days".to_owned(), "INT".to_owned()),
-                ("dry_run".to_owned(), "BOOLEAN".to_owned()),
-            ]
+            table
+                .columns
+                .iter()
+                .map(|c| c.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["grace_period_days"]
+        );
+        assert_eq!(table.dropped_columns, vec!["legacy_flag".to_owned()]);
+        assert_eq!(
+            table.renamed_columns,
+            vec![ColumnRename {
+                previous_name: "status".to_owned(),
+                new_name: "state".to_owned(),
+            }]
         );
     }
 
     #[test]
-    fn ddl_table_columns_never_panics_on_multi_byte_utf8_near_a_keyword_boundary() {
+    fn extracts_alter_table_rename_to() {
+        let table = parse_ddl_statement("ALTER TABLE subscriptions RENAME TO subscription_plans")
+            .expect("rename to");
+        assert_eq!(table.entity, "subscription_plans");
+        assert_eq!(table.renamed_from.as_deref(), Some("subscriptions"));
+    }
+
+    #[test]
+    fn alter_table_add_or_drop_constraint_is_unsupported_not_guessed() {
+        assert!(
+            parse_ddl_statement("ALTER TABLE subscriptions ADD CONSTRAINT uq_email UNIQUE (email)")
+                .is_none()
+        );
+        assert!(
+            parse_ddl_statement("ALTER TABLE subscriptions DROP CONSTRAINT uq_email").is_none()
+        );
+    }
+
+    #[test]
+    fn extracts_drop_table() {
+        let table = parse_ddl_statement("DROP TABLE IF EXISTS subscriptions").expect("drop table");
+        assert_eq!(table.entity, "subscriptions");
+        assert!(table.table_dropped);
+    }
+
+    #[test]
+    fn extracts_create_and_drop_index() {
+        let created = parse_ddl_statement(
+            "CREATE UNIQUE INDEX idx_subscriptions_email ON subscriptions (email)",
+        )
+        .expect("create index");
+        assert_eq!(created.entity, "subscriptions");
+        assert_eq!(
+            created.indexes_added,
+            vec![SchemaIndex {
+                name: Some("idx_subscriptions_email".to_owned()),
+                columns: vec!["email".to_owned()],
+                unique: true,
+            }]
+        );
+
+        let dropped = parse_ddl_statement("DROP INDEX idx_subscriptions_email ON subscriptions")
+            .expect("drop index");
+        assert_eq!(dropped.entity, "subscriptions");
+        assert_eq!(
+            dropped.indexes_dropped,
+            vec!["idx_subscriptions_email".to_owned()]
+        );
+
+        // A bare `DROP INDEX name` (no `ON table`) cannot be resolved to a
+        // table by this recognizer; it stays unrecognized instead of guessed.
+        assert!(parse_ddl_statement("DROP INDEX idx_subscriptions_email").is_none());
+    }
+
+    #[test]
+    fn parse_ddl_statement_never_panics_on_multi_byte_utf8_near_a_keyword_boundary() {
         // A 3-byte character positioned so an ASCII keyword's byte length
         // would slice into the middle of it must not panic; it should just
         // fail to recognize that clause instead of guessing.
-        assert!(ddl_table_columns("ALTER TABLE t xy見ADD COLUMN x INT").is_none());
-        assert!(ddl_table_columns("CREATE TABLE 見x (id INT)").is_none());
+        assert!(parse_ddl_statement("ALTER TABLE t xy見ADD COLUMN x INT").is_none());
+        assert!(parse_ddl_statement("CREATE TABLE 見x (id INT)").is_none());
+        let table =
+            parse_ddl_statement("CREATE TABLE t (id INT, 見 TEXT)").expect("utf8 column name");
         assert_eq!(
-            ddl_table_columns("CREATE TABLE t (id INT, 見 TEXT)"),
-            Some((
-                "t".to_owned(),
-                vec![
-                    ("id".to_owned(), "INT".to_owned()),
-                    ("見".to_owned(), "TEXT".to_owned()),
-                ]
-            ))
+            table
+                .columns
+                .iter()
+                .map(|c| c.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["id", "見"]
         );
     }
 
     #[test]
-    fn ddl_table_columns_ignores_unrecognized_ddl_and_comments() {
-        assert!(ddl_table_columns("DROP TABLE subscriptions").is_none());
-        assert!(ddl_table_columns("ALTER TABLE subscriptions DROP COLUMN status").is_none());
+    fn ignores_unrecognized_ddl_and_comments() {
+        assert!(parse_ddl_statement("SELECT 1").is_none());
         assert!(
-            ddl_table_columns(
+            parse_ddl_statement(
                 "-- comment before\nCREATE TABLE empty_table (\n  /* no real columns */\n)"
             )
             .is_none()

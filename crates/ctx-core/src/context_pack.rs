@@ -462,16 +462,76 @@ fn render_schema(tables: &[crate::ir::SchemaTableDefinition]) -> String {
     tables
         .iter()
         .map(|table| {
-            let columns = table
-                .columns
-                .iter()
-                .map(|column| format!("{} {}", column.name, column.data_type))
-                .collect::<Vec<_>>()
-                .join(", ");
-            format!("{}({columns})", table.entity)
+            let mut parts = Vec::new();
+            if !table.columns.is_empty() {
+                let columns = table
+                    .columns
+                    .iter()
+                    .map(render_schema_column)
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                parts.push(format!("({columns})"));
+            }
+            if !table.dropped_columns.is_empty() {
+                parts.push(format!("drops: {}", table.dropped_columns.join(", ")));
+            }
+            if !table.renamed_columns.is_empty() {
+                let renames = table
+                    .renamed_columns
+                    .iter()
+                    .map(|rename| format!("{}->{}", rename.previous_name, rename.new_name))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                parts.push(format!("renames: {renames}"));
+            }
+            if table.table_dropped {
+                parts.push("table dropped".to_owned());
+            }
+            if let Some(previous) = &table.renamed_from {
+                parts.push(format!("renamed from {previous}"));
+            }
+            if parts.is_empty() {
+                table.entity.clone()
+            } else {
+                format!("{} {}", table.entity, parts.join(" "))
+            }
         })
         .collect::<Vec<_>>()
         .join("; ")
+}
+
+fn render_schema_column(column: &crate::ir::SchemaColumn) -> String {
+    let mut markers = Vec::new();
+    if column.primary_key {
+        markers.push("PK".to_owned());
+    }
+    if column.unique {
+        markers.push("UNIQUE".to_owned());
+    }
+    match column.nullable {
+        Some(false) => markers.push("NOT NULL".to_owned()),
+        Some(true) => markers.push("NULL".to_owned()),
+        None => {}
+    }
+    if let Some(foreign_key) = &column.foreign_key {
+        markers.push(format!(
+            "FK->{}{}",
+            foreign_key.table,
+            foreign_key
+                .column
+                .as_ref()
+                .map_or_else(String::new, |name| format!(".{name}"))
+        ));
+    }
+    if let Some(default) = &column.default {
+        markers.push(format!("DEFAULT {default}"));
+    }
+    let suffix = if markers.is_empty() {
+        String::new()
+    } else {
+        format!(" {}", markers.join(" "))
+    };
+    format!("{} {}{suffix}", column.name, column.data_type)
 }
 
 fn compile_evidence(

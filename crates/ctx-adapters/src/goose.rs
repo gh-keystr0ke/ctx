@@ -2,11 +2,11 @@ use std::{fs, path::PathBuf};
 
 use ctx_app::ports::{LanguageAnalyzer, PortError};
 use ctx_core::ir::{
-    FileAnalysis, SchemaColumn, SchemaTableDefinition, SourceRange, SymbolDefinition, SymbolKind,
+    FileAnalysis, SchemaTableDefinition, SourceRange, SymbolDefinition, SymbolKind,
 };
 use thiserror::Error;
 
-use crate::{analyzer::AnalyzerModule, database::ddl_table_columns};
+use crate::{analyzer::AnalyzerModule, database::parse_ddl_statement};
 
 #[derive(Debug, Error)]
 pub enum GooseAnalysisError {
@@ -133,20 +133,14 @@ fn extract_schema_tables(up_section: &str) -> Vec<SchemaTableDefinition> {
     let mut line_offset = 1usize;
     for statement in up_section.split(';') {
         let lines_in_statement = statement.matches('\n').count();
-        if let Some((entity, columns)) = ddl_table_columns(statement) {
-            tables.push(SchemaTableDefinition {
-                entity,
-                columns: columns
-                    .into_iter()
-                    .map(|(name, data_type)| SchemaColumn { name, data_type })
-                    .collect(),
-                range: SourceRange {
-                    start_byte: 0,
-                    end_byte: statement.len(),
-                    start_line: line_offset,
-                    end_line: line_offset + lines_in_statement,
-                },
-            });
+        if let Some(mut table) = parse_ddl_statement(statement) {
+            table.range = SourceRange {
+                start_byte: 0,
+                end_byte: statement.len(),
+                start_line: line_offset,
+                end_line: line_offset + lines_in_statement,
+            };
+            tables.push(table);
         }
         line_offset += lines_in_statement;
     }

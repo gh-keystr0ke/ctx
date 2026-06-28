@@ -7,11 +7,12 @@
 
 use std::collections::BTreeSet;
 
+use ctx_app::status::StatusReport;
 use ctx_core::{
     context_pack::ContextPack,
     graph::NodeSummary,
     impact::ImpactReport,
-    review::{ChangeKind, ReviewReport, Severity},
+    review::{ChangeKind, ReviewReport, SchemaFinding, Severity},
 };
 use serde::Serialize;
 
@@ -56,6 +57,13 @@ pub enum Check {
     ContextIdentifierPresent(&'static str),
     ContextIdentifierAbsent(&'static str),
     ContextWithinBudget,
+    NoSchemaFindings,
+    SchemaChangeDescriptionContains(&'static str),
+    SchemaChangeDescriptionAbsent(&'static str),
+    SchemaFindingDestructive(&'static str),
+    SchemaFindingNotDestructive(&'static str),
+    NoSchemaDivergences,
+    SchemaDivergenceContains(&'static str),
 }
 
 impl Check {
@@ -65,16 +73,23 @@ impl Check {
             Self::FindingIntentPresent(_)
             | Self::ImpactIntentPresent(_)
             | Self::ImpactDataContractPresent(_)
-            | Self::ContextIdentifierPresent(_) => CheckKind::Recall,
+            | Self::ContextIdentifierPresent(_)
+            | Self::SchemaChangeDescriptionContains(_)
+            | Self::SchemaDivergenceContains(_) => CheckKind::Recall,
             Self::FindingIntentAbsent(_)
             | Self::NoFindings
             | Self::ImpactIntentAbsent(_)
             | Self::ImpactDataContractAbsent(_)
-            | Self::ContextIdentifierAbsent(_) => CheckKind::Precision,
+            | Self::ContextIdentifierAbsent(_)
+            | Self::NoSchemaFindings
+            | Self::SchemaChangeDescriptionAbsent(_)
+            | Self::NoSchemaDivergences => CheckKind::Precision,
             Self::FindingSeverity(..)
             | Self::StaleRelationshipContains(_)
             | Self::ChangeKindIs { .. }
-            | Self::ChangeSignalContains { .. } => CheckKind::Classification,
+            | Self::ChangeSignalContains { .. }
+            | Self::SchemaFindingDestructive(_)
+            | Self::SchemaFindingNotDestructive(_) => CheckKind::Classification,
             Self::ContextWithinBudget => CheckKind::Budget,
         }
     }
@@ -110,6 +125,23 @@ impl Check {
             Self::ContextIdentifierPresent(id) => format!("context pack includes {id}"),
             Self::ContextIdentifierAbsent(id) => format!("context pack excludes {id}"),
             Self::ContextWithinBudget => "context pack stays within its token budget".to_owned(),
+            Self::NoSchemaFindings => "review surfaces no schema findings".to_owned(),
+            Self::SchemaChangeDescriptionContains(needle) => {
+                format!("a schema finding describes a change mentioning '{needle}'")
+            }
+            Self::SchemaChangeDescriptionAbsent(needle) => {
+                format!("no schema finding describes a change mentioning '{needle}'")
+            }
+            Self::SchemaFindingDestructive(needle) => {
+                format!("the schema finding for {needle} is destructive")
+            }
+            Self::SchemaFindingNotDestructive(needle) => {
+                format!("the schema finding for {needle} is not destructive")
+            }
+            Self::NoSchemaDivergences => "status reports no schema divergences".to_owned(),
+            Self::SchemaDivergenceContains(needle) => {
+                format!("status reports a schema divergence mentioning '{needle}'")
+            }
         }
     }
 }
@@ -120,6 +152,7 @@ pub struct CaseRun {
     pub review: Option<ReviewReport>,
     pub impact: Option<ImpactReport>,
     pub context: Option<ContextPack>,
+    pub status: Option<StatusReport>,
 }
 
 /// The verdict for one [`Check`] against a recorded [`CaseRun`].
@@ -295,23 +328,11 @@ pub fn evaluate(run: &CaseRun, check: &Check) -> CheckOutcome {
         Check::ChangeKindIs {
             canonical_path,
             kind,
-        } => match matching_change_kind(run, canonical_path) {
-            Some(actual) => (
-                actual == *kind,
-                format!("{canonical_path} was classified {actual:?}, expected {kind:?}"),
-            ),
-            None => (false, format!("no changed entity for {canonical_path}")),
-        },
+        } => change_kind_outcome(run, canonical_path, *kind),
         Check::ChangeSignalContains {
             canonical_path,
             needle,
-        } => match matching_change_signals(run, canonical_path) {
-            Some(signals) => (
-                signals.iter().any(|signal| signal.contains(needle)),
-                format!("{canonical_path} signals: {signals:?}"),
-            ),
-            None => (false, format!("no changed entity for {canonical_path}")),
-        },
+        } => change_signal_outcome(run, canonical_path, needle),
         Check::ImpactIntentPresent(id) => {
             membership_outcome(&impact_identifiers(run), id, true, "impact identifiers")
         }
@@ -346,12 +367,98 @@ pub fn evaluate(run: &CaseRun, check: &Check) -> CheckOutcome {
             ),
             None => (false, "no context pack was compiled".to_owned()),
         },
+        Check::NoSchemaFindings
+        | Check::SchemaChangeDescriptionContains(_)
+        | Check::SchemaChangeDescriptionAbsent(_)
+        | Check::SchemaFindingDestructive(_)
+        | Check::SchemaFindingNotDestructive(_)
+        | Check::NoSchemaDivergences
+        | Check::SchemaDivergenceContains(_) => evaluate_schema(run, check),
     };
     CheckOutcome {
         description: check.describe(),
         kind: check.kind(),
         passed,
         detail,
+    }
+}
+
+fn change_kind_outcome(
+    run: &CaseRun,
+    canonical_path: &str,
+    expected: ChangeKind,
+) -> (bool, String) {
+    match matching_change_kind(run, canonical_path) {
+        Some(actual) => (
+            actual == expected,
+            format!("{canonical_path} was classified {actual:?}, expected {expected:?}"),
+        ),
+        None => (false, format!("no changed entity for {canonical_path}")),
+    }
+}
+
+fn change_signal_outcome(run: &CaseRun, canonical_path: &str, needle: &str) -> (bool, String) {
+    match matching_change_signals(run, canonical_path) {
+        Some(signals) => (
+            signals.iter().any(|signal| signal.contains(needle)),
+            format!("{canonical_path} signals: {signals:?}"),
+        ),
+        None => (false, format!("no changed entity for {canonical_path}")),
+    }
+}
+
+fn evaluate_schema(run: &CaseRun, check: &Check) -> (bool, String) {
+    match check {
+        Check::NoSchemaFindings => {
+            let count = run
+                .review
+                .as_ref()
+                .map_or(0, |report| report.schema_findings.len());
+            (count == 0, format!("{count} schema finding(s) present"))
+        }
+        Check::SchemaChangeDescriptionContains(needle) => {
+            let descriptions = schema_change_descriptions(run);
+            (
+                descriptions.iter().any(|entry| entry.contains(needle)),
+                format!("schema change descriptions: {descriptions:?}"),
+            )
+        }
+        Check::SchemaChangeDescriptionAbsent(needle) => {
+            let descriptions = schema_change_descriptions(run);
+            (
+                !descriptions.iter().any(|entry| entry.contains(needle)),
+                format!("schema change descriptions: {descriptions:?}"),
+            )
+        }
+        Check::SchemaFindingDestructive(needle) => match matching_schema_finding(run, needle) {
+            Some(finding) => (
+                finding.destructive,
+                format!("{needle} destructive={}", finding.destructive),
+            ),
+            None => (false, format!("no schema finding matching '{needle}'")),
+        },
+        Check::SchemaFindingNotDestructive(needle) => match matching_schema_finding(run, needle) {
+            Some(finding) => (
+                !finding.destructive,
+                format!("{needle} destructive={}", finding.destructive),
+            ),
+            None => (false, format!("no schema finding matching '{needle}'")),
+        },
+        Check::NoSchemaDivergences => {
+            let count = run
+                .status
+                .as_ref()
+                .map_or(0, |status| status.schema_divergences.len());
+            (count == 0, format!("{count} schema divergence(s) present"))
+        }
+        Check::SchemaDivergenceContains(needle) => {
+            let labels = schema_divergence_labels(run);
+            (
+                labels.iter().any(|entry| entry.contains(needle)),
+                format!("schema divergences: {labels:?}"),
+            )
+        }
+        _ => unreachable!("evaluate_schema is only called for schema-related checks"),
     }
 }
 
@@ -449,6 +556,45 @@ fn context_identifiers(run: &CaseRun) -> BTreeSet<&str> {
         .unwrap_or_default()
 }
 
+fn schema_change_descriptions(run: &CaseRun) -> Vec<String> {
+    run.review.as_ref().map_or_else(Vec::new, |report| {
+        report
+            .schema_findings
+            .iter()
+            .flat_map(|finding| {
+                finding
+                    .changes
+                    .iter()
+                    .map(ctx_core::schema::SchemaChange::description)
+            })
+            .collect()
+    })
+}
+
+fn matching_schema_finding<'a>(run: &'a CaseRun, needle: &str) -> Option<&'a SchemaFinding> {
+    run.review.as_ref().and_then(|report| {
+        report
+            .schema_findings
+            .iter()
+            .find(|finding| finding.source_symbol.contains(needle))
+    })
+}
+
+fn schema_divergence_labels(run: &CaseRun) -> Vec<String> {
+    run.status.as_ref().map_or_else(Vec::new, |status| {
+        status
+            .schema_divergences
+            .iter()
+            .map(|divergence| {
+                format!(
+                    "{}.{} ({:?})",
+                    divergence.entity, divergence.column, divergence.kind
+                )
+            })
+            .collect()
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use ctx_core::{
@@ -499,6 +645,7 @@ mod tests {
             }),
             impact: None,
             context: None,
+            status: None,
         };
         let missing = evaluate(&run, &Check::FindingIntentPresent("INV-B"));
         assert!(!missing.passed);
@@ -520,6 +667,7 @@ mod tests {
             }),
             impact: None,
             context: None,
+            status: None,
         };
         let outcome = evaluate(&run, &Check::FindingIntentAbsent("ADR-A"));
         assert!(!outcome.passed);
@@ -546,6 +694,7 @@ mod tests {
             }),
             impact: None,
             context: None,
+            status: None,
         };
         let outcome = evaluate(
             &run,
@@ -585,6 +734,7 @@ mod tests {
                 evidence: Vec::new(),
                 uncertainties: Vec::new(),
             }),
+            status: None,
         };
         assert!(!evaluate(&run, &Check::ContextWithinBudget).passed);
         assert!(evaluate(&run, &Check::ContextIdentifierPresent("INV-A")).passed);

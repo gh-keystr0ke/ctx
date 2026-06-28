@@ -22,6 +22,7 @@ use ctx_app::{
     ports::{GitRepository, PortError},
     query::{QueryError, QueryService},
     review::{ReviewError, ReviewRunner},
+    status::{StatusError, StatusService},
 };
 use ctx_core::context_pack::ContextRequest;
 use thiserror::Error;
@@ -51,6 +52,8 @@ pub enum HarnessError {
     Review(#[from] ReviewError),
     #[error(transparent)]
     Query(#[from] QueryError),
+    #[error(transparent)]
+    Status(#[from] StatusError),
 }
 
 /// Builds a fresh temporary Git repository, replays `case`'s steps against
@@ -91,6 +94,9 @@ pub fn run_case(case: &EvaluationCase) -> Result<CaseRun, HarnessError> {
                 token_budget,
             } => {
                 run.context = Some(run_context(&git, &store, task, symbols, *token_budget)?);
+            }
+            Step::Status => {
+                run.status = Some(StatusService::new(&git, &store).inspect()?);
             }
         }
     }

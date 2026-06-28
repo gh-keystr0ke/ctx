@@ -45,6 +45,8 @@ pub enum Step {
         symbols: Vec<&'static str>,
         token_budget: usize,
     },
+    /// Runs `ctx status` and records the result.
+    Status,
 }
 
 /// One evaluation case: a scripted Git history plus the ground truth checks

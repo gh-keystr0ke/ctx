@@ -22,11 +22,15 @@
 //! Guessing a rename from name/type similarity would be exactly the kind of
 //! fuzzy matching this project's provenance rules forbid.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
 
-use crate::ir::{SchemaColumn, SchemaTableDefinition};
+use crate::{
+    graph::GraphSnapshot,
+    indexing::PlannedNodeAttributes,
+    ir::{SchemaColumn, SchemaTableDefinition, SymbolKind},
+};
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
@@ -414,6 +418,134 @@ fn diff_column(entity: &str, before: &SchemaColumn, after: &SchemaColumn) -> Vec
     changes
 }
 
+/// One column present in an ORM model or migration-derived schema state but
+/// absent from the other. Presence-only: this reconciliation does not
+/// compare type/nullable/etc. between the two sources (that level of detail
+/// is already covered per-source by `declared_schema_changes`/
+/// `diff_schema_tables` as each source evolves on its own).
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DivergenceKind {
+    /// The `SQLAlchemy` model declares this column; no migration-derived
+    /// state does.
+    ExpectedByOrmOnly,
+    /// A migration declares this column; no `SQLAlchemy` model field does.
+    DeclaredByMigrationOnly,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct SchemaDivergence {
+    pub entity: String,
+    pub column: String,
+    pub kind: DivergenceKind,
+}
+
+/// Best-effort reconciliation between `SQLAlchemy` declarative models and
+/// goose migration history, over the current graph.
+///
+/// Only entities declared by *both* an ORM model and at least one migration
+/// are compared — an entity known from only one source has nothing to
+/// reconcile. This project never fuzzy-matches schema identity: a
+/// migration's and an ORM model's `entity` name are either the same string
+/// (compared exactly) or they are unrelated facts about different tables,
+/// so there is no "ambiguous match" state to represent here.
+///
+/// The migration-derived column set is reconstructed by replaying every
+/// migration file's declared add/drop/rename operations for that entity in
+/// file-path order (goose's own numeric-timestamp-prefix convention sorts
+/// correctly this way). This reconstruction is a diagnostic aid, not a
+/// stored fact: it is never persisted as a `DEFINES_SCHEMA` edge or treated
+/// as a `DbEntity`'s "current" schema anywhere else in this codebase. A
+/// migration statement this codebase cannot recognize already produces zero
+/// facts elsewhere (see `ctx-adapters::database::parse_ddl_statement`), so
+/// it is silently absent from this replay too — a real mismatch hidden
+/// behind unsupported DDL stays invisible here rather than being reported as
+/// false consistency.
+#[must_use]
+pub fn reconcile_orm_and_migrations(graph: &GraphSnapshot) -> Vec<SchemaDivergence> {
+    let mut migration_tables: BTreeMap<&str, Vec<(&str, &SchemaTableDefinition)>> = BTreeMap::new();
+    let mut orm_tables: BTreeMap<&str, Vec<&SchemaTableDefinition>> = BTreeMap::new();
+    for node in graph.nodes.values() {
+        let PlannedNodeAttributes::Symbol {
+            symbol_kind,
+            file_path,
+            schema_tables,
+            ..
+        } = &node.attributes
+        else {
+            continue;
+        };
+        for table in schema_tables {
+            if *symbol_kind == SymbolKind::SchemaMigration {
+                migration_tables
+                    .entry(table.entity.as_str())
+                    .or_default()
+                    .push((file_path.as_str(), table));
+            } else {
+                orm_tables
+                    .entry(table.entity.as_str())
+                    .or_default()
+                    .push(table);
+            }
+        }
+    }
+
+    let mut divergences = Vec::new();
+    for (entity, orm_versions) in &orm_tables {
+        let Some(migrations) = migration_tables.get(entity) else {
+            continue;
+        };
+        let orm_columns: BTreeSet<&str> = orm_versions
+            .iter()
+            .flat_map(|table| table.columns.iter().map(|column| column.name.as_str()))
+            .collect();
+        let migration_columns = migration_derived_columns(migrations);
+        for column in &orm_columns {
+            if !migration_columns.contains(*column) {
+                divergences.push(SchemaDivergence {
+                    entity: (*entity).to_owned(),
+                    column: (*column).to_owned(),
+                    kind: DivergenceKind::ExpectedByOrmOnly,
+                });
+            }
+        }
+        for column in &migration_columns {
+            if !orm_columns.contains(column.as_str()) {
+                divergences.push(SchemaDivergence {
+                    entity: (*entity).to_owned(),
+                    column: column.clone(),
+                    kind: DivergenceKind::DeclaredByMigrationOnly,
+                });
+            }
+        }
+    }
+    divergences.sort_by(|left, right| {
+        left.entity
+            .cmp(&right.entity)
+            .then_with(|| left.column.cmp(&right.column))
+    });
+    divergences
+}
+
+fn migration_derived_columns(migrations: &[(&str, &SchemaTableDefinition)]) -> BTreeSet<String> {
+    let mut ordered = migrations.to_vec();
+    ordered.sort_by(|left, right| left.0.cmp(right.0));
+    let mut columns = BTreeSet::new();
+    for (_, table) in ordered {
+        for column in &table.columns {
+            columns.insert(column.name.clone());
+        }
+        for dropped in &table.dropped_columns {
+            columns.remove(dropped);
+        }
+        for rename in &table.renamed_columns {
+            columns.remove(&rename.previous_name);
+            columns.insert(rename.new_name.clone());
+        }
+    }
+    columns
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -628,5 +760,184 @@ mod tests {
                 true
             )]
         );
+    }
+
+    use crate::{
+        domain::{NodeKind, StableKey},
+        graph::GraphNode,
+    };
+
+    fn symbol_node(
+        key: &str,
+        symbol_kind: SymbolKind,
+        file_path: &str,
+        canonical_path: &str,
+        schema_tables: Vec<SchemaTableDefinition>,
+    ) -> GraphNode {
+        GraphNode {
+            stable_key: StableKey::new(key).expect("stable key"),
+            kind: NodeKind::CodeSymbol,
+            name: canonical_path.to_owned(),
+            content_hash: "hash".to_owned(),
+            attributes: PlannedNodeAttributes::Symbol {
+                file_path: file_path.to_owned(),
+                canonical_path: canonical_path.to_owned(),
+                symbol_kind,
+                range: SourceRange::default(),
+                signature: None,
+                structural_fingerprint: "fp".to_owned(),
+                calls: Vec::new(),
+                database_accesses: Vec::new(),
+                schema_tables,
+            },
+        }
+    }
+
+    fn snapshot(nodes: Vec<GraphNode>) -> GraphSnapshot {
+        GraphSnapshot {
+            nodes: nodes
+                .into_iter()
+                .map(|node| (node.stable_key.clone(), node))
+                .collect(),
+            edges: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn reconciliation_ignores_entities_known_from_only_one_source() {
+        let migration_only = symbol_node(
+            "symbol:goose:m1",
+            SymbolKind::SchemaMigration,
+            "migrations/001.sql",
+            "migrations.001",
+            vec![table("audit_log", vec![column("id", "UUID")])],
+        );
+        let orm_only = symbol_node(
+            "symbol:python:models.Foo",
+            SymbolKind::Class,
+            "models.py",
+            "models.Foo",
+            vec![table("widgets", vec![column("id", "UUID")])],
+        );
+        let divergences = reconcile_orm_and_migrations(&snapshot(vec![migration_only, orm_only]));
+        assert!(divergences.is_empty());
+    }
+
+    #[test]
+    fn reconciliation_detects_columns_only_expected_by_orm() {
+        let migration = symbol_node(
+            "symbol:goose:m1",
+            SymbolKind::SchemaMigration,
+            "migrations/001.sql",
+            "migrations.001",
+            vec![table("users", vec![column("id", "UUID")])],
+        );
+        let orm = symbol_node(
+            "symbol:python:models.User",
+            SymbolKind::Class,
+            "models.py",
+            "models.User",
+            vec![table(
+                "users",
+                vec![column("id", "UUID"), column("email", "VARCHAR")],
+            )],
+        );
+        let divergences = reconcile_orm_and_migrations(&snapshot(vec![migration, orm]));
+        assert_eq!(
+            divergences,
+            vec![SchemaDivergence {
+                entity: "users".to_owned(),
+                column: "email".to_owned(),
+                kind: DivergenceKind::ExpectedByOrmOnly,
+            }]
+        );
+    }
+
+    #[test]
+    fn reconciliation_detects_columns_only_declared_by_migrations() {
+        let migration = symbol_node(
+            "symbol:goose:m1",
+            SymbolKind::SchemaMigration,
+            "migrations/001.sql",
+            "migrations.001",
+            vec![table(
+                "subscriptions",
+                vec![column("id", "UUID"), column("grace_period", "INT")],
+            )],
+        );
+        let orm = symbol_node(
+            "symbol:python:models.Subscription",
+            SymbolKind::Class,
+            "models.py",
+            "models.Subscription",
+            vec![table("subscriptions", vec![column("id", "UUID")])],
+        );
+        let divergences = reconcile_orm_and_migrations(&snapshot(vec![migration, orm]));
+        assert_eq!(
+            divergences,
+            vec![SchemaDivergence {
+                entity: "subscriptions".to_owned(),
+                column: "grace_period".to_owned(),
+                kind: DivergenceKind::DeclaredByMigrationOnly,
+            }]
+        );
+    }
+
+    #[test]
+    fn reconciliation_replays_migrations_in_file_path_order() {
+        let create = symbol_node(
+            "symbol:goose:m1",
+            SymbolKind::SchemaMigration,
+            "migrations/001_create.sql",
+            "migrations.001_create",
+            vec![table(
+                "subscriptions",
+                vec![column("id", "UUID"), column("legacy_flag", "BOOLEAN")],
+            )],
+        );
+        let drop = symbol_node(
+            "symbol:goose:m2",
+            SymbolKind::SchemaMigration,
+            "migrations/002_drop_legacy.sql",
+            "migrations.002_drop_legacy",
+            vec![SchemaTableDefinition {
+                entity: "subscriptions".to_owned(),
+                dropped_columns: vec!["legacy_flag".to_owned()],
+                ..SchemaTableDefinition::default()
+            }],
+        );
+        let orm = symbol_node(
+            "symbol:python:models.Subscription",
+            SymbolKind::Class,
+            "models.py",
+            "models.Subscription",
+            vec![table("subscriptions", vec![column("id", "UUID")])],
+        );
+        // Order the nodes so the drop migration would be replayed before the
+        // create migration if file-path ordering were not enforced.
+        let divergences = reconcile_orm_and_migrations(&snapshot(vec![drop, create, orm]));
+        assert!(
+            divergences.is_empty(),
+            "expected the drop to be replayed after the create: {divergences:?}"
+        );
+    }
+
+    #[test]
+    fn reconciliation_is_consistent_when_both_sources_agree() {
+        let migration = symbol_node(
+            "symbol:goose:m1",
+            SymbolKind::SchemaMigration,
+            "migrations/001.sql",
+            "migrations.001",
+            vec![table("subscriptions", vec![column("id", "UUID")])],
+        );
+        let orm = symbol_node(
+            "symbol:python:models.Subscription",
+            SymbolKind::Class,
+            "models.py",
+            "models.Subscription",
+            vec![table("subscriptions", vec![column("id", "UUID")])],
+        );
+        assert!(reconcile_orm_and_migrations(&snapshot(vec![migration, orm])).is_empty());
     }
 }

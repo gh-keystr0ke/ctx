@@ -669,6 +669,20 @@ fn status(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
             println!("  - {path}");
         }
     }
+    if !status.schema_divergences.is_empty() {
+        println!("SQLAlchemy/migration schema divergences (best-effort, presence-only):");
+        for divergence in &status.schema_divergences {
+            let label = match divergence.kind {
+                ctx_core::schema::DivergenceKind::ExpectedByOrmOnly => {
+                    "ORM expects this column; no migration declares it"
+                }
+                ctx_core::schema::DivergenceKind::DeclaredByMigrationOnly => {
+                    "a migration declares this column; the ORM model has no field for it"
+                }
+            };
+            println!("  - {}.{}: {label}", divergence.entity, divergence.column);
+        }
+    }
     if !status.notices.is_empty() {
         println!();
         println!("Why this health state:");

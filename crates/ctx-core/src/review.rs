@@ -826,6 +826,7 @@ mod tests {
             kind: DatabaseAccessKind::Write,
             range: source_range(),
             statement_hash: "sql-a".to_owned(),
+            columns: Vec::new(),
         }];
         let mut after = symbol("body-b", "shape-b", "(value)");
         after.database_accesses = vec![DatabaseAccess {
@@ -833,6 +834,7 @@ mod tests {
             kind: DatabaseAccessKind::Write,
             range: source_range(),
             statement_hash: "sql-b".to_owned(),
+            columns: Vec::new(),
         }];
 
         let (kind, signals) = classify_behavior_change(Some(&before), Some(&after));

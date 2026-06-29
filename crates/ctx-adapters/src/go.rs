@@ -439,12 +439,13 @@ fn collect_sql_literals(node: Node<'_>, source: &[u8], accesses: &mut Vec<Databa
         && let Some(statement) = static_string_content(literal)
     {
         let statement_hash = hash_bytes(statement.as_bytes());
-        for (kind, entity) in sql_entities(&statement) {
+        for (kind, entity, columns) in sql_entities(&statement) {
             accesses.push(DatabaseAccess {
                 entity,
                 kind,
                 range: source_range(node),
                 statement_hash: statement_hash.clone(),
+                columns,
             });
         }
         return;

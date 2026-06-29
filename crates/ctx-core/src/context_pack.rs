@@ -442,20 +442,33 @@ fn node_content(node: &GraphNode) -> String {
 fn database_entities(
     accesses: &[crate::ir::DatabaseAccess],
     kind: crate::ir::DatabaseAccessKind,
-) -> BTreeSet<&str> {
-    accesses
-        .iter()
-        .filter(|access| access.kind == kind)
-        .map(|access| access.entity.as_str())
-        .collect()
+) -> BTreeMap<&str, BTreeSet<&str>> {
+    let mut entities = BTreeMap::<&str, BTreeSet<&str>>::new();
+    for access in accesses.iter().filter(|access| access.kind == kind) {
+        let columns = entities.entry(access.entity.as_str()).or_default();
+        columns.extend(access.columns.iter().map(String::as_str));
+    }
+    entities
 }
 
-fn render_entities(entities: &BTreeSet<&str>) -> String {
+fn render_entities(entities: &BTreeMap<&str, BTreeSet<&str>>) -> String {
     if entities.is_empty() {
-        "none".to_owned()
-    } else {
-        entities.iter().copied().collect::<Vec<_>>().join(", ")
+        return "none".to_owned();
     }
+    entities
+        .iter()
+        .map(|(entity, columns)| {
+            if columns.is_empty() {
+                (*entity).to_owned()
+            } else {
+                format!(
+                    "{entity}({})",
+                    columns.iter().copied().collect::<Vec<_>>().join(", ")
+                )
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 fn render_schema(tables: &[crate::ir::SchemaTableDefinition]) -> String {

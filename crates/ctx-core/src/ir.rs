@@ -50,6 +50,15 @@ pub struct DatabaseAccess {
     pub kind: DatabaseAccessKind,
     pub range: SourceRange,
     pub statement_hash: String,
+    /// Specific columns statically named by the statement, when the SQL form
+    /// reliably identifies them (an `UPDATE ... SET` clause's targets, or an
+    /// `INSERT INTO table (a, b)` column list). Empty means the statement's
+    /// column-level detail is unknown, not that it touches zero columns —
+    /// `DELETE`, a bare `INSERT ... VALUES` with no column list, and
+    /// `SELECT` never populate this rather than guess column attribution
+    /// across joins.
+    #[serde(default)]
+    pub columns: Vec<String>,
 }
 
 /// A statically recognized foreign-key target. `column` is `None` when a

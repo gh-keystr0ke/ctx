@@ -11,7 +11,7 @@ use ctx_core::ir::{
 /// It covers the common `SELECT ... FROM/JOIN`, `INSERT INTO`, `UPDATE`,
 /// `DELETE FROM`, and `MERGE INTO/USING` forms. Unknown or dynamic text yields
 /// no facts instead of a guessed entity.
-pub(crate) fn sql_entities(statement: &str) -> Vec<(DatabaseAccessKind, String)> {
+pub(crate) fn sql_entities(statement: &str) -> Vec<(DatabaseAccessKind, String, Vec<String>)> {
     let tokens = tokenize(statement);
     let mut accesses = BTreeSet::new();
     let mut consumed_write_from = BTreeSet::new();
@@ -49,7 +49,72 @@ pub(crate) fn sql_entities(statement: &str) -> Vec<(DatabaseAccessKind, String)>
         }
     }
 
-    accesses.into_iter().collect()
+    accesses
+        .into_iter()
+        .map(|(kind, entity)| {
+            let columns = if kind == DatabaseAccessKind::Write {
+                write_columns(statement, &entity)
+            } else {
+                Vec::new()
+            };
+            (kind, entity, columns)
+        })
+        .collect()
+}
+
+/// Best-effort column-list extraction for an already-recognized write
+/// access: an `UPDATE ... SET` clause's assignment targets, or an `INSERT
+/// INTO table (col1, col2)` explicit column list. Operates on the raw
+/// statement text rather than the entity tokenizer above, since it needs
+/// comma/paren/`=` structure that tokenizer intentionally does not preserve.
+/// `DELETE`, a bare `INSERT ... VALUES` with no column list, and any form
+/// this cannot confidently attribute to `entity` yield no columns rather
+/// than a guess.
+fn write_columns(statement: &str, entity: &str) -> Vec<String> {
+    let cleaned = strip_sql_comments(statement);
+    let upper = cleaned.to_ascii_uppercase();
+    let mut columns = if let Some(set_at) = find_whole_word(&upper, "SET", 0)
+        && find_whole_word(&upper, "UPDATE", 0).is_some()
+    {
+        update_set_columns(&cleaned[set_at + "SET".len()..])
+    } else if let Some(into_at) = find_whole_word(&upper, "INTO", 0) {
+        let after_into = &cleaned[into_at + "INTO".len()..];
+        match leading_identifier(after_into) {
+            Some((table, after_table)) if table == entity => insert_column_list(after_table),
+            _ => Vec::new(),
+        }
+    } else {
+        Vec::new()
+    };
+    columns.sort_unstable();
+    columns.dedup();
+    columns
+}
+
+fn update_set_columns(after_set: &str) -> Vec<String> {
+    let upper = after_set.to_ascii_uppercase();
+    let end = ["WHERE", "FROM", "RETURNING"]
+        .iter()
+        .filter_map(|keyword| find_whole_word(&upper, keyword, 0))
+        .min()
+        .unwrap_or(after_set.len());
+    split_top_level(&after_set[..end])
+        .into_iter()
+        .filter_map(|assignment| {
+            let equals = assignment.find('=')?;
+            leading_identifier(assignment[..equals].trim()).map(|(name, _)| name)
+        })
+        .collect()
+}
+
+fn insert_column_list(after_table: &str) -> Vec<String> {
+    let Some((open, close)) = matching_parens(after_table.trim_start()) else {
+        return Vec::new();
+    };
+    split_top_level(&after_table.trim_start()[open + 1..close])
+        .into_iter()
+        .filter_map(|chunk| leading_identifier(chunk.trim()).map(|(name, _)| name))
+        .collect()
 }
 
 /// Returns the bytes inside a plain Python, Rust, or Go string literal.
@@ -928,23 +993,68 @@ mod tests {
                 "UPDATE billing.subscriptions SET status = ? FROM accounts a WHERE a.id = ?"
             ),
             vec![
-                (DatabaseAccessKind::Read, "accounts".to_owned()),
+                (DatabaseAccessKind::Read, "accounts".to_owned(), vec![]),
                 (
                     DatabaseAccessKind::Write,
-                    "billing.subscriptions".to_owned()
+                    "billing.subscriptions".to_owned(),
+                    vec!["status".to_owned()],
                 ),
             ]
         );
         assert_eq!(
             sql_entities("INSERT INTO audit_log(id) SELECT id FROM subscriptions"),
             vec![
-                (DatabaseAccessKind::Read, "subscriptions".to_owned()),
-                (DatabaseAccessKind::Write, "audit_log".to_owned()),
+                (DatabaseAccessKind::Read, "subscriptions".to_owned(), vec![]),
+                (
+                    DatabaseAccessKind::Write,
+                    "audit_log".to_owned(),
+                    vec!["id".to_owned()],
+                ),
             ]
         );
         assert_eq!(
             sql_entities("DELETE FROM subscriptions WHERE status = 'inactive'"),
-            vec![(DatabaseAccessKind::Write, "subscriptions".to_owned())]
+            vec![(
+                DatabaseAccessKind::Write,
+                "subscriptions".to_owned(),
+                vec![]
+            )]
+        );
+    }
+
+    #[test]
+    fn extracts_update_set_and_insert_column_lists() {
+        assert_eq!(
+            sql_entities("UPDATE subscriptions SET status = ?, paid_until = ? WHERE id = ?"),
+            vec![(
+                DatabaseAccessKind::Write,
+                "subscriptions".to_owned(),
+                vec!["paid_until".to_owned(), "status".to_owned()],
+            )]
+        );
+        assert_eq!(
+            sql_entities("INSERT INTO subscriptions (id, status) VALUES (?, ?)"),
+            vec![(
+                DatabaseAccessKind::Write,
+                "subscriptions".to_owned(),
+                vec!["id".to_owned(), "status".to_owned()],
+            )]
+        );
+    }
+
+    #[test]
+    fn missing_column_lists_stay_unknown_not_guessed() {
+        assert_eq!(
+            sql_entities("INSERT INTO subscriptions VALUES (?, ?)"),
+            vec![(
+                DatabaseAccessKind::Write,
+                "subscriptions".to_owned(),
+                vec![]
+            )]
+        );
+        assert_eq!(
+            sql_entities("SELECT id, status FROM subscriptions"),
+            vec![(DatabaseAccessKind::Read, "subscriptions".to_owned(), vec![])]
         );
     }
 

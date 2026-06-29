@@ -777,6 +777,32 @@ fn add_database_access_edges(
             .collect::<Vec<_>>();
         lines.sort_unstable();
         lines.dedup();
+        let mut columns = accesses
+            .iter()
+            .flat_map(|access| access.columns.iter().cloned())
+            .collect::<Vec<_>>();
+        columns.sort_unstable();
+        columns.dedup();
+        let locator = if columns.is_empty() {
+            format!(
+                "lines:{}",
+                lines
+                    .iter()
+                    .map(usize::to_string)
+                    .collect::<Vec<_>>()
+                    .join(",")
+            )
+        } else {
+            format!(
+                "lines:{} columns:{}",
+                lines
+                    .iter()
+                    .map(usize::to_string)
+                    .collect::<Vec<_>>()
+                    .join(","),
+                columns.join(",")
+            )
+        };
         plan.edges_to_create.push(structural_edge(
             &symbol.stable_key,
             &target,
@@ -784,14 +810,7 @@ fn add_database_access_edges(
             &symbol.file_path,
             &statement_hashes.join(":"),
             &symbol.language,
-            Some(format!(
-                "lines:{}",
-                lines
-                    .iter()
-                    .map(usize::to_string)
-                    .collect::<Vec<_>>()
-                    .join(",")
-            )),
+            Some(locator),
         ));
     }
     Ok(())
@@ -1074,6 +1093,7 @@ mod tests {
             kind: DatabaseAccessKind::Write,
             range: range(),
             statement_hash: "sql-v1".to_owned(),
+            columns: Vec::new(),
         });
         let mut snapshot = RepositorySnapshot::default();
         snapshot
@@ -1086,6 +1106,7 @@ mod tests {
             kind: DatabaseAccessKind::Write,
             range: range(),
             statement_hash: "sql-v2".to_owned(),
+            columns: Vec::new(),
         });
         let analyses = BTreeMap::from([(
             "billing.py".to_owned(),
@@ -1126,6 +1147,60 @@ mod tests {
     }
 
     #[test]
+    fn column_level_write_access_is_unioned_into_edge_evidence() {
+        let mut symbol = definition("cancel", "billing.cancel", "body", "shape");
+        symbol.database_accesses.push(DatabaseAccess {
+            entity: "subscriptions".to_owned(),
+            kind: DatabaseAccessKind::Write,
+            range: SourceRange {
+                start_line: 4,
+                ..range()
+            },
+            statement_hash: "sql-a".to_owned(),
+            columns: vec!["status".to_owned()],
+        });
+        symbol.database_accesses.push(DatabaseAccess {
+            entity: "subscriptions".to_owned(),
+            kind: DatabaseAccessKind::Write,
+            range: SourceRange {
+                start_line: 5,
+                ..range()
+            },
+            statement_hash: "sql-b".to_owned(),
+            columns: vec!["paid_until".to_owned(), "status".to_owned()],
+        });
+        let analyses = BTreeMap::from([(
+            "billing.py".to_owned(),
+            FileAnalysis {
+                path: "billing.py".to_owned(),
+                language: "python".to_owned(),
+                analysis_version: "python-tree-sitter-v2".to_owned(),
+                content_hash: "file-v1".to_owned(),
+                symbols: vec![symbol],
+            },
+        )]);
+
+        let plan = plan_incremental_index(
+            &RepositorySnapshot::default(),
+            &analyses,
+            &[FileChange::Added {
+                path: "billing.py".to_owned(),
+            }],
+        )
+        .expect("plan");
+
+        let edge = plan
+            .edges_to_create
+            .iter()
+            .find(|edge| edge.kind == RelationKind::WritesTo)
+            .expect("write fact");
+        assert_eq!(
+            edge.evidence_locator.as_deref(),
+            Some("lines:4,5 columns:paid_until,status")
+        );
+    }
+
+    #[test]
     fn schema_migrations_and_code_database_accesses_share_one_db_entity() {
         let mut migration = definition(
             "migrations.001_create_subscriptions",
@@ -1157,6 +1232,7 @@ mod tests {
             kind: DatabaseAccessKind::Write,
             range: range(),
             statement_hash: "sql".to_owned(),
+            columns: Vec::new(),
         });
         let analyses = BTreeMap::from([
             (

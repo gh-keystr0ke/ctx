@@ -118,6 +118,7 @@ pub fn corpus() -> Vec<EvaluationCase> {
         consistent_schema_across_sources_resolves_to_one_entity(),
         dynamic_tablename_orm_model_stays_unrecognized(),
         explicit_schema_seed_does_not_pull_unrelated_lexical_roots(),
+        column_level_impact_seed_narrows_to_column_readers(),
     ]
 }
 
@@ -764,6 +765,35 @@ fn migration_adds_not_null_column_without_default_is_destructive() -> Evaluation
             Check::SchemaChangeDescriptionContains(
                 "subscriptions.grace_period_days added as NOT NULL with no DEFAULT",
             ),
+        ],
+    }
+}
+
+/// `ctx impact table.column` must resolve to the table's `DbEntity` (the same
+/// seed a bare table query resolves to) and then narrow `implementation` to
+/// the specific readers/writers whose evidence names that column, not every
+/// writer of the table.
+fn column_level_impact_seed_narrows_to_column_readers() -> EvaluationCase {
+    const PAID_UNTIL_WRITER: &str = "billing.writers.write_paid_until";
+    const STATUS_WRITER: &str = "billing.writers.write_status_only";
+    let source = "def write_paid_until(conn, sub_id, value):\n    conn.execute(\"UPDATE subscriptions SET paid_until = ? WHERE id = ?\", (value, sub_id))\n\n\ndef write_status_only(conn, sub_id, status):\n    conn.execute(\"UPDATE subscriptions SET status = ? WHERE id = ?\", (status, sub_id))\n";
+    let mut files = subscription_base_files();
+    files.push(("src/billing/writers.py", source.to_owned()));
+    EvaluationCase {
+        id: "column-level-impact-seed-narrows-to-column-readers",
+        description: "ctx impact table.column must resolve to the table and narrow implementation to the specific column's readers/writers",
+        steps: vec![
+            Step::WriteFiles(files),
+            Step::Commit("base"),
+            Step::Index,
+            Step::Impact {
+                target: "subscriptions.paid_until",
+            },
+        ],
+        checks: vec![
+            Check::ImpactDataContractPresent("subscriptions"),
+            Check::ImpactIntentPresent(PAID_UNTIL_WRITER),
+            Check::ImpactIntentAbsent(STATUS_WRITER),
         ],
     }
 }

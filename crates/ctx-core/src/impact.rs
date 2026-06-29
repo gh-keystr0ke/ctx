@@ -47,7 +47,8 @@ pub enum ImpactError {
 ///
 /// Returns [`ImpactError`] when the exact/suffix seed is missing or ambiguous.
 pub fn analyze_impact(query: &str, graph: &GraphSnapshot) -> Result<ImpactReport, ImpactError> {
-    let seeds = resolve_unique(query, graph)?;
+    let (seed_query, column) = resolve_table_column_seed(query, graph);
+    let seeds = resolve_unique(&seed_query, graph)?;
     let seed_keys = seeds
         .iter()
         .map(|node| node.stable_key.clone())
@@ -84,8 +85,100 @@ pub fn analyze_impact(query: &str, graph: &GraphSnapshot) -> Result<ImpactReport
             NodeKind::DomainConcept => {}
         }
     }
+    if let Some(column) = column {
+        focus_on_column(graph, &seed_keys, column, &mut report);
+    }
     sort_report(&mut report);
     Ok(report)
+}
+
+/// Recognizes a `table.column` seed (for example `subscriptions.paid_until`)
+/// so `ctx impact` can answer a column-level question without a dedicated
+/// column graph node: the seed still resolves to the table's `DbEntity` (the
+/// same node a bare table query resolves to), and the recognized column name
+/// is used afterward to narrow `implementation` to the specific
+/// readers/writers whose evidence names that column. An exact match on the
+/// literal query (a real node identifier that happens to contain a dot) is
+/// always preferred, and `table` must resolve to exactly one `DbEntity` —
+/// anything else falls back to resolving `query` unchanged, which reports
+/// "not found" exactly as it did before this recognizer existed.
+fn resolve_table_column_seed<'a>(
+    query: &'a str,
+    graph: &GraphSnapshot,
+) -> (String, Option<&'a str>) {
+    if !graph.resolve(query).is_empty() {
+        return (query.to_owned(), None);
+    }
+    let Some((table, column)) = query.rsplit_once('.') else {
+        return (query.to_owned(), None);
+    };
+    let matches = graph.resolve(table);
+    if let [node] = matches.as_slice()
+        && node.kind == NodeKind::DbEntity
+    {
+        (table.to_owned(), Some(column))
+    } else {
+        (query.to_owned(), None)
+    }
+}
+
+/// Narrows `report.implementation` to the code that a `table.column` seed's
+/// evidence actually names as reading/writing/declaring that column. When no
+/// evidence anywhere mentions the column, the table-level impact is left
+/// intact and an uncertainty explains why — a possible typo or a column this
+/// codebase's static recognizers cannot see should never silently look
+/// identical to "this column has no readers".
+fn focus_on_column(
+    graph: &GraphSnapshot,
+    seed_keys: &BTreeSet<StableKey>,
+    column: &str,
+    report: &mut ImpactReport,
+) {
+    let column_readers = graph
+        .edges
+        .iter()
+        .filter(|edge| {
+            seed_keys.contains(&edge.target)
+                && matches!(
+                    edge.kind,
+                    RelationKind::ReadsFrom | RelationKind::WritesTo | RelationKind::DefinesSchema
+                )
+                && edge
+                    .evidence
+                    .iter()
+                    .any(|evidence| evidence_columns(&evidence.locator).contains(column))
+        })
+        .map(|edge| edge.source.clone())
+        .collect::<BTreeSet<_>>();
+    if column_readers.is_empty() {
+        report.uncertainties.push(ImpactUncertainty {
+            relationship: format!("{}.{column}", report.query.rsplit_once('.').map_or("", |(t, _)| t)),
+            reason: format!(
+                "column '{column}' was not found in any known schema declaration or static access evidence for this table; showing table-level impact instead"
+            ),
+            confidence: 0.0,
+        });
+        return;
+    }
+    let readers = column_readers
+        .iter()
+        .filter_map(|key| graph.nodes.get(key))
+        .map(|node| node.identifier().to_owned())
+        .collect::<BTreeSet<_>>();
+    report
+        .implementation
+        .retain(|summary| readers.contains(&summary.identifier));
+}
+
+fn evidence_columns(locator: &str) -> BTreeSet<&str> {
+    locator
+        .split("columns:")
+        .nth(1)
+        .into_iter()
+        .flat_map(|rest| rest.split(','))
+        .map(str::trim)
+        .filter(|column| !column.is_empty())
+        .collect()
 }
 
 fn resolve_unique<'a>(
@@ -271,7 +364,7 @@ mod tests {
 
     use crate::{
         domain::{Confidence, SourceKind},
-        graph::{GraphEdge, GraphNode},
+        graph::{GraphEdge, GraphEvidence, GraphNode},
         indexing::PlannedNodeAttributes,
         ir::{SourceRange, SymbolKind},
     };
@@ -580,6 +673,109 @@ mod tests {
                 .implementation
                 .iter()
                 .any(|node| node.identifier == "reporting.read")
+        );
+    }
+
+    #[test]
+    fn table_dot_column_seed_resolves_to_the_table_and_narrows_to_column_readers() {
+        let writer = symbol_node("writer", "billing.cancel", SymbolKind::Method);
+        let other_writer = symbol_node("other", "billing.rename", SymbolKind::Method);
+        let database = interaction_node("db:subscriptions", "subscriptions", NodeKind::DbEntity);
+        let nodes = [writer.clone(), other_writer.clone(), database.clone()]
+            .into_iter()
+            .map(|node| (node.stable_key.clone(), node))
+            .collect::<BTreeMap<_, _>>();
+        let mut writes_paid_until = classified_edge(
+            &writer,
+            &database,
+            RelationKind::WritesTo,
+            ClaimClass::Fact,
+            ClaimStatus::Active,
+        );
+        writes_paid_until.evidence.push(GraphEvidence {
+            source_kind: SourceKind::StaticAnalysis,
+            source_uri: "billing.py".to_owned(),
+            commit: None,
+            author: None,
+            timestamp: "now".to_owned(),
+            locator: "lines:1 columns:paid_until,status".to_owned(),
+            strength: Confidence::CERTAIN,
+        });
+        let mut writes_name_only = classified_edge(
+            &other_writer,
+            &database,
+            RelationKind::WritesTo,
+            ClaimClass::Fact,
+            ClaimStatus::Active,
+        );
+        writes_name_only.evidence.push(GraphEvidence {
+            source_kind: SourceKind::StaticAnalysis,
+            source_uri: "billing.py".to_owned(),
+            commit: None,
+            author: None,
+            timestamp: "now".to_owned(),
+            locator: "lines:2 columns:name".to_owned(),
+            strength: Confidence::CERTAIN,
+        });
+        let edges = vec![writes_paid_until, writes_name_only];
+
+        let report = analyze_impact("subscriptions.paid_until", &GraphSnapshot { nodes, edges })
+            .expect("column impact");
+
+        assert_eq!(report.selected[0].identifier, "subscriptions");
+        assert_eq!(report.data_contracts[0].identifier, "subscriptions");
+        assert!(
+            report
+                .implementation
+                .iter()
+                .any(|node| node.identifier == "billing.cancel")
+        );
+        assert!(
+            !report
+                .implementation
+                .iter()
+                .any(|node| node.identifier == "billing.rename")
+        );
+        assert!(report.uncertainties.is_empty());
+    }
+
+    #[test]
+    fn unknown_column_falls_back_to_table_level_impact_with_an_uncertainty() {
+        let writer = symbol_node("writer", "billing.cancel", SymbolKind::Method);
+        let database = interaction_node("db:subscriptions", "subscriptions", NodeKind::DbEntity);
+        let nodes = [writer.clone(), database.clone()]
+            .into_iter()
+            .map(|node| (node.stable_key.clone(), node))
+            .collect::<BTreeMap<_, _>>();
+        let edge = classified_edge(
+            &writer,
+            &database,
+            RelationKind::WritesTo,
+            ClaimClass::Fact,
+            ClaimStatus::Active,
+        );
+
+        let report = analyze_impact(
+            "subscriptions.nonexistent_column",
+            &GraphSnapshot {
+                nodes,
+                edges: vec![edge],
+            },
+        )
+        .expect("table-level fallback");
+
+        assert_eq!(report.selected[0].identifier, "subscriptions");
+        assert!(
+            report
+                .implementation
+                .iter()
+                .any(|node| node.identifier == "billing.cancel")
+        );
+        assert_eq!(report.uncertainties.len(), 1);
+        assert!(
+            report.uncertainties[0]
+                .reason
+                .contains("nonexistent_column")
         );
     }
 

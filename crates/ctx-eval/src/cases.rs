@@ -107,7 +107,25 @@ pub fn corpus() -> Vec<EvaluationCase> {
         shared_test_does_not_bridge_requirements(),
         added_call_discovers_intent(),
         multi_commit_feature_evolution(),
+        migration_drops_mapped_column_is_destructive(),
+        migration_renames_mapped_column_is_destructive(),
+        migration_adds_not_null_column_without_default_is_destructive(),
+        orm_model_edit_detects_type_fk_and_unique_changes(),
+        unrelated_schema_change_produces_no_business_warning(),
+        noop_migration_produces_no_schema_finding(),
+        reconciliation_detects_both_direction_divergence(),
+        consistent_schema_across_sources_resolves_to_one_entity(),
+        dynamic_tablename_orm_model_stays_unrecognized(),
+        explicit_schema_seed_does_not_pull_unrelated_lexical_roots(),
     ]
+}
+
+const GOOSE_CONFIG: &str = "languages = [\"python\", \"goose\"]\n\n[paths]\ninclude = [\"src\", \"tests\", \"migrations\"]\n";
+
+fn subscriptions_migration(columns_sql: &str) -> String {
+    format!(
+        "-- +goose Up\nCREATE TABLE subscriptions (\n{columns_sql}\n);\n\n-- +goose Down\nDROP TABLE subscriptions;\n"
+    )
 }
 
 /// A real entitlement regression must surface both the invariant and the
@@ -631,6 +649,339 @@ fn multi_commit_feature_evolution() -> EvaluationCase {
             Check::FindingIntentAbsent("ADR-SUB-001"),
             Check::ImpactIntentPresent("REQ-SUB-014"),
             Check::ImpactIntentPresent("INV-SUB-003"),
+        ],
+    }
+}
+
+/// A new migration that drops a column of a table the mapped `cancel`
+/// implementation writes to must be flagged destructive, and — since
+/// `cancel` is the only code that directly writes `subscriptions` — must
+/// resolve to exactly the requirement/invariant it implements, not to the
+/// unrelated decision mapped to a symbol that only calls `cancel` without
+/// itself touching the table (prompt2.md's "business-critical mapped field
+/// changed" and "shared table does not bridge unrelated requirements").
+fn migration_drops_mapped_column_is_destructive() -> EvaluationCase {
+    const DROP_MIGRATION: &str = "migrations.002_drop_status";
+    let mut files = subscription_base_files();
+    files.push((".ctx/config.toml", GOOSE_CONFIG.to_owned()));
+    files.push((
+        "migrations/001_create_subscriptions.sql",
+        subscriptions_migration("    id UUID PRIMARY KEY,\n    status VARCHAR(50) NOT NULL"),
+    ));
+    EvaluationCase {
+        id: "migration-drops-mapped-column-is-destructive",
+        description: "a new migration dropping a column of a table the mapped implementation writes to must be a destructive schema finding that resolves to the exact requirement/invariant it implements, not an unrelated decision",
+        steps: vec![
+            Step::WriteFiles(files),
+            Step::Commit("base"),
+            Step::Index,
+            Step::WriteFiles(vec![(
+                "migrations/002_drop_status.sql",
+                "-- +goose Up\nALTER TABLE subscriptions DROP COLUMN status;\n\n-- +goose Down\nSELECT 1;\n"
+                    .to_owned(),
+            )]),
+            Step::Review { base: "HEAD" },
+        ],
+        checks: vec![
+            Check::NoFindings,
+            Check::SchemaFindingDestructive(DROP_MIGRATION),
+            Check::SchemaChangeDescriptionContains("subscriptions.status dropped"),
+            Check::SchemaFindingRelatedIntentPresent {
+                source_symbol: DROP_MIGRATION,
+                intent: "REQ-SUB-014",
+            },
+            Check::SchemaFindingRelatedIntentPresent {
+                source_symbol: DROP_MIGRATION,
+                intent: "INV-SUB-003",
+            },
+            Check::SchemaFindingRelatedIntentAbsent {
+                source_symbol: DROP_MIGRATION,
+                intent: "ADR-SUB-001",
+            },
+        ],
+    }
+}
+
+/// A migration renaming a mapped column must be a destructive finding.
+fn migration_renames_mapped_column_is_destructive() -> EvaluationCase {
+    const RENAME_MIGRATION: &str = "migrations.002_rename_status";
+    let mut files = subscription_base_files();
+    files.push((".ctx/config.toml", GOOSE_CONFIG.to_owned()));
+    files.push((
+        "migrations/001_create_subscriptions.sql",
+        subscriptions_migration("    id UUID PRIMARY KEY,\n    status VARCHAR(50) NOT NULL"),
+    ));
+    EvaluationCase {
+        id: "migration-renames-mapped-column-is-destructive",
+        description: "a new migration renaming a mapped column must be a destructive schema finding",
+        steps: vec![
+            Step::WriteFiles(files),
+            Step::Commit("base"),
+            Step::Index,
+            Step::WriteFiles(vec![(
+                "migrations/002_rename_status.sql",
+                "-- +goose Up\nALTER TABLE subscriptions RENAME COLUMN status TO state;\n\n-- +goose Down\nSELECT 1;\n"
+                    .to_owned(),
+            )]),
+            Step::Review { base: "HEAD" },
+        ],
+        checks: vec![
+            Check::NoFindings,
+            Check::SchemaFindingDestructive(RENAME_MIGRATION),
+            Check::SchemaChangeDescriptionContains("subscriptions.status renamed to subscriptions.state"),
+        ],
+    }
+}
+
+/// A new `NOT NULL` column with no `DEFAULT` added to an already-existing
+/// table is a well-known destructive migration pattern: existing rows have
+/// no value for it.
+fn migration_adds_not_null_column_without_default_is_destructive() -> EvaluationCase {
+    const ADD_COLUMN_MIGRATION: &str = "migrations.002_add_grace_period";
+    let mut files = subscription_base_files();
+    files.push((".ctx/config.toml", GOOSE_CONFIG.to_owned()));
+    files.push((
+        "migrations/001_create_subscriptions.sql",
+        subscriptions_migration("    id UUID PRIMARY KEY,\n    status VARCHAR(50) NOT NULL"),
+    ));
+    EvaluationCase {
+        id: "migration-adds-not-null-column-without-default-is-destructive",
+        description: "adding a NOT NULL column with no DEFAULT to an existing table must be a destructive schema finding",
+        steps: vec![
+            Step::WriteFiles(files),
+            Step::Commit("base"),
+            Step::Index,
+            Step::WriteFiles(vec![(
+                "migrations/002_add_grace_period.sql",
+                "-- +goose Up\nALTER TABLE subscriptions ADD COLUMN grace_period_days INT NOT NULL;\n\n-- +goose Down\nSELECT 1;\n"
+                    .to_owned(),
+            )]),
+            Step::Review { base: "HEAD" },
+        ],
+        checks: vec![
+            Check::SchemaFindingDestructive(ADD_COLUMN_MIGRATION),
+            Check::SchemaChangeDescriptionContains(
+                "subscriptions.grace_period_days added as NOT NULL with no DEFAULT",
+            ),
+        ],
+    }
+}
+
+/// Editing a `SQLAlchemy` model to change a column's type, drop its foreign
+/// key, and remove a unique constraint must each be detected as a
+/// destructive change from a single structural diff.
+fn orm_model_edit_detects_type_fk_and_unique_changes() -> EvaluationCase {
+    const MODEL: &str = "billing.models.Subscription";
+    let before = "class Subscription(Base):\n    __tablename__ = \"subscriptions\"\n\n    id = Column(String, primary_key=True)\n    account_id = Column(String, ForeignKey(\"accounts.id\"), nullable=False)\n    email = Column(String(255), unique=True)\n";
+    let after = "class Subscription(Base):\n    __tablename__ = \"subscriptions\"\n\n    id = Column(String, primary_key=True)\n    account_id = Column(Integer, nullable=True)\n    email = Column(String(255), unique=False)\n";
+    let mut files = subscription_base_files();
+    files.push(("src/billing/models.py", before.to_owned()));
+    EvaluationCase {
+        id: "orm-model-edit-detects-type-fk-and-unique-changes",
+        description: "an edited SQLAlchemy model must surface type, foreign-key, and unique-constraint changes as destructive schema findings",
+        steps: vec![
+            Step::WriteFiles(files),
+            Step::Commit("base"),
+            Step::Index,
+            Step::WriteFiles(vec![("src/billing/models.py", after.to_owned())]),
+            Step::Review { base: "HEAD" },
+        ],
+        checks: vec![
+            Check::SchemaFindingDestructive(MODEL),
+            Check::SchemaChangeDescriptionContains(
+                "subscriptions.account_id type changed from String to Integer",
+            ),
+            Check::SchemaChangeDescriptionContains(
+                "subscriptions.account_id foreign-key target changed",
+            ),
+            Check::SchemaChangeDescriptionContains("subscriptions.email unique constraint removed"),
+        ],
+    }
+}
+
+/// A new migration for a table no mapped code touches must stay
+/// non-destructive noise: an observed schema fact, never a guessed business
+/// warning (prompt2.md's precision requirement for unrelated schema
+/// changes).
+fn unrelated_schema_change_produces_no_business_warning() -> EvaluationCase {
+    const AUDIT_MIGRATION: &str = "migrations.001_create_audit_log";
+    let mut files = subscription_base_files();
+    files.push((".ctx/config.toml", GOOSE_CONFIG.to_owned()));
+    EvaluationCase {
+        id: "unrelated-schema-change-produces-no-business-warning",
+        description: "a new table unrelated to any mapped code must produce only an informational schema finding with no related product intent",
+        steps: vec![
+            Step::WriteFiles(files),
+            Step::Commit("base"),
+            Step::Index,
+            Step::WriteFiles(vec![(
+                "migrations/001_create_audit_log.sql",
+                "-- +goose Up\nCREATE TABLE audit_log (\n    id UUID PRIMARY KEY,\n    message TEXT\n);\n\n-- +goose Down\nDROP TABLE audit_log;\n"
+                    .to_owned(),
+            )]),
+            Step::Review { base: "HEAD" },
+        ],
+        checks: vec![
+            Check::NoFindings,
+            Check::SchemaFindingNotDestructive(AUDIT_MIGRATION),
+            Check::SchemaFindingRelatedIntentAbsent {
+                source_symbol: AUDIT_MIGRATION,
+                intent: "REQ-SUB-014",
+            },
+        ],
+    }
+}
+
+/// A migration file with no recognizable DDL at all (goose annotations but
+/// only a comment/no-op statement) must not surface as a schema finding —
+/// there is nothing declared to review.
+fn noop_migration_produces_no_schema_finding() -> EvaluationCase {
+    let mut files = subscription_base_files();
+    files.push((".ctx/config.toml", GOOSE_CONFIG.to_owned()));
+    EvaluationCase {
+        id: "noop-migration-produces-no-schema-finding",
+        description: "a migration file with no recognizable DDL must produce no schema finding",
+        steps: vec![
+            Step::WriteFiles(files),
+            Step::Commit("base"),
+            Step::Index,
+            Step::WriteFiles(vec![(
+                "migrations/001_noop.sql",
+                "-- +goose Up\n-- nothing to see here\nSELECT 1;\n\n-- +goose Down\nSELECT 1;\n"
+                    .to_owned(),
+            )]),
+            Step::Review { base: "HEAD" },
+        ],
+        checks: vec![Check::NoFindings, Check::NoSchemaFindings],
+    }
+}
+
+/// `ctx status` reconciliation must find both directions of a genuine
+/// divergence: a migration-declared column with no ORM field, and an
+/// ORM-declared column with no migration ever declaring it.
+fn reconciliation_detects_both_direction_divergence() -> EvaluationCase {
+    let mut files = subscription_base_files();
+    files.push((".ctx/config.toml", GOOSE_CONFIG.to_owned()));
+    files.push((
+        "migrations/001_create_subscriptions.sql",
+        subscriptions_migration("    id UUID PRIMARY KEY,\n    status VARCHAR(50) NOT NULL"),
+    ));
+    files.push((
+        "src/billing/models.py",
+        "class Subscription(Base):\n    __tablename__ = \"subscriptions\"\n\n    id = Column(String, primary_key=True)\n    priority_tier = Column(Integer)\n"
+            .to_owned(),
+    ));
+    EvaluationCase {
+        id: "reconciliation-detects-both-direction-divergence",
+        description: "status reconciliation must find a migration-only column and an ORM-only column on the same table in one run",
+        steps: vec![
+            Step::WriteFiles(files),
+            Step::Commit("base"),
+            Step::Index,
+            Step::Status,
+        ],
+        checks: vec![
+            Check::SchemaDivergenceContains("subscriptions.status"),
+            Check::SchemaDivergenceContains("subscriptions.priority_tier"),
+        ],
+    }
+}
+
+/// The same table observed consistently through a migration, a matching
+/// `SQLAlchemy` model, and a static SQL write must resolve to one `DbEntity`
+/// with zero reconciliation divergence — a positive control proving the
+/// reconciliation logic does not manufacture false-positive noise when both
+/// sources genuinely agree.
+fn consistent_schema_across_sources_resolves_to_one_entity() -> EvaluationCase {
+    let mut files = subscription_base_files();
+    files.push((".ctx/config.toml", GOOSE_CONFIG.to_owned()));
+    files.push((
+        "migrations/001_create_subscriptions.sql",
+        subscriptions_migration("    id UUID PRIMARY KEY,\n    status VARCHAR(50) NOT NULL"),
+    ));
+    files.push((
+        "src/billing/models.py",
+        "class Subscription(Base):\n    __tablename__ = \"subscriptions\"\n\n    id = Column(String, primary_key=True)\n    status = Column(String(50), nullable=False)\n"
+            .to_owned(),
+    ));
+    EvaluationCase {
+        id: "consistent-schema-across-sources-resolves-to-one-entity",
+        description: "a migration, a matching ORM model, and static SQL access to the same table must share one DbEntity with no reconciliation divergence",
+        steps: vec![
+            Step::WriteFiles(files),
+            Step::Commit("base"),
+            Step::Index,
+            Step::Status,
+            Step::Impact {
+                target: SUBSCRIPTION_SERVICE,
+            },
+        ],
+        checks: vec![
+            Check::NoSchemaDivergences,
+            Check::ImpactDataContractPresent("subscriptions"),
+        ],
+    }
+}
+
+/// A `SQLAlchemy` class whose `__tablename__` is a dynamic expression (not a
+/// static string literal) must stay entirely unrecognized as schema — never
+/// guessed at a table name it cannot statically confirm. This is this
+/// system's only "ambiguous ORM mapping" case: identity is otherwise always
+/// exact-string, never fuzzy, so there is no partial/uncertain match to
+/// represent — the whole class is simply not schema.
+fn dynamic_tablename_orm_model_stays_unrecognized() -> EvaluationCase {
+    EvaluationCase {
+        id: "dynamic-tablename-orm-model-stays-unrecognized",
+        description: "a SQLAlchemy model with a dynamic __tablename__ must never be guessed as schema",
+        steps: vec![
+            Step::WriteFiles(subscription_base_files()),
+            Step::Commit("base"),
+            Step::Index,
+            Step::WriteFiles(vec![(
+                "src/billing/models.py",
+                "class Weird(Base):\n    __tablename__ = compute_name()\n    id = Column(Integer)\n"
+                    .to_owned(),
+            )]),
+            Step::Review { base: "HEAD" },
+        ],
+        checks: vec![Check::NoFindings, Check::NoSchemaFindings],
+    }
+}
+
+/// An explicit schema seed must not pull in an unrelated table just because
+/// the task text shares vocabulary with it — the same seed-isolation
+/// guarantee `explicit_seed_prevents_unrelated_lexical_roots` already proves
+/// for code seeds, exercised here for a schema/migration seed.
+fn explicit_schema_seed_does_not_pull_unrelated_lexical_roots() -> EvaluationCase {
+    const SUBSCRIPTIONS_MIGRATION: &str = "migrations.001_create_subscriptions";
+    let mut files = subscription_base_files();
+    files.push((".ctx/config.toml", GOOSE_CONFIG.to_owned()));
+    files.push((
+        "migrations/001_create_subscriptions.sql",
+        subscriptions_migration("    id UUID PRIMARY KEY,\n    status VARCHAR(50) NOT NULL"),
+    ));
+    files.push((
+        "migrations/002_create_invoices.sql",
+        "-- +goose Up\nCREATE TABLE invoices (\n    id UUID PRIMARY KEY,\n    subscription_status VARCHAR(50)\n);\n\n-- +goose Down\nDROP TABLE invoices;\n"
+            .to_owned(),
+    ));
+    EvaluationCase {
+        id: "explicit-schema-seed-does-not-pull-unrelated-lexical-roots",
+        description: "an explicit migration seed must not pull in a lexically similar unrelated table",
+        steps: vec![
+            Step::WriteFiles(files),
+            Step::Commit("base"),
+            Step::Index,
+            Step::Context {
+                task: "subscription status schema",
+                symbols: vec![SUBSCRIPTIONS_MIGRATION],
+                token_budget: 400,
+            },
+        ],
+        checks: vec![
+            Check::ContextIdentifierPresent("subscriptions"),
+            Check::ContextIdentifierAbsent("invoices"),
+            Check::ContextWithinBudget,
         ],
     }
 }

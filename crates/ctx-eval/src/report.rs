@@ -64,6 +64,14 @@ pub enum Check {
     SchemaFindingNotDestructive(&'static str),
     NoSchemaDivergences,
     SchemaDivergenceContains(&'static str),
+    SchemaFindingRelatedIntentPresent {
+        source_symbol: &'static str,
+        intent: &'static str,
+    },
+    SchemaFindingRelatedIntentAbsent {
+        source_symbol: &'static str,
+        intent: &'static str,
+    },
 }
 
 impl Check {
@@ -75,7 +83,8 @@ impl Check {
             | Self::ImpactDataContractPresent(_)
             | Self::ContextIdentifierPresent(_)
             | Self::SchemaChangeDescriptionContains(_)
-            | Self::SchemaDivergenceContains(_) => CheckKind::Recall,
+            | Self::SchemaDivergenceContains(_)
+            | Self::SchemaFindingRelatedIntentPresent { .. } => CheckKind::Recall,
             Self::FindingIntentAbsent(_)
             | Self::NoFindings
             | Self::ImpactIntentAbsent(_)
@@ -83,7 +92,8 @@ impl Check {
             | Self::ContextIdentifierAbsent(_)
             | Self::NoSchemaFindings
             | Self::SchemaChangeDescriptionAbsent(_)
-            | Self::NoSchemaDivergences => CheckKind::Precision,
+            | Self::NoSchemaDivergences
+            | Self::SchemaFindingRelatedIntentAbsent { .. } => CheckKind::Precision,
             Self::FindingSeverity(..)
             | Self::StaleRelationshipContains(_)
             | Self::ChangeKindIs { .. }
@@ -142,6 +152,14 @@ impl Check {
             Self::SchemaDivergenceContains(needle) => {
                 format!("status reports a schema divergence mentioning '{needle}'")
             }
+            Self::SchemaFindingRelatedIntentPresent {
+                source_symbol,
+                intent,
+            } => format!("the schema finding for {source_symbol} relates to {intent}"),
+            Self::SchemaFindingRelatedIntentAbsent {
+                source_symbol,
+                intent,
+            } => format!("the schema finding for {source_symbol} does not relate to {intent}"),
         }
     }
 }
@@ -373,7 +391,9 @@ pub fn evaluate(run: &CaseRun, check: &Check) -> CheckOutcome {
         | Check::SchemaFindingDestructive(_)
         | Check::SchemaFindingNotDestructive(_)
         | Check::NoSchemaDivergences
-        | Check::SchemaDivergenceContains(_) => evaluate_schema(run, check),
+        | Check::SchemaDivergenceContains(_)
+        | Check::SchemaFindingRelatedIntentPresent { .. }
+        | Check::SchemaFindingRelatedIntentAbsent { .. } => evaluate_schema(run, check),
     };
     CheckOutcome {
         description: check.describe(),
@@ -458,8 +478,38 @@ fn evaluate_schema(run: &CaseRun, check: &Check) -> (bool, String) {
                 format!("schema divergences: {labels:?}"),
             )
         }
+        Check::SchemaFindingRelatedIntentPresent {
+            source_symbol,
+            intent,
+        } => {
+            let related = related_intent_identifiers(run, source_symbol);
+            (
+                related.contains(intent),
+                format!("related intents for {source_symbol}: {related:?}"),
+            )
+        }
+        Check::SchemaFindingRelatedIntentAbsent {
+            source_symbol,
+            intent,
+        } => {
+            let related = related_intent_identifiers(run, source_symbol);
+            (
+                !related.contains(intent),
+                format!("related intents for {source_symbol}: {related:?}"),
+            )
+        }
         _ => unreachable!("evaluate_schema is only called for schema-related checks"),
     }
+}
+
+fn related_intent_identifiers<'a>(run: &'a CaseRun, source_symbol: &str) -> BTreeSet<&'a str> {
+    matching_schema_finding(run, source_symbol).map_or_else(BTreeSet::new, |finding| {
+        finding
+            .related_intents
+            .iter()
+            .map(|intent| intent.identifier.as_str())
+            .collect()
+    })
 }
 
 fn finding_intents(run: &CaseRun) -> BTreeSet<&str> {

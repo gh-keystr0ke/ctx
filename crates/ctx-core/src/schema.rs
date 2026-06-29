@@ -29,7 +29,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     graph::GraphSnapshot,
     indexing::PlannedNodeAttributes,
-    ir::{SchemaColumn, SchemaTableDefinition, SymbolKind},
+    ir::{ColumnAlteration, SchemaColumn, SchemaTableDefinition, SymbolKind},
 };
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -61,6 +61,24 @@ pub enum SchemaChangeKind {
         column: String,
         before: String,
         after: String,
+    },
+    /// An `ALTER TABLE ... ALTER COLUMN ... TYPE` statement declares a new
+    /// type for an existing column with no access to its prior type (unlike
+    /// `ColumnTypeChanged`, which comes from a diff that has both).
+    ColumnTypeAltered {
+        column: String,
+        new_type: String,
+    },
+    /// An `ALTER TABLE ... ALTER COLUMN ... SET/DROP NOT NULL` statement.
+    /// `nullable: false` means `SET NOT NULL` (tightening); `true` means
+    /// `DROP NOT NULL` (relaxing).
+    ColumnNullabilityAltered {
+        column: String,
+        nullable: bool,
+    },
+    /// An `ALTER TABLE ... ALTER COLUMN ... SET/DROP DEFAULT` statement.
+    ColumnDefaultAltered {
+        column: String,
     },
     ColumnNullabilityTightened {
         column: String,
@@ -137,6 +155,21 @@ impl SchemaChange {
                 "{}.{column} type changed from {before} to {after}",
                 self.entity
             ),
+            SchemaChangeKind::ColumnTypeAltered { column, new_type } => {
+                format!("{}.{column} type altered to {new_type}", self.entity)
+            }
+            SchemaChangeKind::ColumnNullabilityAltered { column, nullable } => format!(
+                "{}.{column} {}",
+                self.entity,
+                if *nullable {
+                    "became nullable"
+                } else {
+                    "became NOT NULL"
+                }
+            ),
+            SchemaChangeKind::ColumnDefaultAltered { column } => {
+                format!("{}.{column} default altered", self.entity)
+            }
             SchemaChangeKind::ColumnNullabilityTightened { column } => {
                 format!("{}.{column} became NOT NULL", self.entity)
             }
@@ -244,6 +277,9 @@ pub fn declared_schema_changes(table: &SchemaTableDefinition) -> Vec<SchemaChang
             true,
         ));
     }
+    for alteration in &table.column_alterations {
+        changes.extend(column_alteration_changes(entity, alteration));
+    }
     for index in &table.indexes_added {
         changes.push(change(
             entity,
@@ -258,6 +294,40 @@ pub fn declared_schema_changes(table: &SchemaTableDefinition) -> Vec<SchemaChang
             entity,
             SchemaChangeKind::IndexDropped {
                 index: index.clone(),
+            },
+            false,
+        ));
+    }
+    changes
+}
+
+fn column_alteration_changes(entity: &str, alteration: &ColumnAlteration) -> Vec<SchemaChange> {
+    let mut changes = Vec::new();
+    if let Some(new_type) = &alteration.new_type {
+        changes.push(change(
+            entity,
+            SchemaChangeKind::ColumnTypeAltered {
+                column: alteration.column.clone(),
+                new_type: new_type.clone(),
+            },
+            true,
+        ));
+    }
+    if let Some(nullable) = alteration.nullable {
+        changes.push(change(
+            entity,
+            SchemaChangeKind::ColumnNullabilityAltered {
+                column: alteration.column.clone(),
+                nullable,
+            },
+            !nullable,
+        ));
+    }
+    if alteration.default_changed {
+        changes.push(change(
+            entity,
+            SchemaChangeKind::ColumnDefaultAltered {
+                column: alteration.column.clone(),
             },
             false,
         ));
@@ -644,6 +714,52 @@ mod tests {
         let mut dropped_index = table("subscriptions", vec![]);
         dropped_index.indexes_dropped.push("idx_email".to_owned());
         assert!(!declared_schema_changes(&dropped_index)[0].destructive);
+    }
+
+    #[test]
+    fn declared_alter_column_operations_classify_correctly() {
+        use crate::ir::ColumnAlteration;
+
+        let mut type_altered = table("subscriptions", vec![]);
+        type_altered.column_alterations.push(ColumnAlteration {
+            column: "amount".to_owned(),
+            new_type: Some("NUMERIC(10, 2)".to_owned()),
+            ..ColumnAlteration::default()
+        });
+        let changes = declared_schema_changes(&type_altered);
+        assert_eq!(changes.len(), 1);
+        assert!(changes[0].destructive);
+        assert_eq!(
+            changes[0].kind,
+            SchemaChangeKind::ColumnTypeAltered {
+                column: "amount".to_owned(),
+                new_type: "NUMERIC(10, 2)".to_owned(),
+            }
+        );
+
+        let mut tightened = table("subscriptions", vec![]);
+        tightened.column_alterations.push(ColumnAlteration {
+            column: "status".to_owned(),
+            nullable: Some(false),
+            ..ColumnAlteration::default()
+        });
+        assert!(declared_schema_changes(&tightened)[0].destructive);
+
+        let mut relaxed = table("subscriptions", vec![]);
+        relaxed.column_alterations.push(ColumnAlteration {
+            column: "status".to_owned(),
+            nullable: Some(true),
+            ..ColumnAlteration::default()
+        });
+        assert!(!declared_schema_changes(&relaxed)[0].destructive);
+
+        let mut default_altered = table("subscriptions", vec![]);
+        default_altered.column_alterations.push(ColumnAlteration {
+            column: "status".to_owned(),
+            default_changed: true,
+            ..ColumnAlteration::default()
+        });
+        assert!(!declared_schema_changes(&default_altered)[0].destructive);
     }
 
     #[test]

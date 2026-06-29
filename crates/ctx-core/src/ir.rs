@@ -92,6 +92,20 @@ pub struct ColumnRename {
     pub new_name: String,
 }
 
+/// One `ALTER TABLE ... ALTER COLUMN` sub-clause touching an existing
+/// column. Unlike `columns`, this never declares a column's full state —
+/// only the single attribute this specific clause changes, since a
+/// standalone `ALTER COLUMN` statement has no access to the column's prior
+/// declaration.
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ColumnAlteration {
+    pub column: String,
+    pub new_type: Option<String>,
+    /// `Some(false)` for `SET NOT NULL`, `Some(true)` for `DROP NOT NULL`.
+    pub nullable: Option<bool>,
+    pub default_changed: bool,
+}
+
 /// One statically recognized `CREATE [UNIQUE] INDEX` declaration.
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct SchemaIndex {
@@ -131,6 +145,8 @@ pub struct SchemaTableDefinition {
     pub dropped_columns: Vec<String>,
     #[serde(default)]
     pub renamed_columns: Vec<ColumnRename>,
+    #[serde(default)]
+    pub column_alterations: Vec<ColumnAlteration>,
     /// Raw `CHECK (...)` expression text, normalized only by comment/whitespace
     /// stripping. Stored for textual equality/diffing, never evaluated or
     /// interpreted as structured constraint data.

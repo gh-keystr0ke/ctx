@@ -110,6 +110,7 @@ pub fn corpus() -> Vec<EvaluationCase> {
         migration_drops_mapped_column_is_destructive(),
         migration_renames_mapped_column_is_destructive(),
         migration_adds_not_null_column_without_default_is_destructive(),
+        migration_alters_existing_column_type_and_nullability_is_destructive(),
         orm_model_edit_detects_type_fk_and_unique_changes(),
         unrelated_schema_change_produces_no_business_warning(),
         noop_migration_produces_no_schema_finding(),
@@ -763,6 +764,41 @@ fn migration_adds_not_null_column_without_default_is_destructive() -> Evaluation
             Check::SchemaChangeDescriptionContains(
                 "subscriptions.grace_period_days added as NOT NULL with no DEFAULT",
             ),
+        ],
+    }
+}
+
+/// A migration directly widening a column's type and tightening its
+/// nullability via `ALTER COLUMN` (not `ADD COLUMN`) must be detected too —
+/// this is a different code path from a brand-new column.
+fn migration_alters_existing_column_type_and_nullability_is_destructive() -> EvaluationCase {
+    const ALTER_MIGRATION: &str = "migrations.002_alter_amount";
+    let mut files = subscription_base_files();
+    files.push((".ctx/config.toml", GOOSE_CONFIG.to_owned()));
+    files.push((
+        "migrations/001_create_subscriptions.sql",
+        subscriptions_migration(
+            "    id UUID PRIMARY KEY,\n    status VARCHAR(50) NOT NULL,\n    amount INT",
+        ),
+    ));
+    EvaluationCase {
+        id: "migration-alters-existing-column-type-and-nullability-is-destructive",
+        description: "ALTER COLUMN TYPE and SET NOT NULL on an existing column must be destructive schema findings",
+        steps: vec![
+            Step::WriteFiles(files),
+            Step::Commit("base"),
+            Step::Index,
+            Step::WriteFiles(vec![(
+                "migrations/002_alter_amount.sql",
+                "-- +goose Up\nALTER TABLE subscriptions ALTER COLUMN amount TYPE NUMERIC(10, 2);\nALTER TABLE subscriptions ALTER COLUMN amount SET NOT NULL;\n\n-- +goose Down\nSELECT 1;\n"
+                    .to_owned(),
+            )]),
+            Step::Review { base: "HEAD" },
+        ],
+        checks: vec![
+            Check::SchemaFindingDestructive(ALTER_MIGRATION),
+            Check::SchemaChangeDescriptionContains("subscriptions.amount type altered to NUMERIC(10, 2)"),
+            Check::SchemaChangeDescriptionContains("subscriptions.amount became NOT NULL"),
         ],
     }
 }

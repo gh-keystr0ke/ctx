@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
 use ctx_core::ir::{
-    ColumnRename, DatabaseAccessKind, ForeignKeyRef, SchemaColumn, SchemaIndex,
+    ColumnAlteration, ColumnRename, DatabaseAccessKind, ForeignKeyRef, SchemaColumn, SchemaIndex,
     SchemaTableDefinition,
 };
 
@@ -342,12 +342,77 @@ fn parse_alter_table(rest: &str) -> Option<SchemaTableDefinition> {
                 });
                 recognized_any = true;
             }
+        } else if let Some(after) = strip_word_ci(clause, "ALTER") {
+            let after_column = strip_word_ci(after, "COLUMN").unwrap_or(after);
+            if let Some((column, after_name)) = leading_identifier(after_column)
+                && let Some(alteration) = parse_column_alteration(&column, after_name)
+            {
+                table.column_alterations.push(alteration);
+                recognized_any = true;
+            }
         }
         // `ADD CONSTRAINT`/`DROP CONSTRAINT` are left unrecognized: without the
         // table's already-declared columns there is no reliable way to know
         // which columns a bare constraint name refers to.
     }
     recognized_any.then_some(table)
+}
+
+/// Parses a single `ALTER COLUMN name <clause>` sub-clause's attribute
+/// change: `TYPE newtype`, `SET NOT NULL`/`DROP NOT NULL`, or `SET
+/// DEFAULT ...`/`DROP DEFAULT`. Unlike `parse_column_definition`, this has
+/// no access to the column's prior declaration — only the single attribute
+/// this clause changes.
+fn parse_column_alteration(column: &str, rest: &str) -> Option<ColumnAlteration> {
+    let rest = rest.trim_start();
+    if let Some(after) = strip_word_ci(rest, "TYPE") {
+        let (new_type, _) = parse_column_type(after)?;
+        return Some(ColumnAlteration {
+            column: column.to_owned(),
+            new_type: Some(new_type),
+            ..ColumnAlteration::default()
+        });
+    }
+    if let Some(after) = strip_word_ci(rest, "SET") {
+        if strip_word_ci(after, "NOT")
+            .and_then(|rest| strip_word_ci(rest, "NULL"))
+            .is_some()
+        {
+            return Some(ColumnAlteration {
+                column: column.to_owned(),
+                nullable: Some(false),
+                ..ColumnAlteration::default()
+            });
+        }
+        if strip_word_ci(after, "DEFAULT").is_some() {
+            return Some(ColumnAlteration {
+                column: column.to_owned(),
+                default_changed: true,
+                ..ColumnAlteration::default()
+            });
+        }
+        return None;
+    }
+    if let Some(after) = strip_word_ci(rest, "DROP") {
+        if strip_word_ci(after, "NOT")
+            .and_then(|rest| strip_word_ci(rest, "NULL"))
+            .is_some()
+        {
+            return Some(ColumnAlteration {
+                column: column.to_owned(),
+                nullable: Some(true),
+                ..ColumnAlteration::default()
+            });
+        }
+        if strip_word_ci(after, "DEFAULT").is_some() {
+            return Some(ColumnAlteration {
+                column: column.to_owned(),
+                default_changed: true,
+                ..ColumnAlteration::default()
+            });
+        }
+    }
+    None
 }
 
 fn parse_drop_table(rest: &str) -> Option<SchemaTableDefinition> {
@@ -991,6 +1056,59 @@ mod tests {
             .expect("rename to");
         assert_eq!(table.entity, "subscription_plans");
         assert_eq!(table.renamed_from.as_deref(), Some("subscriptions"));
+    }
+
+    #[test]
+    fn extracts_alter_column_type_nullability_and_default_clauses() {
+        let type_altered = parse_ddl_statement(
+            "ALTER TABLE subscriptions ALTER COLUMN amount TYPE NUMERIC(10, 2)",
+        )
+        .expect("alter column type");
+        assert_eq!(
+            type_altered.column_alterations,
+            vec![ColumnAlteration {
+                column: "amount".to_owned(),
+                new_type: Some("NUMERIC(10, 2)".to_owned()),
+                ..ColumnAlteration::default()
+            }]
+        );
+
+        let set_not_null =
+            parse_ddl_statement("ALTER TABLE subscriptions ALTER COLUMN status SET NOT NULL")
+                .expect("alter column set not null");
+        assert_eq!(
+            set_not_null.column_alterations,
+            vec![ColumnAlteration {
+                column: "status".to_owned(),
+                nullable: Some(false),
+                ..ColumnAlteration::default()
+            }]
+        );
+
+        let drop_not_null =
+            parse_ddl_statement("ALTER TABLE subscriptions ALTER COLUMN status DROP NOT NULL")
+                .expect("alter column drop not null");
+        assert_eq!(
+            drop_not_null.column_alterations,
+            vec![ColumnAlteration {
+                column: "status".to_owned(),
+                nullable: Some(true),
+                ..ColumnAlteration::default()
+            }]
+        );
+
+        let default_changed = parse_ddl_statement(
+            "ALTER TABLE subscriptions ALTER COLUMN status SET DEFAULT 'active'",
+        )
+        .expect("alter column set default");
+        assert_eq!(
+            default_changed.column_alterations,
+            vec![ColumnAlteration {
+                column: "status".to_owned(),
+                default_changed: true,
+                ..ColumnAlteration::default()
+            }]
+        );
     }
 
     #[test]

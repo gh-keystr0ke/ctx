@@ -8,8 +8,11 @@ The current release is deterministic and works without an LLM or network service
 
 - Git-aware incremental Python, Rust, and Go indexing with Tree-sitter
 - file, class, struct, enum, interface, trait, module, function, method, test, containment, and call relationships
-- evidence-backed database entities plus `READS_FROM`/`WRITES_TO` facts from static SQL in Python, Rust, and Go
-- table/column-level `DEFINES_SCHEMA` facts read from goose SQL migrations and SQLAlchemy declarative models, sharing the same `DbEntity` graph
+- evidence-backed database entities plus `READS_FROM`/`WRITES_TO` facts from static SQL in Python, Rust, and Go, including specific column names when the SQL form reliably names them (an `UPDATE ... SET` clause, an `INSERT` column list)
+- table/column-level `DEFINES_SCHEMA` facts read from goose SQL migrations and SQLAlchemy declarative models, sharing the same `DbEntity` graph, with nullable/primary-key/foreign-key/unique/default constraint detail and table create/drop/rename, column add/drop/rename/alter, and index add/drop operations
+- schema-aware `ctx review`: a new migration or an edited SQLAlchemy model that drops/renames a column, tightens nullability, changes a type, or changes a foreign key/unique constraint is a deterministic, clearly-labeled schema finding — kept structurally separate from proven requirement-impact findings, with a bounded advisory link to the requirements/invariants/tests the affected table's own readers/writers are mapped to
+- best-effort `SQLAlchemy`/goose schema reconciliation surfaced in `ctx status` (a column the ORM expects with no migration declaring it, or vice versa)
+- `ctx impact table.column` seeds resolve to the table and narrow to that column's specific readers/writers
 - YAML or Markdown-front-matter product context under `.context/`
 - evidence-backed `impact`, `explain`, and high-precision `review`
 - token-budgeted Context Packs
@@ -143,9 +146,11 @@ The database lives at `.ctx/ctx.db`. `ctx init` adds only the database, WAL, and
 
 Add global `--json` for stable machine-readable output. Add `-v` to review for lower-confidence diagnostics and suppressed-change counts. Script verification decisions with `ctx verify --accept <fingerprint> --author <name>` or `--reject`.
 
-`ctx status` is a health report, not just a graph-size counter. It compares the indexed commit with `HEAD`, shows the effective source scope, separates structural facts from assertions and inferences, counts each product-context type, reports dirty inputs/stale/rejected claims, and suggests the next action. A current structural graph without product documents is reported as `needs product context`, not `ready`.
+`ctx status` is a health report, not just a graph-size counter. It compares the indexed commit with `HEAD`, shows the effective source scope, separates structural facts from assertions and inferences, counts each product-context type, reports dirty inputs/stale/rejected claims, best-effort `SQLAlchemy`/goose schema divergences, and suggests the next action. A current structural graph without product documents is reported as `needs product context`, not `ready`.
 
-Impact JSON separates `data_contracts` from implementation and tests. Database entities use their normalized SQL identifier (for example `subscriptions` or `billing.subscriptions`) and can be queried or explained like any other node. Static data facts retain parser provenance, commit validity, and source-line evidence.
+Impact JSON separates `data_contracts` from implementation and tests. Database entities use their normalized SQL identifier (for example `subscriptions` or `billing.subscriptions`) and can be queried or explained like any other node. Static data facts retain parser provenance, commit validity, and source-line evidence. A `table.column` query (for example `subscriptions.paid_until`) resolves to the table and narrows `implementation` to that column's specific readers/writers; an unrecognized column falls back to table-level impact plus an explicit uncertainty rather than silently looking like "no readers".
+
+Review's schema findings appear separately from `findings` as `schema_findings`: each one is a deterministic, described schema change (`subscriptions.status dropped`, `subscriptions.amount type changed from INTEGER to NUMERIC(10, 2)`, ...) marked destructive or informational, plus a bounded advisory list of the requirements/invariants/tests the affected table's directly-connected code is mapped to — an empty list means no known product mapping was found, not that the change is unrelated to the product.
 
 For Context Packs, a resolved `--file` or `--symbol` is a hard scope boundary: related context comes from that seed's bounded graph neighborhood, and independent lexical matches are not added as competing roots. Lexical auto-seeding is used only when no explicit seed resolves.
 
@@ -204,7 +209,7 @@ Run the deterministic product-quality corpus separately:
 cargo run --locked -p ctx-eval
 ```
 
-It currently covers 11 Git-history cases and 59 typed checks across recall, precision/noise, classification, and Context Pack budgets, including changed DB writes. This is a reproducible regression baseline, not a statistically significant product study. See [docs/evaluation.md](docs/evaluation.md) for the case matrix, current result, and the human/agent experiments that still require real participants or historical PR ground truth.
+It currently covers 25 Git-history cases and 102 typed checks across recall, precision/noise, classification, and Context Pack budgets, including changed DB writes and the full schema-aware review/reconciliation/impact scenario set. This is a reproducible regression baseline, not a statistically significant product study. See [docs/evaluation.md](docs/evaluation.md) for the case matrix, current result, and the human/agent experiments that still require real participants or historical PR ground truth.
 
 ### Add another language module
 
@@ -224,9 +229,10 @@ See [docs/architecture.md](docs/architecture.md) for boundaries and persistence 
 - Python, Rust, and Go are the built-in parsers; TypeScript, Java, and Zig modules are not implemented yet.
 - Language modules are compiled into the binary; dynamic shared-library loading is not supported.
 - Explicit symbol mappings are exact; unresolved mappings are reported instead of guessed.
-- Static database extraction recognizes literal SQL inside known Python/Rust/Go execution calls and common `SELECT`/`INSERT`/`UPDATE`/`DELETE`/`MERGE` forms. Dynamic SQL, ORM expression trees, stored procedures, and dialect-complete parsing remain unknown rather than guessed.
-- goose migration parsing reads only `-- +goose Up` and recognizes common `CREATE TABLE`/`ALTER TABLE ... ADD COLUMN` forms; it is a deterministic recognizer, not a SQL dialect parser, and never merges multiple migrations into one computed "current" schema — each migration file's declaration stays its own fact.
-- SQLAlchemy model recognition requires a static `__tablename__` string literal and reads `Column(...)`/`mapped_column(...)` attribute assignments; it does not resolve `Base`/inheritance, relationships, mixins, or Alembic migration history.
+- Static database extraction recognizes literal SQL inside known Python/Rust/Go execution calls and common `SELECT`/`INSERT`/`UPDATE`/`DELETE`/`MERGE` forms. Dynamic SQL, ORM expression trees, stored procedures, and dialect-complete parsing remain unknown rather than guessed. Column-level evidence is only extracted for writes (`UPDATE ... SET`, an `INSERT`/`MERGE` explicit column list); `DELETE`, a bare `INSERT ... VALUES` with no column list, and every `SELECT`/read form stay table-level, since attributing `SELECT` columns across joins without a real parser is guessing, not recognizing.
+- goose migration parsing reads only `-- +goose Up` and recognizes `CREATE TABLE` (including table-level `PRIMARY KEY`/`UNIQUE`/`FOREIGN KEY`/`CHECK`), `ALTER TABLE ... ADD/DROP/RENAME COLUMN`, `ALTER TABLE ... RENAME TO`, `ALTER TABLE ... ALTER COLUMN ... TYPE/SET-DROP NOT NULL/SET-DROP DEFAULT`, `DROP TABLE`, and `CREATE/DROP INDEX`. `ALTER TABLE ... ADD/DROP CONSTRAINT` is deliberately unsupported (a bare constraint name cannot be resolved to columns without the table's already-declared column list). It is a deterministic recognizer, not a SQL dialect parser, and never merges multiple migrations into one computed "current" schema for storage — each migration file's declaration stays its own fact; a best-effort ordered replay exists only as a diagnostic for `SQLAlchemy` reconciliation, never as a stored fact.
+- SQLAlchemy model recognition requires a static `__tablename__` string literal and reads `Column(...)`/`mapped_column(...)` attribute assignments, including `nullable=`/`primary_key=`/`unique=`/`default=`/`server_default=`/`ForeignKey(...)`; it does not resolve `Base`/inheritance, relationships, mixins, `Index(...)`/`__table_args__`, or Alembic migration history.
+- Schema-aware review compares a schema-declaring file's diff or a migration's own declared operations; it does not diff an ORM model against its own migration history over time (that is `ctx status`'s reconciliation, which is presence-only and does not compare types/nullability between sources).
 - Heuristic suggestions use lexical, structural, test, and shared-database-interaction signals, not embeddings or an LLM.
 - Endpoint, event, and external-system node types are reserved in the domain model but are not yet extracted from source.
 - There is no web UI, cloud backend, runtime tracing, multi-repository graph, or external ticket/document integration.

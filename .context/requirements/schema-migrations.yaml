@@ -6,15 +6,23 @@ statement: >
   Schema declared outside SQL literals — goose migration files and SQLAlchemy
   declarative models — must produce the same evidence-backed, commit-bounded
   database-entity facts as static SQL, sharing one entity per table name
-  instead of a parallel graph; unrecognized migration/model syntax must remain
-  unknown rather than becoming a guessed table or column.
+  instead of a parallel graph. Each column carries nullable/primary-key/
+  foreign-key/unique/default constraint detail when a recognizer can
+  statically determine it, and a table declaration carries create/drop/
+  rename, column add/drop/rename/alter, and index add/drop operations in the
+  same normalized, framework-neutral SchemaTableDefinition/SchemaColumn IR
+  core code reads regardless of source. Unrecognized migration/model syntax
+  (including ALTER TABLE ADD/DROP CONSTRAINT, which cannot be resolved to
+  columns without the table's already-declared column list) must remain
+  unknown rather than becoming a guessed table, column, or constraint.
 implementation:
-  - symbol: ctx_adapters.database.ddl_table_columns
+  - symbol: ctx_adapters.database.parse_ddl_statement
   - symbol: ctx_adapters.goose.GooseAnalyzer.analyze_source
   - symbol: ctx_adapters.python.sqlalchemy_schema_table
   - symbol: ctx_core.indexing.add_schema_definition_edges
 tests:
-  - symbol: ctx_adapters.database.tests.extracts_create_table_columns_skipping_table_constraints
+  - symbol: ctx_adapters.database.tests.extracts_create_table_columns_with_inline_and_table_level_constraints
+  - symbol: ctx_adapters.database.tests.extracts_alter_column_type_nullability_and_default_clauses
   - symbol: ctx_adapters.goose.tests.extracts_schema_from_the_up_section_only
-  - symbol: ctx_adapters.python.tests.extracts_sqlalchemy_declarative_model_columns
+  - symbol: ctx_adapters.python.tests.extracts_sqlalchemy_column_constraints
   - symbol: ctx_core.indexing.tests.schema_migrations_and_code_database_accesses_share_one_db_entity

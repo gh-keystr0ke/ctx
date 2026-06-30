@@ -10,9 +10,16 @@ statement: >
   (such as a shared test) bridge into a different seed's unrelated requirements.
   A data contract reached this way includes schema declared by a migration or
   ORM model, not only a static SQL literal; both share the same one-hop
-  structural treatment and the same database entity.
+  structural treatment and the same database entity. A table.column seed
+  resolves to that same database entity and additionally narrows
+  implementation to the specific readers/writers whose evidence names that
+  column, without adding a column-level graph node; a column absent from all
+  known evidence falls back to table-level impact plus an explicit
+  uncertainty rather than silently looking like a column with no readers.
 implementation:
   - symbol: ctx_core.impact.analyze_impact
+  - symbol: ctx_core.impact.resolve_table_column_seed
+  - symbol: ctx_core.impact.focus_on_column
   - symbol: ctx_core.explain.explain
   - symbol: ctx_app.query.QueryService.impact
 tests:
@@ -20,3 +27,5 @@ tests:
   - symbol: ctx_adapters.sqlite.context.tests.explicit_links_persist_an_explainable_evidence_chain
   - symbol: ctx_core.impact.tests.shared_test_reached_through_the_seeds_call_graph_does_not_bridge_unrelated_intent
   - symbol: ctx_core.impact.tests.includes_a_direct_database_contract_without_expanding_the_whole_data_graph
+  - symbol: ctx_core.impact.tests.table_dot_column_seed_resolves_to_the_table_and_narrows_to_column_readers
+  - symbol: ctx_core.impact.tests.unknown_column_falls_back_to_table_level_impact_with_an_uncertainty

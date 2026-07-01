@@ -27,15 +27,27 @@ The command prints machine-readable JSON and exits non-zero when a case, harness
 | `multi-commit-feature-evolution` | a three-commit span preserves identity, staleness, and aggregate classification |
 | `goose-migration-declares-schema-without-code-access` | a table declared only by a goose migration still appears as a data contract, without review noise |
 | `sqlalchemy-model-declares-schema-without-sql-access` | a table declared only by a SQLAlchemy model still appears as a data contract, without review noise |
+| `migration-drops-mapped-column-is-destructive` | a destructive schema finding resolves to the exact requirement/invariant its table's writer implements, not an unrelated decision on a symbol that only calls the writer |
+| `migration-renames-mapped-column-is-destructive` | a goose `RENAME COLUMN` is a destructive schema finding |
+| `migration-adds-not-null-column-without-default-is-destructive` | a new `NOT NULL` column with no `DEFAULT` on an existing table is destructive |
+| `migration-alters-existing-column-type-and-nullability-is-destructive` | `ALTER COLUMN ... TYPE`/`SET NOT NULL` (not `ADD COLUMN`) is detected too |
+| `orm-model-edit-detects-type-fk-and-unique-changes` | one edited SQLAlchemy model surfaces type, foreign-key, and unique-constraint changes from one diff |
+| `unrelated-schema-change-produces-no-business-warning` | a new table unrelated to any mapped code stays informational, with no related product intent |
+| `noop-migration-produces-no-schema-finding` | a migration with no recognizable DDL produces no schema finding |
+| `reconciliation-detects-both-direction-divergence` | `ctx status` finds a migration-only column and an ORM-only column on the same table in one run |
+| `consistent-schema-across-sources-resolves-to-one-entity` | migration + matching ORM model + static SQL access share one `DbEntity` with zero reconciliation divergence (a false-positive control) |
+| `dynamic-tablename-orm-model-stays-unrecognized` | a dynamic `__tablename__` is never guessed as schema — the project's only "ambiguous ORM mapping" case |
+| `explicit-schema-seed-does-not-pull-unrelated-lexical-roots` | an explicit migration seed excludes a lexically similar unrelated table |
+| `column-level-impact-seed-narrows-to-column-readers` | `ctx impact table.column` resolves to the table and narrows to that column's specific readers/writers |
 
 ## Recorded baseline
 
-Version 0.3.0 passes all 13 cases and all 67 checks:
+Version 0.4.0 passes all 25 cases and all 102 checks:
 
-- recall-shaped checks: 19/19;
-- precision/noise checks: 28/28;
-- classification checks: 16/16;
-- budget checks: 4/4;
+- recall-shaped checks: 35/35;
+- precision/noise checks: 40/40;
+- classification checks: 22/22;
+- budget checks: 5/5;
 - harness errors: 0.
 
 These are exact regression counts for a small synthetic fixture family. They are not calibrated precision/recall estimates and are not statistically significant.

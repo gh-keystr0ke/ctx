@@ -7,7 +7,10 @@ decision: >
   orchestrators; normalized database accesses — SQL literals, goose migrations,
   and ORM model declarations alike — enter through the same parser boundary,
   while their lifecycle planning, impact, review, verification, and Context
-  Pack policy remain deterministic transformations in ctx-core.
+  Pack policy remain deterministic transformations in ctx-core. Schema-change
+  classification (destructive/informational) and ORM/migration reconciliation
+  are pure functions over the same normalized IR/graph in ctx_core::schema,
+  not a parallel goose- or SQLAlchemy-aware policy layer.
 implementation:
   - symbol: ctx_core.indexing.plan_incremental_index
 tests:

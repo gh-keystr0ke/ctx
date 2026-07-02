@@ -65,3 +65,5 @@ It does not prove the product hypothesis from `product_conclu.md` sections 49–
 - kill-criteria evaluation after several real workflow iterations.
 
 Future result documents should record repository/corpus selection, labeling protocol, participant or agent setup, raw per-case outcomes, false-positive/false-negative definitions, and limitations. A green synthetic corpus must never be reported as confirmation of those experiments.
+
+`docs/evaluation-historical.md` is a first, partial step in that direction: it replays 16 real commits from this repository's own history (not synthetic fixtures) through `ctx review` and grades the results against independently re-derived ground truth. It is real historical data but not the external, third-party-repository corpus the experiments above require — see that document for its methodology and honest limits, including a real recall gap it found in `ctx review`.

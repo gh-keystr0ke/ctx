@@ -6,9 +6,11 @@ statement: >
   Indexing must incrementally reconcile Git changes, configured source scope,
   and analyzer versions so the stored graph describes the selected commit,
   stale derived analysis is rebuilt without requiring a source edit, database
-  entities follow the complete current access set, and symbol identity
-  assignment stays scoped to the whole transition so two unrelated symbols
-  across different files can never be silently assigned the same stable identity.
+  entities follow the complete current access set — including column-level
+  write evidence and schema constraint/operation detail, not only table names
+  — and symbol identity assignment stays scoped to the whole transition so two
+  unrelated symbols across different files can never be silently assigned the
+  same stable identity.
 implementation:
   - symbol: ctx_app.index.IndexRunner.run
   - symbol: ctx_core.indexing.plan_incremental_index

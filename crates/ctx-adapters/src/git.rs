@@ -562,15 +562,27 @@ fn load_configuration(root: &Path) -> Result<RepositoryConfiguration, GitError> 
             include: if config.paths.include.is_empty() {
                 defaults.include
             } else {
-                config.paths.include
+                normalize_path_entries(config.paths.include)
             },
             exclude: if config.paths.exclude.is_empty() {
                 defaults.exclude
             } else {
-                config.paths.exclude
+                normalize_path_entries(config.paths.exclude)
             },
         },
     })
+}
+
+/// Strips trailing path separators from user-configured include/exclude
+/// entries so a directory written as `"fixtures/"` matches the same way as
+/// `"fixtures"`: [`PathFilter::allows`] otherwise compares against
+/// `"{entry}/"`, which becomes a non-matching `"fixtures//"` when the entry
+/// already ends in a slash.
+fn normalize_path_entries(entries: Vec<String>) -> Vec<String> {
+    entries
+        .into_iter()
+        .map(|entry| entry.trim_end_matches('/').to_owned())
+        .collect()
 }
 
 fn filter_changes(changes: Vec<FileChange>, filter: &PathFilter) -> Vec<FileChange> {
@@ -671,6 +683,26 @@ mod tests {
         assert!(filter.allows("tests/test_service.py"));
         assert!(!filter.allows("scripts/service.py"));
         assert!(!filter.allows("app/generated/client.py"));
+    }
+
+    #[test]
+    fn trailing_slash_on_configured_exclude_still_excludes() {
+        let root = tempfile::tempdir().expect("temp dir");
+        std::fs::create_dir(root.path().join(".ctx")).expect("ctx directory");
+        std::fs::write(
+            root.path().join(".ctx/config.toml"),
+            "languages = [\"rust\"]\n\n[paths]\ninclude = [\"crates\"]\nexclude = [\"crates/fixtures/\"]\n",
+        )
+        .expect("configuration");
+
+        let configuration = load_configuration(root.path()).expect("valid configuration");
+
+        assert!(
+            !configuration
+                .path_filter
+                .allows("crates/fixtures/broken/before.rs")
+        );
+        assert!(configuration.path_filter.allows("crates/lib/service.rs"));
     }
 
     #[test]

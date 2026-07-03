@@ -13,6 +13,18 @@ pub struct IndexReport {
     pub commit: String,
     pub already_current: bool,
     pub stats: IndexStats,
+    /// Source files whose language analyzer failed on this run (for example
+    /// a parser rejecting valid syntax it doesn't yet support). Excluded
+    /// from this transition's plan rather than aborting the whole run; each
+    /// stays outside the indexed snapshot, so it is retried and re-reported
+    /// on every subsequent `ctx index` until it succeeds or leaves scope.
+    pub failed_files: Vec<FailedFile>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct FailedFile {
+    pub path: String,
+    pub error: String,
 }
 
 #[derive(Debug, Error)]
@@ -116,13 +128,30 @@ where
                 commit: head.oid.to_string(),
                 already_current: true,
                 stats: IndexStats::default(),
+                failed_files: Vec::new(),
             });
         }
         let mut analyses = BTreeMap::new();
+        let mut failed_files = Vec::new();
         for path in changes.iter().filter_map(|change| change.current_path()) {
-            let file_ir = self.analyzer.analyze(path).map_err(IndexError::Analysis)?;
-            analyses.insert(path.to_owned(), file_ir);
+            match self.analyzer.analyze(path) {
+                Ok(file_ir) => {
+                    analyses.insert(path.to_owned(), file_ir);
+                }
+                Err(error) => failed_files.push(FailedFile {
+                    path: path.to_owned(),
+                    error: error.to_string(),
+                }),
+            }
         }
+        let changes = changes
+            .into_iter()
+            .filter(|change| {
+                change
+                    .current_path()
+                    .is_none_or(|path| analyses.contains_key(path))
+            })
+            .collect::<Vec<_>>();
         let plan = plan_incremental_index(&snapshot, &analyses, &changes)?;
         self.store
             .apply_index(&repository.id, &head, now, &plan)
@@ -132,6 +161,7 @@ where
             commit: head.oid.to_string(),
             already_current: false,
             stats: plan.stats,
+            failed_files,
         })
     }
 }

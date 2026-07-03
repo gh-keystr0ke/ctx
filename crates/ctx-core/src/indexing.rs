@@ -542,17 +542,62 @@ fn match_symbols(
                         && symbol.structural_fingerprint == definition.structural_fingerprint
                 }),
             ];
+            // A candidate already in `used` isn't necessarily taken by
+            // someone else: `reserve_exact_canonical_matches` pre-reserves
+            // this very definition's own exact-canonical-path key before
+            // `match_symbols` ever runs, purely to stop an unrelated
+            // definition's looser same-shape fallback from stealing it. So
+            // when every candidate is filtered out by `used`, recomputing
+            // `symbol_key` (as `has_historical_match` guards below) safely
+            // reclaims that reservation rather than treating it as a
+            // collision, because the same deterministic formula reproduces
+            // it exactly.
+            let has_historical_match = candidates.iter().any(Option::is_some);
             let existing = candidates
                 .into_iter()
                 .flatten()
                 .find(|key| !used.contains(*key));
-            let stable_key = existing
-                .cloned()
-                .map_or_else(|| symbol_key(language, definition), Ok)?;
+            let stable_key = match existing {
+                Some(key) => key.clone(),
+                None if has_historical_match => symbol_key(language, definition)?,
+                None => disambiguated_symbol_key(language, definition, used)?,
+            };
             used.insert(stable_key.clone());
             Ok((definition.clone(), stable_key))
         })
         .collect()
+}
+
+/// Only reached when a definition has no historical grounding at all (every
+/// candidate tier in `match_symbols` came back `None`), so `symbol_key`
+/// alone is not guaranteed unique: two symbols that legitimately share a
+/// canonical path — Rust `#[cfg(...)]`-gated platform variants of the same
+/// function name, or Go's blank identifier `_` used for repeated
+/// interface-conformance checks — can both be "new" in the same transition.
+/// Appending a stable ordinal to every collision beyond the first keeps each
+/// write distinct instead of `plan_incremental_index` producing two writes
+/// for one key, and stays deterministic run-to-run because `definitions` is
+/// already sorted by canonical path then source position before
+/// `match_symbols` sees it, so colliding definitions are always visited in
+/// the same order.
+fn disambiguated_symbol_key(
+    language: &str,
+    definition: &SymbolDefinition,
+    used: &BTreeSet<StableKey>,
+) -> Result<StableKey, IndexPlanError> {
+    let base = symbol_key(language, definition)?;
+    if !used.contains(&base) {
+        return Ok(base);
+    }
+    let mut ordinal = 2u32;
+    loop {
+        let candidate = StableKey::new(format!("{}#{ordinal}", base.as_str()))
+            .map_err(|error| IndexPlanError::InvalidStableKey(error.to_string()))?;
+        if !used.contains(&candidate) {
+            return Ok(candidate);
+        }
+        ordinal += 1;
+    }
 }
 
 fn unique_match<F>(symbols: &[IndexedSymbol], predicate: F) -> Option<&StableKey>
@@ -1603,6 +1648,59 @@ mod tests {
         );
         assert!(symbol_keys.contains(context_pack_key.as_str()));
         assert!(symbol_keys.contains("symbol:python:impact.touches:Function"));
+    }
+
+    /// Found dogfooding this fix on Zed: `#[cfg(target_os = "windows")]` /
+    /// `#[cfg(not(target_os = "windows"))]` variants of the same Rust
+    /// function name, and Go's blank identifier `_` reused for repeated
+    /// interface-conformance checks, both leave tree-sitter with two
+    /// distinct symbols that legitimately share one canonical path. Neither
+    /// has any prior indexed identity to match, so both must become "new"
+    /// in the same transition without colliding on one generated key.
+    #[test]
+    fn two_new_symbols_sharing_one_canonical_path_claim_distinct_identities() {
+        let first = definition("_", "main._", "first-body", "first-shape");
+        let second = definition("_", "main._", "second-body", "second-shape");
+        let snapshot = RepositorySnapshot::default();
+        let analyses = BTreeMap::from([(
+            "main.go".to_owned(),
+            FileAnalysis {
+                path: "main.go".to_owned(),
+                language: "go".to_owned(),
+                analysis_version: "go-tree-sitter-v1".to_owned(),
+                content_hash: "main-file".to_owned(),
+                symbols: vec![first, second],
+            },
+        )]);
+
+        let plan = plan_incremental_index(
+            &snapshot,
+            &analyses,
+            &[FileChange::Added {
+                path: "main.go".to_owned(),
+            }],
+        )
+        .expect("colliding canonical paths must not abort the transition");
+
+        let symbol_keys = plan
+            .nodes_to_write
+            .iter()
+            .filter(|node| node.kind == NodeKind::CodeSymbol)
+            .map(|node| node.stable_key.as_str())
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            symbol_keys.len(),
+            2,
+            "both blank-identifier symbols must be written"
+        );
+        assert_eq!(
+            symbol_keys.iter().collect::<BTreeSet<_>>().len(),
+            2,
+            "colliding new symbols must not share one write"
+        );
+        assert!(symbol_keys.contains(&"symbol:go:main._:Function"));
+        assert!(symbol_keys.contains(&"symbol:go:main._:Function#2"));
     }
 
     /// The same defect class as

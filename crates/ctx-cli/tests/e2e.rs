@@ -305,19 +305,51 @@ fn assert_bounded_context(context: &Value) {
 
 fn assert_precise_review(review: &Value) {
     let findings = review["findings"].as_array().expect("review findings");
-    assert_eq!(findings.len(), 2);
+    // `cancel`'s own body regressed: two direct, high-severity findings on
+    // the invariant and requirement it implements. `cancel` is also called,
+    // one hop away, by `StripeWebhookHandler.handle_subscription_update`,
+    // which implements ADR-SUB-001 — the bounded call-graph escalation
+    // (`ctx_core::review::indirect_call_findings`) correctly surfaces that
+    // as a third, indirect, medium-severity finding, distinct from the two
+    // direct ones since `handle_subscription_update` itself never changed.
+    assert_eq!(findings.len(), 3);
     let intent_ids = findings
         .iter()
         .filter_map(|finding| finding["affected_intent"]["identifier"].as_str())
         .collect::<BTreeSet<_>>();
-    assert_eq!(intent_ids, BTreeSet::from(["INV-SUB-003", "REQ-SUB-014"]));
+    assert_eq!(
+        intent_ids,
+        BTreeSet::from(["INV-SUB-003", "REQ-SUB-014", "ADR-SUB-001"])
+    );
     assert!(findings.iter().all(|finding| {
-        finding["severity"] == "high"
-            && finding["tests_modified"] == false
+        finding["tests_modified"] == false
             && finding["evidence"]
                 .as_array()
                 .is_some_and(|evidence| !evidence.is_empty())
     }));
+    let direct = findings
+        .iter()
+        .filter(|finding| finding["affected_intent"]["identifier"] != "ADR-SUB-001");
+    assert_eq!(direct.clone().count(), 2);
+    assert!(
+        direct
+            .clone()
+            .all(|finding| { finding["severity"] == "high" && finding["uncertainty"].is_null() })
+    );
+    let indirect = findings
+        .iter()
+        .find(|finding| finding["affected_intent"]["identifier"] == "ADR-SUB-001")
+        .expect("indirect ADR-SUB-001 finding");
+    assert_eq!(indirect["severity"], "medium");
+    assert_eq!(
+        indirect["changed_entity"],
+        "billing.subscription.StripeWebhookHandler.handle_subscription_update"
+    );
+    assert!(
+        indirect["uncertainty"]
+            .as_str()
+            .is_some_and(|text| text.contains("cancel"))
+    );
 }
 
 fn run_git(root: &Path, arguments: &[&str]) {

@@ -107,6 +107,7 @@ pub fn corpus() -> Vec<EvaluationCase> {
         shared_test_does_not_bridge_requirements(),
         added_call_discovers_intent(),
         multi_commit_feature_evolution(),
+        private_helper_behavior_change_reaches_its_mapped_caller(),
         migration_drops_mapped_column_is_destructive(),
         migration_renames_mapped_column_is_destructive(),
         migration_adds_not_null_column_without_default_is_destructive(),
@@ -143,7 +144,7 @@ fn cancellation_behavior_change() -> EvaluationCase {
     );
     EvaluationCase {
         id: "cancellation-behavior-change",
-        description: "removing the paid_until guard must surface the invariant and requirement it enforces",
+        description: "removing the paid_until guard must surface the invariant and requirement it enforces, plus an indirect signal on the one-hop caller that maps to a decision",
         steps: vec![
             Step::WriteFiles(subscription_base_files()),
             Step::Commit("base"),
@@ -160,7 +161,13 @@ fn cancellation_behavior_change() -> EvaluationCase {
             Check::FindingIntentPresent("REQ-SUB-014"),
             Check::FindingSeverity("INV-SUB-003", Severity::High),
             Check::FindingSeverity("REQ-SUB-014", Severity::High),
-            Check::FindingIntentAbsent("ADR-SUB-001"),
+            // `StripeWebhookHandler.handle_subscription_update` (mapped to
+            // ADR-SUB-001) directly calls `cancel`, one hop away — the
+            // bounded call-graph escalation in
+            // `ctx_core::review::indirect_call_findings` correctly surfaces
+            // it, distinct from the two direct findings above.
+            Check::FindingIntentPresent("ADR-SUB-001"),
+            Check::FindingSeverity("ADR-SUB-001", Severity::Medium),
         ],
     }
 }
@@ -367,7 +374,9 @@ fn changed_database_write() -> EvaluationCase {
             },
             Check::FindingIntentPresent("INV-SUB-003"),
             Check::FindingIntentPresent("REQ-SUB-014"),
-            Check::FindingIntentAbsent("ADR-SUB-001"),
+            // Same one-hop caller escalation as `cancellation-behavior-change`:
+            // `handle_subscription_update` calls the changed `cancel`.
+            Check::FindingIntentPresent("ADR-SUB-001"),
             Check::ImpactDataContractPresent("subscription_archive"),
             Check::ImpactDataContractAbsent("subscriptions"),
             Check::ContextIdentifierPresent("subscription_archive"),
@@ -467,7 +476,7 @@ fn stale_semantic_mapping() -> EvaluationCase {
     );
     EvaluationCase {
         id: "stale-semantic-mapping",
-        description: "indexing a committed behavior change must mark the assertions it invalidates as stale, not silently active or silently gone",
+        description: "indexing a committed behavior change must mark the assertions it invalidates as stale, not silently active or silently gone, while a distinct active caller claim can still surface independently",
         steps: vec![
             Step::WriteFiles(subscription_base_files()),
             Step::Commit("base"),
@@ -481,9 +490,18 @@ fn stale_semantic_mapping() -> EvaluationCase {
             },
         ],
         checks: vec![
-            Check::NoFindings,
+            // `cancel`'s own claims went stale at index time, so neither
+            // shows up as a fresh finding here.
+            Check::FindingIntentAbsent("INV-SUB-003"),
+            Check::FindingIntentAbsent("REQ-SUB-014"),
             Check::StaleRelationshipContains("INV-SUB-003"),
             Check::StaleRelationshipContains("REQ-SUB-014"),
+            // `handle_subscription_update`'s own ADR-SUB-001 claim never
+            // went stale (its own body didn't change), and it still calls
+            // the changed `cancel` — a real, distinct, still-active signal
+            // the one-hop escalation must keep surfacing regardless of the
+            // unrelated staleness above.
+            Check::FindingIntentPresent("ADR-SUB-001"),
             Check::ImpactIntentPresent("INV-SUB-003"),
             Check::ImpactIntentPresent("REQ-SUB-014"),
         ],
@@ -645,12 +663,70 @@ fn multi_commit_feature_evolution() -> EvaluationCase {
                 canonical_path: SUBSCRIPTION_SERVICE,
                 kind: ChangeKind::ContractChanged,
             },
-            Check::NoFindings,
+            // `cancel`'s own claims went stale after the first (real
+            // behavior-change) commit and are never re-verified.
+            Check::FindingIntentAbsent("INV-SUB-003"),
+            Check::FindingIntentAbsent("REQ-SUB-014"),
             Check::StaleRelationshipContains("INV-SUB-003"),
             Check::StaleRelationshipContains("REQ-SUB-014"),
-            Check::FindingIntentAbsent("ADR-SUB-001"),
+            // `handle_subscription_update` never changed itself, but it
+            // directly calls the now-`ContractChanged` `cancel` — a real,
+            // distinct, still-active caller signal the one-hop escalation
+            // must surface, at full confidence, across the whole span.
+            Check::FindingIntentPresent("ADR-SUB-001"),
+            Check::FindingSeverity("ADR-SUB-001", Severity::Medium),
             Check::ImpactIntentPresent("REQ-SUB-014"),
             Check::ImpactIntentPresent("INV-SUB-003"),
+        ],
+    }
+}
+
+const HELPER_SUBSCRIPTION_PY: &str = "from dataclasses import dataclass\nfrom datetime import datetime\n\n\n@dataclass\nclass Subscription:\n    status: str\n    paid_until: datetime\n\n\nclass SubscriptionService:\n    database = None\n\n    def cancel(self, subscription: Subscription, now: datetime) -> None:\n        subscription.status = self._entitlement_status(subscription, now)\n        if self.database is not None:\n            self.database.execute(\n                \"UPDATE subscriptions SET status = ? WHERE paid_until = ?\",\n                (subscription.status, subscription.paid_until),\n            )\n\n    def _entitlement_status(self, subscription: Subscription, now: datetime) -> str:\n        if subscription.paid_until > now:\n            return \"canceling\"\n        return \"inactive\"\n\n\nclass StripeWebhookHandler:\n    def handle_subscription_update(\n        self, subscription: Subscription, now: datetime\n    ) -> None:\n        SubscriptionService().cancel(subscription, now)\n";
+
+/// The self-corpus historical-PR pilot's real, worklog-documented recall
+/// gap: `cancel` delegates its actual entitlement decision to a private,
+/// unmapped helper — the exact shape of four real historical regressions the
+/// pilot found (a guard condition removed from a helper called by a mapped
+/// entry point whose own body never changed). The one-hop call-graph
+/// escalation in `ctx_core::review::indirect_call_findings` must surface the
+/// invariant/requirement `cancel` implements, while staying bounded to
+/// exactly one call hop: `StripeWebhookHandler.handle_subscription_update`
+/// (mapped to `ADR-SUB-001`, but two hops from the helper through `cancel`)
+/// must not be reached.
+fn private_helper_behavior_change_reaches_its_mapped_caller() -> EvaluationCase {
+    let regressed = HELPER_SUBSCRIPTION_PY.replace(
+        "    def _entitlement_status(self, subscription: Subscription, now: datetime) -> str:\n        if subscription.paid_until > now:\n            return \"canceling\"\n        return \"inactive\"",
+        "    def _entitlement_status(self, subscription: Subscription, now: datetime) -> str:\n        return \"canceling\"",
+    );
+    assert_ne!(
+        regressed, HELPER_SUBSCRIPTION_PY,
+        "entitlement helper text moved"
+    );
+    let mut base_files = subscription_base_files();
+    base_files[0] = (
+        "src/billing/subscription.py",
+        HELPER_SUBSCRIPTION_PY.to_owned(),
+    );
+    EvaluationCase {
+        id: "private-helper-behavior-change-reaches-its-mapped-caller",
+        description: "a behavior change hiding in a private helper must surface the invariant/requirement its one-hop mapped caller implements, without reaching a second call hop",
+        steps: vec![
+            Step::WriteFiles(base_files),
+            Step::Commit("base"),
+            Step::Index,
+            Step::WriteFiles(vec![("src/billing/subscription.py", regressed)]),
+            Step::Review { base: "HEAD" },
+        ],
+        checks: vec![
+            Check::ChangeKindIs {
+                canonical_path: "billing.subscription.SubscriptionService._entitlement_status",
+                kind: ChangeKind::BehaviorPotentiallyChanged,
+            },
+            Check::FindingIntentPresent("INV-SUB-003"),
+            Check::FindingIntentPresent("REQ-SUB-014"),
+            Check::FindingSeverity("INV-SUB-003", Severity::High),
+            Check::FindingSeverity("REQ-SUB-014", Severity::High),
+            Check::FindingIntentAbsent("ADR-SUB-001"),
         ],
     }
 }

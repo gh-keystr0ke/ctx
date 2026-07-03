@@ -82,6 +82,15 @@ pub struct ReviewReport {
     pub suppressed_non_behavioral_changes: usize,
 }
 
+/// Shared, cheaply-copyable context threaded through finding construction so
+/// `finding_for_edge` and its callers stay under Clippy's argument-count
+/// gate instead of growing an eighth positional parameter.
+#[derive(Clone, Copy)]
+struct ReviewContext<'a> {
+    changed_paths: &'a BTreeSet<String>,
+    context_unchanged: bool,
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct ReviewInput {
     pub base: String,
@@ -97,9 +106,14 @@ pub fn build_review_findings(graph: &GraphSnapshot, input: &ReviewInput) -> Revi
     let changed_entities = resolve_changed_entities(graph, input);
     let threshold = if input.verbose { 0.65 } else { 0.85 };
     let changed_paths = changed_path_set(&input.changes);
+    let review_context = ReviewContext {
+        changed_paths: &changed_paths,
+        context_unchanged: input.changed_context_files.is_empty(),
+    };
     let mut findings = Vec::new();
     let mut stale_relationships = Vec::new();
     let mut suppressed = 0;
+    let mut direct_findings: BTreeMap<StableKey, BTreeSet<StableKey>> = BTreeMap::new();
     for entity in &changed_entities {
         if matches!(
             entity.change_kind,
@@ -111,6 +125,7 @@ pub fn build_review_findings(graph: &GraphSnapshot, input: &ReviewInput) -> Revi
         let Some(stable_key) = &entity.stable_key else {
             continue;
         };
+        let changed_entity_label = entity_label(entity);
         for edge in implementation_claims(graph, stable_key) {
             let claim = format_claim(edge, graph);
             if edge.status != ClaimStatus::Active {
@@ -125,16 +140,28 @@ pub fn build_review_findings(graph: &GraphSnapshot, input: &ReviewInput) -> Revi
             }
             if let Some(finding) = finding_for_edge(
                 graph,
-                entity,
-                edge,
+                &changed_entity_label,
+                entity.change_kind,
                 confidence,
-                &changed_paths,
-                input.changed_context_files.is_empty(),
+                edge,
+                review_context,
+                None,
             ) {
+                direct_findings
+                    .entry(stable_key.clone())
+                    .or_default()
+                    .insert(edge.target.clone());
                 findings.push(finding);
             }
         }
     }
+    findings.extend(indirect_call_findings(
+        graph,
+        &changed_entities,
+        review_context,
+        &direct_findings,
+        threshold,
+    ));
     findings.sort_by(|left, right| {
         right
             .severity
@@ -638,11 +665,12 @@ fn implementation_claims<'a>(
 
 fn finding_for_edge(
     graph: &GraphSnapshot,
-    entity: &ChangedEntity,
-    edge: &GraphEdge,
+    changed_entity: &str,
+    change_kind: ChangeKind,
     confidence: f32,
-    changed_paths: &BTreeSet<String>,
-    context_unchanged: bool,
+    edge: &GraphEdge,
+    context: ReviewContext<'_>,
+    indirect_via: Option<&str>,
 ) -> Option<ReviewFinding> {
     let intent = graph.nodes.get(&edge.target)?;
     let related_tests = related_tests(graph, &intent.stable_key);
@@ -651,26 +679,31 @@ fn finding_for_edge(
             .nodes
             .values()
             .find(|node| node.stable_key.as_str() == test.stable_key)
-            .is_some_and(|node| node_file_changed(node, changed_paths))
+            .is_some_and(|node| node_file_changed(node, context.changed_paths))
     });
-    let changed_entity = entity
-        .after
-        .as_ref()
-        .or(entity.before.as_ref())
-        .cloned()
-        .unwrap_or_else(|| entity.file_path.clone());
-    let possible_requirement_drift =
-        context_unchanged && matches!(intent.kind, NodeKind::Requirement | NodeKind::Invariant);
+    let possible_requirement_drift = context.context_unchanged
+        && matches!(intent.kind, NodeKind::Requirement | NodeKind::Invariant);
+    let reason = indirect_via.map_or_else(
+        || {
+            format!(
+                "The changed symbol has a {:?} {:?} claim from {:?}.",
+                edge.claim_class, edge.kind, edge.source_kind
+            )
+        },
+        |helper| {
+            format!(
+                "This symbol has a {:?} {:?} claim from {:?}, and it calls `{helper}`, whose body changed in this diff.",
+                edge.claim_class, edge.kind, edge.source_kind
+            )
+        },
+    );
     Some(ReviewFinding {
-        severity: severity(intent.kind, entity.change_kind),
+        severity: severity(intent.kind, change_kind),
         confidence,
-        changed_entity,
-        change_kind: entity.change_kind,
+        changed_entity: changed_entity.to_owned(),
+        change_kind,
         affected_intent: NodeSummary::from(intent),
-        reason: format!(
-            "The changed symbol has a {:?} {:?} claim from {:?}.",
-            edge.claim_class, edge.kind, edge.source_kind
-        ),
+        reason,
         evidence: edge
             .evidence
             .iter()
@@ -679,8 +712,144 @@ fn finding_for_edge(
         related_tests,
         tests_modified,
         possible_requirement_drift,
-        uncertainty: None,
+        uncertainty: indirect_via.map(|helper| format!(
+            "Indirect signal: this symbol's own body did not change in this diff; it calls `{helper}`, whose body did (one call hop, not chased further)."
+        )),
         suggested_action: suggested_action(intent.kind, tests_modified).to_owned(),
+    })
+}
+
+fn entity_label(entity: &ChangedEntity) -> String {
+    entity
+        .after
+        .as_ref()
+        .or(entity.before.as_ref())
+        .cloned()
+        .unwrap_or_else(|| entity.file_path.clone())
+}
+
+/// Closes the recall gap the self-corpus historical-PR pilot found: a
+/// changed-symbol pass only ever inspects claims on the exact symbol whose
+/// own body or signature differs in the diff, so a real behavior change
+/// hiding in a private helper a mapped public entry point calls produced no
+/// finding at all, even though the mapped entry point's own claim is exactly
+/// what a reviewer needs to re-verify. Mirrors the bounded one-hop
+/// caller/callee exemption `impact.rs`'s `expand_semantics` already applies
+/// (deliberately not a general call-graph walk): only a helper's direct,
+/// structurally proven callers are considered, and the walk stops there — no
+/// second hop, so a caller-of-a-caller can never be reached this way. A
+/// caller already carrying its own direct finding for the same intent (its
+/// own body changed too) is not flagged again through this weaker,
+/// indirection-only signal.
+///
+/// Only a genuinely callable, executable-body kind (`Function`/`Method`) can
+/// be an escalation source. A container symbol (a Python class, for example)
+/// can independently become a `ChangedEntity` purely because a method it
+/// textually contains changed — its own `body_hash` is an aggregate of its
+/// children's text, not a fact about its own behavior — and excluding it
+/// here is what keeps a pure rename of a nested method silent instead of
+/// leaking a false "the class's callers might be affected" signal (the class
+/// itself gets no signature/body change of its own; the nested method, which
+/// does, is separately classified `Rename` and already suppressed above it).
+///
+/// Deduped by `(caller, intent)` across every changed entity in one pass, not
+/// per entity: a real behavior change can still be reachable from a caller
+/// through more than one call edge (for example both a constructor call and
+/// a direct method call on the same line), which would otherwise earn two
+/// findings for the one real underlying change. When more than one changed
+/// entity explains the same `(caller, intent)` pair, the most specific one
+/// (the longest canonical path) wins, deterministically.
+fn indirect_call_findings(
+    graph: &GraphSnapshot,
+    changed_entities: &[ChangedEntity],
+    context: ReviewContext<'_>,
+    direct_findings: &BTreeMap<StableKey, BTreeSet<StableKey>>,
+    threshold: f32,
+) -> Vec<ReviewFinding> {
+    let mut best: BTreeMap<(StableKey, StableKey), (usize, ReviewFinding)> = BTreeMap::new();
+    for entity in changed_entities {
+        if matches!(
+            entity.change_kind,
+            ChangeKind::FormattingOnly | ChangeKind::Rename | ChangeKind::RefactorLikely
+        ) {
+            continue;
+        }
+        let Some(helper_key) = &entity.stable_key else {
+            continue;
+        };
+        if !is_callable_behavior_source(graph, helper_key) {
+            continue;
+        }
+        let helper_label = entity_label(entity);
+        let specificity = helper_label.len();
+        for caller_key in callers_of(graph, helper_key) {
+            let Some(caller_node) = graph.nodes.get(&caller_key) else {
+                continue;
+            };
+            if caller_node.is_test() {
+                continue;
+            }
+            let already_direct = direct_findings.get(&caller_key);
+            for edge in implementation_claims(graph, &caller_key) {
+                if edge.status != ClaimStatus::Active {
+                    continue;
+                }
+                if already_direct.is_some_and(|targets| targets.contains(&edge.target)) {
+                    continue;
+                }
+                let confidence = behavior_confidence(entity.change_kind)
+                    .min(edge.confidence.get())
+                    .min(evidence_confidence(edge));
+                if confidence < threshold {
+                    continue;
+                }
+                let Some(finding) = finding_for_edge(
+                    graph,
+                    caller_node.identifier(),
+                    entity.change_kind,
+                    confidence,
+                    edge,
+                    context,
+                    Some(&helper_label),
+                ) else {
+                    continue;
+                };
+                let dedup_key = (caller_key.clone(), edge.target.clone());
+                best.entry(dedup_key)
+                    .and_modify(|(best_specificity, best_finding)| {
+                        if specificity > *best_specificity {
+                            *best_specificity = specificity;
+                            *best_finding = finding.clone();
+                        }
+                    })
+                    .or_insert((specificity, finding));
+            }
+        }
+    }
+    best.into_values().map(|(_, finding)| finding).collect()
+}
+
+/// The direct, structurally proven callers of `key` — one hop only, deduped.
+fn callers_of(graph: &GraphSnapshot, key: &StableKey) -> BTreeSet<StableKey> {
+    graph
+        .edges
+        .iter()
+        .filter(|edge| {
+            edge.target == *key
+                && edge.kind == RelationKind::Calls
+                && edge.status == ClaimStatus::Active
+        })
+        .map(|edge| edge.source.clone())
+        .collect()
+}
+
+fn is_callable_behavior_source(graph: &GraphSnapshot, key: &StableKey) -> bool {
+    graph.nodes.get(key).is_some_and(|node| {
+        matches!(
+            &node.attributes,
+            PlannedNodeAttributes::Symbol { symbol_kind, .. }
+                if matches!(symbol_kind, SymbolKind::Function | SymbolKind::Method)
+        )
     })
 }
 
@@ -976,6 +1145,218 @@ mod tests {
         assert_eq!(report.changed_entities[0].change_kind, ChangeKind::Rename);
         assert!(report.findings.is_empty());
         assert_eq!(report.suppressed_non_behavioral_changes, 1);
+    }
+
+    /// The self-corpus historical-PR pilot's real recall gap: a mapped public
+    /// entry point's own body/signature never changes, so it never becomes a
+    /// `ChangedEntity` at all, but a private, unmapped helper it directly
+    /// calls does change behaviorally. The caller's own `Implements` claim
+    /// must still surface a finding, attributed to the caller (what the
+    /// reviewer mapped), explaining it is indirect and naming the helper —
+    /// and the bound must be exactly one call hop: a *caller of the caller*
+    /// two hops from the changed helper must not be reached this way.
+    #[test]
+    fn indirect_call_finds_the_mapped_caller_of_a_changed_private_helper() {
+        let helper_key = StableKey::new("helper").expect("helper key");
+        let caller_key = StableKey::new("caller").expect("caller key");
+        let grandparent_key = StableKey::new("grandparent").expect("grandparent key");
+        let requirement_key = StableKey::new("requirement").expect("requirement key");
+        let decision_key = StableKey::new("decision").expect("decision key");
+
+        let helper = code_node(
+            &helper_key,
+            "billing.subscription.SubscriptionService._entitlement_status",
+            SymbolKind::Method,
+            "src/billing/subscription.py",
+        );
+        let caller = code_node(
+            &caller_key,
+            "billing.subscription.SubscriptionService.cancel",
+            SymbolKind::Method,
+            "src/billing/subscription.py",
+        );
+        let grandparent = code_node(
+            &grandparent_key,
+            "billing.subscription.StripeWebhookHandler.handle_subscription_update",
+            SymbolKind::Method,
+            "src/billing/subscription.py",
+        );
+        let requirement = intent_node(&requirement_key, NodeKind::Requirement, "REQ-SUB-014");
+        let decision = intent_node(&decision_key, NodeKind::Decision, "ADR-SUB-001");
+        let nodes = [helper, caller, grandparent, requirement, decision]
+            .into_iter()
+            .map(|node| (node.stable_key.clone(), node))
+            .collect();
+        let edges = vec![
+            semantic_edge(&caller_key, &helper_key, RelationKind::Calls, false),
+            semantic_edge(&grandparent_key, &caller_key, RelationKind::Calls, false),
+            semantic_edge(
+                &caller_key,
+                &requirement_key,
+                RelationKind::Implements,
+                true,
+            ),
+            semantic_edge(
+                &grandparent_key,
+                &decision_key,
+                RelationKind::Implements,
+                true,
+            ),
+        ];
+
+        let (before_helper, after_helper) = entitlement_helper_symbols();
+        let input = ReviewInput {
+            base: "HEAD".to_owned(),
+            changes: vec![FileChange::Modified {
+                path: "src/billing/subscription.py".to_owned(),
+            }],
+            before: BTreeMap::from([(
+                "src/billing/subscription.py".to_owned(),
+                analysis("src/billing/subscription.py", before_helper),
+            )]),
+            after: BTreeMap::from([(
+                "src/billing/subscription.py".to_owned(),
+                analysis("src/billing/subscription.py", after_helper),
+            )]),
+            changed_context_files: BTreeSet::new(),
+            verbose: false,
+        };
+
+        let report = build_review_findings(&GraphSnapshot { nodes, edges }, &input);
+
+        assert_eq!(report.changed_entities.len(), 1);
+        assert_eq!(
+            report.changed_entities[0].change_kind,
+            ChangeKind::BehaviorPotentiallyChanged
+        );
+        assert_eq!(report.findings.len(), 1);
+        let finding = &report.findings[0];
+        assert_eq!(finding.affected_intent.identifier, "REQ-SUB-014");
+        assert_eq!(
+            finding.changed_entity,
+            "billing.subscription.SubscriptionService.cancel"
+        );
+        assert!(
+            finding
+                .uncertainty
+                .as_deref()
+                .is_some_and(|text| text.contains("_entitlement_status"))
+        );
+        assert!(
+            !report
+                .findings
+                .iter()
+                .any(|finding| finding.affected_intent.identifier == "ADR-SUB-001")
+        );
+    }
+
+    fn entitlement_helper_symbols() -> (SymbolDefinition, SymbolDefinition) {
+        let before = SymbolDefinition {
+            name: "_entitlement_status".to_owned(),
+            canonical_path: "billing.subscription.SubscriptionService._entitlement_status"
+                .to_owned(),
+            kind: SymbolKind::Method,
+            range: source_range(),
+            signature: Some("(self, subscription, now)".to_owned()),
+            body_hash: "old-body".to_owned(),
+            structural_fingerprint: "old-shape".to_owned(),
+            calls: Vec::new(),
+            database_accesses: Vec::new(),
+            schema_tables: Vec::new(),
+        };
+        let after = SymbolDefinition {
+            body_hash: "new-body".to_owned(),
+            structural_fingerprint: "new-shape".to_owned(),
+            ..before.clone()
+        };
+        (before, after)
+    }
+
+    /// When the caller already earns its own direct finding for an intent
+    /// (its own body changed too), the weaker indirect call-graph signal for
+    /// the same intent must not double it.
+    #[test]
+    fn indirect_call_signal_does_not_duplicate_a_caller_s_own_direct_finding() {
+        let helper_key = StableKey::new("helper").expect("helper key");
+        let caller_key = StableKey::new("caller").expect("caller key");
+        let requirement_key = StableKey::new("requirement").expect("requirement key");
+
+        let helper = code_node(
+            &helper_key,
+            "billing.subscription.SubscriptionService._entitlement_status",
+            SymbolKind::Method,
+            "src/billing/subscription.py",
+        );
+        let caller = code_node(
+            &caller_key,
+            "billing.subscription.SubscriptionService.cancel",
+            SymbolKind::Method,
+            "src/billing/subscription.py",
+        );
+        let requirement = intent_node(&requirement_key, NodeKind::Requirement, "REQ-SUB-014");
+        let nodes = [helper, caller, requirement]
+            .into_iter()
+            .map(|node| (node.stable_key.clone(), node))
+            .collect();
+        let edges = vec![
+            semantic_edge(&caller_key, &helper_key, RelationKind::Calls, false),
+            semantic_edge(
+                &caller_key,
+                &requirement_key,
+                RelationKind::Implements,
+                true,
+            ),
+        ];
+
+        let (before_helper, after_helper) = entitlement_helper_symbols();
+        let before_caller = SymbolDefinition {
+            canonical_path: "billing.subscription.SubscriptionService.cancel".to_owned(),
+            ..symbol("caller-old-body", "caller-old-shape", "(value)")
+        };
+        let after_caller = SymbolDefinition {
+            body_hash: "caller-new-body".to_owned(),
+            structural_fingerprint: "caller-new-shape".to_owned(),
+            ..before_caller.clone()
+        };
+        let input = ReviewInput {
+            base: "HEAD".to_owned(),
+            changes: vec![FileChange::Modified {
+                path: "src/billing/subscription.py".to_owned(),
+            }],
+            before: BTreeMap::from([(
+                "src/billing/subscription.py".to_owned(),
+                FileAnalysis {
+                    path: "src/billing/subscription.py".to_owned(),
+                    language: "python".to_owned(),
+                    analysis_version: "python-tree-sitter-v1".to_owned(),
+                    content_hash: "before".to_owned(),
+                    symbols: vec![before_helper, before_caller],
+                },
+            )]),
+            after: BTreeMap::from([(
+                "src/billing/subscription.py".to_owned(),
+                FileAnalysis {
+                    path: "src/billing/subscription.py".to_owned(),
+                    language: "python".to_owned(),
+                    analysis_version: "python-tree-sitter-v1".to_owned(),
+                    content_hash: "after".to_owned(),
+                    symbols: vec![after_helper, after_caller],
+                },
+            )]),
+            changed_context_files: BTreeSet::new(),
+            verbose: false,
+        };
+
+        let report = build_review_findings(&GraphSnapshot { nodes, edges }, &input);
+
+        assert_eq!(report.changed_entities.len(), 2);
+        let matching = report
+            .findings
+            .iter()
+            .filter(|finding| finding.affected_intent.identifier == "REQ-SUB-014")
+            .collect::<Vec<_>>();
+        assert_eq!(matching.len(), 1);
+        assert!(matching[0].uncertainty.is_none());
     }
 
     /// Documents (and guards) the gap explained on `classify_behavior_change`:

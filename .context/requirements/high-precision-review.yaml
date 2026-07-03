@@ -8,18 +8,28 @@ statement: >
   intent, evidence, related tests, uncertainty, and a concrete reviewer
   action; a changed static database read or write target must be reported as
   a concrete behavior signal without being called a proven requirement
-  violation. Schema changes from a migration or an edited SQLAlchemy model
-  are surfaced as a separate schema_findings stream, classified destructive
-  or informational from deterministic operations alone, and kept structurally
-  apart from proven product-impact findings; each carries a bounded advisory
-  link (one hop from the affected table, one hop from that code's own mapped
-  intent) to the requirements/invariants/tests its readers/writers implement,
-  never a fuller traversal that could bridge a popular table into unrelated
-  product areas. An empty advisory link means no known mapping was found, not
-  that the change is unrelated.
+  violation. A changed symbol's own claims are not the only source of
+  findings: when a changed, genuinely callable symbol (a function or method,
+  never a container symbol whose own body hash is just an aggregate of
+  changed children) has a direct, structurally proven caller that itself
+  carries an active implementation/enforcement/satisfaction claim, that
+  caller's claim is also surfaced, attributed to the caller, with an explicit
+  indirect uncertainty note naming the changed callee. This one-hop-only
+  escalation never chains through a second call hop and is deduplicated per
+  (caller, intent) pair even when more than one changed entity would
+  otherwise explain the same pair. Schema changes from a migration or an
+  edited SQLAlchemy model are surfaced as a separate schema_findings stream,
+  classified destructive or informational from deterministic operations
+  alone, and kept structurally apart from proven product-impact findings;
+  each carries a bounded advisory link (one hop from the affected table, one
+  hop from that code's own mapped intent) to the requirements/invariants/tests
+  its readers/writers implement, never a fuller traversal that could bridge a
+  popular table into unrelated product areas. An empty advisory link means no
+  known mapping was found, not that the change is unrelated.
 implementation:
   - symbol: ctx_core.review.build_review_findings
   - symbol: ctx_core.review.classify_behavior_change
+  - symbol: ctx_core.review.indirect_call_findings
   - symbol: ctx_core.review.schema_change_findings
   - symbol: ctx_core.review.db_entity_neighborhood
   - symbol: ctx_core.schema.declared_schema_changes
@@ -30,5 +40,7 @@ tests:
   - symbol: ctx_core.review.tests.classifies_contract_and_formatting_changes_without_guessing_equivalence
   - symbol: crates.ctx-cli.tests.e2e.complete_product_journey_is_deterministic_and_evidence_backed
   - symbol: ctx_core.review.tests.reports_changed_database_reads_and_writes_as_behavior_signals
+  - symbol: ctx_core.review.tests.indirect_call_finds_the_mapped_caller_of_a_changed_private_helper
+  - symbol: ctx_core.review.tests.indirect_call_signal_does_not_duplicate_a_caller_s_own_direct_finding
   - symbol: ctx_core.schema.tests.diff_does_not_guess_a_rename_from_name_similarity
   - symbol: ctx_core.schema.tests.adding_a_not_null_column_without_default_to_an_existing_table_is_destructive

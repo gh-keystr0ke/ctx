@@ -1,0 +1,20 @@
+id: INV-SCOPE-001
+type: invariant
+feature: FEAT-INDEXING
+status: active
+statement: >
+  A path listed in the configured include/exclude source scope must match
+  the same set of files whether or not the user spells the directory with a
+  trailing path separator: "crates/fixtures" and "crates/fixtures/" are the
+  same boundary. Silently failing to exclude a directory the user explicitly
+  excluded is a scope violation, not a cosmetic formatting difference — it
+  was discovered pulling an eval-fixture directory containing a Rust file a
+  bundled parser cannot yet handle into a real repository's index, which
+  aborted the whole `ctx index` run even though the user had already
+  excluded that exact path.
+implementation:
+  - symbol: ctx_adapters.git.normalize_path_entries
+  - symbol: ctx_adapters.git.PathFilter.allows
+tests:
+  - symbol: ctx_adapters.git.tests.trailing_slash_on_configured_exclude_still_excludes
+  - symbol: ctx_adapters.git.tests.configured_boundaries_include_only_selected_sources

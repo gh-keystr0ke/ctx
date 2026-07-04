@@ -1,9 +1,11 @@
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::{
     domain::{ClaimClass, ClaimStatus, SourceKind},
-    graph::{GraphEdge, GraphEvidence, GraphSnapshot, NodeSummary},
+    graph::{GraphEdge, GraphEvidence, GraphNode, GraphSnapshot, NodeSummary},
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -38,17 +40,37 @@ pub enum ExplainError {
 /// Explains a node or `source -> target` relationship exclusively from stored
 /// claims and evidence.
 ///
+/// Several distinct nodes matching one query (a short name shared across
+/// namespaces) are not an error and are not pooled together: each distinct
+/// match gets its own independent [`Explanation`], per PR-LOOKUP-003 — the
+/// caller sees the equivalent of running `explain` once per fully-qualified
+/// match. A `source -> target` relationship query always yields exactly one
+/// [`Explanation`], since it names a specific directed claim rather than an
+/// ambiguous lookup.
+///
 /// # Errors
 ///
 /// Returns [`ExplainError`] when the node or relationship is absent.
-pub fn explain(query: &str, graph: &GraphSnapshot) -> Result<Explanation, ExplainError> {
+pub fn explain(query: &str, graph: &GraphSnapshot) -> Result<Vec<Explanation>, ExplainError> {
     if let Some((source_query, target_query)) = query.split_once("->") {
-        return explain_relationship(source_query.trim(), target_query.trim(), query, graph);
+        return explain_relationship(source_query.trim(), target_query.trim(), query, graph)
+            .map(|explanation| vec![explanation]);
     }
     let nodes = graph.resolve(query);
     if nodes.is_empty() {
         return Err(ExplainError::NotFound(query.to_owned()));
     }
+    let mut grouped = BTreeMap::<&str, Vec<&GraphNode>>::new();
+    for node in nodes {
+        grouped.entry(node.identifier()).or_default().push(node);
+    }
+    Ok(grouped
+        .into_values()
+        .map(|group| explain_nodes(query, &group, graph))
+        .collect())
+}
+
+fn explain_nodes(query: &str, nodes: &[&GraphNode], graph: &GraphSnapshot) -> Explanation {
     let mut claims = graph
         .edges
         .iter()
@@ -60,11 +82,11 @@ pub fn explain(query: &str, graph: &GraphSnapshot) -> Result<Explanation, Explai
         .map(|edge| claim_explanation(edge, graph))
         .collect::<Vec<_>>();
     sort_claims(&mut claims);
-    Ok(Explanation {
+    Explanation {
         query: query.to_owned(),
-        subjects: nodes.into_iter().map(NodeSummary::from).collect(),
+        subjects: nodes.iter().map(|node| NodeSummary::from(*node)).collect(),
         claims,
-    })
+    }
 }
 
 fn explain_relationship(
@@ -134,4 +156,124 @@ fn claim_explanation(edge: &GraphEdge, graph: &GraphSnapshot) -> ClaimExplanatio
 
 fn sort_claims(claims: &mut [ClaimExplanation]) {
     claims.sort_by(|left, right| left.claim.cmp(&right.claim));
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use crate::{
+        domain::{Confidence, RelationKind, StableKey},
+        graph::GraphEdge,
+        indexing::PlannedNodeAttributes,
+        ir::{SourceRange, SymbolKind},
+    };
+
+    use super::*;
+
+    /// Mirrors prompt3.md's `Replication` example (PR-LOOKUP-002/003, FR-04):
+    /// several distinct namespaces sharing one short name is not an error,
+    /// and each match's claims stay in its own independent [`Explanation`]
+    /// instead of being pooled into one merged neighborhood.
+    #[test]
+    fn multiple_short_name_matches_produce_independent_explanations() {
+        let manager = symbol_node("manager", "internal.logic.manager.Replication");
+        let storage = symbol_node("storage", "storage.replication.Replication");
+        let manager_requirement = intent_node("manager-req", "REQ-MANAGER-001");
+        let storage_requirement = intent_node("storage-req", "REQ-STORAGE-001");
+        let nodes = [
+            manager.clone(),
+            storage.clone(),
+            manager_requirement.clone(),
+            storage_requirement.clone(),
+        ]
+        .into_iter()
+        .map(|node| (node.stable_key.clone(), node))
+        .collect::<BTreeMap<_, _>>();
+        let edges = vec![
+            edge(&manager, &manager_requirement),
+            edge(&storage, &storage_requirement),
+        ];
+
+        let mut explanations = explain("Replication", &GraphSnapshot { nodes, edges })
+            .expect("independent explanations per match");
+
+        assert_eq!(explanations.len(), 2);
+        explanations.sort_by(|left, right| {
+            left.subjects[0]
+                .identifier
+                .cmp(&right.subjects[0].identifier)
+        });
+        assert_eq!(
+            explanations[0].subjects[0].identifier,
+            "internal.logic.manager.Replication"
+        );
+        assert_eq!(explanations[0].claims.len(), 1);
+        assert!(explanations[0].claims[0].claim.contains("REQ-MANAGER-001"));
+        assert_eq!(
+            explanations[1].subjects[0].identifier,
+            "storage.replication.Replication"
+        );
+        assert_eq!(explanations[1].claims.len(), 1);
+        assert!(explanations[1].claims[0].claim.contains("REQ-STORAGE-001"));
+    }
+
+    fn symbol_node(key: &str, canonical: &str) -> GraphNode {
+        GraphNode {
+            stable_key: StableKey::new(key).expect("stable key"),
+            kind: crate::domain::NodeKind::CodeSymbol,
+            name: canonical.rsplit('.').next().unwrap_or(canonical).to_owned(),
+            content_hash: "hash".to_owned(),
+            attributes: PlannedNodeAttributes::Symbol {
+                file_path: "file.rs".to_owned(),
+                canonical_path: canonical.to_owned(),
+                symbol_kind: SymbolKind::Struct,
+                range: SourceRange {
+                    start_byte: 0,
+                    end_byte: 1,
+                    start_line: 1,
+                    end_line: 1,
+                },
+                signature: None,
+                structural_fingerprint: "shape".to_owned(),
+                calls: Vec::new(),
+                database_accesses: Vec::new(),
+                schema_tables: Vec::new(),
+            },
+        }
+    }
+
+    fn intent_node(key: &str, id: &str) -> GraphNode {
+        GraphNode {
+            stable_key: StableKey::new(key).expect("stable key"),
+            kind: crate::domain::NodeKind::Requirement,
+            name: id.to_owned(),
+            content_hash: "hash".to_owned(),
+            attributes: PlannedNodeAttributes::Business {
+                id: id.to_owned(),
+                status: "active".to_owned(),
+                body: "body".to_owned(),
+                feature: None,
+                source_uri: "context.yaml".to_owned(),
+            },
+        }
+    }
+
+    fn edge(source: &GraphNode, target: &GraphNode) -> GraphEdge {
+        GraphEdge {
+            source: source.stable_key.clone(),
+            target: target.stable_key.clone(),
+            kind: RelationKind::Implements,
+            claim_class: ClaimClass::Assertion,
+            source_kind: SourceKind::Documentation,
+            confidence: Confidence::CERTAIN,
+            status: ClaimStatus::Active,
+            valid_from: "commit".to_owned(),
+            valid_to: None,
+            producer: "test".to_owned(),
+            fingerprint: format!("{}:implements", source.stable_key),
+            stale_reason: None,
+            evidence: Vec::new(),
+        }
+    }
 }

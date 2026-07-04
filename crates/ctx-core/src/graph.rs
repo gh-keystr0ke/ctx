@@ -96,11 +96,7 @@ impl GraphSnapshot {
             })
             .collect::<Vec<_>>();
         suffix.sort_by(|left, right| left.stable_key.cmp(&right.stable_key));
-        if suffix.len() == 1 {
-            suffix
-        } else {
-            Vec::new()
-        }
+        suffix
     }
 }
 
@@ -121,6 +117,35 @@ impl From<&GraphNode> for NodeSummary {
             name: node.name.clone(),
         }
     }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct SymbolMatch {
+    pub identifier: String,
+    pub name: String,
+    pub node_kind: NodeKind,
+    pub symbol_kind: Option<crate::ir::SymbolKind>,
+}
+
+/// Discovery lookup for `ctx find <name>` (PR-LOOKUP-007): every distinct
+/// exact/short-name match, annotated with enough to tell them apart, with no
+/// ambiguity error and no merged traversal — plain discovery output.
+pub fn find_symbols(query: &str, graph: &GraphSnapshot) -> Vec<SymbolMatch> {
+    let mut matches = graph
+        .resolve(query)
+        .into_iter()
+        .map(|node| SymbolMatch {
+            identifier: node.identifier().to_owned(),
+            name: node.name.clone(),
+            node_kind: node.kind,
+            symbol_kind: match &node.attributes {
+                PlannedNodeAttributes::Symbol { symbol_kind, .. } => Some(*symbol_kind),
+                _ => None,
+            },
+        })
+        .collect::<Vec<_>>();
+    matches.sort_by(|left, right| left.identifier.cmp(&right.identifier));
+    matches
 }
 
 /// Finds requirements by stable ID and lexical content in deterministic order.

@@ -74,8 +74,6 @@ pub enum ContextCompileError {
     EmptyBudget,
     #[error("no indexed context matches the task or supplied seeds")]
     NoSeeds,
-    #[error("explicit context seed '{0}' is ambiguous")]
-    AmbiguousSeed(String),
 }
 
 #[derive(Clone, Debug)]
@@ -100,7 +98,7 @@ pub fn compile_context_pack(
         return Err(ContextCompileError::EmptyBudget);
     }
     let task_terms = terms(&request.task);
-    let seed_keys = detect_seeds(graph, request, &task_terms)?;
+    let seed_keys = detect_seeds(graph, request, &task_terms);
     if seed_keys.is_empty() {
         return Err(ContextCompileError::NoSeeds);
     }
@@ -183,14 +181,14 @@ fn detect_seeds(
     graph: &GraphSnapshot,
     request: &ContextRequest,
     task_terms: &BTreeSet<String>,
-) -> Result<BTreeSet<StableKey>, ContextCompileError> {
+) -> BTreeSet<StableKey> {
     let mut seeds = BTreeSet::new();
     for query in request.files.iter().chain(&request.symbols) {
-        let matches = graph.resolve(query);
-        if matches.len() > 1 {
-            return Err(ContextCompileError::AmbiguousSeed(query.clone()));
-        }
-        if let Some(node) = matches.first() {
+        // Several exact matches for one explicit seed (a short name shared
+        // across namespaces) are not an error: each becomes its own explicit
+        // root in the same pack rather than being rejected or collapsed to
+        // one arbitrary pick (PR-CONTEXT-001).
+        for node in graph.resolve(query) {
             seeds.insert(node.stable_key.clone());
         }
     }
@@ -199,7 +197,7 @@ fn detect_seeds(
     // lexical roots can spend the budget on unrelated task-word matches and
     // push direct contracts out of the pack.
     if !seeds.is_empty() {
-        return Ok(seeds);
+        return seeds;
     }
     // Tests are excluded from lexical auto-seeding: a task description
     // incidentally overlapping with the identifiers a test happens to call
@@ -221,7 +219,7 @@ fn detect_seeds(
     for (_, key) in lexical.into_iter().take(5) {
         seeds.insert(key);
     }
-    Ok(seeds)
+    seeds
 }
 
 fn expand_candidates(

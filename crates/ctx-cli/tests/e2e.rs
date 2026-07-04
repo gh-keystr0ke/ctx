@@ -244,6 +244,37 @@ fn mixed_python_rust_and_go_repository_indexes_and_reviews_through_one_registry(
         entity["stable_key"] == "symbol:go:main.Run:Function"
             && entity["change_kind"] == "behavior_potentially_changed"
     }));
+
+    // PR-LOOKUP-002/003/004: `helper` is defined once per language in this
+    // fixture, under one bare short name. Several exact matches must not be
+    // an error, must not merge into one neighborhood, and must preserve
+    // per-match boundaries in JSON.
+    let impact = repository.ctx(&["impact", "helper"]);
+    assert_eq!(impact["query"], "helper");
+    let matches = impact["matches"].as_array().expect("impact matches array");
+    assert_eq!(matches.len(), 3);
+    let identifiers = matches
+        .iter()
+        .map(|report| {
+            report["selected"][0]["identifier"]
+                .as_str()
+                .expect("selected identifier")
+                .to_owned()
+        })
+        .collect::<BTreeSet<_>>();
+    assert!(
+        identifiers
+            .iter()
+            .all(|identifier| identifier.ends_with(".helper"))
+    );
+    assert_eq!(
+        identifiers.len(),
+        3,
+        "each match stays a distinct namespace"
+    );
+
+    let find = repository.ctx(&["find", "helper"]);
+    assert_eq!(find["matches"].as_array().expect("find matches").len(), 3);
 }
 
 fn json_array(values: &[&str]) -> Value {

@@ -175,9 +175,13 @@ fn run_impact(
     target: &str,
 ) -> Result<ctx_core::impact::ImpactReport, HarnessError> {
     let repository = git.descriptor().map_err(HarnessError::Port)?;
-    QueryService::new(store)
+    let mut reports = QueryService::new(store)
         .impact(&repository.id, target)
-        .map_err(HarnessError::from)
+        .map_err(HarnessError::from)?;
+    // Eval fixtures target fully-qualified symbols/IDs, which resolve to
+    // exactly one match; ambiguous short-name fan-out is exercised directly
+    // in ctx-core's and ctx-cli's own tests instead.
+    Ok(reports.remove(0))
 }
 
 fn run_context(

@@ -33,11 +33,16 @@ pub struct ImpactReport {
 pub enum ImpactError {
     #[error("no indexed file, symbol, or product context matches '{0}'")]
     NotFound(String),
-    #[error("'{query}' is ambiguous; matches: {matches}")]
-    Ambiguous { query: String, matches: String },
 }
 
-/// Compiles a bounded intent-to-implementation impact view.
+/// Compiles a bounded intent-to-implementation impact view for every distinct
+/// symbol/node a short or ambiguous query resolves to.
+///
+/// Several exact matches (for example a short name shared by symbols in
+/// unrelated namespaces) are not an error: each distinct match gets its own
+/// independently computed [`ImpactReport`], equivalent to calling this
+/// function once per fully-qualified match and aggregating the results. This
+/// keeps unrelated graph neighborhoods from leaking into one another.
 ///
 /// The policy expands file containment, calls, and statically proven data or
 /// external interactions only one hop, then follows at most three semantic
@@ -45,10 +50,25 @@ pub enum ImpactError {
 ///
 /// # Errors
 ///
-/// Returns [`ImpactError`] when the exact/suffix seed is missing or ambiguous.
-pub fn analyze_impact(query: &str, graph: &GraphSnapshot) -> Result<ImpactReport, ImpactError> {
+/// Returns [`ImpactError`] when the query resolves to nothing.
+pub fn analyze_impact(
+    query: &str,
+    graph: &GraphSnapshot,
+) -> Result<Vec<ImpactReport>, ImpactError> {
     let (seed_query, column) = resolve_table_column_seed(query, graph);
-    let seeds = resolve_unique(&seed_query, graph)?;
+    let groups = resolve_groups(&seed_query, graph)?;
+    Ok(groups
+        .into_iter()
+        .map(|seeds| analyze_impact_for_seeds(query, &seeds, column, graph))
+        .collect())
+}
+
+fn analyze_impact_for_seeds(
+    query: &str,
+    seeds: &[&crate::graph::GraphNode],
+    column: Option<&str>,
+    graph: &GraphSnapshot,
+) -> ImpactReport {
     let seed_keys = seeds
         .iter()
         .map(|node| node.stable_key.clone())
@@ -89,7 +109,7 @@ pub fn analyze_impact(query: &str, graph: &GraphSnapshot) -> Result<ImpactReport
         focus_on_column(graph, &seed_keys, column, &mut report);
     }
     sort_report(&mut report);
-    Ok(report)
+    report
 }
 
 /// Recognizes a `table.column` seed (for example `subscriptions.paid_until`)
@@ -181,25 +201,25 @@ fn evidence_columns(locator: &str) -> BTreeSet<&str> {
         .collect()
 }
 
-fn resolve_unique<'a>(
+/// Resolves a query to its distinct matches, grouped by identifier: nodes
+/// that legitimately share one identifier (the same symbol resolved through
+/// different lookup paths) stay one seed group and analyze together, while
+/// genuinely distinct matches (a short name shared across namespaces) each
+/// become their own independent group. Groups are ordered by identifier for
+/// deterministic output.
+fn resolve_groups<'a>(
     query: &str,
     graph: &'a GraphSnapshot,
-) -> Result<Vec<&'a crate::graph::GraphNode>, ImpactError> {
+) -> Result<Vec<Vec<&'a crate::graph::GraphNode>>, ImpactError> {
     let nodes = graph.resolve(query);
     if nodes.is_empty() {
         return Err(ImpactError::NotFound(query.to_owned()));
     }
-    let identifiers = nodes
-        .iter()
-        .map(|node| node.identifier())
-        .collect::<BTreeSet<_>>();
-    if identifiers.len() > 1 {
-        return Err(ImpactError::Ambiguous {
-            query: query.to_owned(),
-            matches: identifiers.into_iter().collect::<Vec<_>>().join(", "),
-        });
+    let mut grouped = std::collections::BTreeMap::<&str, Vec<&crate::graph::GraphNode>>::new();
+    for node in nodes {
+        grouped.entry(node.identifier()).or_default().push(node);
     }
-    Ok(nodes)
+    Ok(grouped.into_values().collect())
 }
 
 fn expand_structural_seed_neighborhood(
@@ -418,7 +438,8 @@ mod tests {
         ];
 
         let report = analyze_impact("billing.cancel", &GraphSnapshot { nodes, edges })
-            .expect("impact report");
+            .expect("impact report")
+            .remove(0);
 
         assert_eq!(report.requirements[0].identifier, "REQ-SUB-014");
         assert_eq!(report.invariants[0].identifier, "INV-SUB-003");
@@ -479,8 +500,9 @@ mod tests {
             ),
         ];
 
-        let report =
-            analyze_impact("review.build", &GraphSnapshot { nodes, edges }).expect("impact report");
+        let report = analyze_impact("review.build", &GraphSnapshot { nodes, edges })
+            .expect("impact report")
+            .remove(0);
 
         assert_eq!(
             report
@@ -550,7 +572,8 @@ mod tests {
             "billing.subscription.cancel",
             &GraphSnapshot { nodes, edges },
         )
-        .expect("impact report");
+        .expect("impact report")
+        .remove(0);
 
         assert_eq!(
             report
@@ -608,7 +631,8 @@ mod tests {
         ];
 
         let report = analyze_impact("billing.cancel", &GraphSnapshot { nodes, edges })
-            .expect("impact report");
+            .expect("impact report")
+            .remove(0);
 
         assert_eq!(report.requirements[0].identifier, "REQ-SUB-014");
         assert_eq!(report.decisions[0].identifier, "ADR-SUB-001");
@@ -632,7 +656,8 @@ mod tests {
         )];
 
         let report = analyze_impact("billing.cancel", &GraphSnapshot { nodes, edges })
-            .expect("impact report");
+            .expect("impact report")
+            .remove(0);
 
         assert!(report.requirements.is_empty());
         assert!(report.uncertainties.is_empty());
@@ -665,7 +690,8 @@ mod tests {
         ];
 
         let report = analyze_impact("billing.persist", &GraphSnapshot { nodes, edges })
-            .expect("database impact");
+            .expect("database impact")
+            .remove(0);
 
         assert_eq!(report.data_contracts[0].identifier, "subscriptions");
         assert!(
@@ -720,7 +746,8 @@ mod tests {
         let edges = vec![writes_paid_until, writes_name_only];
 
         let report = analyze_impact("subscriptions.paid_until", &GraphSnapshot { nodes, edges })
-            .expect("column impact");
+            .expect("column impact")
+            .remove(0);
 
         assert_eq!(report.selected[0].identifier, "subscriptions");
         assert_eq!(report.data_contracts[0].identifier, "subscriptions");
@@ -762,7 +789,8 @@ mod tests {
                 edges: vec![edge],
             },
         )
-        .expect("table-level fallback");
+        .expect("table-level fallback")
+        .remove(0);
 
         assert_eq!(report.selected[0].identifier, "subscriptions");
         assert!(
@@ -806,11 +834,83 @@ mod tests {
         ];
 
         let report = analyze_impact("billing.cancel", &GraphSnapshot { nodes, edges })
-            .expect("impact report");
+            .expect("impact report")
+            .remove(0);
 
         assert_eq!(report.requirements[0].identifier, "REQ-SUB-014");
         assert!(report.features.is_empty());
         assert_eq!(report.uncertainties.len(), 2);
+    }
+
+    /// Mirrors prompt3.md's `Replication` example (PR-LOOKUP-002/003, FR-04):
+    /// several distinct namespaces sharing one short name is not an error,
+    /// and each match's impact is computed independently rather than pooled
+    /// into one merged neighborhood.
+    #[test]
+    fn multiple_short_name_matches_produce_independent_reports() {
+        let manager = symbol_node(
+            "manager",
+            "internal.logic.manager.Replication",
+            SymbolKind::Struct,
+        );
+        let storage = symbol_node(
+            "storage",
+            "storage.replication.Replication",
+            SymbolKind::Struct,
+        );
+        let manager_requirement =
+            intent_node("manager-req", NodeKind::Requirement, "REQ-MANAGER-001");
+        let storage_requirement =
+            intent_node("storage-req", NodeKind::Requirement, "REQ-STORAGE-001");
+        let nodes = [
+            manager.clone(),
+            storage.clone(),
+            manager_requirement.clone(),
+            storage_requirement.clone(),
+        ]
+        .into_iter()
+        .map(|node| (node.stable_key.clone(), node))
+        .collect::<BTreeMap<_, _>>();
+        let edges = vec![
+            edge(
+                &manager,
+                &manager_requirement,
+                RelationKind::Implements,
+                ClaimStatus::Active,
+            ),
+            edge(
+                &storage,
+                &storage_requirement,
+                RelationKind::Implements,
+                ClaimStatus::Active,
+            ),
+        ];
+
+        let mut reports = analyze_impact("Replication", &GraphSnapshot { nodes, edges })
+            .expect("independent impact reports per match");
+
+        assert_eq!(reports.len(), 2);
+        reports.sort_by(|left, right| {
+            left.selected[0]
+                .identifier
+                .cmp(&right.selected[0].identifier)
+        });
+        assert_eq!(
+            reports[0].selected[0].identifier,
+            "internal.logic.manager.Replication"
+        );
+        assert_eq!(reports[0].requirements[0].identifier, "REQ-MANAGER-001");
+        assert!(
+            reports[0]
+                .requirements
+                .iter()
+                .all(|node| node.identifier != "REQ-STORAGE-001")
+        );
+        assert_eq!(
+            reports[1].selected[0].identifier,
+            "storage.replication.Replication"
+        );
+        assert_eq!(reports[1].requirements[0].identifier, "REQ-STORAGE-001");
     }
 
     fn symbol_node(key: &str, canonical: &str, kind: SymbolKind) -> GraphNode {

@@ -61,6 +61,8 @@ enum Command {
     Impact { target: String },
     /// Explain a node or a directed `source -> target` claim.
     Explain { target: String },
+    /// Discover indexed symbols/nodes by short or exact name.
+    Find { target: String },
     /// Review a branch or working-tree diff in product terms.
     Review {
         #[arg(long, default_value = "HEAD")]
@@ -155,6 +157,7 @@ fn run(cli: &Cli) -> Result<(), CliError> {
         Command::Status => status(cli, &git),
         Command::Impact { target } => impact(cli, &git, target),
         Command::Explain { target } => explain(cli, &git, target),
+        Command::Find { target } => find(cli, &git, target),
         Command::Review { base } => review(cli, &git, base),
         Command::Context {
             task,
@@ -462,25 +465,46 @@ fn impact(cli: &Cli, git: &GitRepo, target: &str) -> Result<(), CliError> {
     let database_path = database_path(git.root())?;
     let store = SqliteStore::open(&database_path)?;
     let repository = git.descriptor()?;
-    let report = QueryService::new(&store).impact(&repository.id, target)?;
+    let reports = QueryService::new(&store).impact(&repository.id, target)?;
     if cli.json {
-        println!("{}", serde_json::to_string_pretty(&report)?);
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&json!({"query": target, "matches": reports}))?
+        );
         return Ok(());
     }
-    println!("Impact for {target}");
-    print_nodes("Features", &report.features);
-    print_nodes("Requirements", &report.requirements);
-    print_nodes("Invariants", &report.invariants);
-    print_nodes("Decisions", &report.decisions);
-    print_nodes("Implementation", &report.implementation);
-    print_nodes("Tests", &report.tests);
-    if !report.uncertainties.is_empty() {
-        println!("Uncertainty:");
-        for uncertainty in report.uncertainties {
-            println!(
-                "  - {} ({}, confidence {:.2})",
-                uncertainty.relationship, uncertainty.reason, uncertainty.confidence
-            );
+    let total = reports.len();
+    if total > 1 {
+        println!("{total} symbols matched \"{target}\"\n");
+    }
+    for (index, report) in reports.into_iter().enumerate() {
+        if total > 1 {
+            let subject = report
+                .selected
+                .first()
+                .map_or(target, |node| node.identifier.as_str());
+            println!("[{}/{total}]", index + 1);
+            println!("Impact for {subject}");
+        } else {
+            println!("Impact for {target}");
+        }
+        print_nodes("Features", &report.features);
+        print_nodes("Requirements", &report.requirements);
+        print_nodes("Invariants", &report.invariants);
+        print_nodes("Decisions", &report.decisions);
+        print_nodes("Implementation", &report.implementation);
+        print_nodes("Tests", &report.tests);
+        if !report.uncertainties.is_empty() {
+            println!("Uncertainty:");
+            for uncertainty in report.uncertainties {
+                println!(
+                    "  - {} ({}, confidence {:.2})",
+                    uncertainty.relationship, uncertainty.reason, uncertainty.confidence
+                );
+            }
+        }
+        if total > 1 {
+            println!();
         }
     }
     Ok(())
@@ -490,30 +514,74 @@ fn explain(cli: &Cli, git: &GitRepo, target: &str) -> Result<(), CliError> {
     let database_path = database_path(git.root())?;
     let store = SqliteStore::open(&database_path)?;
     let repository = git.descriptor()?;
-    let explanation = QueryService::new(&store).explain(&repository.id, target)?;
+    let explanations = QueryService::new(&store).explain(&repository.id, target)?;
     if cli.json {
-        println!("{}", serde_json::to_string_pretty(&explanation)?);
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&json!({"query": target, "matches": explanations}))?
+        );
         return Ok(());
     }
-    println!("Explanation for {target}");
-    for claim in explanation.claims {
-        println!("- {}", claim.claim);
-        println!(
-            "  {:?}, {:?}, confidence {:.2}, valid from {}",
-            claim.claim_class, claim.status, claim.confidence, claim.valid_from
-        );
-        println!("  Provenance: {:?} ({})", claim.provenance, claim.producer);
-        if let Some(reason) = claim.stale_reason {
-            println!("  Stale because: {reason}");
+    let total = explanations.len();
+    if total > 1 {
+        println!("{total} symbols matched \"{target}\"\n");
+    }
+    for (index, explanation) in explanations.into_iter().enumerate() {
+        if total > 1 {
+            let subject = explanation
+                .subjects
+                .first()
+                .map_or(target, |summary| summary.identifier.as_str());
+            println!("[{}/{total}]", index + 1);
+            println!("Explanation for {subject}");
+        } else {
+            println!("Explanation for {target}");
         }
-        for evidence in claim.evidence {
+        for claim in explanation.claims {
+            println!("- {}", claim.claim);
             println!(
-                "  Evidence: {}#{} at {}",
-                evidence.source_uri,
-                evidence.locator,
-                evidence.commit.as_deref().unwrap_or("unknown")
+                "  {:?}, {:?}, confidence {:.2}, valid from {}",
+                claim.claim_class, claim.status, claim.confidence, claim.valid_from
             );
+            println!("  Provenance: {:?} ({})", claim.provenance, claim.producer);
+            if let Some(reason) = claim.stale_reason {
+                println!("  Stale because: {reason}");
+            }
+            for evidence in claim.evidence {
+                println!(
+                    "  Evidence: {}#{} at {}",
+                    evidence.source_uri,
+                    evidence.locator,
+                    evidence.commit.as_deref().unwrap_or("unknown")
+                );
+            }
         }
+        if total > 1 {
+            println!();
+        }
+    }
+    Ok(())
+}
+
+fn find(cli: &Cli, git: &GitRepo, target: &str) -> Result<(), CliError> {
+    let database_path = database_path(git.root())?;
+    let store = SqliteStore::open(&database_path)?;
+    let repository = git.descriptor()?;
+    let matches = QueryService::new(&store).find(&repository.id, target)?;
+    if cli.json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&json!({"query": target, "matches": matches}))?
+        );
+        return Ok(());
+    }
+    println!("{} symbols found\n", matches.len());
+    for symbol_match in matches {
+        let kind = symbol_match.symbol_kind.map_or_else(
+            || format!("{:?}", symbol_match.node_kind),
+            |kind| format!("{kind:?}"),
+        );
+        println!("{kind:<12}  {}", symbol_match.identifier);
     }
     Ok(())
 }

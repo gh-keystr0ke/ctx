@@ -768,10 +768,117 @@ mod tests {
             .expect("evidence count");
         assert_eq!(evidence_chains, 1);
         let graph = store.load_graph(&repository.id).expect("graph");
-        let explanation = explain("billing.cancel -> REQ-SUB-014", &graph).expect("explanation");
+        let explanation = explain("billing.cancel -> REQ-SUB-014", &graph)
+            .expect("explanation")
+            .remove(0);
         assert_eq!(explanation.claims.len(), 1);
         assert_eq!(explanation.claims[0].evidence.len(), 1);
         assert_acceptance_preserves_inference(&mut store, &repository.id, &commit);
+    }
+
+    /// PR-LOOKUP-006/FR-05: query-time lookup (`ctx impact`/`ctx explain`)
+    /// tolerates several exact matches, but a persistent `.context/*.yaml`
+    /// mapping must still refuse to guess among them — it needs exactly one.
+    /// Two symbols sharing one canonical path (a realistic cross-language
+    /// collision) is exactly this case.
+    #[test]
+    fn ambiguous_persistent_mapping_stays_unresolved_instead_of_guessing() {
+        let directory = tempdir().expect("temporary directory");
+        let mut store = SqliteStore::open(&directory.path().join("ctx.db")).expect("database");
+        let repository = RepositoryDescriptor {
+            id: RepositoryId::new("repo:test").expect("repository ID"),
+            root_path: "/repo".to_owned(),
+            remote_url: None,
+        };
+        let commit = CommitMetadata {
+            oid: CommitOid::new("abcdef12").expect("commit"),
+            parent_oid: None,
+            authored_at: "2026-08-21T00:00:00Z".to_owned(),
+        };
+        store
+            .ensure_repository(&repository, "2026-08-21T00:00:00Z")
+            .expect("repository");
+        let plan = IndexPlan {
+            nodes_to_write: vec![
+                symbol_node_plan(
+                    "symbol:python:billing.cancel:Function",
+                    "cancel",
+                    "billing.py",
+                    "billing.cancel",
+                ),
+                symbol_node_plan(
+                    "symbol:go:billing.cancel:Function",
+                    "cancel",
+                    "billing.go",
+                    "billing.cancel",
+                ),
+            ],
+            ..IndexPlan::default()
+        };
+        store
+            .apply_index(&repository.id, &commit, "2026-08-21T00:00:00Z", &plan)
+            .expect("index");
+        let document = BusinessDocument {
+            id: "REQ-SUB-014".to_owned(),
+            kind: BusinessKind::Requirement,
+            title: "Keep access".to_owned(),
+            body: "Keep access until paid_until".to_owned(),
+            status: "active".to_owned(),
+            feature: None,
+            implementation: vec![ExplicitSymbolLink {
+                symbol: "billing.cancel".to_owned(),
+                locator: "implementation[0]".to_owned(),
+            }],
+            tests: Vec::new(),
+            source_uri: ".context/requirements/cancel.yaml".to_owned(),
+            content_hash: "document".to_owned(),
+        };
+        let stats = store
+            .sync_context(&repository.id, &commit, "2026-08-21T00:00:00Z", &[document])
+            .expect("context");
+
+        assert_eq!(stats.explicit_links_created, 0);
+        assert_eq!(stats.unresolved_symbols, vec!["ambiguous:billing.cancel"]);
+        let implements_edges: i64 = store
+            .connection()
+            .query_row(
+                "SELECT COUNT(*) FROM edges WHERE kind = 'implements'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("edge count");
+        assert_eq!(implements_edges, 0);
+    }
+
+    fn symbol_node_plan(
+        stable_key: &str,
+        name: &str,
+        file_path: &str,
+        canonical_path: &str,
+    ) -> PlannedNode {
+        PlannedNode {
+            stable_key: StableKey::new(stable_key).expect("symbol stable key"),
+            kind: NodeKind::CodeSymbol,
+            name: name.to_owned(),
+            content_hash: "body".to_owned(),
+            attributes: PlannedNodeAttributes::Symbol {
+                file_path: file_path.to_owned(),
+                canonical_path: canonical_path.to_owned(),
+                symbol_kind: SymbolKind::Function,
+                range: SourceRange {
+                    start_byte: 0,
+                    end_byte: 10,
+                    start_line: 1,
+                    end_line: 2,
+                },
+                signature: Some("()".to_owned()),
+                structural_fingerprint: "shape".to_owned(),
+                calls: Vec::new(),
+                database_accesses: Vec::new(),
+                schema_tables: Vec::new(),
+            },
+            mutation: NodeMutationKind::Create,
+        }
     }
 
     fn assert_acceptance_preserves_inference(

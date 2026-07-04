@@ -1,0 +1,31 @@
+id: ADR-EXT-002
+type: decision
+title: AI-derived knowledge candidates persist as their own pending queue
+status: accepted
+decision: >
+  A typed Feature/Requirement/Invariant/Decision candidate an AI agent
+  extracts from a bounded artifact neighborhood is stored in its own
+  knowledge_candidates table, distinct from the existing heuristic
+  ctx_core.verification.SemanticCandidate pipeline. The heuristic pipeline is
+  cheap enough to recompute from the current graph on every ctx verify run;
+  an agent call is not, so its output — statement, evidence (as concrete
+  artifact excerpts, never free-form reasoning), candidate implementation/test
+  anchors, and full agent provenance (producer, model, input artifact
+  identities, timestamp, a fingerprint of the exact prompt/configuration) —
+  must survive between runs. Candidates are upserted keyed by a deterministic
+  fingerprint of (kind, statement) and start life as pending; an
+  already-accepted or already-rejected candidate is left untouched by a later
+  re-analysis proposing the same statement rather than being reverted to
+  pending, so repeated ingestion of the same underlying evidence does not
+  reopen a decision a human already made. A candidate is never itself a
+  ctx_core.domain.Edge or a ctx_core.business.BusinessDocument — that
+  promotion happens only through the human-verification step this table
+  exists to feed.
+implementation:
+  - symbol: ctx_core.knowledge.KnowledgeCandidate
+  - symbol: ctx_core.knowledge.AgentProvenance
+  - symbol: ctx_app.ports.KnowledgeCandidateStore
+  - symbol: ctx_adapters.sqlite.artifacts.SqliteStore.KnowledgeCandidateStore.upsert_candidates
+  - symbol: ctx_adapters.sqlite.artifacts.SqliteStore.KnowledgeCandidateStore.pending_candidates
+tests:
+  - symbol: ctx_adapters.sqlite.artifacts.tests.pending_candidates_round_trip_and_stay_out_once_decided

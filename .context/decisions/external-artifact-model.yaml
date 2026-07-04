@@ -1,0 +1,32 @@
+id: ADR-EXT-001
+type: decision
+title: External artifacts are their own store, never graph nodes
+status: accepted
+decision: >
+  Imported external development artifacts (commits, branches, GitLab issues
+  and merge requests, review comments, code comments/docstrings) are stored
+  as their own first-class rows (artifacts, artifact_links), never as
+  ctx_core.domain.Node entries in the product/implementation graph. An
+  imported artifact must never automatically become a Feature, Requirement,
+  Invariant, or Decision, and it has no place in intent-to-implementation
+  traversal (ctx impact/ctx context) — it is source material other passes
+  may derive candidates from, not a graph participant. Each artifact keeps
+  its own provenance identity (provider, kind, external_id, project, title,
+  body, author, external timestamps, source locator, content hash, ingestion
+  timestamp/version) and is upserted keyed by (repository, provider, kind,
+  external_id): re-syncing the same external object versions the stored
+  record instead of creating a logically new artifact. Deterministic
+  relationships between artifacts, or between an artifact and already-indexed
+  code, are stored separately as artifact_links, distinct from the semantic
+  edges the graph uses for verified/asserted product knowledge.
+implementation:
+  - symbol: ctx_core.artifact.Artifact
+  - symbol: ctx_core.artifact.ArtifactIdentity
+  - symbol: ctx_core.artifact.ArtifactLink
+  - symbol: ctx_app.ports.ArtifactRepository
+  - symbol: ctx_app.ports.ArtifactLinkStore
+  - symbol: ctx_adapters.sqlite.artifacts.SqliteStore.ArtifactRepository.upsert_artifact
+  - symbol: ctx_adapters.sqlite.artifacts.SqliteStore.ArtifactLinkStore.persist_links
+tests:
+  - symbol: ctx_adapters.sqlite.artifacts.tests.re_syncing_the_same_external_object_versions_it_instead_of_duplicating
+  - symbol: ctx_adapters.sqlite.artifacts.tests.links_between_stored_artifacts_round_trip

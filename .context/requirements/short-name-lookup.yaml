@@ -1,0 +1,39 @@
+id: REQ-LOOKUP-001
+type: requirement
+feature: FEAT-IMPACT
+status: active
+statement: >
+  A query naming a short or bare symbol name (for example `Replication`)
+  that resolves to several distinct namespaces must not be treated as an
+  error and must not be silently merged into one combined result: `ctx
+  impact`, `ctx explain`, and the discovery command `ctx find` each compute
+  and report every distinct match independently, equivalent to running the
+  query once per fully-qualified match and aggregating the output, so one
+  match's graph neighborhood never leaks into another's. JSON output
+  preserves this as a `matches` array under the original `query`, never a
+  single combined object. An explicit `--symbol`/`--file` seed passed to
+  `ctx context` that resolves to several matches becomes that many explicit
+  root groups in the same context pack rather than an error or an arbitrary
+  pick, and an explicit seed still never triggers unrelated lexical
+  auto-seeding. This is strictly a query-time relaxation: a persistent
+  `.context/*.yaml` `implementation:`/`tests:` mapping naming an ambiguous
+  symbol must still resolve to nothing (recorded as
+  `ambiguous:<name>` in `unresolved_symbols`) rather than guessing among the
+  candidates — short-name convenience at query time must never weaken a
+  written mapping's required precision.
+implementation:
+  - symbol: ctx_core.graph.GraphSnapshot.resolve
+  - symbol: ctx_core.graph.find_symbols
+  - symbol: ctx_core.impact.analyze_impact
+  - symbol: ctx_core.impact.resolve_groups
+  - symbol: ctx_core.explain.explain
+  - symbol: ctx_core.context_pack.detect_seeds
+  - symbol: ctx_app.query.QueryService.impact
+  - symbol: ctx_app.query.QueryService.explain
+  - symbol: ctx_app.query.QueryService.find
+  - symbol: ctx_adapters.sqlite.context.persist_symbol_claim
+tests:
+  - symbol: ctx_core.impact.tests.multiple_short_name_matches_produce_independent_reports
+  - symbol: ctx_core.explain.tests.multiple_short_name_matches_produce_independent_explanations
+  - symbol: ctx_adapters.sqlite.context.tests.ambiguous_persistent_mapping_stays_unresolved_instead_of_guessing
+  - symbol: crates.ctx-cli.tests.e2e.mixed_python_rust_and_go_repository_indexes_and_reviews_through_one_registry

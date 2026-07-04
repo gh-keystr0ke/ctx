@@ -1,11 +1,13 @@
 use std::fmt;
 
 use ctx_core::{
+    artifact::{Artifact, ArtifactLink},
     business::{BusinessDocument, ContextImportStats},
     domain::{CommitOid, RepositoryId},
     graph::GraphSnapshot,
     indexing::{FileChange, IndexPlan, RepositorySnapshot},
     ir::FileAnalysis,
+    knowledge::KnowledgeCandidate,
     verification::{SemanticCandidate, VerificationDecision},
 };
 use serde::{Deserialize, Serialize};
@@ -225,4 +227,80 @@ pub trait IndexStore {
     /// # Errors
     /// Returns [`PortError`] when counters cannot be queried.
     fn status(&self, repository: &RepositoryId) -> Result<RepositoryStatus, PortError>;
+}
+
+/// Persists raw external artifacts (prompt3.md PR-EXT-*), kept separate from
+/// the graph so an imported artifact never automatically becomes product
+/// knowledge (PR-EXT-002).
+pub trait ArtifactRepository {
+    /// Idempotently persists one artifact keyed by its identity
+    /// (`provider`, `kind`, `external_id`): re-syncing the same external
+    /// object versions the stored record rather than creating a logically
+    /// new artifact (PR-EXT-003).
+    ///
+    /// # Errors
+    /// Returns [`PortError`] when the artifact cannot be persisted.
+    fn upsert_artifact(
+        &mut self,
+        repository: &RepositoryId,
+        artifact: &Artifact,
+        ingested_at: &str,
+        ingest_version: &str,
+    ) -> Result<(), PortError>;
+
+    /// Lists every artifact currently stored for a repository, in
+    /// deterministic order.
+    ///
+    /// # Errors
+    /// Returns [`PortError`] when stored artifacts cannot be read.
+    fn list_artifacts(&self, repository: &RepositoryId) -> Result<Vec<Artifact>, PortError>;
+}
+
+/// Persists deterministic, non-AI relationships between artifacts or
+/// between an artifact and code (PR-LINK-001/002).
+pub trait ArtifactLinkStore {
+    /// Persists links, skipping any already-stored identical link so
+    /// repeated ingestion of the same artifact stays idempotent.
+    ///
+    /// # Errors
+    /// Returns [`PortError`] when links cannot be persisted.
+    fn persist_links(
+        &mut self,
+        repository: &RepositoryId,
+        links: &[ArtifactLink],
+    ) -> Result<(), PortError>;
+
+    /// Lists every stored link for a repository, in deterministic order.
+    ///
+    /// # Errors
+    /// Returns [`PortError`] when stored links cannot be read.
+    fn list_links(&self, repository: &RepositoryId) -> Result<Vec<ArtifactLink>, PortError>;
+}
+
+/// Persists AI-derived typed knowledge candidates awaiting human
+/// verification (PR-VERIFY-001/002). Distinct from the heuristic
+/// [`SemanticCandidate`] pipeline, which is cheap enough to recompute on
+/// demand; an agent call is not, so its output must survive between runs.
+pub trait KnowledgeCandidateStore {
+    /// Idempotently persists candidates keyed by `fingerprint`: an already
+    /// `accepted`/`rejected` candidate is left untouched rather than
+    /// reverted to `pending` by a later re-analysis (PR-INCR-001/002).
+    ///
+    /// # Errors
+    /// Returns [`PortError`] when candidates cannot be persisted.
+    fn upsert_candidates(
+        &mut self,
+        repository: &RepositoryId,
+        candidates: &[KnowledgeCandidate],
+    ) -> Result<(), PortError>;
+
+    /// Lists every candidate still awaiting a human decision, in
+    /// deterministic order.
+    ///
+    /// # Errors
+    /// Returns [`PortError`] when stored candidates cannot be read.
+    fn pending_candidates(
+        &self,
+        repository: &RepositoryId,
+    ) -> Result<Vec<KnowledgeCandidate>, PortError>;
 }

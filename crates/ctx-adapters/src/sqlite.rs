@@ -3,6 +3,7 @@ use std::path::Path;
 use rusqlite::Connection;
 use thiserror::Error;
 
+mod artifacts;
 mod context;
 mod graph;
 mod index;
@@ -14,6 +15,7 @@ const MIGRATIONS: &[(i64, &str)] = &[
         2,
         include_str!("../migrations/002_unique_current_edges.sql"),
     ),
+    (3, include_str!("../migrations/003_external_artifacts.sql")),
 ];
 
 #[derive(Debug, Error)]
@@ -94,13 +96,13 @@ mod tests {
                 "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN (
                     'repositories', 'commits', 'nodes', 'node_versions', 'edges',
                     'sources', 'evidence', 'edge_evidence', 'annotations', 'aliases',
-                    'derivations'
+                    'derivations', 'artifacts', 'artifact_links', 'knowledge_candidates'
                 )",
                 [],
                 |row| row.get(0),
             )
             .expect("query schema");
-        assert_eq!(table_count, 11);
+        assert_eq!(table_count, 14);
 
         drop(store);
         SqliteStore::open(&database).expect("migrations are idempotent");

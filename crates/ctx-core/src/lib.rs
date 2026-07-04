@@ -3,6 +3,7 @@
 //! This crate deliberately contains no filesystem, Git, database, terminal, or
 //! network code. Callers provide observations; the core returns decisions.
 
+pub mod artifact;
 pub mod business;
 pub mod context_pack;
 pub mod domain;
@@ -11,6 +12,7 @@ pub mod graph;
 pub mod impact;
 pub mod indexing;
 pub mod ir;
+pub mod knowledge;
 pub mod review;
 pub mod schema;
 pub mod verification;

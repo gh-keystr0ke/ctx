@@ -1,0 +1,20 @@
+id: REQ-INDEX-002
+type: requirement
+feature: FEAT-INDEXING
+status: active
+statement: >
+  A source file whose language analyzer fails — a parser rejecting valid
+  syntax it doesn't yet support (found on a real, large Rust codebase: the
+  bundled tree-sitter-rust 0.24.2 grammar rejects `dyn 'a + Trait`, a
+  lifetime bound listed before the trait bound in a trait-object type, even
+  though rustc accepts it), an unreadable file, or invalid encoding — must
+  not abort indexing of the rest of the repository. The failing file is
+  excluded from that transition's plan rather than the whole run failing;
+  its path and error are recorded in IndexReport.failed_files for the CLI
+  and JSON callers to surface, and it is left out of the stored snapshot so
+  reconcile_source_scope re-surfaces it as needing analysis on every
+  subsequent `ctx index` until it succeeds or leaves the configured scope.
+implementation:
+  - symbol: ctx_app.index.IndexRunner.run
+tests:
+  - symbol: crates.ctx-cli.tests.e2e.one_file_failing_analysis_does_not_block_indexing_the_rest

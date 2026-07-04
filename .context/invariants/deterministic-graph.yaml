@@ -9,14 +9,23 @@ statement: >
   fingerprint, deterministic database-entity lifecycle, and no cross-language,
   cross-file, or same-shape identity conflation: two unrelated symbols must
   never be silently merged into one node just because they share a structural
-  fingerprint. Best-effort ORM/migration schema reconciliation shares this
-  determinism: it replays every migration touching an entity in file-path
-  order, never processing order, so the same repository state always produces
-  the same reconciliation result.
+  fingerprint. The reverse case holds too: two genuinely distinct symbols that
+  legitimately share one canonical path with no prior indexed history at all —
+  Rust `#[cfg(...)]`-gated platform variants of the same function name, Go's
+  blank identifier `_` reused for repeated interface-conformance checks — must
+  each still get their own distinct stable identity instead of colliding on
+  one generated key and aborting the whole transition; disambiguation orders
+  collisions by each definition's already-sorted canonical-path-then-source-
+  position, so the assignment is reproducible, not merely non-crashing. Best-
+  effort ORM/migration schema reconciliation shares this determinism: it
+  replays every migration touching an entity in file-path order, never
+  processing order, so the same repository state always produces the same
+  reconciliation result.
 implementation:
   - symbol: ctx_core.indexing.normalize_plan
   - symbol: ctx_core.indexing.match_symbols
   - symbol: ctx_core.indexing.reserve_exact_canonical_matches
+  - symbol: ctx_core.indexing.disambiguated_symbol_key
   - symbol: ctx_adapters.sqlite.index.persist_edge
   - symbol: ctx_core.schema.reconcile_orm_and_migrations
 tests:
@@ -26,5 +35,6 @@ tests:
   - symbol: ctx_core.indexing.tests.differently_named_symbols_with_the_same_shape_do_not_merge_across_files
   - symbol: ctx_core.indexing.tests.same_named_same_shaped_symbols_in_different_files_claim_distinct_identities
   - symbol: ctx_core.indexing.tests.same_named_same_shaped_symbols_claim_distinct_identities_regardless_of_file_order
+  - symbol: ctx_core.indexing.tests.two_new_symbols_sharing_one_canonical_path_claim_distinct_identities
   - symbol: ctx_core.indexing.tests.database_entities_and_facts_follow_the_current_symbol_snapshot
   - symbol: ctx_core.schema.tests.reconciliation_replays_migrations_in_file_path_order

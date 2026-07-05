@@ -410,3 +410,87 @@ fn copy_directory(source: &Path, destination: &Path) {
         }
     }
 }
+
+struct PartiallyBrokenRustRepository {
+    directory: TempDir,
+}
+
+impl PartiallyBrokenRustRepository {
+    fn new() -> Self {
+        let directory = tempfile::tempdir().expect("temporary partially broken repository");
+        fs::create_dir_all(directory.path().join("src")).expect("source directory");
+        fs::create_dir_all(directory.path().join(".ctx")).expect("ctx directory");
+        fs::write(
+            directory.path().join(".ctx/config.toml"),
+            "languages = [\"rust\"]\n\n[paths]\ninclude = [\"src\"]\n",
+        )
+        .expect("configuration");
+        fs::write(
+            directory.path().join("src/good.rs"),
+            "pub fn run() -> u8 {\n    1\n}\n",
+        )
+        .expect("valid Rust source");
+        fs::write(directory.path().join("src/broken.rs"), "fn broken(\n")
+            .expect("invalid Rust source");
+        run_git(directory.path(), &["init", "--quiet"]);
+        run_git(directory.path(), &["config", "user.name", "ctx tests"]);
+        run_git(
+            directory.path(),
+            &["config", "user.email", "ctx@example.invalid"],
+        );
+        run_git(directory.path(), &["add", "."]);
+        run_git(
+            directory.path(),
+            &["commit", "--quiet", "-m", "partially broken baseline"],
+        );
+        Self { directory }
+    }
+
+    fn root(&self) -> &Path {
+        self.directory.path()
+    }
+
+    fn ctx(&self, arguments: &[&str]) -> Value {
+        let output = Command::new(env!("CARGO_BIN_EXE_ctx"))
+            .current_dir(self.root())
+            .arg("--json")
+            .args(arguments)
+            .output()
+            .expect("execute ctx");
+        assert!(
+            output.status.success(),
+            "ctx {} failed\nstdout: {}\nstderr: {}",
+            arguments.join(" "),
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        serde_json::from_slice(&output.stdout).expect("ctx JSON response")
+    }
+}
+
+#[test]
+fn one_file_failing_analysis_does_not_block_indexing_the_rest() {
+    let repository = PartiallyBrokenRustRepository::new();
+
+    repository.ctx(&["init"]);
+    let indexed = repository.ctx(&["index"]);
+
+    assert_eq!(indexed["stats"]["files_reparsed"], 1);
+    let failed = indexed["failed_files"]
+        .as_array()
+        .expect("failed_files array");
+    assert_eq!(failed.len(), 1);
+    assert_eq!(failed[0]["path"], "src/broken.rs");
+
+    let status = repository.ctx(&["status"]);
+    assert_eq!(status["knowledge"]["files"], 1);
+    assert_eq!(status["knowledge"]["symbols"], 1);
+
+    let reindexed = repository.ctx(&["index"]);
+    assert_eq!(reindexed["stats"]["files_reparsed"], 0);
+    let still_failed = reindexed["failed_files"]
+        .as_array()
+        .expect("failed_files array");
+    assert_eq!(still_failed.len(), 1);
+    assert_eq!(still_failed[0]["path"], "src/broken.rs");
+}

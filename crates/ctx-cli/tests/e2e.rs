@@ -277,6 +277,41 @@ fn mixed_python_rust_and_go_repository_indexes_and_reviews_through_one_registry(
     assert_eq!(find["matches"].as_array().expect("find matches").len(), 3);
 }
 
+#[test]
+fn ingest_git_reads_commits_and_branches_and_links_a_referenced_ticket() {
+    let repository = FixtureRepository::new();
+    repository.ctx(&["init"]);
+
+    run_git(
+        repository.root(),
+        &["branch", "feature/PAY-317-cancellation"],
+    );
+    fs::write(
+        repository.root().join("NOTES.md"),
+        "PAY-317: prepaid cancellation notes\n",
+    )
+    .expect("write notes file");
+    run_git(repository.root(), &["add", "NOTES.md"]);
+    run_git(
+        repository.root(),
+        &[
+            "commit",
+            "--quiet",
+            "-m",
+            "PAY-317 document cancellation behavior",
+        ],
+    );
+
+    let report = repository.ctx(&["ingest", "git"]);
+    // Fixture baseline commit + the new commit above; the default branch
+    // plus the newly created one.
+    assert_eq!(report["artifacts_ingested"], 4);
+
+    // Re-running must stay idempotent (PR-EXT-003): no new artifacts.
+    let second_report = repository.ctx(&["ingest", "git"]);
+    assert_eq!(second_report["artifacts_ingested"], 4);
+}
+
 fn json_array(values: &[&str]) -> Value {
     Value::Array(
         values

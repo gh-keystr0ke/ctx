@@ -4,10 +4,11 @@ use std::{
 };
 
 use ctx_app::ports::{
-    CommitMetadata, GitRepository, PortError, RepositoryDescriptor, ReviewChangeSet,
-    ReviewRepository, SourceScope,
+    CommitMetadata, GitArtifactSource, GitRepository, PortError, RepositoryDescriptor,
+    ReviewChangeSet, ReviewRepository, SourceScope,
 };
 use ctx_core::{
+    artifact::{Artifact, ArtifactIdentity, ArtifactKind, ArtifactProvider},
     domain::{CommitOid, RepositoryId},
     indexing::FileChange,
 };
@@ -201,6 +202,16 @@ impl GitRepo {
     fn source_allowed(&self, path: &str) -> bool {
         is_indexable_source(path, &self.languages) && self.path_filter.allows(path)
     }
+
+    /// A human-readable project label for artifacts sourced from this
+    /// worktree: the configured remote when there is one, the local root
+    /// path otherwise.
+    fn project_label(&self) -> String {
+        self.optional_text(&["config", "--get", "remote.origin.url"])
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| self.root.display().to_string())
+    }
 }
 
 impl GitRepository for GitRepo {
@@ -380,6 +391,36 @@ impl ReviewRepository for GitRepo {
         String::from_utf8(output.stdout)
             .map(Some)
             .map_err(|_| PortError::new(format!("'{path}' at {revision} is not valid UTF-8")))
+    }
+}
+
+const COMMIT_RECORD_SEPARATOR: u8 = 0x1e;
+
+impl GitArtifactSource for GitRepo {
+    fn commit_artifacts(&self, since: Option<&CommitOid>) -> Result<Vec<Artifact>, PortError> {
+        let range = since.map_or_else(
+            || "HEAD".to_owned(),
+            |oid| format!("{}..HEAD", oid.as_str()),
+        );
+        let format = format!("--format=%H%x00%an%x00%aI%x00%B%x{COMMIT_RECORD_SEPARATOR:02x}");
+        let bytes = self.output(&["log", &format, &range]).map_err(port_error)?;
+        parse_commit_artifacts(&bytes, &self.project_label())
+    }
+
+    fn branch_artifacts(&self) -> Result<Vec<Artifact>, PortError> {
+        let bytes = self
+            .output(&["for-each-ref", "--format=%(refname:short)", "refs/heads/"])
+            .map_err(port_error)?;
+        let text = std::str::from_utf8(&bytes).map_err(|_| PortError::new("invalid Git UTF-8"))?;
+        let project = self.project_label();
+        let mut branches = text
+            .lines()
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
+            .map(|name| branch_artifact(name, &project))
+            .collect::<Vec<_>>();
+        branches.sort_by(|left, right| left.identity.external_id.cmp(&right.identity.external_id));
+        Ok(branches)
     }
 }
 
@@ -616,6 +657,61 @@ fn port_error(error: GitError) -> PortError {
     PortError::new(error.to_string())
 }
 
+fn parse_commit_artifacts(bytes: &[u8], project: &str) -> Result<Vec<Artifact>, PortError> {
+    bytes
+        .split(|byte| *byte == COMMIT_RECORD_SEPARATOR)
+        .map(|record| record.strip_prefix(b"\n").unwrap_or(record))
+        .filter(|record| !record.is_empty())
+        .map(|record| commit_artifact_from_record(record, project))
+        .collect()
+}
+
+fn commit_artifact_from_record(record: &[u8], project: &str) -> Result<Artifact, PortError> {
+    let text =
+        std::str::from_utf8(record).map_err(|_| PortError::new("commit log is not valid UTF-8"))?;
+    let mut fields = text.splitn(4, '\0');
+    let oid = fields
+        .next()
+        .ok_or_else(|| PortError::new("commit record is missing its OID"))?;
+    let author = fields.next().unwrap_or_default();
+    let authored_at = fields.next().unwrap_or_default();
+    let body = fields.next().unwrap_or_default().trim_end_matches('\n');
+    let title = body.lines().next().unwrap_or_default().to_owned();
+    Ok(Artifact {
+        identity: ArtifactIdentity {
+            provider: ArtifactProvider::Git,
+            kind: ArtifactKind::Commit,
+            external_id: oid.to_owned(),
+        },
+        project: project.to_owned(),
+        title,
+        body: body.to_owned(),
+        author: (!author.is_empty()).then(|| author.to_owned()),
+        external_created_at: (!authored_at.is_empty()).then(|| authored_at.to_owned()),
+        external_updated_at: None,
+        source_locator: format!("git:commit:{oid}"),
+        content_hash: blake3::hash(body.as_bytes()).to_hex().to_string(),
+    })
+}
+
+fn branch_artifact(name: &str, project: &str) -> Artifact {
+    Artifact {
+        identity: ArtifactIdentity {
+            provider: ArtifactProvider::Git,
+            kind: ArtifactKind::Branch,
+            external_id: name.to_owned(),
+        },
+        project: project.to_owned(),
+        title: name.to_owned(),
+        body: String::new(),
+        author: None,
+        external_created_at: None,
+        external_updated_at: None,
+        source_locator: format!("git:branch:{name}"),
+        content_hash: blake3::hash(name.as_bytes()).to_hex().to_string(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -683,6 +779,87 @@ mod tests {
         assert!(filter.allows("tests/test_service.py"));
         assert!(!filter.allows("scripts/service.py"));
         assert!(!filter.allows("app/generated/client.py"));
+    }
+
+    #[test]
+    fn parses_commit_artifacts_from_real_git_log_record_output() {
+        // Captured verbatim from `git log --format="%H%x00%an%x00%aI%x00%B%x1e"`
+        // against a real two-commit repository: git inserts a literal `\n`
+        // immediately after each `\x1e` separator (including a trailing one
+        // after the last record), and each record's body itself ends with
+        // its own `\n` before the separator.
+        let bytes = b"96561490e109d358f69f2d9e531d9f16a06a30c3\0test\0\
+2026-08-21T17:10:12+03:00\0second commit\n\x1e\n\
+4925aed1ea285cfad69206d94b0c63f5075d0a77\0test\0\
+2026-08-21T17:10:12+03:00\0first commit\n\nbody line 1\nbody line 2\n\x1e\n";
+
+        let artifacts = parse_commit_artifacts(bytes, "billing/subscriptions").expect("commits");
+
+        assert_eq!(artifacts.len(), 2);
+        assert_eq!(artifacts[0].identity.kind, ArtifactKind::Commit);
+        assert_eq!(artifacts[0].identity.provider, ArtifactProvider::Git);
+        assert_eq!(
+            artifacts[0].identity.external_id,
+            "96561490e109d358f69f2d9e531d9f16a06a30c3"
+        );
+        assert_eq!(artifacts[0].title, "second commit");
+        assert_eq!(artifacts[0].body, "second commit");
+        assert_eq!(artifacts[1].title, "first commit");
+        assert_eq!(
+            artifacts[1].body,
+            "first commit\n\nbody line 1\nbody line 2"
+        );
+        assert_eq!(artifacts[1].author.as_deref(), Some("test"));
+        assert_eq!(
+            artifacts[1].external_created_at.as_deref(),
+            Some("2026-08-21T17:10:12+03:00")
+        );
+    }
+
+    #[test]
+    fn commit_and_branch_artifacts_round_trip_against_a_real_repository() {
+        let root = tempfile::tempdir().expect("temp dir");
+        run(root.path(), &["init", "-q"]);
+        run(root.path(), &["config", "user.name", "ctx tests"]);
+        run(
+            root.path(),
+            &["config", "user.email", "ctx@example.invalid"],
+        );
+        std::fs::write(root.path().join("a.txt"), "a").expect("write file");
+        run(root.path(), &["add", "a.txt"]);
+        run(
+            root.path(),
+            &["commit", "-q", "-m", "PAY-317 fix cancellation"],
+        );
+        run(root.path(), &["branch", "feature/PAY-317-cancel"]);
+
+        let repository = GitRepo::discover(root.path()).expect("discover");
+        let commits = repository.commit_artifacts(None).expect("commit artifacts");
+        let branches = repository.branch_artifacts().expect("branch artifacts");
+
+        assert_eq!(commits.len(), 1);
+        assert_eq!(commits[0].title, "PAY-317 fix cancellation");
+        assert_eq!(commits[0].identity.kind, ArtifactKind::Commit);
+        let branch_names = branches
+            .iter()
+            .map(|artifact| artifact.identity.external_id.as_str())
+            .collect::<Vec<_>>();
+        assert!(branch_names.contains(&"feature/PAY-317-cancel"));
+        assert!(
+            branches
+                .iter()
+                .all(|artifact| artifact.identity.kind == ArtifactKind::Branch)
+        );
+    }
+
+    fn run(root: &Path, args: &[&str]) {
+        let status = Command::new("git")
+            .arg("-C")
+            .arg(root)
+            .args(args)
+            .status()
+            .expect("run git");
+        assert!(status.success(), "git {args:?} failed");
     }
 
     #[test]

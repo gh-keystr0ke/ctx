@@ -2,6 +2,7 @@
 
 pub mod context;
 pub mod index;
+pub mod ingest;
 pub mod ports;
 pub mod query;
 pub mod review;

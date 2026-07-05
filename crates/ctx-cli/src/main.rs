@@ -14,7 +14,8 @@ use ctx_adapters::{
 use ctx_app::{
     context::{ContextImportError, ContextImporter},
     index::{IndexError, IndexReport, IndexRunner},
-    ports::{GitRepository, PortError},
+    ingest::{GitIngestRunner, IngestError},
+    ports::{GitRepository, IndexStore, PortError},
     query::{QueryError, QueryService},
     review::{ReviewError, ReviewRunner},
     status::{IndexState, StatusError, StatusHealth, StatusService},
@@ -22,6 +23,7 @@ use ctx_app::{
 };
 use ctx_core::business::ContextImportStats;
 use ctx_core::context_pack::ContextRequest;
+use ctx_core::domain::CommitOid;
 use ctx_core::verification::VerificationDecision;
 use serde::Serialize;
 use serde_json::json;
@@ -63,6 +65,14 @@ enum Command {
     Explain { target: String },
     /// Discover indexed symbols/nodes by short or exact name.
     Find { target: String },
+    /// Ingest external development artifacts as evidence-backed source material.
+    Ingest {
+        /// The source to ingest from ("git": commit messages and branch names).
+        source: String,
+        /// Only ingest commits after this OID (branches are always re-synced).
+        #[arg(long)]
+        since: Option<String>,
+    },
     /// Review a branch or working-tree diff in product terms.
     Review {
         #[arg(long, default_value = "HEAD")]
@@ -115,6 +125,12 @@ enum CliError {
     Verification(#[from] VerificationError),
     #[error(transparent)]
     Mcp(#[from] ctx_mcp::McpServerError),
+    #[error(transparent)]
+    Ingest(#[from] IngestError),
+    #[error("unsupported ingest source '{0}'; only 'git' is currently supported")]
+    UnsupportedIngestSource(String),
+    #[error("invalid --since commit OID: {0}")]
+    InvalidSinceOid(String),
     #[error("serve currently requires '--mcp'")]
     UnsupportedServe,
     #[error("filesystem operation failed: {0}")]
@@ -158,6 +174,7 @@ fn run(cli: &Cli) -> Result<(), CliError> {
         Command::Impact { target } => impact(cli, &git, target),
         Command::Explain { target } => explain(cli, &git, target),
         Command::Find { target } => find(cli, &git, target),
+        Command::Ingest { source, since } => ingest(cli, &git, source, since.as_deref()),
         Command::Review { base } => review(cli, &git, base),
         Command::Context {
             task,
@@ -582,6 +599,36 @@ fn find(cli: &Cli, git: &GitRepo, target: &str) -> Result<(), CliError> {
             |kind| format!("{kind:?}"),
         );
         println!("{kind:<12}  {}", symbol_match.identifier);
+    }
+    Ok(())
+}
+
+fn ingest(cli: &Cli, git: &GitRepo, source: &str, since: Option<&str>) -> Result<(), CliError> {
+    if source != "git" {
+        return Err(CliError::UnsupportedIngestSource(source.to_owned()));
+    }
+    let database_path = database_path(git.root())?;
+    let mut store = SqliteStore::open(&database_path)?;
+    let repository = git.descriptor()?;
+    let since_oid = since
+        .map(CommitOid::new)
+        .transpose()
+        .map_err(|error| CliError::InvalidSinceOid(error.to_string()))?;
+    let now = Utc::now().to_rfc3339();
+    // Ingestion is meant to work standalone, before or independent of
+    // `ctx index` (prompt3.md's own end-to-end scenario starts from a
+    // project with no prior `.context`), so it registers the repository row
+    // itself rather than assuming `ctx index` already ran.
+    store.ensure_repository(&repository, &now)?;
+    let report =
+        GitIngestRunner::new(git, &mut store).run(&repository.id, since_oid.as_ref(), &now)?;
+    if cli.json {
+        println!("{}", serde_json::to_string_pretty(&report)?);
+    } else {
+        println!(
+            "Ingested {} artifact(s), {} link(s) created",
+            report.artifacts_ingested, report.links_created
+        );
     }
     Ok(())
 }

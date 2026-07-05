@@ -229,6 +229,26 @@ pub trait IndexStore {
     fn status(&self, repository: &RepositoryId) -> Result<RepositoryStatus, PortError>;
 }
 
+/// Reads Git-native development artifacts — commit messages and branch
+/// names — as normalized [`Artifact`]s (prompt3.md PR-EXT-001 MUST list),
+/// with no network or provider account required.
+pub trait GitArtifactSource {
+    /// Returns one artifact per commit reachable from `HEAD`, or from `HEAD`
+    /// back to (exclusive of) `since` when given, in deterministic
+    /// (newest-first) order.
+    ///
+    /// # Errors
+    /// Returns [`PortError`] when Git history cannot be read.
+    fn commit_artifacts(&self, since: Option<&CommitOid>) -> Result<Vec<Artifact>, PortError>;
+
+    /// Returns one artifact per local branch, in deterministic
+    /// (name-sorted) order.
+    ///
+    /// # Errors
+    /// Returns [`PortError`] when Git refs cannot be read.
+    fn branch_artifacts(&self) -> Result<Vec<Artifact>, PortError>;
+}
+
 /// Persists raw external artifacts (prompt3.md PR-EXT-*), kept separate from
 /// the graph so an imported artifact never automatically becomes product
 /// knowledge (PR-EXT-002).

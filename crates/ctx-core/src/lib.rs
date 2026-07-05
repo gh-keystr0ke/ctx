@@ -13,6 +13,7 @@ pub mod impact;
 pub mod indexing;
 pub mod ir;
 pub mod knowledge;
+pub mod linking;
 pub mod review;
 pub mod schema;
 pub mod verification;

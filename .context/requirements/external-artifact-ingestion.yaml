@@ -1,0 +1,34 @@
+id: REQ-EXT-001
+type: requirement
+feature: FEAT-INDEXING
+status: active
+statement: >
+  ctx must be able to import external development artifacts as normalized,
+  separately stored source material (prompt3.md PR-EXT-001 MUST list),
+  without requiring any AI agent or network provider account. Git-native
+  ingestion (`ctx ingest git`) reads every local branch name and every
+  commit reachable from HEAD (optionally bounded to commits after a given
+  OID) as artifacts, each keyed by its own identity for idempotent re-sync —
+  running ingestion again never duplicates an already-known commit or
+  branch, only versions it if its stored content actually changed. After
+  ingesting, every artifact's title/body text is scanned for deterministic
+  references (ctx_core.linking) to every other artifact already known for
+  the repository, and a References link is persisted for each one that
+  resolves to a real, already-known target — never a guessed one.
+  Ingestion registers its own repository row and does not require `ctx
+  index` to have run first, since prompt3.md's own acceptance scenario
+  starts from a project with no prior `.context`. GitLab issue/merge-request
+  ingestion and code-comment/docstring ingestion (also PR-EXT-001 MUST
+  items, not yet implemented) will extend this same document rather than
+  add new ones, since the "normalized artifact, idempotent re-sync,
+  deterministic-only linking" guarantee applies identically to every source.
+implementation:
+  - symbol: ctx_adapters.git.GitRepo.GitArtifactSource.commit_artifacts
+  - symbol: ctx_adapters.git.GitRepo.GitArtifactSource.branch_artifacts
+  - symbol: ctx_app.ingest.GitIngestRunner.run
+tests:
+  - symbol: ctx_adapters.git.tests.parses_commit_artifacts_from_real_git_log_record_output
+  - symbol: ctx_adapters.git.tests.commit_and_branch_artifacts_round_trip_against_a_real_repository
+  - symbol: ctx_app.ingest.tests.ingests_branches_and_commits_and_links_references_between_them
+  - symbol: ctx_app.ingest.tests.re_running_ingest_does_not_duplicate_artifacts
+  - symbol: crates.ctx-cli.tests.e2e.ingest_git_reads_commits_and_branches_and_links_a_referenced_ticket

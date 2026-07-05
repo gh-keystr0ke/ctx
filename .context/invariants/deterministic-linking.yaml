@@ -1,0 +1,31 @@
+id: INV-LINK-001
+type: invariant
+feature: FEAT-INDEXING
+status: active
+statement: >
+  A relationship between two external artifacts, or between an artifact and
+  code, that can be established from evidence literally present in an
+  artifact's own text must be established without AI (prompt3.md PR-P01,
+  PR-LINK-001/002): a Jira-style ticket key, `#issue`, `!merge_request`, or
+  a tracker URL, wherever it appears (branch name, commit message, MR title,
+  MR body, review comment — no single required location), and "this
+  changeset touched this file, which currently contains this symbol" for
+  code. This deterministic layer never asserts what a reference *means* —
+  only that it is present — and never links to a target absent from the
+  artifacts/code already known: an unresolved reference produces no link,
+  never a guessed one (PR-LINK-003/004). Extraction never truncates a token
+  at a byte that isn't a real UTF-8 character boundary and never treats a
+  ticket-like substring inside a longer identifier as a match.
+implementation:
+  - symbol: ctx_core.linking.extract_references
+  - symbol: ctx_core.linking.text_reference_links
+  - symbol: ctx_core.linking.changed_symbol_links
+tests:
+  - symbol: ctx_core.linking.tests.extracts_a_ticket_key_regardless_of_where_it_appears
+  - symbol: ctx_core.linking.tests.extracts_issue_and_merge_request_numbers
+  - symbol: ctx_core.linking.tests.extracts_a_full_ticket_url_and_trims_trailing_punctuation
+  - symbol: ctx_core.linking.tests.does_not_match_a_ticket_like_substring_inside_a_longer_token
+  - symbol: ctx_core.linking.tests.incidental_mention_still_extracts_the_reference_deterministically
+  - symbol: ctx_core.linking.tests.never_panics_on_multi_byte_utf8_near_a_reference_boundary
+  - symbol: ctx_core.linking.tests.text_reference_links_only_target_already_known_artifacts
+  - symbol: ctx_core.linking.tests.changed_symbol_links_attribute_symbols_in_changed_files_only

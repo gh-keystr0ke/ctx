@@ -1,0 +1,23 @@
+id: ADR-EXT-003
+type: decision
+feature: FEAT-INDEXING
+title: Use ureq (synchronous) for GitLab API access, no async runtime
+status: accepted
+decision: >
+  GitLab ingestion needs an HTTP client and this workspace had none before
+  this sprint. Chose `ureq` — a small, synchronous, blocking client — over
+  `reqwest`/an async stack, because every other part of `ctx` (Git
+  subprocess calls, SQLite, the CLI) is already synchronous; introducing
+  `tokio` for one adapter would mean either running a whole async runtime
+  for one blocking API call per ingest invocation or awkwardly bridging
+  sync and async code, for no real throughput benefit in a CLI tool that
+  makes a handful of sequential requests per run. `GitLabClient` is generic
+  over a `GitLabTransport` trait so its HTTP layer is swappable and its own
+  tests run against canned fixture responses, never a live GitLab instance
+  or a real socket.
+implementation:
+  - symbol: ctx_adapters.gitlab.UreqTransport
+  - symbol: ctx_adapters.gitlab.GitLabTransport
+  - symbol: ctx_adapters.gitlab.GitLabClient
+tests:
+  - symbol: ctx_adapters.gitlab.tests.fetches_issues_and_merge_requests_with_their_comments_and_commits

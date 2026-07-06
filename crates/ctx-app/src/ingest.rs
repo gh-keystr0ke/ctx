@@ -20,8 +20,8 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::ports::{
-    ArtifactLinkStore, ArtifactRepository, GitArtifactSource, GitRepository, GraphStore,
-    LanguageAnalyzer, PortError, ReviewRepository,
+    ArtifactLinkStore, ArtifactRepository, GitArtifactSource, GitLabArtifactSource, GitRepository,
+    GraphStore, LanguageAnalyzer, PortError, ReviewRepository,
 };
 
 /// Bumped when the normalization this runner applies to Git artifacts
@@ -32,6 +32,10 @@ const GIT_INGEST_VERSION: &str = "git-native-v1";
 /// Bumped when the normalization this runner applies to code comments and
 /// docstrings changes.
 const CODE_DOC_INGEST_VERSION: &str = "code-doc-v1";
+
+/// Bumped when the normalization this runner applies to GitLab artifacts
+/// changes.
+const GITLAB_INGEST_VERSION: &str = "gitlab-v1";
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct IngestReport {
@@ -95,6 +99,62 @@ where
             .iter()
             .flat_map(|artifact| text_reference_links(artifact, &known))
             .collect::<Vec<_>>();
+        self.store
+            .persist_links(repository, &links)
+            .map_err(IngestError::Store)?;
+        Ok(IngestReport {
+            artifacts_ingested: artifacts.len(),
+            links_created: links.len(),
+        })
+    }
+}
+
+/// Orchestrates GitLab issue/merge-request ingestion (prompt3.md PR-EXT-001
+/// MUST list, the chosen end-to-end provider): reads artifacts and their
+/// provider-reported deterministic links through [`GitLabArtifactSource`],
+/// persists them idempotently, then additionally runs
+/// [`text_reference_links`] the same way [`GitIngestRunner`] does, so a
+/// ticket reference in an MR body can resolve against artifacts from any
+/// source already known for this repository, not only other GitLab ones.
+pub struct GitLabIngestRunner<'a, G, S> {
+    source: &'a G,
+    store: &'a mut S,
+}
+
+impl<'a, G, S> GitLabIngestRunner<'a, G, S>
+where
+    G: GitLabArtifactSource,
+    S: ArtifactRepository + ArtifactLinkStore,
+{
+    pub const fn new(source: &'a G, store: &'a mut S) -> Self {
+        Self { source, store }
+    }
+
+    /// # Errors
+    /// Returns [`IngestError`] when artifacts cannot be read or persisted.
+    pub fn run(
+        &mut self,
+        repository: &RepositoryId,
+        ingested_at: &str,
+    ) -> Result<IngestReport, IngestError> {
+        let (artifacts, mut links) = self
+            .source
+            .issue_and_mr_artifacts()
+            .map_err(IngestError::Source)?;
+        for artifact in &artifacts {
+            self.store
+                .upsert_artifact(repository, artifact, ingested_at, GITLAB_INGEST_VERSION)
+                .map_err(IngestError::Store)?;
+        }
+        let known = self
+            .store
+            .list_artifacts(repository)
+            .map_err(IngestError::Store)?;
+        links.extend(
+            artifacts
+                .iter()
+                .flat_map(|artifact| text_reference_links(artifact, &known)),
+        );
         self.store
             .persist_links(repository, &links)
             .map_err(IngestError::Store)?;
@@ -401,6 +461,86 @@ mod tests {
         assert_eq!(
             store.list_artifacts(&repository).expect("artifacts").len(),
             1
+        );
+    }
+
+    struct FakeGitLabSource {
+        artifacts: Vec<Artifact>,
+        links: Vec<ArtifactLink>,
+    }
+
+    impl GitLabArtifactSource for FakeGitLabSource {
+        fn issue_and_mr_artifacts(&self) -> Result<(Vec<Artifact>, Vec<ArtifactLink>), PortError> {
+            Ok((self.artifacts.clone(), self.links.clone()))
+        }
+    }
+
+    #[test]
+    fn gitlab_ingest_persists_provider_reported_links_and_stays_idempotent() {
+        let issue = Artifact {
+            identity: ArtifactIdentity {
+                provider: ArtifactProvider::GitLab,
+                kind: ArtifactKind::Issue,
+                external_id: "317".to_owned(),
+            },
+            project: "billing/subscriptions".to_owned(),
+            title: "Cancellation removes prepaid access".to_owned(),
+            body: String::new(),
+            author: None,
+            external_created_at: None,
+            external_updated_at: None,
+            source_locator: "https://gitlab.example/-/issues/317".to_owned(),
+            content_hash: "hash".to_owned(),
+        };
+        let merge_request = Artifact {
+            identity: ArtifactIdentity {
+                provider: ArtifactProvider::GitLab,
+                kind: ArtifactKind::MergeRequest,
+                external_id: "842".to_owned(),
+            },
+            project: "billing/subscriptions".to_owned(),
+            title: "Fix cancellation semantics".to_owned(),
+            body: "Fixes #317.".to_owned(),
+            author: None,
+            external_created_at: None,
+            external_updated_at: None,
+            source_locator: "https://gitlab.example/-/merge_requests/842".to_owned(),
+            content_hash: "hash".to_owned(),
+        };
+        let comments_on = ArtifactLink {
+            source: ArtifactIdentity {
+                provider: ArtifactProvider::GitLab,
+                kind: ArtifactKind::Comment,
+                external_id: "317-note-1".to_owned(),
+            },
+            target: ArtifactLinkTarget::Artifact(issue.identity.clone()),
+            kind: ArtifactLinkKind::CommentsOn,
+            evidence_locator: "gitlab notes API: 317".to_owned(),
+        };
+        let source = FakeGitLabSource {
+            artifacts: vec![issue.clone(), merge_request.clone()],
+            links: vec![comments_on.clone()],
+        };
+        let mut store = FakeStore::default();
+        let repository = RepositoryId::new("repo:test").expect("repository ID");
+
+        let report = GitLabIngestRunner::new(&source, &mut store)
+            .run(&repository, "2026-08-21T00:00:00Z")
+            .expect("first run");
+        assert_eq!(report.artifacts_ingested, 2);
+        // The provider-reported `comments_on` link plus the deterministic
+        // `#317` text reference the MR body names, resolving against the
+        // now-known issue artifact.
+        assert_eq!(report.links_created, 2);
+        assert!(store.links.borrow().contains(&comments_on));
+
+        GitLabIngestRunner::new(&source, &mut store)
+            .run(&repository, "2026-08-21T01:00:00Z")
+            .expect("second run");
+        assert_eq!(
+            store.list_artifacts(&repository).expect("artifacts").len(),
+            2,
+            "re-running ingestion must not duplicate artifacts"
         );
     }
 }

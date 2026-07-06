@@ -4,6 +4,7 @@ pub mod analyzer;
 pub mod business_context;
 mod database;
 pub mod git;
+pub mod gitlab;
 pub mod go;
 pub mod goose;
 pub mod language;

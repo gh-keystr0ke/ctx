@@ -532,6 +532,7 @@ const fn link_kind_str(kind: ArtifactLinkKind) -> &'static str {
         ArtifactLinkKind::References => "references",
         ArtifactLinkKind::ChangedSymbol => "changed_symbol",
         ArtifactLinkKind::Discusses => "discusses",
+        ArtifactLinkKind::CommentsOn => "comments_on",
     }
 }
 
@@ -541,6 +542,7 @@ fn parse_link_kind(value: &str) -> Result<ArtifactLinkKind, PortError> {
         "references" => Ok(ArtifactLinkKind::References),
         "changed_symbol" => Ok(ArtifactLinkKind::ChangedSymbol),
         "discusses" => Ok(ArtifactLinkKind::Discusses),
+        "comments_on" => Ok(ArtifactLinkKind::CommentsOn),
         other => Err(PortError::new(format!(
             "unknown artifact link kind '{other}'"
         ))),

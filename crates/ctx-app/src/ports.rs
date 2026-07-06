@@ -249,6 +249,18 @@ pub trait GitArtifactSource {
     fn branch_artifacts(&self) -> Result<Vec<Artifact>, PortError>;
 }
 
+/// Reads GitLab issues and merge requests — with their comments and, for
+/// merge requests, their associated commit SHAs — as normalized
+/// [`Artifact`]s plus the deterministic (provider-reported, never
+/// AI-derived) links GitLab's own API establishes between them
+/// (prompt3.md PR-EXT-001 MUST list: the chosen end-to-end provider).
+pub trait GitLabArtifactSource {
+    /// # Errors
+    /// Returns [`PortError`] when a GitLab request fails or its response is
+    /// invalid.
+    fn issue_and_mr_artifacts(&self) -> Result<(Vec<Artifact>, Vec<ArtifactLink>), PortError>;
+}
+
 /// Persists raw external artifacts (prompt3.md PR-EXT-*), kept separate from
 /// the graph so an imported artifact never automatically becomes product
 /// knowledge (PR-EXT-002).

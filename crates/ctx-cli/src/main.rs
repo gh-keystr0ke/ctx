@@ -8,13 +8,16 @@ use std::{
 use chrono::Utc;
 use clap::{ArgAction, Parser, Subcommand};
 use ctx_adapters::{
-    analyzer::AnalyzerRegistry, business_context::YamlBusinessContextReader, git::GitRepo,
+    analyzer::AnalyzerRegistry,
+    business_context::YamlBusinessContextReader,
+    git::GitRepo,
+    gitlab::{GitLabClient, GitLabConfig, UreqTransport},
     sqlite::SqliteStore,
 };
 use ctx_app::{
     context::{ContextImportError, ContextImporter},
     index::{IndexError, IndexReport, IndexRunner},
-    ingest::{CodeDocIngestRunner, GitIngestRunner, IngestError},
+    ingest::{CodeDocIngestRunner, GitIngestRunner, GitLabIngestRunner, IngestError},
     ports::{GitRepository, IndexStore, PortError},
     query::{QueryError, QueryService},
     review::{ReviewError, ReviewRunner},
@@ -68,7 +71,9 @@ enum Command {
     /// Ingest external development artifacts as evidence-backed source material.
     Ingest {
         /// The source to ingest from ("git": commit messages and branch
-        /// names; "code-comments": code comments and docstrings).
+        /// names; "code-comments": code comments and docstrings; "gitlab":
+        /// issues, merge requests, and their comments — needs a [gitlab]
+        /// section in .ctx/config.toml and a `CTX_GITLAB_TOKEN` env var).
         source: String,
         /// Only ingest commits after this OID (branches are always re-synced).
         #[arg(long)]
@@ -128,10 +133,12 @@ enum CliError {
     Mcp(#[from] ctx_mcp::McpServerError),
     #[error(transparent)]
     Ingest(#[from] IngestError),
-    #[error("unsupported ingest source '{0}'; supported: git, code-comments")]
+    #[error("unsupported ingest source '{0}'; supported: git, code-comments, gitlab")]
     UnsupportedIngestSource(String),
     #[error("invalid --since commit OID: {0}")]
     InvalidSinceOid(String),
+    #[error("invalid GitLab configuration: {0}")]
+    InvalidGitLabConfig(String),
     #[error("serve currently requires '--mcp'")]
     UnsupportedServe,
     #[error("filesystem operation failed: {0}")]
@@ -626,6 +633,15 @@ fn ingest(cli: &Cli, git: &GitRepo, source: &str, since: Option<&str>) -> Result
             let analyzer = AnalyzerRegistry::builtins(git.root(), &git.source_scope().languages)?;
             CodeDocIngestRunner::new(git, &analyzer, &mut store).run(&repository.id, &now)?
         }
+        "gitlab" => {
+            let config = GitLabConfig::load(git.root())
+                .map_err(|error| CliError::InvalidGitLabConfig(error.to_string()))?;
+            let client = GitLabClient::new(
+                UreqTransport::new(config.base_url, config.token),
+                config.project,
+            );
+            GitLabIngestRunner::new(&client, &mut store).run(&repository.id, &now)?
+        }
         other => return Err(CliError::UnsupportedIngestSource(other.to_owned())),
     };
     if cli.json {
@@ -717,6 +733,15 @@ fn index(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
                 "{} edges recomputed; {} semantic links marked stale",
                 report.code.stats.edges_recomputed, report.code.stats.semantic_links_marked_stale
             );
+        }
+        if !report.code.failed_files.is_empty() {
+            println!(
+                "{} file(s) skipped due to analysis errors (retried on the next index):",
+                report.code.failed_files.len()
+            );
+            for failed in &report.code.failed_files {
+                println!("  {}: {}", failed.path, failed.error);
+            }
         }
     }
     if !cli.json {

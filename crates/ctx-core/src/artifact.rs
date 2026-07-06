@@ -91,6 +91,10 @@ pub enum ArtifactLinkKind {
     /// A code comment or docstring discusses the nearest enclosing symbol
     /// (PR-CODEDOC-002).
     Discusses,
+    /// A comment/review-comment artifact belongs to the issue/merge-request
+    /// it was posted on — a structural fact reported directly by the
+    /// provider's own API, not a text-derived reference.
+    CommentsOn,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]

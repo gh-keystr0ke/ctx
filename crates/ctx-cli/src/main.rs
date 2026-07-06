@@ -14,7 +14,7 @@ use ctx_adapters::{
 use ctx_app::{
     context::{ContextImportError, ContextImporter},
     index::{IndexError, IndexReport, IndexRunner},
-    ingest::{GitIngestRunner, IngestError},
+    ingest::{CodeDocIngestRunner, GitIngestRunner, IngestError},
     ports::{GitRepository, IndexStore, PortError},
     query::{QueryError, QueryService},
     review::{ReviewError, ReviewRunner},
@@ -67,7 +67,8 @@ enum Command {
     Find { target: String },
     /// Ingest external development artifacts as evidence-backed source material.
     Ingest {
-        /// The source to ingest from ("git": commit messages and branch names).
+        /// The source to ingest from ("git": commit messages and branch
+        /// names; "code-comments": code comments and docstrings).
         source: String,
         /// Only ingest commits after this OID (branches are always re-synced).
         #[arg(long)]
@@ -127,7 +128,7 @@ enum CliError {
     Mcp(#[from] ctx_mcp::McpServerError),
     #[error(transparent)]
     Ingest(#[from] IngestError),
-    #[error("unsupported ingest source '{0}'; only 'git' is currently supported")]
+    #[error("unsupported ingest source '{0}'; supported: git, code-comments")]
     UnsupportedIngestSource(String),
     #[error("invalid --since commit OID: {0}")]
     InvalidSinceOid(String),
@@ -604,24 +605,29 @@ fn find(cli: &Cli, git: &GitRepo, target: &str) -> Result<(), CliError> {
 }
 
 fn ingest(cli: &Cli, git: &GitRepo, source: &str, since: Option<&str>) -> Result<(), CliError> {
-    if source != "git" {
-        return Err(CliError::UnsupportedIngestSource(source.to_owned()));
-    }
     let database_path = database_path(git.root())?;
     let mut store = SqliteStore::open(&database_path)?;
     let repository = git.descriptor()?;
-    let since_oid = since
-        .map(CommitOid::new)
-        .transpose()
-        .map_err(|error| CliError::InvalidSinceOid(error.to_string()))?;
     let now = Utc::now().to_rfc3339();
     // Ingestion is meant to work standalone, before or independent of
     // `ctx index` (prompt3.md's own end-to-end scenario starts from a
     // project with no prior `.context`), so it registers the repository row
     // itself rather than assuming `ctx index` already ran.
     store.ensure_repository(&repository, &now)?;
-    let report =
-        GitIngestRunner::new(git, &mut store).run(&repository.id, since_oid.as_ref(), &now)?;
+    let report = match source {
+        "git" => {
+            let since_oid = since
+                .map(CommitOid::new)
+                .transpose()
+                .map_err(|error| CliError::InvalidSinceOid(error.to_string()))?;
+            GitIngestRunner::new(git, &mut store).run(&repository.id, since_oid.as_ref(), &now)?
+        }
+        "code-comments" => {
+            let analyzer = AnalyzerRegistry::builtins(git.root(), &git.source_scope().languages)?;
+            CodeDocIngestRunner::new(git, &analyzer, &mut store).run(&repository.id, &now)?
+        }
+        other => return Err(CliError::UnsupportedIngestSource(other.to_owned())),
+    };
     if cli.json {
         println!("{}", serde_json::to_string_pretty(&report)?);
     } else {

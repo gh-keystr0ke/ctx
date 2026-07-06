@@ -5,6 +5,7 @@
 
 pub mod artifact;
 pub mod business;
+pub mod codedoc;
 pub mod context_pack;
 pub mod domain;
 pub mod explain;

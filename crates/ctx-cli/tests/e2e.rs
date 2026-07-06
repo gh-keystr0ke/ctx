@@ -312,6 +312,77 @@ fn ingest_git_reads_commits_and_branches_and_links_a_referenced_ticket() {
     assert_eq!(second_report["artifacts_ingested"], 4);
 }
 
+struct CodeCommentRepository {
+    directory: TempDir,
+}
+
+impl CodeCommentRepository {
+    fn new() -> Self {
+        let directory = tempfile::tempdir().expect("temporary code-comment repository");
+        fs::create_dir_all(directory.path().join("src")).expect("source directory");
+        fs::create_dir_all(directory.path().join(".ctx")).expect("ctx directory");
+        fs::write(
+            directory.path().join(".ctx/config.toml"),
+            "languages = [\"python\"]\n\n[paths]\ninclude = [\"src\"]\n",
+        )
+        .expect("configuration");
+        fs::write(
+            directory.path().join("src/billing.py"),
+            "def cancel():\n    # Keep access until paid_until because the current\n    # period has already been paid for.\n    pass\n",
+        )
+        .expect("Python source with a doc comment");
+        run_git(directory.path(), &["init", "--quiet"]);
+        run_git(directory.path(), &["config", "user.name", "ctx tests"]);
+        run_git(
+            directory.path(),
+            &["config", "user.email", "ctx@example.invalid"],
+        );
+        run_git(directory.path(), &["add", "."]);
+        run_git(
+            directory.path(),
+            &["commit", "--quiet", "-m", "code comment baseline"],
+        );
+        Self { directory }
+    }
+
+    fn root(&self) -> &Path {
+        self.directory.path()
+    }
+
+    fn ctx(&self, arguments: &[&str]) -> Value {
+        let output = Command::new(env!("CARGO_BIN_EXE_ctx"))
+            .current_dir(self.root())
+            .arg("--json")
+            .args(arguments)
+            .output()
+            .expect("execute ctx");
+        assert!(
+            output.status.success(),
+            "ctx {} failed\nstdout: {}\nstderr: {}",
+            arguments.join(" "),
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        serde_json::from_slice(&output.stdout).expect("ctx JSON response")
+    }
+}
+
+#[test]
+fn ingest_code_comments_attaches_a_doc_comment_to_its_nearest_symbol() {
+    let repository = CodeCommentRepository::new();
+    repository.ctx(&["init"]);
+    repository.ctx(&["index"]);
+
+    let report = repository.ctx(&["ingest", "code-comments"]);
+    assert_eq!(report["artifacts_ingested"], 1);
+    assert_eq!(report["links_created"], 1);
+
+    // Idempotent re-ingestion must not duplicate the artifact/link.
+    let second_report = repository.ctx(&["ingest", "code-comments"]);
+    assert_eq!(second_report["artifacts_ingested"], 1);
+    assert_eq!(second_report["links_created"], 1);
+}
+
 fn json_array(values: &[&str]) -> Value {
     Value::Array(
         values

@@ -5,7 +5,8 @@ status: active
 statement: >
   The estimated size of a returned Context Pack must never exceed the caller's
   token budget, even when evidence, uncertainty, and a data contract's declared
-  schema columns are included.
+  schema columns are included, and regardless of how many explicit roots an
+  ambiguous seed resolves to.
 implementation:
   - symbol: ctx_core.context_pack.compile_context_pack
   - symbol: ctx_core.context_pack.truncate_to_tokens

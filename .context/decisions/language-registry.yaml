@@ -8,7 +8,11 @@ decision: >
   registry and emit a shared IR. Go joined Python and Rust this way, proving the
   seam; new TypeScript, Java, or Zig support should add a parser module and
   registration the same way, without branching core or application use cases.
-  Dynamic shared-library loading is deferred until a real need exists.
+  Dynamic shared-library loading is deferred until a real need exists. The
+  shared mixed-language fixture this decision's own test uses also doubles
+  as coverage for short-name symbol resolution across all three registered
+  languages at once (PR-LOOKUP-002/003) — one direct benefit of normalizing
+  every language into the same identifier space.
 implementation:
   - symbol: ctx_adapters.analyzer.AnalyzerRegistry.register
 tests:

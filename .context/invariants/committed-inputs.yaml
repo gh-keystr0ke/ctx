@@ -6,7 +6,10 @@ statement: >
   Uncommitted configured source or business-context bytes must never be stored
   as though they were valid for HEAD; an index transition must either commit
   all derived symbols, database entities, relationships, and evidence
-  atomically or leave the prior graph intact.
+  atomically or leave the prior graph intact. A source file whose analyzer
+  fails is excluded from that transition's plan before this atomic commit is
+  attempted (REQ-INDEX-002) — it never partially lands and never blocks the
+  rest of the transition from committing.
 implementation:
   - symbol: ctx_app.index.IndexRunner.run
   - symbol: ctx_adapters.git.GitRepo.GitRepository.uncommitted_index_inputs

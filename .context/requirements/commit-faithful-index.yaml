@@ -4,13 +4,17 @@ feature: FEAT-INDEXING
 status: active
 statement: >
   Indexing must incrementally reconcile Git changes, configured source scope,
-  and analyzer versions so the stored graph describes the selected commit,
-  stale derived analysis is rebuilt without requiring a source edit, database
+  and analyzer versions so the stored graph describes the selected commit —
+  or as much of it as every file's analyzer could actually parse — stale
+  derived analysis is rebuilt without requiring a source edit, database
   entities follow the complete current access set — including column-level
   write evidence and schema constraint/operation detail, not only table names
   — and symbol identity assignment stays scoped to the whole transition so two
   unrelated symbols across different files can never be silently assigned the
-  same stable identity.
+  same stable identity. A file whose analyzer fails is excluded from that
+  transition rather than aborting reconciliation of the rest, and stays
+  outside the stored snapshot so it is re-surfaced as needing analysis on
+  every subsequent index until it succeeds or leaves scope (REQ-INDEX-002).
 implementation:
   - symbol: ctx_app.index.IndexRunner.run
   - symbol: ctx_core.indexing.plan_incremental_index

@@ -9,7 +9,10 @@ statement: >
   retaining directly relevant database entities when space permits, including
   the declared columns behind a schema-migration or ORM-model data contract.
   Once an explicit file or symbol seed resolves, it must remain the scope
-  boundary and lexical auto-seeding must not add unrelated roots.
+  boundary and lexical auto-seeding must not add unrelated roots. When an
+  explicit seed resolves to several distinct matches (a short name shared
+  across namespaces), every match becomes its own explicit root in the same
+  pack rather than an error or an arbitrary pick (REQ-LOOKUP-001).
 implementation:
   - symbol: ctx_core.context_pack.compile_context_pack
   - symbol: ctx_core.context_pack.detect_seeds

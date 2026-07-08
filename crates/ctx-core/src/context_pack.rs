@@ -652,11 +652,11 @@ fn estimate_evidence_tokens(evidence: &ContextEvidence) -> usize {
     ))
 }
 
-fn estimate_tokens(value: &str) -> usize {
+pub(crate) fn estimate_tokens(value: &str) -> usize {
     value.chars().count().div_ceil(4)
 }
 
-fn truncate_to_tokens(value: &str, tokens: usize) -> String {
+pub(crate) fn truncate_to_tokens(value: &str, tokens: usize) -> String {
     let character_limit = tokens.saturating_mul(4);
     let mut truncated = value.chars().take(character_limit).collect::<String>();
     if truncated.chars().count() < value.chars().count() {

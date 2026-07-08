@@ -7,6 +7,11 @@ statement: >
   normalize symbols, calls, and supported static database interactions into the
   shared IR; language-specific parser types must not leak into indexing,
   review, persistence, CLI, or MCP, and dynamic SQL must not be guessed.
+  Because every language normalizes into the same `GraphNode`/stable-key
+  shape, a short symbol name colliding across languages (Python, Rust, and
+  Go all defining `helper`, say) resolves through the same short-name lookup
+  path as any single-language collision, with no language-specific carve-out
+  needed (REQ-LOOKUP-001).
 implementation:
   - symbol: ctx_adapters.analyzer.AnalyzerRegistry.builtins
   - symbol: ctx_adapters.analyzer.AnalyzerRegistry.module_for_path

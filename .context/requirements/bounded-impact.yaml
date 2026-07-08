@@ -16,6 +16,10 @@ statement: >
   column, without adding a column-level graph node; a column absent from all
   known evidence falls back to table-level impact plus an explicit
   uncertainty rather than silently looking like a column with no readers.
+  When a query resolves to several distinct symbols sharing one short name,
+  this same bounded traversal runs once per distinct match and the results
+  are never pooled into one neighborhood — see REQ-LOOKUP-001 for the
+  short-name resolution contract itself.
 implementation:
   - symbol: ctx_core.impact.analyze_impact
   - symbol: ctx_core.impact.resolve_table_column_seed

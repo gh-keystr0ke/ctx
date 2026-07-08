@@ -8,7 +8,9 @@ statement: >
   evidence so its rationale is reproducible rather than generated after fact;
   statically extracted database relationships — reads, writes, and declared
   schema alike — must expose the same source and locator trail as first-class
-  FACT claims.
+  FACT claims. When a query resolves to several distinct nodes, each keeps
+  its own independent set of claims and evidence rather than having them
+  pooled across matches (PR-LOOKUP-003; see REQ-LOOKUP-001).
 implementation:
   - symbol: ctx_adapters.sqlite.context.create_claim_if_missing
   - symbol: ctx_adapters.sqlite.context.persist_symbol_claim

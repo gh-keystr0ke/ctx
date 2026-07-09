@@ -6,7 +6,10 @@ statement: >
   The estimated size of a returned Context Pack must never exceed the caller's
   token budget, even when evidence, uncertainty, and a data contract's declared
   schema columns are included, and regardless of how many explicit roots an
-  ambiguous seed resolves to.
+  ambiguous seed resolves to. estimate_tokens/truncate_to_tokens are now
+  pub(crate) so ctx_core::neighborhood's artifact-neighborhood rendering
+  reuses the exact same budgeting arithmetic rather than a second mechanism —
+  this invariant's guarantee therefore also bounds that reuse.
 implementation:
   - symbol: ctx_core.context_pack.compile_context_pack
   - symbol: ctx_core.context_pack.truncate_to_tokens

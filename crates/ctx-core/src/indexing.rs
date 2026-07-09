@@ -303,14 +303,33 @@ pub fn plan_incremental_index(
         }
     }
 
+    // Tier 3 of `match_symbols` (the same-shape cross-file fallback) must
+    // only be allowed to claim a historical identity that this transition is
+    // actually vacating — i.e. a symbol belonging to a file being modified,
+    // renamed, or deleted here. Without this restriction, a brand-new file
+    // defining a symbol with the same name/kind/structural-fingerprint as
+    // some *unrelated, unchanged* symbol elsewhere in the codebase (e.g. two
+    // files independently declaring an identically-shaped private test
+    // helper) would "steal" that unrelated symbol's stable key: the fallback
+    // is meant to detect a genuine move, and there is no move when the old
+    // location isn't changing at all.
+    let changed_paths: BTreeSet<&str> = changes
+        .iter()
+        .filter_map(|change| replaced_path(snapshot, change))
+        .collect();
+    let same_shape_prior: Vec<IndexedSymbol> = historical_symbols
+        .iter()
+        .filter(|symbol| changed_paths.contains(symbol.file_path.as_str()))
+        .cloned()
+        .collect();
+    let pools = SymbolMatchPools {
+        historical_symbols: &historical_symbols,
+        same_shape_prior: &same_shape_prior,
+    };
+
     for change in changes {
-        let replaced_path = match change {
-            FileChange::Added { path } if snapshot.files.contains_key(path) => Some(path.as_str()),
-            FileChange::Added { .. } => None,
-            FileChange::Modified { path } | FileChange::Deleted { path } => Some(path.as_str()),
-            FileChange::Renamed { old_path, .. } => Some(old_path.as_str()),
-        };
-        if let Some(path) = replaced_path {
+        let replaced = replaced_path(snapshot, change);
+        if let Some(path) = replaced {
             plan.structural_sources_to_close.push(path.to_owned());
         }
 
@@ -326,7 +345,7 @@ pub fn plan_incremental_index(
                 plan: &mut plan,
                 retired: &mut retired,
             },
-            &historical_symbols,
+            &pools,
             &mut current_symbols,
             &mut used,
         )?;
@@ -339,6 +358,21 @@ pub fn plan_incremental_index(
     Ok(plan)
 }
 
+/// The prior path whose structural identity `change` replaces, if any: the
+/// file a `Modified`/`Deleted` change's own path names, an `Added` change's
+/// path when it happens to reuse an already-known path, or a `Renamed`
+/// change's `old_path`. Shared by the `structural_sources_to_close` pass and
+/// the same-shape-fallback eligibility pass so both agree on exactly which
+/// files this transition is vacating.
+fn replaced_path<'a>(snapshot: &RepositorySnapshot, change: &'a FileChange) -> Option<&'a str> {
+    match change {
+        FileChange::Added { path } if snapshot.files.contains_key(path) => Some(path.as_str()),
+        FileChange::Added { .. } => None,
+        FileChange::Modified { path } | FileChange::Deleted { path } => Some(path.as_str()),
+        FileChange::Renamed { old_path, .. } => Some(old_path.as_str()),
+    }
+}
+
 /// The plan being assembled and the retired-key ledger that keeps
 /// `retire_symbol`/`retire_file_identity` idempotent across one transition.
 /// Grouped so the changed-file planning functions stay under the workspace's
@@ -348,12 +382,24 @@ struct RetirementLedger<'a> {
     retired: &'a mut BTreeSet<StableKey>,
 }
 
+/// The two historical-symbol pools `match_symbols` draws candidates from:
+/// `historical_symbols` (every symbol ever indexed, for the exact-canonical-
+/// path tier) and `same_shape_prior` (only symbols belonging to a file this
+/// transition is actually vacating, for the same-shape fallback tier — see
+/// [`replaced_path`]). Grouped so the changed-file planning functions stay
+/// under the workspace's argument-count lint without losing either pool's
+/// own identity.
+struct SymbolMatchPools<'a> {
+    historical_symbols: &'a [IndexedSymbol],
+    same_shape_prior: &'a [IndexedSymbol],
+}
+
 fn plan_changed_file(
     snapshot: &RepositorySnapshot,
     analyses: &BTreeMap<String, FileAnalysis>,
     change: &FileChange,
     ledger: &mut RetirementLedger<'_>,
-    historical_symbols: &[IndexedSymbol],
+    pools: &SymbolMatchPools<'_>,
     current_symbols: &mut Vec<IndexedSymbol>,
     used: &mut BTreeSet<StableKey>,
 ) -> Result<(), IndexPlanError> {
@@ -393,7 +439,8 @@ fn plan_changed_file(
         &file_analysis.language,
         &file_analysis.symbols,
         prior_symbols,
-        historical_symbols,
+        pools.historical_symbols,
+        pools.same_shape_prior,
         used,
     )?;
     let matched_keys: BTreeSet<_> = matched.iter().map(|(_, key)| key.clone()).collect();
@@ -523,6 +570,7 @@ fn match_symbols(
     definitions: &[SymbolDefinition],
     prior_file: &[IndexedSymbol],
     all_prior: &[IndexedSymbol],
+    same_shape_prior: &[IndexedSymbol],
     used: &mut BTreeSet<StableKey>,
 ) -> Result<Vec<(SymbolDefinition, StableKey)>, IndexPlanError> {
     definitions
@@ -535,7 +583,7 @@ fn match_symbols(
                         && symbol.kind == definition.kind
                         && symbol.signature == definition.signature
                 }),
-                unique_match(all_prior, |symbol| {
+                unique_match(same_shape_prior, |symbol| {
                     symbol.language == language
                         && symbol.kind == definition.kind
                         && symbol.name == definition.name
@@ -1564,6 +1612,65 @@ mod tests {
         );
         assert!(symbol_keys.contains("symbol:python:impact.checks:Function"));
         assert!(!symbol_keys.contains(existing_key.as_str()));
+    }
+
+    /// Reproduces the exact defect dogfooding Phase 4 of the external-artifact
+    /// ingestion work found: adding a brand-new file whose helper shares a
+    /// name, kind, and structural fingerprint with an *unrelated, unchanged*
+    /// file's symbol (that file is not part of `changes` at all -- e.g. two
+    /// files each defining a same-shaped private `edge` test helper) must not
+    /// let the same-shape fallback steal the unrelated file's still-live
+    /// identity. There is no move to detect: the old file isn't changing.
+    #[test]
+    fn a_new_files_same_shaped_symbol_does_not_steal_an_unrelated_unchanged_files_identity() {
+        let existing = definition("edge", "verification.tests.edge", "same-body", "same-shape");
+        let existing_file = indexed_file("verification.py", &existing);
+        let existing_key = existing_file.symbols[0].stable_key.clone();
+        let snapshot = RepositorySnapshot {
+            files: BTreeMap::from([("verification.py".to_owned(), existing_file)]),
+        };
+        let new_symbol = definition("edge", "neighborhood.tests.edge", "same-body", "same-shape");
+        let analyses = BTreeMap::from([(
+            "neighborhood.py".to_owned(),
+            FileAnalysis {
+                path: "neighborhood.py".to_owned(),
+                language: "python".to_owned(),
+                analysis_version: "python-tree-sitter-v1".to_owned(),
+                content_hash: "neighborhood-file".to_owned(),
+                symbols: vec![new_symbol],
+            },
+        )]);
+
+        let plan = plan_incremental_index(
+            &snapshot,
+            &analyses,
+            &[FileChange::Added {
+                path: "neighborhood.py".to_owned(),
+            }],
+        )
+        .expect("independent addition alongside a same-shaped, same-named prior symbol");
+
+        let symbol_keys = plan
+            .nodes_to_write
+            .iter()
+            .filter(|node| node.kind == NodeKind::CodeSymbol)
+            .map(|node| node.stable_key.as_str())
+            .collect::<BTreeSet<_>>();
+
+        assert_eq!(
+            symbol_keys.len(),
+            1,
+            "must not also rewrite the unrelated, unchanged prior symbol"
+        );
+        assert!(symbol_keys.contains("symbol:python:neighborhood.tests.edge:Function"));
+        assert!(
+            !symbol_keys.contains(existing_key.as_str()),
+            "the new file's symbol must not claim the unrelated unchanged file's identity"
+        );
+        assert!(
+            plan.nodes_to_retire.is_empty(),
+            "the unrelated file was never touched, so nothing about it should retire"
+        );
     }
 
     /// Reproduces the exact defect dogfooding this repository found:

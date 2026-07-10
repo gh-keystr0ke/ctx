@@ -26,16 +26,25 @@ statement: >
   one symbol — an ambiguous canonical path (a cross-language collision)
   stays unlinked rather than guessed at, the same discipline persistent
   `.context/*.yaml` mappings already use. GitLab issue/merge-request
-  ingestion (also a PR-EXT-001 MUST item, not yet implemented) will extend
-  this same document rather than add a new one, since the "normalized
-  artifact, idempotent re-sync, deterministic-only linking" guarantee
-  applies identically to every source.
+  ingestion (`ctx ingest gitlab`, the chosen end-to-end PR-EXT-001 MUST
+  provider) extends this same document rather than a new one, since the
+  "normalized artifact, idempotent re-sync, deterministic-only linking"
+  guarantee applies identically to every source: it fetches every issue and
+  merge request for the configured project, their non-system comments, and
+  each merge request's commit SHAs, normalizing all of it into artifacts
+  plus the deterministic links GitLab's own API reports directly (a comment
+  `CommentsOn` its issue/MR, an MR `ContainsCommit` for each of its commits)
+  — on top of which the same text-reference scan every other source uses
+  still runs, so a ticket mentioned in an MR body can resolve against an
+  artifact from any already-known source, not only GitLab's own.
 implementation:
   - symbol: ctx_adapters.git.GitRepo.GitArtifactSource.commit_artifacts
   - symbol: ctx_adapters.git.GitRepo.GitArtifactSource.branch_artifacts
   - symbol: ctx_app.ingest.GitIngestRunner.run
   - symbol: ctx_core.codedoc.extract_code_docs
   - symbol: ctx_app.ingest.CodeDocIngestRunner.run
+  - symbol: ctx_adapters.gitlab.GitLabClient.fetch_issue_and_mr_artifacts
+  - symbol: ctx_app.ingest.GitLabIngestRunner.run
 tests:
   - symbol: ctx_adapters.git.tests.parses_commit_artifacts_from_real_git_log_record_output
   - symbol: ctx_adapters.git.tests.commit_and_branch_artifacts_round_trip_against_a_real_repository
@@ -46,3 +55,6 @@ tests:
   - symbol: ctx_core.codedoc.tests.python_docstring_attaches_to_its_enclosing_function_not_only_the_file
   - symbol: ctx_core.codedoc.tests.nearest_symbol_prefers_the_smaller_enclosing_scope_over_a_larger_one
   - symbol: crates.ctx-cli.tests.e2e.ingest_code_comments_attaches_a_doc_comment_to_its_nearest_symbol
+  - symbol: ctx_adapters.gitlab.tests.fetches_issues_and_merge_requests_with_their_comments_and_commits
+  - symbol: ctx_app.ingest.tests.gitlab_ingest_persists_provider_reported_links_and_stays_idempotent
+  - symbol: crates.ctx-cli.tests.e2e.ingest_gitlab_without_configuration_fails_clearly_before_any_network_call

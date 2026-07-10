@@ -4,9 +4,9 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use ctx_app::ports::{BusinessContextReader, PortError};
+use ctx_app::ports::{BusinessContextReader, BusinessContextWriter, PortError};
 use ctx_core::business::{BusinessDocument, BusinessKind, ExplicitSymbolLink};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -26,6 +26,8 @@ pub enum BusinessContextError {
     DuplicateId { id: String },
     #[error("Markdown context '{0}' must start and end YAML front matter with '---'")]
     InvalidFrontMatter(String),
+    #[error("a business context document already exists at '{0}'")]
+    AlreadyExists(String),
 }
 
 pub struct YamlBusinessContextReader {
@@ -229,6 +231,159 @@ fn required<T>(
     })
 }
 
+impl BusinessContextWriter for YamlBusinessContextReader {
+    /// Writes `document` as a brand-new `.context/{kind}s/{id}.yaml` file
+    /// (never an update to an existing one -- an accepted candidate always
+    /// allocates a fresh ID) using exactly the field shape [`read_document`]
+    /// parses back, so the very next `ctx index` picks it up like any
+    /// hand-authored document. Returns the path written, relative to the
+    /// repository root.
+    fn write_document(&self, document: &BusinessDocument) -> Result<String, PortError> {
+        let directory = self
+            .root
+            .join(".context")
+            .join(kind_directory(document.kind));
+        let filename = format!("{}.yaml", slugify(&document.id));
+        let path = directory.join(&filename);
+        if path.exists() {
+            return Err(port_error(BusinessContextError::AlreadyExists(
+                path.display().to_string(),
+            )));
+        }
+        fs::create_dir_all(&directory).map_err(|source| {
+            port_error(BusinessContextError::Io {
+                path: directory.display().to_string(),
+                source,
+            })
+        })?;
+        let yaml = serde_yaml::to_string(&written_document(document)).map_err(|error| {
+            port_error(BusinessContextError::Yaml {
+                path: path.display().to_string(),
+                message: error.to_string(),
+            })
+        })?;
+        fs::write(&path, yaml).map_err(|source| {
+            port_error(BusinessContextError::Io {
+                path: path.display().to_string(),
+                source,
+            })
+        })?;
+        Ok(path
+            .strip_prefix(&self.root)
+            .unwrap_or(&path)
+            .to_string_lossy()
+            .replace('\\', "/"))
+    }
+}
+
+const fn kind_directory(kind: BusinessKind) -> &'static str {
+    match kind {
+        BusinessKind::Feature => "features",
+        BusinessKind::Requirement => "requirements",
+        BusinessKind::Invariant => "invariants",
+        BusinessKind::Decision => "decisions",
+    }
+}
+
+/// A conservative, portable filename: lowercase ASCII alphanumerics with
+/// every other byte collapsed to `-`, matching how every existing
+/// `.context/*.yaml` filename in this repository is already shaped.
+fn slugify(id: &str) -> String {
+    id.chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() {
+                character.to_ascii_lowercase()
+            } else {
+                '-'
+            }
+        })
+        .collect()
+}
+
+#[derive(Serialize)]
+struct WrittenLink<'a> {
+    symbol: &'a str,
+}
+
+#[derive(Serialize)]
+struct WrittenDocument<'a> {
+    id: &'a str,
+    #[serde(rename = "type")]
+    kind: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    feature: Option<&'a str>,
+    status: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    name: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    title: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    statement: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    description: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    decision: Option<&'a str>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    implementation: Vec<WrittenLink<'a>>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    tests: Vec<WrittenLink<'a>>,
+}
+
+/// Maps `document`'s single normalized `body`/`title` back onto the
+/// per-kind field names [`read_document`] expects (`statement` for
+/// Requirement/Invariant, `name`/`description` for Feature, `title`/
+/// `decision` for Decision) so writing and reading stay each other's exact
+/// inverse.
+fn written_document(document: &BusinessDocument) -> WrittenDocument<'_> {
+    let kind = kind_directory(document.kind)
+        .strip_suffix('s')
+        .unwrap_or_default();
+    let (name, title, statement, description, decision) = match document.kind {
+        BusinessKind::Feature => (
+            Some(document.title.as_str()),
+            None,
+            None,
+            Some(document.body.as_str()),
+            None,
+        ),
+        BusinessKind::Requirement | BusinessKind::Invariant => {
+            (None, None, Some(document.body.as_str()), None, None)
+        }
+        BusinessKind::Decision => (
+            None,
+            Some(document.title.as_str()),
+            None,
+            None,
+            Some(document.body.as_str()),
+        ),
+    };
+    WrittenDocument {
+        id: &document.id,
+        kind,
+        feature: document.feature.as_deref(),
+        status: &document.status,
+        name,
+        title,
+        statement,
+        description,
+        decision,
+        implementation: document
+            .implementation
+            .iter()
+            .map(|link| WrittenLink {
+                symbol: &link.symbol,
+            })
+            .collect(),
+        tests: document
+            .tests
+            .iter()
+            .map(|link| WrittenLink {
+                symbol: &link.symbol,
+            })
+            .collect(),
+    }
+}
+
 fn inferred_kind(path: &Path) -> Option<&str> {
     path.parent()?.file_name()?.to_str()?.strip_suffix('s')
 }
@@ -271,5 +426,84 @@ mod tests {
         assert_eq!(document.kind, BusinessKind::Requirement);
         assert_eq!(document.implementation[0].symbol, "billing.cancel");
         assert_eq!(document.source_uri, ".context/requirements/cancel.yaml");
+    }
+
+    fn document(kind: BusinessKind, id: &str, title: &str, body: &str) -> BusinessDocument {
+        BusinessDocument {
+            id: id.to_owned(),
+            kind,
+            title: title.to_owned(),
+            body: body.to_owned(),
+            status: "active".to_owned(),
+            feature: Some("FEAT-INDEXING".to_owned()),
+            implementation: vec![ExplicitSymbolLink {
+                symbol: "billing.subscription.SubscriptionService.cancel".to_owned(),
+                locator: "implementation[0]".to_owned(),
+            }],
+            tests: Vec::new(),
+            source_uri: String::new(),
+            content_hash: String::new(),
+        }
+    }
+
+    #[test]
+    fn a_written_requirement_reads_back_with_the_same_statement_and_links() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let reader = YamlBusinessContextReader::new(directory.path().to_path_buf());
+        let original = document(
+            BusinessKind::Requirement,
+            "REQ-SUB-014",
+            "Cancellation preserves paid access.",
+            "Cancellation preserves paid access.",
+        );
+
+        let path = reader.write_document(&original).expect("write document");
+        assert_eq!(path, ".context/requirements/req-sub-014.yaml");
+
+        let read_back = reader.read_all().expect("read all");
+        assert_eq!(read_back.len(), 1);
+        assert_eq!(read_back[0].id, "REQ-SUB-014");
+        assert_eq!(read_back[0].kind, BusinessKind::Requirement);
+        assert_eq!(read_back[0].body, original.body);
+        assert_eq!(
+            read_back[0].implementation[0].symbol,
+            "billing.subscription.SubscriptionService.cancel"
+        );
+    }
+
+    #[test]
+    fn a_written_decision_reads_back_with_its_title_and_decision_text() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let reader = YamlBusinessContextReader::new(directory.path().to_path_buf());
+        let original = document(
+            BusinessKind::Decision,
+            "ADR-SUB-002",
+            "Cancellation stays reversible until period end",
+            "A cancelled subscription remains reversible until paid_until.",
+        );
+
+        reader.write_document(&original).expect("write document");
+
+        let read_back = reader.read_all().expect("read all");
+        assert_eq!(read_back[0].title, original.title);
+        assert_eq!(read_back[0].body, original.body);
+    }
+
+    #[test]
+    fn writing_the_same_id_twice_is_rejected_not_silently_overwritten() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let reader = YamlBusinessContextReader::new(directory.path().to_path_buf());
+        let original = document(
+            BusinessKind::Invariant,
+            "INV-SUB-003",
+            "statement",
+            "statement",
+        );
+        reader.write_document(&original).expect("first write");
+
+        let error = reader
+            .write_document(&original)
+            .expect_err("a duplicate ID must not overwrite the existing file");
+        assert!(error.to_string().contains("already exists"));
     }
 }

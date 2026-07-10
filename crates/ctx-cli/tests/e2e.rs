@@ -417,6 +417,94 @@ fn enrich_rejects_an_unsupported_agent() {
     );
 }
 
+#[test]
+fn accepting_a_knowledge_candidate_writes_a_context_document_ctx_index_then_absorbs() {
+    let repository = FixtureRepository::new();
+    repository.ctx(&["init"]);
+    repository.ctx(&["ingest", "git"]);
+
+    let script_path = repository.root().join("fake-claude.sh");
+    fs::write(
+        &script_path,
+        "#!/bin/sh\n\
+         prompt=\"$2\"\n\
+         id=$(echo \"$prompt\" | grep -o 'Valid artifact ids for this neighborhood: [^ ,]*' | sed 's/.*: //')\n\
+         echo \"{\\\"outcome\\\":\\\"relevant\\\",\\\"candidates\\\":[{\\\"kind\\\":\\\"requirement\\\",\\\"statement\\\":\\\"Commit history documents cancellation behavior.\\\",\\\"evidence\\\":[{\\\"artifact_id\\\":\\\"$id\\\",\\\"locator\\\":\\\"body\\\",\\\"excerpt\\\":\\\"excerpt\\\"}]}]}\"\n",
+    )
+    .expect("write fake claude script");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut permissions = fs::metadata(&script_path)
+            .expect("script metadata")
+            .permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(&script_path, permissions).expect("chmod fake claude script");
+    }
+    let env = [(
+        "CTX_CLAUDE_CLI_BINARY",
+        script_path.to_str().expect("utf8 path"),
+    )];
+
+    let enriched = repository.ctx_with_env(&["enrich", "--agent", "claude"], &env);
+    assert!(enriched["candidates_proposed"].as_u64().unwrap_or(0) > 0);
+
+    let pending = repository.ctx(&["verify", "--knowledge"]);
+    let candidates = pending.as_array().expect("pending candidates");
+    assert_eq!(candidates.len(), 1);
+    let fingerprint = candidates[0]["fingerprint"]
+        .as_str()
+        .expect("fingerprint")
+        .to_owned();
+
+    // --knowledge --accept without --id is refused rather than allocating a
+    // guessed one.
+    let missing_id = repository.ctx_failure(&["verify", "--knowledge", "--accept", &fingerprint]);
+    assert!(
+        missing_id["error"]
+            .as_str()
+            .is_some_and(|message| message.contains("--id"))
+    );
+
+    let accepted = repository.ctx(&[
+        "verify",
+        "--knowledge",
+        "--accept",
+        &fingerprint,
+        "--id",
+        "REQ-COMMIT-DOC-001",
+    ]);
+    assert_eq!(accepted["ok"], true);
+    let written_path = accepted["path"].as_str().expect("written path").to_owned();
+    assert!(repository.root().join(&written_path).exists());
+
+    // No longer pending once decided.
+    let after_accept = repository.ctx(&["verify", "--knowledge"]);
+    assert!(
+        after_accept
+            .as_array()
+            .expect("pending candidates")
+            .is_empty()
+    );
+
+    // The next `ctx index` absorbs it exactly like any hand-authored
+    // `.context/*.yaml` document -- no second, parallel truth store. Written
+    // files are ordinary working-tree content, so (per this repo's own
+    // committed-inputs invariant) they must be committed before indexing.
+    run_git(repository.root(), &["add", &written_path]);
+    run_git(
+        repository.root(),
+        &["commit", "--quiet", "-m", "accept REQ-COMMIT-DOC-001"],
+    );
+    let indexed = repository.ctx(&["index"]);
+    assert!(
+        indexed["business_context"]["documents_created"]
+            .as_u64()
+            .unwrap_or(0)
+            > 0
+    );
+}
+
 struct CodeCommentRepository {
     directory: TempDir,
 }

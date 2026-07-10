@@ -62,6 +62,27 @@ impl KnowledgeCandidate {
     pub fn fingerprint_for(kind: BusinessKind, statement: &str) -> String {
         format!("knowledge:{kind:?}:{statement}")
     }
+
+    /// A short title for kinds whose `.context/*.yaml` shape needs one
+    /// separate from the full statement (Feature's `name`, Decision's
+    /// `title`) — the agent contract has no dedicated title field, so this
+    /// takes the statement's first sentence, or the whole thing truncated to
+    /// a bounded length when no sentence break exists, never inventing text
+    /// the statement doesn't contain.
+    #[must_use]
+    pub fn derived_title(&self) -> String {
+        const MAX_CHARS: usize = 80;
+        let first_sentence = self
+            .statement
+            .split_once(". ")
+            .map_or(self.statement.as_str(), |(sentence, _)| sentence);
+        if first_sentence.chars().count() <= MAX_CHARS {
+            return first_sentence.trim_end_matches('.').to_owned();
+        }
+        let mut truncated: String = first_sentence.chars().take(MAX_CHARS).collect();
+        truncated.push('\u{2026}');
+        truncated
+    }
 }
 
 /// What an agent decided about one bounded artifact neighborhood
@@ -72,6 +93,19 @@ pub enum AgentOutcome {
     Relevant(Vec<KnowledgeCandidate>),
     NotRelevant,
     InsufficientEvidence,
+}
+
+/// A human's decision on one pending [`KnowledgeCandidate`] (PR-VERIFY-001).
+/// Unlike the heuristic `SemanticCandidate` accept path (which only asserts
+/// an already-known claim), accepting a `KnowledgeCandidate` creates a new
+/// product-knowledge entity, so acceptance carries the human-chosen stable
+/// ID that entity will have (PR-VERIFY-002 keeps the original candidate row,
+/// status `accepted`, pointing at this same ID, rather than discarding the
+/// chain once the resulting document exists).
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum KnowledgeDecision {
+    Accept { document_id: String },
+    Reject,
 }
 
 #[cfg(test)]
@@ -94,5 +128,43 @@ mod tests {
         );
         assert_eq!(first, second);
         assert_ne!(first, different_kind);
+    }
+
+    fn candidate(statement: &str) -> KnowledgeCandidate {
+        KnowledgeCandidate {
+            fingerprint: KnowledgeCandidate::fingerprint_for(BusinessKind::Decision, statement),
+            kind: BusinessKind::Decision,
+            statement: statement.to_owned(),
+            evidence: Vec::new(),
+            implementation_candidates: Vec::new(),
+            test_candidates: Vec::new(),
+            provenance: AgentProvenance {
+                producer: "test".to_owned(),
+                model: None,
+                input_artifact_ids: Vec::new(),
+                produced_at: "2026-08-21T00:00:00Z".to_owned(),
+                fingerprint: "fp".to_owned(),
+            },
+        }
+    }
+
+    #[test]
+    fn derived_title_takes_the_first_sentence() {
+        let title = candidate("Cancellation stays reversible until period end. It preserves paid access until paid_until.").derived_title();
+        assert_eq!(title, "Cancellation stays reversible until period end");
+    }
+
+    #[test]
+    fn derived_title_truncates_a_long_sentence_without_a_break() {
+        let long = "a".repeat(120);
+        let title = candidate(&long).derived_title();
+        assert_eq!(title.chars().count(), 81);
+        assert!(title.ends_with('\u{2026}'));
+    }
+
+    #[test]
+    fn derived_title_keeps_a_short_single_sentence_whole() {
+        let title = candidate("Short decision.").derived_title();
+        assert_eq!(title, "Short decision");
     }
 }

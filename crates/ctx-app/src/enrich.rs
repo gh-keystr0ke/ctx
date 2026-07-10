@@ -180,6 +180,17 @@ mod tests {
         ) -> Result<Vec<KnowledgeCandidate>, PortError> {
             Ok(self.pending.borrow().clone())
         }
+
+        fn record_decision(
+            &mut self,
+            _repository: &RepositoryId,
+            _fingerprint: &str,
+            _decision: &ctx_core::knowledge::KnowledgeDecision,
+            _author: &str,
+            _timestamp: &str,
+        ) -> Result<(), PortError> {
+            unreachable!("enrich never records knowledge decisions")
+        }
     }
 
     struct FakeAgent {

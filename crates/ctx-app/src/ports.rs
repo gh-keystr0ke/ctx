@@ -7,7 +7,7 @@ use ctx_core::{
     graph::GraphSnapshot,
     indexing::{FileChange, IndexPlan, RepositorySnapshot},
     ir::FileAnalysis,
-    knowledge::{AgentOutcome, KnowledgeCandidate},
+    knowledge::{AgentOutcome, KnowledgeCandidate, KnowledgeDecision},
     neighborhood::ArtifactNeighborhood,
     verification::{SemanticCandidate, VerificationDecision},
 };
@@ -336,6 +336,37 @@ pub trait KnowledgeCandidateStore {
         &self,
         repository: &RepositoryId,
     ) -> Result<Vec<KnowledgeCandidate>, PortError>;
+
+    /// Records a human decision on a still-pending candidate (PR-VERIFY-001).
+    /// The candidate row survives with `status` set and, for an accept, the
+    /// resulting document's ID attached (PR-VERIFY-002) — it is never
+    /// deleted.
+    ///
+    /// # Errors
+    /// Returns [`PortError`] when `fingerprint` is not currently pending or
+    /// the decision cannot be persisted.
+    fn record_decision(
+        &mut self,
+        repository: &RepositoryId,
+        fingerprint: &str,
+        decision: &KnowledgeDecision,
+        author: &str,
+        timestamp: &str,
+    ) -> Result<(), PortError>;
+}
+
+/// Materializes an accepted [`KnowledgeCandidate`] as a new `.context/*.yaml`
+/// file (prompt3.md's own recommendation, ADR-EXT/PR-VERIFY-002): the
+/// existing `BusinessContextReader`/`ContextImporter` path stays the single
+/// source of truth for product knowledge, so an accepted candidate needs no
+/// second, parallel storage mechanism to become visible to `ctx impact`/`ctx
+/// explain`/`ctx review` -- the very next `ctx index` picks it up like any
+/// hand-authored document.
+pub trait BusinessContextWriter {
+    /// # Errors
+    /// Returns [`PortError`] when `document.id` is already used by an
+    /// existing file, or the file cannot be written.
+    fn write_document(&self, document: &BusinessDocument) -> Result<String, PortError>;
 }
 
 /// The interchangeable AI-agent boundary (prompt3.md PR-AGENT-001): every

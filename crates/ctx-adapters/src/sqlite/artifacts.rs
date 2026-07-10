@@ -6,7 +6,7 @@ use ctx_core::{
     },
     business::BusinessKind,
     domain::{RepositoryId, StableKey},
-    knowledge::{AgentProvenance, KnowledgeCandidate},
+    knowledge::{AgentProvenance, KnowledgeCandidate, KnowledgeDecision},
 };
 use rusqlite::{OptionalExtension, Transaction, params};
 
@@ -359,6 +359,43 @@ impl KnowledgeCandidateStore for SqliteStore {
             });
         }
         Ok(candidates)
+    }
+
+    fn record_decision(
+        &mut self,
+        repository: &RepositoryId,
+        fingerprint: &str,
+        decision: &KnowledgeDecision,
+        author: &str,
+        timestamp: &str,
+    ) -> Result<(), PortError> {
+        let transaction = self.connection.transaction().map_err(database_error)?;
+        let repository_row = repository_row(&transaction, repository)?;
+        let (status, document_id) = match decision {
+            KnowledgeDecision::Accept { document_id } => ("accepted", Some(document_id.as_str())),
+            KnowledgeDecision::Reject => ("rejected", None),
+        };
+        let updated = transaction
+            .execute(
+                "UPDATE knowledge_candidates
+                 SET status = ?1, resulting_document_id = ?2, decided_by = ?3, decided_at = ?4
+                 WHERE repository_id = ?5 AND fingerprint = ?6 AND status = 'pending'",
+                params![
+                    status,
+                    document_id,
+                    author,
+                    timestamp,
+                    repository_row,
+                    fingerprint,
+                ],
+            )
+            .map_err(database_error)?;
+        if updated == 0 {
+            return Err(PortError::new(format!(
+                "knowledge candidate '{fingerprint}' is not currently pending"
+            )));
+        }
+        transaction.commit().map_err(database_error)
     }
 }
 
@@ -729,5 +766,70 @@ mod tests {
 
         let pending = store.pending_candidates(&repository).expect("pending");
         assert_eq!(pending, vec![candidate]);
+    }
+
+    #[test]
+    fn accepting_a_candidate_removes_it_from_pending_and_records_the_resulting_document() {
+        let directory = tempdir().expect("temporary directory");
+        let (mut store, repository) = open_repository(directory.path());
+        let candidate = KnowledgeCandidate {
+            fingerprint: KnowledgeCandidate::fingerprint_for(
+                BusinessKind::Requirement,
+                "Cancellation preserves paid access.",
+            ),
+            kind: BusinessKind::Requirement,
+            statement: "Cancellation preserves paid access.".to_owned(),
+            evidence: vec![ArtifactRef {
+                identity: ArtifactIdentity {
+                    provider: ArtifactProvider::GitLab,
+                    kind: ArtifactKind::Issue,
+                    external_id: "317".to_owned(),
+                },
+                locator: "description".to_owned(),
+                excerpt: "must remain usable until paid_until".to_owned(),
+            }],
+            implementation_candidates: Vec::new(),
+            test_candidates: Vec::new(),
+            provenance: AgentProvenance {
+                producer: "claude-code".to_owned(),
+                model: None,
+                input_artifact_ids: vec!["gitlab:issue:317".to_owned()],
+                produced_at: "2026-08-21T00:00:00Z".to_owned(),
+                fingerprint: "prompt:v1".to_owned(),
+            },
+        };
+        store
+            .upsert_candidates(&repository, std::slice::from_ref(&candidate))
+            .expect("persist candidate");
+
+        store
+            .record_decision(
+                &repository,
+                &candidate.fingerprint,
+                &KnowledgeDecision::Accept {
+                    document_id: "REQ-SUB-014".to_owned(),
+                },
+                "alice",
+                "2026-08-21T02:00:00Z",
+            )
+            .expect("record accept");
+
+        assert!(
+            store
+                .pending_candidates(&repository)
+                .expect("pending")
+                .is_empty()
+        );
+
+        let error = store
+            .record_decision(
+                &repository,
+                &candidate.fingerprint,
+                &KnowledgeDecision::Reject,
+                "alice",
+                "2026-08-21T03:00:00Z",
+            )
+            .expect_err("an already-decided candidate cannot be decided again");
+        assert!(error.to_string().contains("not currently pending"));
     }
 }

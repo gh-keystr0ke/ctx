@@ -24,7 +24,7 @@ use ctx_app::{
     query::{QueryError, QueryService},
     review::{ReviewError, ReviewRunner},
     status::{IndexState, StatusError, StatusHealth, StatusService},
-    verification::{VerificationError, VerificationService},
+    verification::{KnowledgeVerificationService, VerificationError, VerificationService},
 };
 use ctx_core::business::ContextImportStats;
 use ctx_core::context_pack::ContextRequest;
@@ -103,7 +103,8 @@ enum Command {
         #[arg(long, default_value_t = 4_000)]
         token_budget: usize,
     },
-    /// Review and accept/reject heuristic semantic candidates.
+    /// Review and accept/reject heuristic semantic candidates, or
+    /// (`--knowledge`) AI-derived candidates from `ctx enrich`.
     Verify {
         #[arg(long, conflicts_with = "reject")]
         accept: Option<String>,
@@ -111,6 +112,15 @@ enum Command {
         reject: Option<String>,
         #[arg(long, default_value = "local-user")]
         author: String,
+        /// Verify pending AI-derived knowledge candidates instead of the
+        /// default heuristic implementation-link candidates.
+        #[arg(long)]
+        knowledge: bool,
+        /// The stable ID (e.g. "REQ-SUB-014") to allocate a `--knowledge
+        /// --accept`ed candidate. Required together with `--knowledge
+        /// --accept`, ignored otherwise.
+        #[arg(long, requires = "accept")]
+        id: Option<String>,
     },
     /// Serve ctx integrations.
     Serve {
@@ -148,6 +158,8 @@ enum CliError {
     UnsupportedIngestSource(String),
     #[error("unsupported agent '{0}'; supported: claude")]
     UnsupportedAgent(String),
+    #[error("--knowledge --accept requires --id <STABLE-ID>")]
+    MissingKnowledgeId,
     #[error("invalid --since commit OID: {0}")]
     InvalidSinceOid(String),
     #[error("invalid GitLab configuration: {0}")]
@@ -208,7 +220,22 @@ fn run(cli: &Cli) -> Result<(), CliError> {
             accept,
             reject,
             author,
-        } => verify(cli, &git, accept.as_deref(), reject.as_deref(), author),
+            knowledge,
+            id,
+        } => {
+            if *knowledge {
+                verify_knowledge(
+                    cli,
+                    &git,
+                    accept.as_deref(),
+                    reject.as_deref(),
+                    id.as_deref(),
+                    author,
+                )
+            } else {
+                verify(cli, &git, accept.as_deref(), reject.as_deref(), author)
+            }
+        }
         Command::Serve { mcp } => {
             if *mcp {
                 ctx_mcp::serve_stdio(&git).map_err(CliError::from)
@@ -305,6 +332,122 @@ fn verify(
         }
     }
     Ok(())
+}
+
+fn verify_knowledge(
+    cli: &Cli,
+    git: &GitRepo,
+    accept: Option<&str>,
+    reject: Option<&str>,
+    id: Option<&str>,
+    author: &str,
+) -> Result<(), CliError> {
+    let database_path = database_path(git.root())?;
+    let mut store = SqliteStore::open(&database_path)?;
+    let repository = git.descriptor()?;
+    let now = Utc::now().to_rfc3339();
+    let writer = YamlBusinessContextReader::new(git.root().to_path_buf());
+    let mut service = KnowledgeVerificationService::new(&mut store, &writer);
+
+    if let Some(fingerprint) = accept {
+        let document_id = id.ok_or(CliError::MissingKnowledgeId)?;
+        let path = service.accept(&repository.id, fingerprint, document_id, author, &now)?;
+        if cli.json {
+            println!(
+                "{}",
+                json!({"ok": true, "fingerprint": fingerprint, "id": document_id, "path": path})
+            );
+        } else {
+            println!("Accepted {fingerprint} as {document_id} -> {path}");
+        }
+        return Ok(());
+    }
+    if let Some(fingerprint) = reject {
+        service.reject(&repository.id, fingerprint, author, &now)?;
+        if cli.json {
+            println!("{}", json!({"ok": true, "fingerprint": fingerprint}));
+        } else {
+            println!("Rejected {fingerprint}");
+        }
+        return Ok(());
+    }
+
+    let candidates = service.candidates(&repository.id)?;
+    if cli.json {
+        println!("{}", serde_json::to_string_pretty(&candidates)?);
+        return Ok(());
+    }
+    if candidates.is_empty() {
+        println!("No pending AI-derived knowledge candidates.");
+        return Ok(());
+    }
+    if !io::stdin().is_terminal() {
+        print_knowledge_candidates(&candidates);
+        return Ok(());
+    }
+    for candidate in candidates {
+        println!();
+        println!("Candidate ({:?}): {}", candidate.kind, candidate.statement);
+        for evidence in &candidate.evidence {
+            println!("  evidence: {} — {}", evidence.locator, evidence.excerpt);
+        }
+        if !candidate.implementation_candidates.is_empty() {
+            println!(
+                "  implementation candidates: {}",
+                candidate.implementation_candidates.join(", ")
+            );
+        }
+        if !candidate.test_candidates.is_empty() {
+            println!(
+                "  test candidates: {}",
+                candidate.test_candidates.join(", ")
+            );
+        }
+        loop {
+            print!("[y] accept  [n] reject  [s] skip: ");
+            io::stdout().flush()?;
+            let mut answer = String::new();
+            io::stdin().read_line(&mut answer)?;
+            match answer.trim().to_ascii_lowercase().as_str() {
+                "y" => {
+                    print!("Stable ID to allocate (e.g. REQ-SUB-014): ");
+                    io::stdout().flush()?;
+                    let mut chosen_id = String::new();
+                    io::stdin().read_line(&mut chosen_id)?;
+                    let chosen_id = chosen_id.trim();
+                    if chosen_id.is_empty() {
+                        println!("An ID is required to accept.");
+                        continue;
+                    }
+                    let path = service.accept(
+                        &repository.id,
+                        &candidate.fingerprint,
+                        chosen_id,
+                        author,
+                        &now,
+                    )?;
+                    println!("Accepted as {chosen_id} -> {path}");
+                    break;
+                }
+                "n" => {
+                    service.reject(&repository.id, &candidate.fingerprint, author, &now)?;
+                    break;
+                }
+                "s" => break,
+                _ => println!("Please enter y, n, or s."),
+            }
+        }
+    }
+    Ok(())
+}
+
+fn print_knowledge_candidates(candidates: &[ctx_core::knowledge::KnowledgeCandidate]) {
+    for candidate in candidates {
+        println!(
+            "{}: ({:?}) {}",
+            candidate.fingerprint, candidate.kind, candidate.statement
+        );
+    }
 }
 
 fn print_candidates(candidates: &[ctx_core::verification::SemanticCandidate]) {

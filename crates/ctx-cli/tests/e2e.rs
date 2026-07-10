@@ -126,6 +126,24 @@ impl FixtureRepository {
         serde_json::from_slice(&output.stderr).expect("ctx JSON error")
     }
 
+    fn ctx_with_env(&self, arguments: &[&str], env: &[(&str, &str)]) -> Value {
+        let output = Command::new(env!("CARGO_BIN_EXE_ctx"))
+            .current_dir(self.root())
+            .envs(env.iter().copied())
+            .arg("--json")
+            .args(arguments)
+            .output()
+            .expect("execute ctx");
+        assert!(
+            output.status.success(),
+            "ctx {} failed\nstdout: {}\nstderr: {}",
+            arguments.join(" "),
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        serde_json::from_slice(&output.stdout).expect("ctx JSON response")
+    }
+
     fn introduce_entitlement_regression(&self) {
         let path = self.root().join("src/billing/subscription.py");
         let source = fs::read_to_string(&path).expect("fixture source");
@@ -336,6 +354,66 @@ fn ingest_rejects_an_unsupported_source() {
         error["error"]
             .as_str()
             .is_some_and(|message| message.contains("unsupported ingest source"))
+    );
+}
+
+#[test]
+fn enrich_shells_out_to_the_configured_agent_and_reports_its_outcome() {
+    let repository = FixtureRepository::new();
+    repository.ctx(&["init"]);
+    let ingested = repository.ctx(&["ingest", "git"]);
+    assert!(ingested["artifacts_ingested"].as_u64().unwrap_or(0) > 0);
+
+    let script_path = repository.root().join("fake-claude.sh");
+    fs::write(
+        &script_path,
+        "#!/bin/sh\necho '{\"outcome\":\"not_relevant\"}'\n",
+    )
+    .expect("write fake claude script");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut permissions = fs::metadata(&script_path)
+            .expect("script metadata")
+            .permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(&script_path, permissions).expect("chmod fake claude script");
+    }
+
+    let report = repository.ctx_with_env(
+        &["enrich", "--agent", "claude"],
+        &[(
+            "CTX_CLAUDE_CLI_BINARY",
+            script_path.to_str().expect("utf8 path"),
+        )],
+    );
+
+    assert!(report["neighborhoods_analyzed"].as_u64().unwrap_or(0) > 0);
+    assert_eq!(report["candidates_proposed"], 0);
+
+    // Re-running must not fail even though nothing was left pending
+    // (PR-AGENT-002: everything keeps working with zero candidates queued).
+    let second = repository.ctx_with_env(
+        &["enrich", "--agent", "claude"],
+        &[(
+            "CTX_CLAUDE_CLI_BINARY",
+            script_path.to_str().expect("utf8 path"),
+        )],
+    );
+    assert_eq!(second["candidates_proposed"], 0);
+    assert!(repository.ctx(&["status"])["health"].as_str().is_some());
+}
+
+#[test]
+fn enrich_rejects_an_unsupported_agent() {
+    let repository = FixtureRepository::new();
+    repository.ctx(&["init"]);
+
+    let error = repository.ctx_failure(&["enrich", "--agent", "codex"]);
+    assert!(
+        error["error"]
+            .as_str()
+            .is_some_and(|message| message.contains("unsupported agent"))
     );
 }
 

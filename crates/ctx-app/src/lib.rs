@@ -1,6 +1,7 @@
 //! IO orchestration for `ctx` use cases.
 
 pub mod context;
+pub mod enrich;
 pub mod index;
 pub mod ingest;
 pub mod ports;

@@ -2,6 +2,7 @@
 
 pub mod analyzer;
 pub mod business_context;
+pub mod claude_code;
 mod database;
 pub mod git;
 pub mod gitlab;

@@ -10,12 +10,14 @@ use clap::{ArgAction, Parser, Subcommand};
 use ctx_adapters::{
     analyzer::AnalyzerRegistry,
     business_context::YamlBusinessContextReader,
+    claude_code::{ClaudeCodeAgent, SubprocessTransport},
     git::GitRepo,
     gitlab::{GitLabClient, GitLabConfig, UreqTransport},
     sqlite::SqliteStore,
 };
 use ctx_app::{
     context::{ContextImportError, ContextImporter},
+    enrich::{EnrichError, EnrichRunner},
     index::{IndexError, IndexReport, IndexRunner},
     ingest::{CodeDocIngestRunner, GitIngestRunner, GitLabIngestRunner, IngestError},
     ports::{GitRepository, IndexStore, PortError},
@@ -79,6 +81,13 @@ enum Command {
         #[arg(long)]
         since: Option<String>,
     },
+    /// Analyze ingested artifacts with an AI agent for candidate product
+    /// knowledge, queued for human verification via `ctx verify`.
+    Enrich {
+        /// The agent to run ("claude": headless Claude Code CLI, `claude -p`).
+        #[arg(long, default_value = "claude")]
+        agent: String,
+    },
     /// Review a branch or working-tree diff in product terms.
     Review {
         #[arg(long, default_value = "HEAD")]
@@ -133,8 +142,12 @@ enum CliError {
     Mcp(#[from] ctx_mcp::McpServerError),
     #[error(transparent)]
     Ingest(#[from] IngestError),
+    #[error(transparent)]
+    Enrich(#[from] EnrichError),
     #[error("unsupported ingest source '{0}'; supported: git, code-comments, gitlab")]
     UnsupportedIngestSource(String),
+    #[error("unsupported agent '{0}'; supported: claude")]
+    UnsupportedAgent(String),
     #[error("invalid --since commit OID: {0}")]
     InvalidSinceOid(String),
     #[error("invalid GitLab configuration: {0}")]
@@ -183,6 +196,7 @@ fn run(cli: &Cli) -> Result<(), CliError> {
         Command::Explain { target } => explain(cli, &git, target),
         Command::Find { target } => find(cli, &git, target),
         Command::Ingest { source, since } => ingest(cli, &git, source, since.as_deref()),
+        Command::Enrich { agent } => enrich(cli, &git, agent),
         Command::Review { base } => review(cli, &git, base),
         Command::Context {
             task,
@@ -650,6 +664,34 @@ fn ingest(cli: &Cli, git: &GitRepo, source: &str, since: Option<&str>) -> Result
         println!(
             "Ingested {} artifact(s), {} link(s) created",
             report.artifacts_ingested, report.links_created
+        );
+    }
+    Ok(())
+}
+
+fn enrich(cli: &Cli, git: &GitRepo, agent: &str) -> Result<(), CliError> {
+    if agent != "claude" {
+        return Err(CliError::UnsupportedAgent(agent.to_owned()));
+    }
+    let database_path = database_path(git.root())?;
+    let mut store = SqliteStore::open(&database_path)?;
+    let repository = git.descriptor()?;
+    let now = Utc::now().to_rfc3339();
+    store.ensure_repository(&repository, &now)?;
+    // Overridable for tests, which stand in a fake script instead of
+    // depending on a real `claude` installation (mirrors CTX_GITLAB_TOKEN's
+    // env-var escape hatch for GitLab config).
+    let binary = env::var("CTX_CLAUDE_CLI_BINARY").unwrap_or_else(|_| "claude".to_owned());
+    let claude_agent = ClaudeCodeAgent::new(SubprocessTransport::new(binary), None);
+    let report = EnrichRunner::new(&claude_agent, &mut store).run(&repository.id, &now)?;
+    if cli.json {
+        println!("{}", serde_json::to_string_pretty(&report)?);
+    } else {
+        println!(
+            "Analyzed {} artifact neighborhood(s), {} candidate(s) proposed ({} skipped, already pending)",
+            report.neighborhoods_analyzed,
+            report.candidates_proposed,
+            report.artifacts_skipped_already_pending
         );
     }
     Ok(())

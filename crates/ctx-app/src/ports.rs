@@ -7,7 +7,8 @@ use ctx_core::{
     graph::GraphSnapshot,
     indexing::{FileChange, IndexPlan, RepositorySnapshot},
     ir::FileAnalysis,
-    knowledge::KnowledgeCandidate,
+    knowledge::{AgentOutcome, KnowledgeCandidate},
+    neighborhood::ArtifactNeighborhood,
     verification::{SemanticCandidate, VerificationDecision},
 };
 use serde::{Deserialize, Serialize};
@@ -335,4 +336,25 @@ pub trait KnowledgeCandidateStore {
         &self,
         repository: &RepositoryId,
     ) -> Result<Vec<KnowledgeCandidate>, PortError>;
+}
+
+/// The interchangeable AI-agent boundary (prompt3.md PR-AGENT-001): every
+/// concrete agent -- Claude Code CLI today, any other CLI- or API-backed
+/// model later -- is referenced only through this trait outside its own
+/// adapter module (PR-P05). `ctx-core`/`ctx-app` never name a specific
+/// vendor or model.
+pub trait SemanticAgent {
+    /// Analyzes one bounded artifact neighborhood and returns what the agent
+    /// found (PR-AI-002). Absence of extracted knowledge (`NotRelevant`/
+    /// `InsufficientEvidence`) is always preferred to a fabricated candidate
+    /// (PR-P02, FR-01).
+    ///
+    /// # Errors
+    /// Returns [`PortError`] when the agent cannot be reached, or its output
+    /// cannot be parsed and validated as the expected contract.
+    fn analyze(
+        &self,
+        neighborhood: &ArtifactNeighborhood,
+        produced_at: &str,
+    ) -> Result<AgentOutcome, PortError>;
 }

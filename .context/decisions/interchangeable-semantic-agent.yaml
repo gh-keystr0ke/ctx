@@ -1,0 +1,26 @@
+id: ADR-AGENT-001
+type: decision
+feature: FEAT-INDEXING
+title: AI agents sit behind one interchangeable port trait
+status: accepted
+decision: >
+  Every concrete AI agent — Claude Code CLI today, any other CLI- or
+  API-backed model later — is referenced only through
+  ctx_app.ports.SemanticAgent outside its own adapter module (PR-P05,
+  PR-AGENT-001). ctx-core and ctx-app never name a specific vendor or model:
+  ctx_core.neighborhood builds the bounded input, ctx_core.knowledge defines
+  the typed output shape, and ctx_app.enrich.EnrichRunner orchestrates
+  selection and persistence purely against the trait. Only
+  ctx_adapters.claude_code (the concrete adapter, including its own JSON
+  prompt/output contract) and the ctx-cli composition root (which must name
+  an agent to select one, `--agent claude`) know Claude Code exists. Adding
+  a second agent means adding a second adapter module and a second CLI enum
+  value — zero changes to ctx-core, ctx-app, or the SemanticAgent trait
+  itself.
+implementation:
+  - symbol: ctx_app.ports.SemanticAgent
+  - symbol: ctx_adapters.claude_code.ClaudeCodeAgent
+  - symbol: ctx_adapters.claude_code.ClaudeCliTransport
+tests:
+  - symbol: ctx_adapters.claude_code.tests.subprocess_transport_invokes_claude_p_and_returns_stdout
+  - symbol: ctx_app.enrich.tests.analyzes_every_artifact_and_persists_only_relevant_candidates

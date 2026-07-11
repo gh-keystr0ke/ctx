@@ -20,12 +20,19 @@ decision: >
   reopen a decision a human already made. A candidate is never itself a
   ctx_core.domain.Edge or a ctx_core.business.BusinessDocument — that
   promotion happens only through the human-verification step this table
-  exists to feed.
+  exists to feed (ctx verify --knowledge, REQ-VERIFY-002): record_decision
+  updates a candidate's row keyed by WHERE status = 'pending', so a decision
+  can only ever be recorded once — deciding an unknown or already-decided
+  fingerprint fails clearly rather than reverting it, the enforcement this
+  document's original "left untouched" guarantee anticipated before it had
+  a decision-recording method to actually enforce it.
 implementation:
   - symbol: ctx_core.knowledge.KnowledgeCandidate
   - symbol: ctx_core.knowledge.AgentProvenance
   - symbol: ctx_app.ports.KnowledgeCandidateStore
   - symbol: ctx_adapters.sqlite.artifacts.SqliteStore.KnowledgeCandidateStore.upsert_candidates
   - symbol: ctx_adapters.sqlite.artifacts.SqliteStore.KnowledgeCandidateStore.pending_candidates
+  - symbol: ctx_adapters.sqlite.artifacts.SqliteStore.KnowledgeCandidateStore.record_decision
 tests:
   - symbol: ctx_adapters.sqlite.artifacts.tests.pending_candidates_round_trip_and_stay_out_once_decided
+  - symbol: ctx_adapters.sqlite.artifacts.tests.accepting_a_candidate_removes_it_from_pending_and_records_the_resulting_document

@@ -1,0 +1,34 @@
+id: REQ-MAP-001
+type: requirement
+feature: FEAT-INDEXING
+status: active
+statement: >
+  The existing heuristic implementation-mapping pipeline
+  (ctx_core.verification.semantic_candidates, cheap enough to recompute from
+  the current graph on every `ctx verify` run) must find candidates for a
+  Requirement/Invariant/Decision regardless of whether it was hand-authored
+  or reached the graph through an accepted AI-derived KnowledgeCandidate
+  (`ctx verify --knowledge --accept`, Phase 6) — scoring only ever filters by
+  NodeKind, never by an intent's origin, so no special case is needed. When
+  an intent did originate from an accepted candidate, scoring gets one
+  additional signal (PR-MAP-001): a candidate symbol scores higher when the
+  same artifact that backed the accepted candidate's evidence also
+  `ChangedSymbol`-links to that symbol — the same merge/commit that produced
+  the requirement also touched this code, the strongest non-explicit signal
+  short of an actual mapping. This uses only already-known deterministic
+  ArtifactLink data (never a second AI call) and only ever affects intents
+  with a recorded evidence trail; a hand-authored `.context/*.yaml` document
+  has no accepted-candidate row and so is scored exactly as before. Status
+  health surfaces a mapping gap per entity (REQ-STATUS-001), not as an
+  aggregate count, so one freshly accepted document with no mapping is never
+  hidden behind other already-mapped documents.
+implementation:
+  - symbol: ctx_core.verification.semantic_candidates
+  - symbol: ctx_core.verification.score_candidate
+  - symbol: ctx_core.verification.artifact_evidence_signal
+  - symbol: ctx_core.verification.ArtifactEvidenceContext
+  - symbol: ctx_app.verification.VerificationService.candidates
+  - symbol: ctx_adapters.sqlite.artifacts.SqliteStore.KnowledgeCandidateStore.accepted_evidence
+tests:
+  - symbol: ctx_core.verification.tests.an_intent_from_an_accepted_ai_derived_candidate_gets_mapping_candidates_like_any_other
+  - symbol: ctx_core.verification.tests.a_symbol_changed_by_the_same_artifact_that_backs_the_requirement_scores_higher

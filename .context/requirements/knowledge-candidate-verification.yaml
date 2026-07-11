@@ -1,0 +1,43 @@
+id: REQ-VERIFY-002
+type: requirement
+feature: FEAT-INDEXING
+status: active
+statement: >
+  `ctx verify --knowledge` must let a human accept or reject each AI-derived
+  KnowledgeCandidate `ctx enrich` proposed, as a sibling flow to the existing
+  heuristic `ctx verify` queue rather than a merged one — accepting a
+  heuristic SemanticCandidate only asserts an already-known claim, while
+  accepting a KnowledgeCandidate creates a brand-new product-knowledge
+  entity and needs a human-chosen stable ID, so the two accept paths have
+  genuinely different shapes. `--knowledge --accept <fingerprint> --id
+  <STABLE-ID>` is refused outright without an explicit `--id`: no ID is ever
+  guessed or derived from content. Accepting writes a new `.context/*.yaml`
+  file under the right kind directory (`requirements/`, `invariants/`,
+  `decisions/`, `features/`) using exactly the field shape the existing
+  `BusinessContextReader` already parses, so the very next `ctx index`
+  absorbs it like any hand-authored document — no second, parallel truth
+  store. Writing never overwrites an existing file: a document ID already in
+  use fails clearly instead of silently replacing it. The original
+  candidate row survives acceptance or rejection (status `accepted` or
+  `rejected`, with the resulting document ID attached on accept) rather than
+  being discarded, so the artifact-to-inference-to-decision chain stays
+  intact for `ctx explain` to walk (Phase 9, REQ-EXPLAIN-002). A rejected
+  candidate is never proposed again once `ctx enrich` recognizes the same
+  fingerprint (an already-decided fingerprint's `record_decision` fails
+  rather than reverting it to pending).
+implementation:
+  - symbol: ctx_app.verification.KnowledgeVerificationService.accept
+  - symbol: ctx_app.verification.KnowledgeVerificationService.reject
+  - symbol: ctx_app.verification.candidate_to_document
+  - symbol: ctx_adapters.business_context.YamlBusinessContextReader.BusinessContextWriter.write_document
+  - symbol: ctx_adapters.sqlite.artifacts.SqliteStore.KnowledgeCandidateStore.record_decision
+tests:
+  - symbol: ctx_app.verification.knowledge_tests.accepting_writes_the_document_and_records_the_decision
+  - symbol: ctx_app.verification.knowledge_tests.a_decision_kind_gets_a_derived_title_distinct_from_its_body
+  - symbol: ctx_app.verification.knowledge_tests.accepting_an_unknown_fingerprint_fails_clearly
+  - symbol: ctx_app.verification.knowledge_tests.rejecting_records_a_reject_decision_and_writes_nothing
+  - symbol: ctx_adapters.business_context.tests.a_written_requirement_reads_back_with_the_same_statement_and_links
+  - symbol: ctx_adapters.business_context.tests.a_written_decision_reads_back_with_its_title_and_decision_text
+  - symbol: ctx_adapters.business_context.tests.writing_the_same_id_twice_is_rejected_not_silently_overwritten
+  - symbol: ctx_adapters.sqlite.artifacts.tests.accepting_a_candidate_removes_it_from_pending_and_records_the_resulting_document
+  - symbol: crates.ctx-cli.tests.e2e.accepting_a_knowledge_candidate_writes_a_context_document_ctx_index_then_absorbs

@@ -2,13 +2,15 @@ use ctx_core::{
     business::{BusinessDocument, BusinessKind, ExplicitSymbolLink},
     domain::RepositoryId,
     knowledge::{KnowledgeCandidate, KnowledgeDecision},
-    verification::{SemanticCandidate, VerificationDecision, semantic_candidates},
+    verification::{
+        ArtifactEvidenceContext, SemanticCandidate, VerificationDecision, semantic_candidates,
+    },
 };
 use thiserror::Error;
 
 use crate::ports::{
-    BusinessContextWriter, CommitMetadata, GraphStore, KnowledgeCandidateStore, PortError,
-    VerificationStore,
+    ArtifactLinkStore, BusinessContextWriter, CommitMetadata, GraphStore, KnowledgeCandidateStore,
+    PortError, VerificationStore,
 };
 
 #[derive(Debug, Error)]
@@ -25,17 +27,20 @@ pub struct VerificationService<'a, S> {
 
 impl<'a, S> VerificationService<'a, S>
 where
-    S: GraphStore + VerificationStore,
+    S: GraphStore + VerificationStore + ArtifactLinkStore + KnowledgeCandidateStore,
 {
     pub const fn new(store: &'a mut S) -> Self {
         Self { store }
     }
 
-    /// Returns deterministic, impact-prioritized semantic candidates.
+    /// Returns deterministic, impact-prioritized semantic candidates,
+    /// including the artifact-evidence signal (PR-MAP-001) for any intent
+    /// that originated from an accepted AI-derived candidate.
     ///
     /// # Errors
     ///
-    /// Returns [`VerificationError`] when current graph state cannot be loaded.
+    /// Returns [`VerificationError`] when current graph or artifact state
+    /// cannot be loaded.
     pub fn candidates(
         &self,
         repository: &RepositoryId,
@@ -44,7 +49,17 @@ where
             .store
             .load_graph(repository)
             .map_err(VerificationError::Store)?;
-        Ok(semantic_candidates(&graph))
+        let artifact_context = ArtifactEvidenceContext {
+            links: self
+                .store
+                .list_links(repository)
+                .map_err(VerificationError::Store)?,
+            accepted_evidence: self
+                .store
+                .accepted_evidence(repository)
+                .map_err(VerificationError::Store)?,
+        };
+        Ok(semantic_candidates(&graph, &artifact_context))
     }
 
     /// Records a decision for a current candidate.
@@ -247,6 +262,13 @@ mod knowledge_tests {
                 .borrow_mut()
                 .push((fingerprint.to_owned(), decision.clone()));
             Ok(())
+        }
+
+        fn accepted_evidence(
+            &self,
+            _repository: &RepositoryId,
+        ) -> Result<std::collections::BTreeMap<String, Vec<ArtifactRef>>, PortError> {
+            unreachable!("knowledge verification never reads accepted evidence")
         }
     }
 

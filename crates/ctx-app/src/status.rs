@@ -1,6 +1,7 @@
 use ctx_core::{
     domain::CommitOid,
     schema::{SchemaDivergence, reconcile_orm_and_migrations},
+    verification::intents_without_mapping,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -41,6 +42,11 @@ pub struct StatusReport {
     /// [`ctx_core::schema::reconcile_orm_and_migrations`] for exactly what
     /// this does and does not prove.
     pub schema_divergences: Vec<SchemaDivergence>,
+    /// Identifiers of active Feature/Requirement/Invariant/Decision nodes
+    /// with no active implementation/test mapping (PR-MAP-003) -- computed
+    /// per entity, so one freshly accepted, still-unmapped document is
+    /// caught even when most other documents already have one.
+    pub unmapped_intents: Vec<String>,
     pub notices: Vec<String>,
     pub suggested_actions: Vec<String>,
 }
@@ -84,14 +90,17 @@ where
             .store
             .status(&repository.id)
             .map_err(StatusError::Storage)?;
-        let schema_divergences = if knowledge.last_indexed_commit.is_some() {
+        let (schema_divergences, unmapped_intents) = if knowledge.last_indexed_commit.is_some() {
             let graph = self
                 .store
                 .load_graph(&repository.id)
                 .map_err(StatusError::Storage)?;
-            reconcile_orm_and_migrations(&graph)
+            (
+                reconcile_orm_and_migrations(&graph),
+                intents_without_mapping(&graph),
+            )
         } else {
-            Vec::new()
+            (Vec::new(), Vec::new())
         };
         Ok(build_report(
             repository.root_path,
@@ -100,6 +109,7 @@ where
             dirty,
             knowledge,
             schema_divergences,
+            unmapped_intents,
         ))
     }
 }
@@ -111,19 +121,26 @@ fn build_report(
     uncommitted_index_inputs: Vec<String>,
     knowledge: RepositoryStatus,
     schema_divergences: Vec<SchemaDivergence>,
+    unmapped_intents: Vec<String>,
 ) -> StatusReport {
     let index_state = match &knowledge.last_indexed_commit {
         None => IndexState::NotIndexed,
         Some(indexed) if indexed == &head_commit => IndexState::Current,
         Some(_) => IndexState::Behind,
     };
-    let health = classify_health(index_state, &knowledge, &schema_divergences);
+    let health = classify_health(
+        index_state,
+        &knowledge,
+        &schema_divergences,
+        &unmapped_intents,
+    );
     let (notices, suggested_actions) = diagnostics(
         index_state,
         health,
         &knowledge,
         &uncommitted_index_inputs,
         &schema_divergences,
+        &unmapped_intents,
     );
     StatusReport {
         repository,
@@ -134,6 +151,7 @@ fn build_report(
         uncommitted_index_inputs,
         knowledge,
         schema_divergences,
+        unmapped_intents,
         notices,
         suggested_actions,
     }
@@ -143,6 +161,7 @@ fn classify_health(
     index_state: IndexState,
     knowledge: &RepositoryStatus,
     schema_divergences: &[SchemaDivergence],
+    unmapped_intents: &[String],
 ) -> StatusHealth {
     if index_state != IndexState::Current {
         return StatusHealth::NeedsIndex;
@@ -153,7 +172,7 @@ fn classify_health(
     if product_document_count(knowledge) == 0 {
         return StatusHealth::NeedsContext;
     }
-    if knowledge.active_assertions == 0 {
+    if !unmapped_intents.is_empty() {
         return StatusHealth::NeedsMappings;
     }
     StatusHealth::Ready
@@ -165,6 +184,7 @@ fn diagnostics(
     knowledge: &RepositoryStatus,
     dirty: &[String],
     schema_divergences: &[SchemaDivergence],
+    unmapped_intents: &[String],
 ) -> (Vec<String>, Vec<String>) {
     let mut notices = Vec::new();
     let mut actions = Vec::new();
@@ -194,10 +214,11 @@ fn diagnostics(
             actions.push("Add a few high-value documents under `.context/`.".to_owned());
         }
         StatusHealth::NeedsMappings => {
-            notices.push(
-                "Product documents exist, but no active assertions map them to code or tests."
-                    .to_owned(),
-            );
+            notices.push(format!(
+                "{} document(s) have no active implementation/test mapping: {}.",
+                unmapped_intents.len(),
+                unmapped_intents.join(", ")
+            ));
             actions.push("Add exact `implementation` and `tests` symbol mappings.".to_owned());
         }
         StatusHealth::NeedsAttention => {
@@ -247,6 +268,14 @@ mod tests {
         knowledge: RepositoryStatus,
         schema_divergences: Vec<SchemaDivergence>,
     ) -> StatusReport {
+        report_full(knowledge, schema_divergences, Vec::new())
+    }
+
+    fn report_full(
+        knowledge: RepositoryStatus,
+        schema_divergences: Vec<SchemaDivergence>,
+        unmapped_intents: Vec<String>,
+    ) -> StatusReport {
         build_report(
             "/repo".to_owned(),
             oid("aaaaaaaa"),
@@ -258,6 +287,7 @@ mod tests {
             Vec::new(),
             knowledge,
             schema_divergences,
+            unmapped_intents,
         )
     }
 
@@ -290,6 +320,35 @@ mod tests {
 
         assert_eq!(status.health, StatusHealth::Ready);
         assert!(status.notices.is_empty());
+    }
+
+    #[test]
+    fn an_unmapped_document_forces_needs_mappings_even_when_others_are_well_mapped() {
+        // The bug this replaced: a global `active_assertions == 0` check
+        // would report `Ready` here, since most documents already have
+        // strong mappings -- exactly the case a freshly accepted, still-
+        // unmapped `ctx verify --knowledge` document would otherwise hide
+        // behind (PR-MAP-003).
+        let status = report_full(
+            RepositoryStatus {
+                last_indexed_commit: Some(oid("aaaaaaaa")),
+                features: 1,
+                requirements: 2,
+                invariants: 1,
+                active_assertions: 4,
+                ..RepositoryStatus::default()
+            },
+            Vec::new(),
+            vec!["REQ-NEW-001".to_owned()],
+        );
+
+        assert_eq!(status.health, StatusHealth::NeedsMappings);
+        assert!(
+            status
+                .notices
+                .iter()
+                .any(|notice| notice.contains("REQ-NEW-001"))
+        );
     }
 
     #[test]

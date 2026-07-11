@@ -1,7 +1,9 @@
 use std::fmt;
 
+use std::collections::BTreeMap;
+
 use ctx_core::{
-    artifact::{Artifact, ArtifactLink},
+    artifact::{Artifact, ArtifactLink, ArtifactRef},
     business::{BusinessDocument, ContextImportStats},
     domain::{CommitOid, RepositoryId},
     graph::GraphSnapshot,
@@ -353,6 +355,19 @@ pub trait KnowledgeCandidateStore {
         author: &str,
         timestamp: &str,
     ) -> Result<(), PortError>;
+
+    /// The evidence artifacts behind every currently *accepted* candidate,
+    /// keyed by the resulting document's ID (prompt3.md PR-MAP-001): lets a
+    /// heuristic implementation-mapping pass see which artifact backs an
+    /// AI-derived intent, without a hand-authored `.context/*.yaml` intent
+    /// (which has no candidate row at all) needing any special case.
+    ///
+    /// # Errors
+    /// Returns [`PortError`] when stored candidates cannot be read.
+    fn accepted_evidence(
+        &self,
+        repository: &RepositoryId,
+    ) -> Result<BTreeMap<String, Vec<ArtifactRef>>, PortError>;
 }
 
 /// Materializes an accepted [`KnowledgeCandidate`] as a new `.context/*.yaml`

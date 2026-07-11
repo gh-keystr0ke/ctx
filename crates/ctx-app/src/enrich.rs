@@ -191,6 +191,16 @@ mod tests {
         ) -> Result<(), PortError> {
             unreachable!("enrich never records knowledge decisions")
         }
+
+        fn accepted_evidence(
+            &self,
+            _repository: &RepositoryId,
+        ) -> Result<
+            std::collections::BTreeMap<String, Vec<ctx_core::artifact::ArtifactRef>>,
+            PortError,
+        > {
+            unreachable!("enrich never reads accepted evidence")
+        }
     }
 
     struct FakeAgent {

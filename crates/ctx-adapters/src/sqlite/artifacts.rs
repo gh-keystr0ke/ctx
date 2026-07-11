@@ -397,6 +397,39 @@ impl KnowledgeCandidateStore for SqliteStore {
         }
         transaction.commit().map_err(database_error)
     }
+
+    fn accepted_evidence(
+        &self,
+        repository: &RepositoryId,
+    ) -> Result<std::collections::BTreeMap<String, Vec<ArtifactRef>>, PortError> {
+        let mut statement = self
+            .connection
+            .prepare(
+                "SELECT kc.resulting_document_id, kc.evidence_json
+                 FROM knowledge_candidates kc
+                 JOIN repositories r ON r.id = kc.repository_id
+                 WHERE r.stable_id = ?1 AND kc.status = 'accepted'
+                   AND kc.resulting_document_id IS NOT NULL
+                 ORDER BY kc.id",
+            )
+            .map_err(database_error)?;
+        let rows = statement
+            .query_map([repository.as_str()], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })
+            .map_err(database_error)?;
+        let mut evidence_by_document = std::collections::BTreeMap::new();
+        for row in rows {
+            let (document_id, evidence_json) = row.map_err(database_error)?;
+            let evidence: Vec<ArtifactRef> =
+                serde_json::from_str(&evidence_json).map_err(serialization_error)?;
+            evidence_by_document
+                .entry(document_id)
+                .or_insert_with(Vec::new)
+                .extend(evidence);
+        }
+        Ok(evidence_by_document)
+    }
 }
 
 type ArtifactColumns = (

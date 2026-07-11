@@ -1,8 +1,9 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    artifact::{ArtifactLink, ArtifactLinkKind, ArtifactLinkTarget, ArtifactRef},
     domain::{ClaimStatus, NodeKind, RelationKind, StableKey},
     graph::{GraphNode, GraphSnapshot},
     indexing::PlannedNodeAttributes,
@@ -16,8 +17,27 @@ pub struct ResolutionScore {
     pub structural: f32,
     pub test_correlation: f32,
     pub data_interaction: f32,
+    /// Set when the same artifact that backs `intent`'s evidence (an
+    /// accepted AI-derived candidate's `ArtifactRef`s, PR-MAP-001) also
+    /// `ChangedSymbol`-links to this candidate symbol — the strongest
+    /// possible signal short of an explicit mapping, since it means the
+    /// exact artifact that produced the requirement also touched this code.
+    pub artifact_evidence: f32,
     pub semantic_similarity: Option<f32>,
     pub total: f32,
+}
+
+/// The deterministic artifact evidence a scoring pass can draw on
+/// (PR-MAP-001): every currently known artifact link, and — for intents
+/// that originated from an accepted AI-derived
+/// [`crate::knowledge::KnowledgeCandidate`] — the evidence artifacts that
+/// backed each one, keyed by the resulting document's ID (matches
+/// [`GraphNode::identifier`] for a `Business` node). A hand-authored
+/// `.context/*.yaml` intent simply has no entry, so its score is unaffected.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ArtifactEvidenceContext {
+    pub links: Vec<ArtifactLink>,
+    pub accepted_evidence: BTreeMap<String, Vec<ArtifactRef>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -42,7 +62,10 @@ pub enum VerificationDecision {
 
 /// Generates conservative heuristic candidates that remain inferences until a
 /// human records a separate assertion.
-pub fn semantic_candidates(graph: &GraphSnapshot) -> Vec<SemanticCandidate> {
+pub fn semantic_candidates(
+    graph: &GraphSnapshot,
+    artifact_context: &ArtifactEvidenceContext,
+) -> Vec<SemanticCandidate> {
     let linked = existing_semantic_pairs(graph);
     let intents = graph
         .nodes
@@ -65,7 +88,7 @@ pub fn semantic_candidates(graph: &GraphSnapshot) -> Vec<SemanticCandidate> {
             )) {
                 continue;
             }
-            let score = score_candidate(graph, symbol, intent);
+            let score = score_candidate(graph, symbol, intent, artifact_context);
             if score.total < 0.65 {
                 continue;
             }
@@ -100,6 +123,7 @@ fn score_candidate(
     graph: &GraphSnapshot,
     symbol: &GraphNode,
     intent: &GraphNode,
+    artifact_context: &ArtifactEvidenceContext,
 ) -> ResolutionScore {
     let symbol_terms = node_terms(symbol);
     let intent_terms = node_terms(intent);
@@ -114,11 +138,15 @@ fn score_candidate(
     let structural = structural_signal(graph, symbol, intent);
     let test_correlation = test_signal(graph, symbol, intent);
     let data_interaction = data_interaction_signal(graph, symbol, intent);
+    let artifact_evidence = artifact_evidence_signal(symbol, intent, artifact_context);
     let total = lexical.mul_add(
-        0.40,
+        0.35,
         structural.mul_add(
-            0.35,
-            test_correlation.mul_add(0.15, data_interaction * 0.10),
+            0.30,
+            test_correlation.mul_add(
+                0.15,
+                data_interaction.mul_add(0.10, artifact_evidence * 0.10),
+            ),
         ),
     );
     ResolutionScore {
@@ -128,8 +156,36 @@ fn score_candidate(
         structural,
         test_correlation,
         data_interaction,
+        artifact_evidence,
         semantic_similarity: None,
         total,
+    }
+}
+
+/// 1.0 when some artifact that backs `intent`'s own accepted evidence
+/// (PR-MAP-001) also structurally changed `symbol` — the same artifact that
+/// produced the requirement also touched this code, the strongest possible
+/// non-explicit signal. 0.0 for a hand-authored intent with no accepted
+/// evidence trail, never guessed at.
+fn artifact_evidence_signal(
+    symbol: &GraphNode,
+    intent: &GraphNode,
+    artifact_context: &ArtifactEvidenceContext,
+) -> f32 {
+    let Some(evidence) = artifact_context.accepted_evidence.get(intent.identifier()) else {
+        return 0.0;
+    };
+    let backing_artifacts: std::collections::HashSet<_> =
+        evidence.iter().map(|item| &item.identity).collect();
+    let changed_by_backing_artifact = artifact_context.links.iter().any(|link| {
+        link.kind == ArtifactLinkKind::ChangedSymbol
+            && link.target == ArtifactLinkTarget::CodeSymbol(symbol.stable_key.clone())
+            && backing_artifacts.contains(&link.source)
+    });
+    if changed_by_backing_artifact {
+        1.0
+    } else {
+        0.0
     }
 }
 
@@ -258,6 +314,12 @@ fn score_evidence(score: &ResolutionScore) -> Vec<String> {
             score.data_interaction
         ));
     }
+    if score.artifact_evidence > 0.0 {
+        evidence.push(format!(
+            "backed by the same artifact that produced this requirement {:.2}",
+            score.artifact_evidence
+        ));
+    }
     evidence
 }
 
@@ -299,6 +361,47 @@ fn symbol_file(node: &GraphNode) -> Option<&str> {
     }
 }
 
+/// Identifiers of every active Requirement/Invariant/Decision node with no
+/// active `Implements`/`Enforces`/`Satisfies` edge pointing to it (prompt3.md
+/// PR-MAP-003), sorted for deterministic display. Deliberately excludes
+/// Feature: every Feature document in this repository's own `.context/` and
+/// its fixtures is a pure descriptive umbrella with no `implementation`/
+/// `tests` of its own (the Requirements underneath it carry the actual
+/// mapping) -- flagging that as unmapped would be a false positive on the
+/// established convention, not a real gap. Unlike a repository-wide "are
+/// there any active assertions at all" check, this catches the case that
+/// matters most right after `ctx verify --knowledge --accept`: one freshly
+/// accepted document with no mapping, sitting alongside many already-mapped
+/// ones that would otherwise hide it from a coarser aggregate count.
+#[must_use]
+pub fn intents_without_mapping(graph: &GraphSnapshot) -> Vec<String> {
+    let mapped: BTreeSet<&StableKey> = graph
+        .edges
+        .iter()
+        .filter(|edge| {
+            edge.status == ClaimStatus::Active
+                && matches!(
+                    edge.kind,
+                    RelationKind::Implements | RelationKind::Enforces | RelationKind::Satisfies
+                )
+        })
+        .map(|edge| &edge.target)
+        .collect();
+    let mut identifiers: Vec<String> = graph
+        .nodes
+        .values()
+        .filter(|node| {
+            matches!(
+                node.kind,
+                NodeKind::Requirement | NodeKind::Invariant | NodeKind::Decision
+            ) && !mapped.contains(&node.stable_key)
+        })
+        .map(|node| node.identifier().to_owned())
+        .collect();
+    identifiers.sort();
+    identifiers
+}
+
 const fn is_intent(kind: NodeKind) -> bool {
     matches!(
         kind,
@@ -338,6 +441,7 @@ const STOP_WORDS: &[&str] = &[
 #[cfg(test)]
 mod tests {
     use crate::{
+        artifact::{ArtifactIdentity, ArtifactKind, ArtifactProvider},
         domain::{ClaimClass, Confidence, SourceKind},
         graph::{GraphEdge, GraphNode},
         ir::{SourceRange, SymbolKind},
@@ -369,7 +473,7 @@ mod tests {
             ],
         };
 
-        let candidates = semantic_candidates(&graph);
+        let candidates = semantic_candidates(&graph, &ArtifactEvidenceContext::default());
         let proposal = candidates
             .iter()
             .find(|item| item.source == candidate.stable_key)
@@ -380,6 +484,192 @@ mod tests {
         assert!((proposal.score.data_interaction - 1.0).abs() < f32::EPSILON);
         assert!(proposal.score.total >= 0.65);
         assert!(proposal.evidence.len() >= 3);
+    }
+
+    /// T7.1 (prompt3.md Phase 7): `semantic_candidates` already treats every
+    /// intent node identically regardless of origin -- it only ever filters
+    /// by `NodeKind`, never by how the node was created -- so an intent that
+    /// reached the graph via an accepted AI-derived `KnowledgeCandidate`
+    /// (Phase 6's `ctx verify --knowledge --accept`) needs no code change to
+    /// get implementation-mapping candidates the same way a hand-authored
+    /// `.context/*.yaml` document always has.
+    #[test]
+    fn an_intent_from_an_accepted_ai_derived_candidate_gets_mapping_candidates_like_any_other() {
+        // Identical graph shape to `candidate_score_exposes_individual_heuristic_signals`
+        // (the existing coverage for a plain, hand-authored intent): nothing
+        // in `semantic_candidates` distinguishes an intent by how it reached
+        // the graph, so an AI-derived, ctx-verify-accepted intent scores
+        // through the exact same mechanism with no code change needed.
+        let intent = intent_node();
+        let existing = symbol_node("existing", "subscription.cancel_access_existing");
+        let candidate = symbol_node("candidate", "subscription.cancel_access_handler");
+        let database = interaction_node("db:subscriptions", "subscriptions");
+        let graph = GraphSnapshot {
+            nodes: [
+                intent.clone(),
+                existing.clone(),
+                candidate.clone(),
+                database.clone(),
+            ]
+            .into_iter()
+            .map(|node| (node.stable_key.clone(), node))
+            .collect(),
+            edges: vec![
+                edge(&existing, &intent, RelationKind::Implements),
+                edge(&candidate, &existing, RelationKind::Calls),
+                edge(&existing, &database, RelationKind::WritesTo),
+                edge(&candidate, &database, RelationKind::WritesTo),
+            ],
+        };
+
+        let candidates = semantic_candidates(&graph, &ArtifactEvidenceContext::default());
+
+        assert!(
+            candidates
+                .iter()
+                .any(|item| item.target == intent.stable_key
+                    && item.source == candidate.stable_key),
+            "an intent with no recorded origin still gets scored like any other"
+        );
+    }
+
+    #[test]
+    fn a_symbol_changed_by_the_same_artifact_that_backs_the_requirement_scores_higher() {
+        let intent = intent_node();
+        let existing = symbol_node("existing", "subscription.cancel_access_existing");
+        // Two otherwise structurally identical candidates -- both call the
+        // already-verified implementer, both write to the same table -- so
+        // every signal except artifact_evidence is equal between them.
+        let backed = symbol_node("backed", "subscription.cancel_access_backed");
+        let unrelated = symbol_node("unrelated", "subscription.cancel_access_unrelated");
+        let database = interaction_node("db:subscriptions", "subscriptions");
+        let graph = GraphSnapshot {
+            nodes: [
+                intent.clone(),
+                existing.clone(),
+                backed.clone(),
+                unrelated.clone(),
+                database.clone(),
+            ]
+            .into_iter()
+            .map(|node| (node.stable_key.clone(), node))
+            .collect(),
+            edges: vec![
+                edge(&existing, &intent, RelationKind::Implements),
+                edge(&existing, &database, RelationKind::WritesTo),
+                edge(&backed, &existing, RelationKind::Calls),
+                edge(&backed, &database, RelationKind::WritesTo),
+                edge(&unrelated, &existing, RelationKind::Calls),
+                edge(&unrelated, &database, RelationKind::WritesTo),
+            ],
+        };
+        let backing_artifact = ArtifactIdentity {
+            provider: ArtifactProvider::GitLab,
+            kind: ArtifactKind::MergeRequest,
+            external_id: "842".to_owned(),
+        };
+        let mut accepted_evidence = BTreeMap::new();
+        accepted_evidence.insert(
+            intent.identifier().to_owned(),
+            vec![ArtifactRef {
+                identity: backing_artifact.clone(),
+                locator: "body".to_owned(),
+                excerpt: "excerpt".to_owned(),
+            }],
+        );
+        let artifact_context = ArtifactEvidenceContext {
+            links: vec![ArtifactLink {
+                source: backing_artifact,
+                target: ArtifactLinkTarget::CodeSymbol(backed.stable_key.clone()),
+                kind: ArtifactLinkKind::ChangedSymbol,
+                evidence_locator: "changed_file:billing.py".to_owned(),
+            }],
+            accepted_evidence,
+        };
+
+        let candidates = semantic_candidates(&graph, &artifact_context);
+
+        let backed_candidate = candidates
+            .iter()
+            .find(|item| item.source == backed.stable_key)
+            .expect("backed candidate");
+        let unrelated_candidate = candidates
+            .iter()
+            .find(|item| item.source == unrelated.stable_key)
+            .expect("unrelated candidate");
+
+        assert!((backed_candidate.score.artifact_evidence - 1.0).abs() < f32::EPSILON);
+        assert!((unrelated_candidate.score.artifact_evidence - 0.0).abs() < f32::EPSILON);
+        assert!(backed_candidate.score.total > unrelated_candidate.score.total);
+        assert!(
+            backed_candidate
+                .evidence
+                .iter()
+                .any(|line| line.contains("same artifact"))
+        );
+    }
+
+    #[test]
+    fn intents_without_mapping_finds_only_the_unmapped_one() {
+        let mapped_intent = intent_node();
+        let implementer = symbol_node("implementer", "subscription.cancel_access_handler");
+        let unmapped_intent = GraphNode {
+            stable_key: StableKey::new("unmapped-intent").expect("stable key"),
+            kind: NodeKind::Invariant,
+            name: "Never delete paid history".to_owned(),
+            content_hash: "unmapped".to_owned(),
+            attributes: PlannedNodeAttributes::Business {
+                id: "INV-SUB-002".to_owned(),
+                status: "active".to_owned(),
+                body: "Never delete paid history".to_owned(),
+                feature: None,
+                source_uri: "invariant.yaml".to_owned(),
+            },
+        };
+        let graph = GraphSnapshot {
+            nodes: [
+                mapped_intent.clone(),
+                implementer.clone(),
+                unmapped_intent.clone(),
+            ]
+            .into_iter()
+            .map(|node| (node.stable_key.clone(), node))
+            .collect(),
+            edges: vec![edge(&implementer, &mapped_intent, RelationKind::Implements)],
+        };
+
+        let unmapped = intents_without_mapping(&graph);
+
+        assert_eq!(unmapped, vec!["INV-SUB-002".to_owned()]);
+    }
+
+    /// Real dogfooding catch: every Feature document in this repository's
+    /// own `.context/` (and its fixtures) is a pure umbrella grouping with
+    /// no `implementation`/`tests` of its own -- an unmapped Feature must
+    /// never be reported as a mapping gap.
+    #[test]
+    fn an_unmapped_feature_is_never_flagged() {
+        let feature = GraphNode {
+            stable_key: StableKey::new("feature").expect("stable key"),
+            kind: NodeKind::Feature,
+            name: "Subscriptions".to_owned(),
+            content_hash: "feature".to_owned(),
+            attributes: PlannedNodeAttributes::Business {
+                id: "FEAT-SUBSCRIPTIONS".to_owned(),
+                status: "active".to_owned(),
+                body: "Users can cancel without losing already-paid entitlement.".to_owned(),
+                feature: None,
+                source_uri: "feature.yaml".to_owned(),
+            },
+        };
+        let graph = GraphSnapshot {
+            nodes: [(feature.stable_key.clone(), feature)]
+                .into_iter()
+                .collect(),
+            edges: Vec::new(),
+        };
+
+        assert!(intents_without_mapping(&graph).is_empty());
     }
 
     fn intent_node() -> GraphNode {

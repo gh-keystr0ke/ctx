@@ -12,7 +12,12 @@ statement: >
   facts require a literal SQL statement inside a recognized execution call, a
   recognized goose migration statement, or a `SQLAlchemy` model's static
   `__tablename__`/`Column` declarations; dynamic or unsupported text remains
-  unknown instead of being guessed.
+  unknown instead of being guessed. This holds for every heuristic
+  `SemanticCandidate` score term, including the artifact-evidence signal
+  (REQ-MAP-001): a candidate scoring higher because the same artifact that
+  backed an accepted requirement also touched the candidate symbol is still
+  only ever a proposed `SemanticCandidate`, requiring the same explicit `ctx
+  verify` accept as any other score term before it becomes an assertion.
 implementation:
   - symbol: ctx_core.context_pack.traversable
   - symbol: ctx_adapters.sqlite.verification.SqliteStore.VerificationStore.record_verification

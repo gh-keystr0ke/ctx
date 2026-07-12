@@ -18,7 +18,11 @@ decision: >
   record instead of creating a logically new artifact. Deterministic
   relationships between artifacts, or between an artifact and already-indexed
   code, are stored separately as artifact_links, distinct from the semantic
-  edges the graph uses for verified/asserted product knowledge.
+  edges the graph uses for verified/asserted product knowledge. Each
+  artifact also carries an independent per-artifact `ctx enrich` analysis
+  ledger (REQ-INCR-002: content_hash + analyzed_at, keyed by the artifact's
+  own row) so incremental re-analysis is tracked at the same identity this
+  decision already established, not a parallel one.
 implementation:
   - symbol: ctx_core.artifact.Artifact
   - symbol: ctx_core.artifact.ArtifactIdentity
@@ -27,6 +31,7 @@ implementation:
   - symbol: ctx_app.ports.ArtifactLinkStore
   - symbol: ctx_adapters.sqlite.artifacts.SqliteStore.ArtifactRepository.upsert_artifact
   - symbol: ctx_adapters.sqlite.artifacts.SqliteStore.ArtifactLinkStore.persist_links
+  - symbol: ctx_adapters.sqlite.artifacts.SqliteStore.ArtifactRepository.mark_analyzed
 tests:
   - symbol: ctx_adapters.sqlite.artifacts.tests.re_syncing_the_same_external_object_versions_it_instead_of_duplicating
   - symbol: ctx_adapters.sqlite.artifacts.tests.links_between_stored_artifacts_round_trip

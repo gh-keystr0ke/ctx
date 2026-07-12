@@ -1,15 +1,14 @@
 //! Orchestrates AI-agent-assisted knowledge extraction (prompt3.md
 //! PR-AI-*): for each currently known external artifact not already cited as
-//! evidence by a pending candidate, assembles its bounded neighborhood
-//! ([`ctx_core::neighborhood::build_neighborhood`]) and hands it to a
-//! [`SemanticAgent`]. A candidate the agent proposes is persisted as
+//! evidence by a pending candidate, and whose content actually changed since
+//! its last analysis (PR-INCR-002 basic level), assembles its bounded
+//! neighborhood ([`ctx_core::neighborhood::build_neighborhood`]) and hands
+//! it to a [`SemanticAgent`]. A candidate the agent proposes is persisted as
 //! `pending` -- never auto-promoted to fact (PR-P02) -- for a human to
-//! decide through the existing verification flow (Phase 6).
-//!
-//! Full incremental "already analyzed, nothing new since" skip logic is
-//! Phase 8's job (PR-INCR-*); this runner only avoids re-proposing a
-//! candidate an earlier `ctx enrich` run already left pending for the same
-//! artifact.
+//! decide through the existing verification flow (Phase 6). Every analyzed
+//! artifact is marked in the ledger regardless of outcome, so a
+//! `not_relevant`/`insufficient_evidence` answer is never re-asked of the
+//! agent on unchanged content either.
 
 use std::collections::HashSet;
 
@@ -27,6 +26,7 @@ pub struct EnrichReport {
     pub neighborhoods_analyzed: usize,
     pub candidates_proposed: usize,
     pub artifacts_skipped_already_pending: usize,
+    pub artifacts_skipped_unchanged: usize,
 }
 
 #[derive(Debug, Error)]
@@ -81,6 +81,10 @@ where
             .flat_map(|candidate| candidate.evidence.iter())
             .map(|evidence| evidence.identity.clone())
             .collect();
+        let analyzed_content_hashes = self
+            .store
+            .analyzed_content_hashes(repository)
+            .map_err(EnrichError::Read)?;
 
         let mut report = EnrichReport::default();
         let mut proposed = Vec::new();
@@ -89,12 +93,24 @@ where
                 report.artifacts_skipped_already_pending += 1;
                 continue;
             }
+            if analyzed_content_hashes.get(&subject.identity) == Some(&subject.content_hash) {
+                report.artifacts_skipped_unchanged += 1;
+                continue;
+            }
             let neighborhood = build_neighborhood(subject, &links, &known_artifacts, &graph);
             let outcome = self
                 .agent
                 .analyze(&neighborhood, produced_at)
                 .map_err(EnrichError::Agent)?;
             report.neighborhoods_analyzed += 1;
+            self.store
+                .mark_analyzed(
+                    repository,
+                    &subject.identity,
+                    &subject.content_hash,
+                    produced_at,
+                )
+                .map_err(EnrichError::Store)?;
             if let AgentOutcome::Relevant(candidates) = outcome {
                 report.candidates_proposed += candidates.len();
                 proposed.extend(candidates);
@@ -126,6 +142,7 @@ mod tests {
         artifacts: Vec<Artifact>,
         links: Vec<ArtifactLink>,
         pending: RefCell<Vec<KnowledgeCandidate>>,
+        analyzed: RefCell<std::collections::HashMap<ArtifactIdentity, String>>,
     }
 
     impl ArtifactRepository for FakeStore {
@@ -141,6 +158,26 @@ mod tests {
 
         fn list_artifacts(&self, _repository: &RepositoryId) -> Result<Vec<Artifact>, PortError> {
             Ok(self.artifacts.clone())
+        }
+
+        fn mark_analyzed(
+            &mut self,
+            _repository: &RepositoryId,
+            identity: &ArtifactIdentity,
+            content_hash: &str,
+            _analyzed_at: &str,
+        ) -> Result<(), PortError> {
+            self.analyzed
+                .borrow_mut()
+                .insert(identity.clone(), content_hash.to_owned());
+            Ok(())
+        }
+
+        fn analyzed_content_hashes(
+            &self,
+            _repository: &RepositoryId,
+        ) -> Result<std::collections::HashMap<ArtifactIdentity, String>, PortError> {
+            Ok(self.analyzed.borrow().clone())
         }
     }
 
@@ -335,5 +372,41 @@ mod tests {
 
         assert_eq!(report.candidates_proposed, 0);
         assert!(store.pending.borrow().is_empty());
+    }
+
+    #[test]
+    fn an_artifact_analyzed_at_its_current_content_hash_is_skipped_next_run() {
+        let issue = artifact("317");
+        let mut store = FakeStore {
+            artifacts: vec![issue.clone()],
+            ..FakeStore::default()
+        };
+        let agent = FakeAgent {
+            outcome: RefCell::new(BTreeMap::new()),
+            calls: RefCell::new(0),
+        };
+        let repository = RepositoryId::new("repo:test").expect("repository ID");
+
+        let first = EnrichRunner::new(&agent, &mut store)
+            .run(&repository, "2026-08-21T00:00:00Z")
+            .expect("first run");
+        assert_eq!(first.neighborhoods_analyzed, 1);
+        assert_eq!(*agent.calls.borrow(), 1);
+
+        let second = EnrichRunner::new(&agent, &mut store)
+            .run(&repository, "2026-08-21T01:00:00Z")
+            .expect("second run");
+
+        assert_eq!(second.neighborhoods_analyzed, 0);
+        assert_eq!(second.artifacts_skipped_unchanged, 1);
+        assert_eq!(
+            *agent.calls.borrow(),
+            1,
+            "the agent must not be re-asked about unchanged content"
+        );
+        assert_eq!(
+            store.analyzed.borrow().get(&issue.identity),
+            Some(&issue.content_hash)
+        );
     }
 }

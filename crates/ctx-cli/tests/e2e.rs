@@ -505,6 +505,82 @@ fn accepting_a_knowledge_candidate_writes_a_context_document_ctx_index_then_abso
     );
 }
 
+#[test]
+fn accepting_a_restated_requirement_is_refused_unless_forced() {
+    let repository = FixtureRepository::new();
+    repository.ctx(&["init"]);
+    repository.ctx(&["index"]);
+    repository.ctx(&["ingest", "git"]);
+
+    let script_path = repository.root().join("fake-claude.sh");
+    fs::write(
+        &script_path,
+        "#!/bin/sh\n\
+         prompt=\"$2\"\n\
+         id=$(echo \"$prompt\" | grep -o 'Valid artifact ids for this neighborhood: [^ ,]*' | sed 's/.*: //')\n\
+         echo \"{\\\"outcome\\\":\\\"relevant\\\",\\\"candidates\\\":[{\\\"kind\\\":\\\"requirement\\\",\\\"statement\\\":\\\"When a paid user cancels, access must remain active until paid_until.\\\",\\\"evidence\\\":[{\\\"artifact_id\\\":\\\"$id\\\",\\\"locator\\\":\\\"body\\\",\\\"excerpt\\\":\\\"excerpt\\\"}]}]}\"\n",
+    )
+    .expect("write fake claude script");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut permissions = fs::metadata(&script_path)
+            .expect("script metadata")
+            .permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(&script_path, permissions).expect("chmod fake claude script");
+    }
+    let env = [(
+        "CTX_CLAUDE_CLI_BINARY",
+        script_path.to_str().expect("utf8 path"),
+    )];
+
+    repository.ctx_with_env(&["enrich", "--agent", "claude"], &env);
+    let pending = repository.ctx(&["verify", "--knowledge"]);
+    let fingerprint = pending.as_array().expect("pending candidates")[0]["fingerprint"]
+        .as_str()
+        .expect("fingerprint")
+        .to_owned();
+
+    let refused = repository.ctx_failure(&[
+        "verify",
+        "--knowledge",
+        "--accept",
+        &fingerprint,
+        "--id",
+        "REQ-SUB-099",
+    ]);
+    assert!(
+        refused["error"]
+            .as_str()
+            .is_some_and(|message| message.contains("REQ-SUB-014") && message.contains("force"))
+    );
+    // Refusing must not write anything.
+    assert!(
+        !repository
+            .root()
+            .join(".context/requirements/req-sub-099.yaml")
+            .exists()
+    );
+
+    let forced = repository.ctx(&[
+        "verify",
+        "--knowledge",
+        "--accept",
+        &fingerprint,
+        "--id",
+        "REQ-SUB-099",
+        "--force",
+    ]);
+    assert_eq!(forced["ok"], true);
+    assert!(
+        repository
+            .root()
+            .join(forced["path"].as_str().expect("path"))
+            .exists()
+    );
+}
+
 struct CodeCommentRepository {
     directory: TempDir,
 }

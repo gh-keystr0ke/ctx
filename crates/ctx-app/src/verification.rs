@@ -3,7 +3,8 @@ use ctx_core::{
     domain::RepositoryId,
     knowledge::{KnowledgeCandidate, KnowledgeDecision},
     verification::{
-        ArtifactEvidenceContext, SemanticCandidate, VerificationDecision, semantic_candidates,
+        ArtifactEvidenceContext, SemanticCandidate, VerificationDecision, possible_duplicate,
+        semantic_candidates,
     },
 };
 use thiserror::Error;
@@ -19,6 +20,13 @@ pub enum VerificationError {
     Store(PortError),
     #[error("verification candidate '{0}' was not found")]
     CandidateNotFound(String),
+    #[error(
+        "'{statement}' looks like a restatement of already-active {existing_id} -- attach as evidence to it instead, or pass force to create a new document anyway"
+    )]
+    PossibleDuplicate {
+        existing_id: String,
+        statement: String,
+    },
 }
 
 pub struct VerificationService<'a, S> {
@@ -103,7 +111,7 @@ pub struct KnowledgeVerificationService<'a, S, W> {
 
 impl<'a, S, W> KnowledgeVerificationService<'a, S, W>
 where
-    S: KnowledgeCandidateStore,
+    S: KnowledgeCandidateStore + GraphStore,
     W: BusinessContextWriter,
 {
     pub const fn new(store: &'a mut S, writer: &'a W) -> Self {
@@ -129,9 +137,16 @@ where
     /// original candidate row -- status `accepted`, pointing at this ID --
     /// rather than discarding the artifact-to-inference chain (PR-VERIFY-002).
     ///
+    /// Unless `force`, refuses when the statement looks like a restatement
+    /// of an already-active document of the same kind (prompt3.md §13 MUST:
+    /// "restating REQ-17 must not silently become REQ-94") -- a lexical
+    /// similarity check against the current graph, advisory only, never a
+    /// second AI call.
+    ///
     /// # Errors
     /// Returns [`VerificationError`] when `fingerprint` is not currently
-    /// pending, the document file already exists, or persistence fails.
+    /// pending, a likely duplicate exists and `force` is false, the document
+    /// file already exists, or persistence fails.
     pub fn accept(
         &mut self,
         repository: &RepositoryId,
@@ -139,12 +154,27 @@ where
         document_id: &str,
         author: &str,
         timestamp: &str,
+        force: bool,
     ) -> Result<String, VerificationError> {
         let candidate = self
             .candidates(repository)?
             .into_iter()
             .find(|candidate| candidate.fingerprint == fingerprint)
             .ok_or_else(|| VerificationError::CandidateNotFound(fingerprint.to_owned()))?;
+        if !force {
+            let graph = self
+                .store
+                .load_graph(repository)
+                .map_err(VerificationError::Store)?;
+            if let Some(existing_id) =
+                possible_duplicate(&graph, candidate.kind, &candidate.statement)
+            {
+                return Err(VerificationError::PossibleDuplicate {
+                    existing_id,
+                    statement: candidate.statement,
+                });
+            }
+        }
         let document = candidate_to_document(&candidate, document_id);
         let path = self
             .writer
@@ -232,6 +262,16 @@ mod knowledge_tests {
     struct FakeStore {
         pending: Vec<KnowledgeCandidate>,
         decisions: RefCell<Vec<(String, KnowledgeDecision)>>,
+        graph: ctx_core::graph::GraphSnapshot,
+    }
+
+    impl GraphStore for FakeStore {
+        fn load_graph(
+            &self,
+            _repository: &RepositoryId,
+        ) -> Result<ctx_core::graph::GraphSnapshot, PortError> {
+            Ok(self.graph.clone())
+        }
     }
 
     impl KnowledgeCandidateStore for FakeStore {
@@ -327,6 +367,7 @@ mod knowledge_tests {
                 "REQ-SUB-014",
                 "alice",
                 "2026-08-21T00:00:00Z",
+                false,
             )
             .expect("accept");
 
@@ -369,6 +410,7 @@ mod knowledge_tests {
                 "ADR-SUB-002",
                 "alice",
                 "2026-08-21T00:00:00Z",
+                false,
             )
             .expect("accept");
 
@@ -393,11 +435,74 @@ mod knowledge_tests {
                 "REQ-X",
                 "alice",
                 "2026-08-21T00:00:00Z",
+                false,
             )
             .expect_err("unknown fingerprint must fail");
 
         assert!(matches!(error, VerificationError::CandidateNotFound(_)));
         assert!(writer.written.borrow().is_empty());
+    }
+
+    #[test]
+    fn accepting_a_likely_restatement_is_refused_unless_forced() {
+        let candidate = candidate(
+            BusinessKind::Requirement,
+            "Cancellation preserves paid access until the period ends.",
+        );
+        let existing = ctx_core::graph::GraphNode {
+            stable_key: ctx_core::domain::StableKey::new("intent:REQ-SUB-001").expect("stable key"),
+            kind: ctx_core::domain::NodeKind::Requirement,
+            name: "Cancellation preserves access".to_owned(),
+            content_hash: "hash".to_owned(),
+            attributes: ctx_core::indexing::PlannedNodeAttributes::Business {
+                id: "REQ-SUB-001".to_owned(),
+                status: "active".to_owned(),
+                body: "Cancellation preserves paid access until the period ends.".to_owned(),
+                feature: None,
+                source_uri: "requirement.yaml".to_owned(),
+            },
+        };
+        let mut store = FakeStore {
+            pending: vec![candidate.clone()],
+            graph: ctx_core::graph::GraphSnapshot {
+                nodes: [(existing.stable_key.clone(), existing)]
+                    .into_iter()
+                    .collect(),
+                edges: Vec::new(),
+            },
+            ..FakeStore::default()
+        };
+        let writer = FakeWriter::default();
+        let repository = RepositoryId::new("repo:test").expect("repository ID");
+
+        let error = KnowledgeVerificationService::new(&mut store, &writer)
+            .accept(
+                &repository,
+                &candidate.fingerprint,
+                "REQ-SUB-002",
+                "alice",
+                "2026-08-21T00:00:00Z",
+                false,
+            )
+            .expect_err("a likely restatement must be refused without force");
+        assert!(matches!(
+            error,
+            VerificationError::PossibleDuplicate { existing_id, .. } if existing_id == "REQ-SUB-001"
+        ));
+        assert!(writer.written.borrow().is_empty());
+
+        // force overrides the check.
+        let path = KnowledgeVerificationService::new(&mut store, &writer)
+            .accept(
+                &repository,
+                &candidate.fingerprint,
+                "REQ-SUB-002",
+                "alice",
+                "2026-08-21T00:00:00Z",
+                true,
+            )
+            .expect("force overrides the duplicate check");
+        assert_eq!(path, ".context/fake/REQ-SUB-002.yaml");
     }
 
     #[test]

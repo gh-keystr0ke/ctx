@@ -368,6 +368,23 @@ mod tests {
         fn list_artifacts(&self, _repository: &RepositoryId) -> Result<Vec<Artifact>, PortError> {
             Ok(self.artifacts.borrow().values().cloned().collect())
         }
+
+        fn mark_analyzed(
+            &mut self,
+            _repository: &RepositoryId,
+            _identity: &ArtifactIdentity,
+            _content_hash: &str,
+            _analyzed_at: &str,
+        ) -> Result<(), PortError> {
+            unreachable!("ingest never marks artifacts analyzed")
+        }
+
+        fn analyzed_content_hashes(
+            &self,
+            _repository: &RepositoryId,
+        ) -> Result<std::collections::HashMap<ArtifactIdentity, String>, PortError> {
+            unreachable!("ingest never reads analyzed content hashes")
+        }
     }
 
     impl ArtifactLinkStore for FakeStore {

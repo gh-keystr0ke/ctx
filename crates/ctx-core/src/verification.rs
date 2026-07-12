@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     artifact::{ArtifactLink, ArtifactLinkKind, ArtifactLinkTarget, ArtifactRef},
+    business::BusinessKind,
     domain::{ClaimStatus, NodeKind, RelationKind, StableKey},
     graph::{GraphNode, GraphSnapshot},
     indexing::PlannedNodeAttributes,
@@ -346,12 +347,55 @@ fn node_terms(node: &GraphNode) -> BTreeSet<String> {
         PlannedNodeAttributes::File { path, .. } => path.as_str(),
         PlannedNodeAttributes::Interaction { identifier } => identifier.as_str(),
     };
-    format!("{} {} {content}", node.identifier(), node.name)
-        .split(|character: char| !character.is_alphanumeric())
+    tokenize(&format!("{} {} {content}", node.identifier(), node.name))
+}
+
+fn tokenize(text: &str) -> BTreeSet<String> {
+    text.split(|character: char| !character.is_alphanumeric())
         .filter(|term| term.len() >= 3)
         .map(str::to_ascii_lowercase)
         .filter(|term| !STOP_WORDS.contains(&term.as_str()))
         .collect()
+}
+
+/// The identifier of an already-active Requirement/Invariant/Decision that
+/// `statement` likely restates (prompt3.md §13 MUST, "restating REQ-17 must
+/// not silently become REQ-94"): plain term-overlap similarity against every
+/// active node of the same kind, reusing this module's existing lexical-
+/// matching approach rather than a second AI call. `None` means no existing
+/// document shares enough vocabulary to be a plausible restatement -- a
+/// human still makes the final call either way, this is advisory only.
+#[must_use]
+#[allow(clippy::cast_precision_loss)]
+// Term-overlap counts are bounded by a statement's word count -- never
+// remotely near f32's 24-bit mantissa limit.
+pub fn possible_duplicate(
+    graph: &GraphSnapshot,
+    kind: BusinessKind,
+    statement: &str,
+) -> Option<String> {
+    const SIMILARITY_THRESHOLD: f32 = 0.6;
+    let candidate_terms = tokenize(statement);
+    if candidate_terms.is_empty() {
+        return None;
+    }
+    graph
+        .nodes
+        .values()
+        .filter(|node| node.kind == kind.node_kind())
+        .filter_map(|node| {
+            let existing_terms = node_terms(node);
+            if existing_terms.is_empty() {
+                return None;
+            }
+            let overlap = candidate_terms.intersection(&existing_terms).count();
+            let smaller = candidate_terms.len().min(existing_terms.len());
+            let similarity = overlap as f32 / smaller as f32;
+            (similarity >= SIMILARITY_THRESHOLD)
+                .then_some((node.identifier().to_owned(), similarity))
+        })
+        .max_by(|left, right| left.1.total_cmp(&right.1))
+        .map(|(identifier, _)| identifier)
 }
 
 fn symbol_file(node: &GraphNode) -> Option<&str> {
@@ -670,6 +714,40 @@ mod tests {
         };
 
         assert!(intents_without_mapping(&graph).is_empty());
+    }
+
+    #[test]
+    fn possible_duplicate_finds_a_restated_requirement_by_term_overlap() {
+        let existing = intent_node(); // REQ-SUB-001, "Subscription cancel access remains available"
+        let graph = GraphSnapshot {
+            nodes: [(existing.stable_key.clone(), existing)]
+                .into_iter()
+                .collect(),
+            edges: Vec::new(),
+        };
+
+        let restated = possible_duplicate(
+            &graph,
+            BusinessKind::Requirement,
+            "Subscription cancel access must remain available to the customer.",
+        );
+        assert_eq!(restated, Some("REQ-SUB-001".to_owned()));
+
+        let unrelated = possible_duplicate(
+            &graph,
+            BusinessKind::Requirement,
+            "Billing export must run nightly and email finance a CSV report.",
+        );
+        assert_eq!(unrelated, None);
+
+        // Same wording, different kind: an Invariant restating a Requirement
+        // is not treated as a duplicate of it.
+        let different_kind = possible_duplicate(
+            &graph,
+            BusinessKind::Invariant,
+            "Subscription cancel access must remain available to the customer.",
+        );
+        assert_eq!(different_kind, None);
     }
 
     fn intent_node() -> GraphNode {

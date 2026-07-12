@@ -16,6 +16,7 @@ const MIGRATIONS: &[(i64, &str)] = &[
         include_str!("../migrations/002_unique_current_edges.sql"),
     ),
     (3, include_str!("../migrations/003_external_artifacts.sql")),
+    (4, include_str!("../migrations/004_enrich_ledger.sql")),
 ];
 
 #[derive(Debug, Error)]
@@ -96,13 +97,14 @@ mod tests {
                 "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN (
                     'repositories', 'commits', 'nodes', 'node_versions', 'edges',
                     'sources', 'evidence', 'edge_evidence', 'annotations', 'aliases',
-                    'derivations', 'artifacts', 'artifact_links', 'knowledge_candidates'
+                    'derivations', 'artifacts', 'artifact_links', 'knowledge_candidates',
+                    'artifact_analysis'
                 )",
                 [],
                 |row| row.get(0),
             )
             .expect("query schema");
-        assert_eq!(table_count, 14);
+        assert_eq!(table_count, 15);
 
         drop(store);
         SqliteStore::open(&database).expect("migrations are idempotent");

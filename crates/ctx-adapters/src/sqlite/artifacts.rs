@@ -83,6 +83,75 @@ impl ArtifactRepository for SqliteStore {
         }
         Ok(artifacts)
     }
+
+    fn mark_analyzed(
+        &mut self,
+        repository: &RepositoryId,
+        identity: &ArtifactIdentity,
+        content_hash: &str,
+        analyzed_at: &str,
+    ) -> Result<(), PortError> {
+        let transaction = self.connection.transaction().map_err(database_error)?;
+        let repository_row = repository_row(&transaction, repository)?;
+        let Some(artifact_row) = artifact_row(&transaction, repository_row, identity)? else {
+            return Err(PortError::new(format!(
+                "artifact '{}:{:?}:{}' is not stored yet",
+                provider_str(identity.provider),
+                identity.kind,
+                identity.external_id
+            )));
+        };
+        transaction
+            .execute(
+                "INSERT INTO artifact_analysis(artifact_id, content_hash, analyzed_at)
+                 VALUES (?1, ?2, ?3)
+                 ON CONFLICT(artifact_id) DO UPDATE SET
+                    content_hash = excluded.content_hash,
+                    analyzed_at = excluded.analyzed_at",
+                params![artifact_row, content_hash, analyzed_at],
+            )
+            .map_err(database_error)?;
+        transaction.commit().map_err(database_error)
+    }
+
+    fn analyzed_content_hashes(
+        &self,
+        repository: &RepositoryId,
+    ) -> Result<std::collections::HashMap<ArtifactIdentity, String>, PortError> {
+        let mut statement = self
+            .connection
+            .prepare(
+                "SELECT a.provider, a.kind, a.external_id, aa.content_hash
+                 FROM artifact_analysis aa
+                 JOIN artifacts a ON a.id = aa.artifact_id
+                 JOIN repositories r ON r.id = a.repository_id
+                 WHERE r.stable_id = ?1",
+            )
+            .map_err(database_error)?;
+        let rows = statement
+            .query_map([repository.as_str()], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                ))
+            })
+            .map_err(database_error)?;
+        let mut hashes = std::collections::HashMap::new();
+        for row in rows {
+            let (provider, kind, external_id, content_hash) = row.map_err(database_error)?;
+            hashes.insert(
+                ArtifactIdentity {
+                    provider: parse_provider(&provider)?,
+                    kind: parse_artifact_kind(&kind)?,
+                    external_id,
+                },
+                content_hash,
+            );
+        }
+        Ok(hashes)
+    }
 }
 
 impl ArtifactLinkStore for SqliteStore {
@@ -864,5 +933,55 @@ mod tests {
             )
             .expect_err("an already-decided candidate cannot be decided again");
         assert!(error.to_string().contains("not currently pending"));
+    }
+
+    #[test]
+    fn marking_an_artifact_analyzed_round_trips_its_content_hash() {
+        let directory = tempdir().expect("temporary directory");
+        let (mut store, repository) = open_repository(directory.path());
+        let artifact = sample_artifact("842", "PAY-317. Users lose access immediately.");
+        store
+            .upsert_artifact(&repository, &artifact, "2026-08-21T00:00:00Z", "v1")
+            .expect("sync artifact");
+
+        assert!(
+            store
+                .analyzed_content_hashes(&repository)
+                .expect("analyzed hashes")
+                .is_empty()
+        );
+
+        store
+            .mark_analyzed(
+                &repository,
+                &artifact.identity,
+                &artifact.content_hash,
+                "2026-08-21T01:00:00Z",
+            )
+            .expect("mark analyzed");
+
+        let hashes = store
+            .analyzed_content_hashes(&repository)
+            .expect("analyzed hashes");
+        assert_eq!(hashes.get(&artifact.identity), Some(&artifact.content_hash));
+
+        // Re-marking with a new content hash (the artifact changed since
+        // last analysis) updates the record in place rather than duplicating.
+        store
+            .mark_analyzed(
+                &repository,
+                &artifact.identity,
+                "new-hash",
+                "2026-08-21T02:00:00Z",
+            )
+            .expect("re-mark analyzed");
+        let updated = store
+            .analyzed_content_hashes(&repository)
+            .expect("analyzed hashes");
+        assert_eq!(updated.len(), 1);
+        assert_eq!(
+            updated.get(&artifact.identity),
+            Some(&"new-hash".to_owned())
+        );
     }
 }

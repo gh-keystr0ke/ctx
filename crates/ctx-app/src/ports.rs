@@ -1,9 +1,9 @@
 use std::fmt;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 use ctx_core::{
-    artifact::{Artifact, ArtifactLink, ArtifactRef},
+    artifact::{Artifact, ArtifactIdentity, ArtifactLink, ArtifactRef},
     business::{BusinessDocument, ContextImportStats},
     domain::{CommitOid, RepositoryId},
     graph::GraphSnapshot,
@@ -289,6 +289,31 @@ pub trait ArtifactRepository {
     /// # Errors
     /// Returns [`PortError`] when stored artifacts cannot be read.
     fn list_artifacts(&self, repository: &RepositoryId) -> Result<Vec<Artifact>, PortError>;
+
+    /// Records that `identity` was analyzed by `ctx enrich` at
+    /// `content_hash` (prompt3.md PR-INCR-002, basic level): a later run
+    /// skips it while the artifact's stored content is unchanged, rather
+    /// than repeating an agent call on the exact same text every time.
+    ///
+    /// # Errors
+    /// Returns [`PortError`] when the record cannot be persisted.
+    fn mark_analyzed(
+        &mut self,
+        repository: &RepositoryId,
+        identity: &ArtifactIdentity,
+        content_hash: &str,
+        analyzed_at: &str,
+    ) -> Result<(), PortError>;
+
+    /// The content hash each artifact was last analyzed at, keyed by
+    /// identity.
+    ///
+    /// # Errors
+    /// Returns [`PortError`] when stored analysis records cannot be read.
+    fn analyzed_content_hashes(
+        &self,
+        repository: &RepositoryId,
+    ) -> Result<HashMap<ArtifactIdentity, String>, PortError>;
 }
 
 /// Persists deterministic, non-AI relationships between artifacts or

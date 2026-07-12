@@ -121,6 +121,10 @@ enum Command {
         /// --accept`, ignored otherwise.
         #[arg(long, requires = "accept")]
         id: Option<String>,
+        /// With `--knowledge --accept`: create the document even if it
+        /// looks like a restatement of an already-active one.
+        #[arg(long, requires = "accept")]
+        force: bool,
     },
     /// Serve ctx integrations.
     Serve {
@@ -222,6 +226,7 @@ fn run(cli: &Cli) -> Result<(), CliError> {
             author,
             knowledge,
             id,
+            force,
         } => {
             if *knowledge {
                 verify_knowledge(
@@ -231,6 +236,7 @@ fn run(cli: &Cli) -> Result<(), CliError> {
                     reject.as_deref(),
                     id.as_deref(),
                     author,
+                    *force,
                 )
             } else {
                 verify(cli, &git, accept.as_deref(), reject.as_deref(), author)
@@ -341,6 +347,7 @@ fn verify_knowledge(
     reject: Option<&str>,
     id: Option<&str>,
     author: &str,
+    force: bool,
 ) -> Result<(), CliError> {
     let database_path = database_path(git.root())?;
     let mut store = SqliteStore::open(&database_path)?;
@@ -351,7 +358,14 @@ fn verify_knowledge(
 
     if let Some(fingerprint) = accept {
         let document_id = id.ok_or(CliError::MissingKnowledgeId)?;
-        let path = service.accept(&repository.id, fingerprint, document_id, author, &now)?;
+        let path = service.accept(
+            &repository.id,
+            fingerprint,
+            document_id,
+            author,
+            &now,
+            force,
+        )?;
         if cli.json {
             println!(
                 "{}",
@@ -386,59 +400,122 @@ fn verify_knowledge(
         return Ok(());
     }
     for candidate in candidates {
-        println!();
-        println!("Candidate ({:?}): {}", candidate.kind, candidate.statement);
-        for evidence in &candidate.evidence {
-            println!("  evidence: {} — {}", evidence.locator, evidence.excerpt);
-        }
-        if !candidate.implementation_candidates.is_empty() {
-            println!(
-                "  implementation candidates: {}",
-                candidate.implementation_candidates.join(", ")
-            );
-        }
-        if !candidate.test_candidates.is_empty() {
-            println!(
-                "  test candidates: {}",
-                candidate.test_candidates.join(", ")
-            );
-        }
-        loop {
-            print!("[y] accept  [n] reject  [s] skip: ");
-            io::stdout().flush()?;
-            let mut answer = String::new();
-            io::stdin().read_line(&mut answer)?;
-            match answer.trim().to_ascii_lowercase().as_str() {
-                "y" => {
-                    print!("Stable ID to allocate (e.g. REQ-SUB-014): ");
-                    io::stdout().flush()?;
-                    let mut chosen_id = String::new();
-                    io::stdin().read_line(&mut chosen_id)?;
-                    let chosen_id = chosen_id.trim();
-                    if chosen_id.is_empty() {
-                        println!("An ID is required to accept.");
-                        continue;
-                    }
-                    let path = service.accept(
-                        &repository.id,
-                        &candidate.fingerprint,
-                        chosen_id,
-                        author,
-                        &now,
-                    )?;
-                    println!("Accepted as {chosen_id} -> {path}");
-                    break;
+        review_knowledge_candidate_interactively(
+            &mut service,
+            &repository.id,
+            &candidate,
+            author,
+            &now,
+            force,
+        )?;
+    }
+    Ok(())
+}
+
+fn review_knowledge_candidate_interactively(
+    service: &mut KnowledgeVerificationService<'_, SqliteStore, YamlBusinessContextReader>,
+    repository: &ctx_core::domain::RepositoryId,
+    candidate: &ctx_core::knowledge::KnowledgeCandidate,
+    author: &str,
+    now: &str,
+    force: bool,
+) -> Result<(), CliError> {
+    println!();
+    println!("Candidate ({:?}): {}", candidate.kind, candidate.statement);
+    for evidence in &candidate.evidence {
+        println!("  evidence: {} — {}", evidence.locator, evidence.excerpt);
+    }
+    if !candidate.implementation_candidates.is_empty() {
+        println!(
+            "  implementation candidates: {}",
+            candidate.implementation_candidates.join(", ")
+        );
+    }
+    if !candidate.test_candidates.is_empty() {
+        println!(
+            "  test candidates: {}",
+            candidate.test_candidates.join(", ")
+        );
+    }
+    loop {
+        print!("[y] accept  [n] reject  [s] skip: ");
+        io::stdout().flush()?;
+        let mut answer = String::new();
+        io::stdin().read_line(&mut answer)?;
+        match answer.trim().to_ascii_lowercase().as_str() {
+            "y" => {
+                print!("Stable ID to allocate (e.g. REQ-SUB-014): ");
+                io::stdout().flush()?;
+                let mut chosen_id = String::new();
+                io::stdin().read_line(&mut chosen_id)?;
+                let chosen_id = chosen_id.trim();
+                if chosen_id.is_empty() {
+                    println!("An ID is required to accept.");
+                    continue;
                 }
-                "n" => {
-                    service.reject(&repository.id, &candidate.fingerprint, author, &now)?;
-                    break;
-                }
-                "s" => break,
-                _ => println!("Please enter y, n, or s."),
+                accept_knowledge_candidate_interactively(
+                    service, repository, candidate, chosen_id, author, now, force,
+                )?;
+                break;
             }
+            "n" => {
+                service.reject(repository, &candidate.fingerprint, author, now)?;
+                break;
+            }
+            "s" => break,
+            _ => println!("Please enter y, n, or s."),
         }
     }
     Ok(())
+}
+
+fn accept_knowledge_candidate_interactively(
+    service: &mut KnowledgeVerificationService<'_, SqliteStore, YamlBusinessContextReader>,
+    repository: &ctx_core::domain::RepositoryId,
+    candidate: &ctx_core::knowledge::KnowledgeCandidate,
+    chosen_id: &str,
+    author: &str,
+    now: &str,
+    force: bool,
+) -> Result<(), CliError> {
+    match service.accept(
+        repository,
+        &candidate.fingerprint,
+        chosen_id,
+        author,
+        now,
+        force,
+    ) {
+        Ok(path) => {
+            println!("Accepted as {chosen_id} -> {path}");
+            Ok(())
+        }
+        Err(VerificationError::PossibleDuplicate { existing_id, .. }) => {
+            print!(
+                "Looks like a restatement of already-active {existing_id} — create {chosen_id} anyway? [y/n]: "
+            );
+            io::stdout().flush()?;
+            let mut confirm = String::new();
+            io::stdin().read_line(&mut confirm)?;
+            if confirm.trim().eq_ignore_ascii_case("y") {
+                let path = service.accept(
+                    repository,
+                    &candidate.fingerprint,
+                    chosen_id,
+                    author,
+                    now,
+                    true,
+                )?;
+                println!("Accepted as {chosen_id} -> {path}");
+            } else {
+                println!(
+                    "Skipped -- consider attaching this evidence to {existing_id} manually instead."
+                );
+            }
+            Ok(())
+        }
+        Err(error) => Err(error.into()),
+    }
 }
 
 fn print_knowledge_candidates(candidates: &[ctx_core::knowledge::KnowledgeCandidate]) {

@@ -1,0 +1,38 @@
+id: REQ-INCR-002
+type: requirement
+feature: FEAT-INDEXING
+status: active
+statement: >
+  `ctx enrich` must not repeat an agent call on an artifact whose content
+  hasn't changed since its last analysis (prompt3.md §18 MUST, basic level):
+  every analyzed artifact is recorded in a ledger keyed by its own row
+  (content_hash, analyzed_at), regardless of whether the agent found it
+  `relevant`, `not_relevant`, or `insufficient_evidence` -- so a
+  `not_relevant` answer is never re-asked either, not only a proposed
+  candidate. A later run skips an artifact whose stored content_hash still
+  matches the ledger; a changed content_hash (the artifact was edited,
+  re-ingested with new text) or no ledger entry at all triggers a fresh
+  analysis. `ctx verify --knowledge --accept` refuses to create a new
+  document when the candidate's statement looks like a restatement of an
+  already-active Requirement/Invariant/Decision of the same kind (§13 MUST:
+  "restating REQ-17 must not silently become REQ-94") -- a lexical
+  term-overlap similarity check against the current graph, never a second AI
+  call, and advisory only: `--force` (or, interactively, an explicit y/n
+  confirmation naming the existing document) creates it anyway. Refusing
+  never writes anything. Per-provider GitLab sync cursors (fetch only
+  issues/MRs updated since the last `ctx ingest gitlab` run) remain a SHOULD
+  item, not yet implemented -- `ctx ingest gitlab` still re-fetches
+  everything every run, which stays idempotent (REQ-EXT-001) but is not
+  incremental.
+implementation:
+  - symbol: ctx_app.enrich.EnrichRunner.run
+  - symbol: ctx_app.ports.ArtifactRepository.mark_analyzed
+  - symbol: ctx_app.ports.ArtifactRepository.analyzed_content_hashes
+  - symbol: ctx_core.verification.possible_duplicate
+  - symbol: ctx_app.verification.KnowledgeVerificationService.accept
+tests:
+  - symbol: ctx_app.enrich.tests.an_artifact_analyzed_at_its_current_content_hash_is_skipped_next_run
+  - symbol: ctx_adapters.sqlite.artifacts.tests.marking_an_artifact_analyzed_round_trips_its_content_hash
+  - symbol: ctx_core.verification.tests.possible_duplicate_finds_a_restated_requirement_by_term_overlap
+  - symbol: ctx_app.verification.knowledge_tests.accepting_a_likely_restatement_is_refused_unless_forced
+  - symbol: crates.ctx-cli.tests.e2e.accepting_a_restated_requirement_is_refused_unless_forced

@@ -24,7 +24,10 @@ statement: >
   intact for `ctx explain` to walk (Phase 9, REQ-EXPLAIN-002). A rejected
   candidate is never proposed again once `ctx enrich` recognizes the same
   fingerprint (an already-decided fingerprint's `record_decision` fails
-  rather than reverting it to pending).
+  rather than reverting it to pending). Accepting also checks for a likely
+  duplicate first (REQ-INCR-002): unless `--force`, a statement that
+  restates an already-active document of the same kind is refused before
+  anything is written.
 implementation:
   - symbol: ctx_app.verification.KnowledgeVerificationService.accept
   - symbol: ctx_app.verification.KnowledgeVerificationService.reject

@@ -10,9 +10,10 @@ decision: >
   network service nor an LLM, and no graph database is introduced without
   profiling evidence. External development artifacts (commits, branches,
   GitLab issues/MRs, code comments/docstrings) extend this same store as
-  their own tables (`artifacts`, `artifact_links`, `knowledge_candidates`)
-  rather than a second storage technology, matching this decision's original
-  reasoning.
+  their own tables (`artifacts`, `artifact_links`, `knowledge_candidates`,
+  and `artifact_analysis` for `ctx enrich`'s per-artifact incremental
+  ledger) rather than a second storage technology, matching this decision's
+  original reasoning.
 implementation:
   - symbol: ctx_adapters.sqlite.SqliteStore.open
   - symbol: ctx_adapters.sqlite.index.SqliteStore.IndexStore.apply_index

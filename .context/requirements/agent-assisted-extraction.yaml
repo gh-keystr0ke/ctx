@@ -22,8 +22,11 @@ statement: >
   it) and is persisted as `pending` (ctx_core.knowledge.KnowledgeCandidate),
   never auto-promoted to fact or assertion — a human decision through `ctx
   verify` (Phase 6) is the only path from `pending` onward. `ctx enrich`
-  skips an artifact already cited as evidence by a pending candidate rather
-  than re-analyzing it every run; everything built before this phase
+  skips an artifact already cited as evidence by a pending candidate, and
+  separately skips one whose content hasn't changed since its last analysis
+  regardless of outcome (REQ-INCR-002 -- a `not_relevant` answer is recorded
+  too, not only a proposed candidate) rather than re-analyzing it every run;
+  everything built before this phase
   (`ctx index`/`ctx impact`/`ctx review`/`ctx explain`/`ctx context`) keeps
   working unchanged with zero agents ever configured and zero candidates
   ever proposed (PR-AGENT-002).
@@ -41,5 +44,6 @@ tests:
   - symbol: ctx_app.enrich.tests.analyzes_every_artifact_and_persists_only_relevant_candidates
   - symbol: ctx_app.enrich.tests.an_artifact_already_cited_by_a_pending_candidate_is_skipped
   - symbol: ctx_app.enrich.tests.not_relevant_outcomes_never_reach_the_candidate_store
+  - symbol: ctx_app.enrich.tests.an_artifact_analyzed_at_its_current_content_hash_is_skipped_next_run
   - symbol: crates.ctx-cli.tests.e2e.enrich_shells_out_to_the_configured_agent_and_reports_its_outcome
   - symbol: crates.ctx-cli.tests.e2e.enrich_rejects_an_unsupported_agent

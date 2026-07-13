@@ -310,6 +310,14 @@ mod knowledge_tests {
         ) -> Result<std::collections::BTreeMap<String, Vec<ArtifactRef>>, PortError> {
             unreachable!("knowledge verification never reads accepted evidence")
         }
+
+        fn accepted_record_for_document(
+            &self,
+            _repository: &RepositoryId,
+            _document_id: &str,
+        ) -> Result<Option<ctx_core::knowledge::AcceptedKnowledgeRecord>, PortError> {
+            unreachable!("knowledge verification never reads accepted candidate records")
+        }
     }
 
     #[derive(Default)]

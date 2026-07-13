@@ -796,6 +796,18 @@ fn explain(cli: &Cli, git: &GitRepo, target: &str) -> Result<(), CliError> {
         } else {
             println!("Explanation for {target}");
         }
+        if let Some(provenance) = &explanation.knowledge_provenance {
+            println!("  Derived from: {}", provenance.derived_from.join(", "));
+            println!(
+                "  Inferred by: {} ({})",
+                provenance.agent_producer,
+                provenance.agent_model.as_deref().unwrap_or("unknown model")
+            );
+            println!(
+                "  Verified by: {} at {}",
+                provenance.decided_by, provenance.decided_at
+            );
+        }
         for claim in explanation.claims {
             println!("- {}", claim.claim);
             println!(

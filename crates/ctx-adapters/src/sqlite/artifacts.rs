@@ -395,37 +395,7 @@ impl KnowledgeCandidateStore for SqliteStore {
             .map_err(database_error)?;
         let mut candidates = Vec::new();
         for row in rows {
-            let (
-                fingerprint,
-                kind,
-                statement,
-                evidence_json,
-                implementation_json,
-                tests_json,
-                producer,
-                model,
-                input_artifacts_json,
-                produced_at,
-                agent_fingerprint,
-            ) = row.map_err(database_error)?;
-            candidates.push(KnowledgeCandidate {
-                fingerprint,
-                kind: parse_candidate_kind(&kind)?,
-                statement,
-                evidence: serde_json::from_str::<Vec<ArtifactRef>>(&evidence_json)
-                    .map_err(serialization_error)?,
-                implementation_candidates: serde_json::from_str(&implementation_json)
-                    .map_err(serialization_error)?,
-                test_candidates: serde_json::from_str(&tests_json).map_err(serialization_error)?,
-                provenance: AgentProvenance {
-                    producer,
-                    model,
-                    input_artifact_ids: serde_json::from_str(&input_artifacts_json)
-                        .map_err(serialization_error)?,
-                    produced_at,
-                    fingerprint: agent_fingerprint,
-                },
-            });
+            candidates.push(candidate_from_columns(row.map_err(database_error)?)?);
         }
         Ok(candidates)
     }
@@ -499,6 +469,102 @@ impl KnowledgeCandidateStore for SqliteStore {
         }
         Ok(evidence_by_document)
     }
+
+    fn accepted_record_for_document(
+        &self,
+        repository: &RepositoryId,
+        document_id: &str,
+    ) -> Result<Option<ctx_core::knowledge::AcceptedKnowledgeRecord>, PortError> {
+        self.connection
+            .query_row(
+                "SELECT kc.fingerprint, kc.kind, kc.statement, kc.evidence_json,
+                        kc.implementation_candidates_json, kc.test_candidates_json,
+                        kc.agent_producer, kc.agent_model, kc.input_artifact_ids_json,
+                        kc.produced_at, kc.agent_fingerprint, kc.decided_by, kc.decided_at
+                 FROM knowledge_candidates kc
+                 JOIN repositories r ON r.id = kc.repository_id
+                 WHERE r.stable_id = ?1 AND kc.status = 'accepted'
+                   AND kc.resulting_document_id = ?2",
+                params![repository.as_str(), document_id],
+                |row| {
+                    Ok((
+                        (
+                            row.get::<_, String>(0)?,
+                            row.get::<_, String>(1)?,
+                            row.get::<_, String>(2)?,
+                            row.get::<_, String>(3)?,
+                            row.get::<_, String>(4)?,
+                            row.get::<_, String>(5)?,
+                            row.get::<_, String>(6)?,
+                            row.get::<_, Option<String>>(7)?,
+                            row.get::<_, String>(8)?,
+                            row.get::<_, String>(9)?,
+                            row.get::<_, String>(10)?,
+                        ),
+                        row.get::<_, String>(11)?,
+                        row.get::<_, String>(12)?,
+                    ))
+                },
+            )
+            .optional()
+            .map_err(database_error)?
+            .map(|(columns, decided_by, decided_at)| {
+                Ok(ctx_core::knowledge::AcceptedKnowledgeRecord {
+                    candidate: candidate_from_columns(columns)?,
+                    decided_by,
+                    decided_at,
+                })
+            })
+            .transpose()
+    }
+}
+
+type CandidateColumns = (
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    Option<String>,
+    String,
+    String,
+    String,
+);
+
+fn candidate_from_columns(columns: CandidateColumns) -> Result<KnowledgeCandidate, PortError> {
+    let (
+        fingerprint,
+        kind,
+        statement,
+        evidence_json,
+        implementation_json,
+        tests_json,
+        producer,
+        model,
+        input_artifacts_json,
+        produced_at,
+        agent_fingerprint,
+    ) = columns;
+    Ok(KnowledgeCandidate {
+        fingerprint,
+        kind: parse_candidate_kind(&kind)?,
+        statement,
+        evidence: serde_json::from_str::<Vec<ArtifactRef>>(&evidence_json)
+            .map_err(serialization_error)?,
+        implementation_candidates: serde_json::from_str(&implementation_json)
+            .map_err(serialization_error)?,
+        test_candidates: serde_json::from_str(&tests_json).map_err(serialization_error)?,
+        provenance: AgentProvenance {
+            producer,
+            model,
+            input_artifact_ids: serde_json::from_str(&input_artifacts_json)
+                .map_err(serialization_error)?,
+            produced_at,
+            fingerprint: agent_fingerprint,
+        },
+    })
 }
 
 type ArtifactColumns = (

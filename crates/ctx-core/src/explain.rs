@@ -22,11 +22,32 @@ pub struct ClaimExplanation {
     pub evidence: Vec<GraphEvidence>,
 }
 
+/// The full external-artifact -> agent-inference -> human-verification chain
+/// behind a node that reached the graph through an accepted AI-derived
+/// [`crate::knowledge::KnowledgeCandidate`] (prompt3.md §16/§19, Phase 9).
+/// `None` for a hand-authored `.context/*.yaml` document, which has no such
+/// candidate row at all -- `explain` never fabricates one.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct KnowledgeProvenance {
+    /// Formatted artifact ids (`gitlab:issue:317`) the agent's bounded input
+    /// neighborhood was built from -- the accepted candidate's own
+    /// `AgentProvenance.input_artifact_ids`.
+    pub derived_from: Vec<String>,
+    pub agent_producer: String,
+    pub agent_model: Option<String>,
+    pub decided_by: String,
+    pub decided_at: String,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Explanation {
     pub query: String,
     pub subjects: Vec<NodeSummary>,
     pub claims: Vec<ClaimExplanation>,
+    /// Set only for a plain node query with exactly one subject that
+    /// originated from an accepted AI-derived candidate; assembled at the
+    /// `ctx-app` layer, since the candidate record lives outside the graph.
+    pub knowledge_provenance: Option<KnowledgeProvenance>,
 }
 
 #[derive(Clone, Debug, Error, Eq, PartialEq)]
@@ -86,6 +107,7 @@ fn explain_nodes(query: &str, nodes: &[&GraphNode], graph: &GraphSnapshot) -> Ex
         query: query.to_owned(),
         subjects: nodes.iter().map(|node| NodeSummary::from(*node)).collect(),
         claims,
+        knowledge_provenance: None,
     }
 }
 
@@ -128,6 +150,7 @@ fn explain_relationship(
         query: original.to_owned(),
         subjects,
         claims: matching,
+        knowledge_provenance: None,
     })
 }
 

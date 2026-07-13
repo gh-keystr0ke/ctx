@@ -95,6 +95,16 @@ pub enum AgentOutcome {
     InsufficientEvidence,
 }
 
+/// A candidate that was accepted, with the human decision recorded alongside
+/// it (PR-VERIFY-002) -- read back by `ctx explain` (Phase 9) to render the
+/// full artifact -> agent -> human chain behind the document it became.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct AcceptedKnowledgeRecord {
+    pub candidate: KnowledgeCandidate,
+    pub decided_by: String,
+    pub decided_at: String,
+}
+
 /// A human's decision on one pending [`KnowledgeCandidate`] (PR-VERIFY-001).
 /// Unlike the heuristic `SemanticCandidate` accept path (which only asserts
 /// an already-known claim), accepting a `KnowledgeCandidate` creates a new

@@ -9,7 +9,7 @@ use ctx_core::{
     graph::GraphSnapshot,
     indexing::{FileChange, IndexPlan, RepositorySnapshot},
     ir::FileAnalysis,
-    knowledge::{AgentOutcome, KnowledgeCandidate, KnowledgeDecision},
+    knowledge::{AcceptedKnowledgeRecord, AgentOutcome, KnowledgeCandidate, KnowledgeDecision},
     neighborhood::ArtifactNeighborhood,
     verification::{SemanticCandidate, VerificationDecision},
 };
@@ -393,6 +393,18 @@ pub trait KnowledgeCandidateStore {
         &self,
         repository: &RepositoryId,
     ) -> Result<BTreeMap<String, Vec<ArtifactRef>>, PortError>;
+
+    /// The accepted candidate and human decision behind `document_id`, if
+    /// it originated from `ctx verify --knowledge --accept` (prompt3.md
+    /// §16/§19, Phase 9) rather than a hand-authored `.context/*.yaml` file.
+    ///
+    /// # Errors
+    /// Returns [`PortError`] when stored candidates cannot be read.
+    fn accepted_record_for_document(
+        &self,
+        repository: &RepositoryId,
+        document_id: &str,
+    ) -> Result<Option<AcceptedKnowledgeRecord>, PortError>;
 }
 
 /// Materializes an accepted [`KnowledgeCandidate`] as a new `.context/*.yaml`

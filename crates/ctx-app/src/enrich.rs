@@ -238,6 +238,14 @@ mod tests {
         > {
             unreachable!("enrich never reads accepted evidence")
         }
+
+        fn accepted_record_for_document(
+            &self,
+            _repository: &RepositoryId,
+            _document_id: &str,
+        ) -> Result<Option<ctx_core::knowledge::AcceptedKnowledgeRecord>, PortError> {
+            unreachable!("enrich never reads accepted candidate records")
+        }
     }
 
     struct FakeAgent {

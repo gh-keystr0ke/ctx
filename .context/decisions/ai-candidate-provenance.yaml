@@ -30,7 +30,12 @@ decision: >
   keyed by the resulting document's ID): REQ-MAP-001's heuristic scoring
   reuse reads it to check whether the same artifact also touched a
   candidate symbol, without ever needing a second AI call or a parallel
-  evidence store of its own.
+  evidence store of its own. The same accepted row -- its full
+  AgentProvenance plus the human decided_by/decided_at -- is what `ctx
+  explain` (accepted_record_for_document, Phase 9, INV-PROVENANCE-001)
+  reads to render the complete artifact-to-inference-to-verification chain;
+  the row's persistence past acceptance is what makes that chain
+  reconstructable at all, not just accepted_evidence's narrower reuse.
 implementation:
   - symbol: ctx_core.knowledge.KnowledgeCandidate
   - symbol: ctx_core.knowledge.AgentProvenance
@@ -39,6 +44,8 @@ implementation:
   - symbol: ctx_adapters.sqlite.artifacts.SqliteStore.KnowledgeCandidateStore.pending_candidates
   - symbol: ctx_adapters.sqlite.artifacts.SqliteStore.KnowledgeCandidateStore.record_decision
   - symbol: ctx_adapters.sqlite.artifacts.SqliteStore.KnowledgeCandidateStore.accepted_evidence
+  - symbol: ctx_adapters.sqlite.artifacts.SqliteStore.KnowledgeCandidateStore.accepted_record_for_document
 tests:
   - symbol: ctx_adapters.sqlite.artifacts.tests.pending_candidates_round_trip_and_stay_out_once_decided
   - symbol: ctx_adapters.sqlite.artifacts.tests.accepting_a_candidate_removes_it_from_pending_and_records_the_resulting_document
+  - symbol: ctx_app.query.tests.a_requirement_from_an_accepted_candidate_carries_its_full_provenance_chain

@@ -10,12 +10,29 @@ statement: >
   schema alike — must expose the same source and locator trail as first-class
   FACT claims. When a query resolves to several distinct nodes, each keeps
   its own independent set of claims and evidence rather than having them
-  pooled across matches (PR-LOOKUP-003; see REQ-LOOKUP-001).
+  pooled across matches (PR-LOOKUP-003; see REQ-LOOKUP-001). This extends to
+  the full external-artifact -> agent-inference -> human-verification chain
+  (prompt3.md §16/§19, Phase 9): a `ctx explain` result for a single-subject
+  Feature/Requirement/Invariant/Decision that reached the graph through
+  `ctx verify --knowledge --accept` additionally carries the input artifact
+  ids the agent's neighborhood was built from, the agent's own producer/model
+  (never fabricated when absent), and the accepting human's author/timestamp
+  — assembled at the `ctx-app` layer from the still-intact accepted-candidate
+  record (REQ-VERIFY-002 kept it, never discarded it, for exactly this). A
+  hand-authored `.context/*.yaml` document has no candidate row, so it
+  carries none of this rather than a guessed substitute — the same "explain
+  only from what's actually stored" discipline this invariant already
+  requires of every other claim.
 implementation:
   - symbol: ctx_adapters.sqlite.context.create_claim_if_missing
   - symbol: ctx_adapters.sqlite.context.persist_symbol_claim
   - symbol: ctx_core.explain.explain
+  - symbol: ctx_app.query.QueryService.explain
+  - symbol: ctx_app.query.QueryService.knowledge_provenance_for
 tests:
   - symbol: ctx_adapters.sqlite.context.tests.explicit_links_persist_an_explainable_evidence_chain
   - symbol: ctx_core.business.tests.invariant_links_are_enforcement_assertions
   - symbol: ctx_adapters.sqlite.index.tests.database_facts_persist_with_static_evidence_and_status_counts
+  - symbol: ctx_app.query.tests.a_requirement_from_an_accepted_candidate_carries_its_full_provenance_chain
+  - symbol: ctx_app.query.tests.a_hand_authored_requirement_carries_no_provenance_chain
+  - symbol: ctx_app.query.tests.a_relationship_query_never_carries_a_provenance_chain

@@ -20,7 +20,11 @@ statement: >
   symbol must still resolve to nothing (recorded as
   `ambiguous:<name>` in `unresolved_symbols`) rather than guessing among the
   candidates — short-name convenience at query time must never weaken a
-  written mapping's required precision.
+  written mapping's required precision. Phase 9's knowledge-provenance
+  attachment (INV-PROVENANCE-001) preserves this same per-match
+  independence: each distinct explanation looks up its own subject's
+  accepted-candidate record independently, so one match's AI-derived
+  provenance chain never leaks onto a different match sharing the query.
 implementation:
   - symbol: ctx_core.graph.GraphSnapshot.resolve
   - symbol: ctx_core.graph.find_symbols

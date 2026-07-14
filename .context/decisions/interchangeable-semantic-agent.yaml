@@ -4,23 +4,37 @@ feature: FEAT-INDEXING
 title: AI agents sit behind one interchangeable port trait
 status: accepted
 decision: >
-  Every concrete AI agent — Claude Code CLI today, any other CLI- or
-  API-backed model later — is referenced only through
-  ctx_app.ports.SemanticAgent outside its own adapter module (PR-P05,
-  PR-AGENT-001). ctx-core and ctx-app never name a specific vendor or model:
-  ctx_core.neighborhood builds the bounded input, ctx_core.knowledge defines
-  the typed output shape, and ctx_app.enrich.EnrichRunner orchestrates
-  selection and persistence purely against the trait. Only
-  ctx_adapters.claude_code (the concrete adapter, including its own JSON
-  prompt/output contract) and the ctx-cli composition root (which must name
-  an agent to select one, `--agent claude`) know Claude Code exists. Adding
-  a second agent means adding a second adapter module and a second CLI enum
-  value — zero changes to ctx-core, ctx-app, or the SemanticAgent trait
-  itself.
+  Every concrete AI agent — Claude Code CLI, OpenAI Codex CLI, Google
+  Antigravity CLI (`agy`), any other CLI- or API-backed model later — is
+  referenced only through ctx_app.ports.SemanticAgent outside its own
+  adapter module (PR-P05, PR-AGENT-001). ctx-core and ctx-app never name a
+  specific vendor or model: ctx_core.neighborhood builds the bounded input,
+  ctx_core.knowledge defines the typed output shape, and
+  ctx_app.enrich.EnrichRunner orchestrates selection and persistence purely
+  against the trait. Confirmed adding a second and third agent really does
+  cost only what this decision predicted: ctx_adapters.codex and
+  ctx_adapters.antigravity are each under 100 lines, own only their process
+  invocation (`codex exec <prompt>`, `agy -p <prompt>`), and the ctx-cli
+  composition root (which must name an agent to select one, `--agent
+  claude|codex|antigravity`) — zero changes to ctx-core, ctx-app, or the
+  SemanticAgent trait itself. The prompt contract, JSON-response parsing,
+  and evidence/path validation were never actually Claude-specific, so they
+  live once in ctx_adapters.agent_contract (AgentTransport trait +
+  analyze()) and every vendor module is a thin AgentTransport
+  implementation plus a one-line SemanticAgent delegation, rather than each
+  adapter reimplementing (and risking silently diverging on) the same
+  validation rules.
 implementation:
   - symbol: ctx_app.ports.SemanticAgent
+  - symbol: ctx_adapters.agent_contract.AgentTransport
+  - symbol: ctx_adapters.agent_contract.analyze
   - symbol: ctx_adapters.claude_code.ClaudeCodeAgent
-  - symbol: ctx_adapters.claude_code.ClaudeCliTransport
+  - symbol: ctx_adapters.codex.CodexAgent
+  - symbol: ctx_adapters.antigravity.AntigravityAgent
 tests:
   - symbol: ctx_adapters.claude_code.tests.subprocess_transport_invokes_claude_p_and_returns_stdout
+  - symbol: ctx_adapters.codex.tests.subprocess_transport_invokes_codex_exec_and_returns_stdout
+  - symbol: ctx_adapters.antigravity.tests.subprocess_transport_invokes_agy_p_and_returns_stdout
   - symbol: ctx_app.enrich.tests.analyzes_every_artifact_and_persists_only_relevant_candidates
+  - symbol: crates.ctx-cli.tests.e2e.enrich_dispatches_codex_to_codex_exec_with_its_own_binary_override
+  - symbol: crates.ctx-cli.tests.e2e.enrich_dispatches_antigravity_to_agy_p_with_its_own_binary_override

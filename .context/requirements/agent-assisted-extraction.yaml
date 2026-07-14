@@ -3,9 +3,10 @@ type: requirement
 feature: FEAT-INDEXING
 status: active
 statement: >
-  `ctx enrich --agent claude` must analyze one bounded artifact neighborhood
-  (REQ-NEIGHBORHOOD-001) at a time through an interchangeable agent boundary
-  (ADR-AGENT-001) and propose typed Feature/Requirement/Invariant/Decision
+  `ctx enrich --agent <claude|codex|antigravity>` must analyze one bounded
+  artifact neighborhood (REQ-NEIGHBORHOOD-001) at a time through an
+  interchangeable agent boundary (ADR-AGENT-001) and propose typed
+  Feature/Requirement/Invariant/Decision
   candidates only when the agent's own output cites concrete, verbatim
   evidence from that neighborhood — never free-form reasoning (PR-AI-004).
   Every evidence entry's artifact id and every implementation/test candidate
@@ -29,21 +30,33 @@ statement: >
   everything built before this phase
   (`ctx index`/`ctx impact`/`ctx review`/`ctx explain`/`ctx context`) keeps
   working unchanged with zero agents ever configured and zero candidates
-  ever proposed (PR-AGENT-002).
+  ever proposed (PR-AGENT-002). This contract -- prompt shape, JSON parsing,
+  evidence/path validation -- lives once in ctx_adapters.agent_contract and
+  applies identically to every vendor (ADR-AGENT-001): `--agent codex`
+  (`codex exec`, OpenAI) and `--agent antigravity` (`agy -p`, Google) are the
+  same guarantee through a different subprocess, not a second implementation
+  of it.
 implementation:
   - symbol: ctx_app.ports.SemanticAgent
   - symbol: ctx_app.enrich.EnrichRunner.run
+  - symbol: ctx_adapters.agent_contract.analyze
+  - symbol: ctx_adapters.agent_contract.to_outcome
   - symbol: ctx_adapters.claude_code.ClaudeCodeAgent.analyze_neighborhood
-  - symbol: ctx_adapters.claude_code.to_outcome
+  - symbol: ctx_adapters.codex.CodexAgent.analyze_neighborhood
+  - symbol: ctx_adapters.antigravity.AntigravityAgent.analyze_neighborhood
 tests:
-  - symbol: ctx_adapters.claude_code.tests.a_well_formed_relevant_response_becomes_a_grounded_candidate
-  - symbol: ctx_adapters.claude_code.tests.an_evidence_id_outside_the_neighborhood_is_dropped_not_trusted
-  - symbol: ctx_adapters.claude_code.tests.not_relevant_and_insufficient_evidence_pass_through_unchanged
-  - symbol: ctx_adapters.claude_code.tests.malformed_output_is_rejected_not_guessed_at
+  - symbol: ctx_adapters.agent_contract.tests.a_well_formed_relevant_response_becomes_a_grounded_candidate
+  - symbol: ctx_adapters.agent_contract.tests.an_evidence_id_outside_the_neighborhood_is_dropped_not_trusted
+  - symbol: ctx_adapters.agent_contract.tests.not_relevant_and_insufficient_evidence_pass_through_unchanged
+  - symbol: ctx_adapters.agent_contract.tests.malformed_output_is_rejected_not_guessed_at
   - symbol: ctx_adapters.claude_code.tests.subprocess_transport_invokes_claude_p_and_returns_stdout
+  - symbol: ctx_adapters.codex.tests.subprocess_transport_invokes_codex_exec_and_returns_stdout
+  - symbol: ctx_adapters.antigravity.tests.subprocess_transport_invokes_agy_p_and_returns_stdout
   - symbol: ctx_app.enrich.tests.analyzes_every_artifact_and_persists_only_relevant_candidates
   - symbol: ctx_app.enrich.tests.an_artifact_already_cited_by_a_pending_candidate_is_skipped
   - symbol: ctx_app.enrich.tests.not_relevant_outcomes_never_reach_the_candidate_store
   - symbol: ctx_app.enrich.tests.an_artifact_analyzed_at_its_current_content_hash_is_skipped_next_run
   - symbol: crates.ctx-cli.tests.e2e.enrich_shells_out_to_the_configured_agent_and_reports_its_outcome
   - symbol: crates.ctx-cli.tests.e2e.enrich_rejects_an_unsupported_agent
+  - symbol: crates.ctx-cli.tests.e2e.enrich_dispatches_codex_to_codex_exec_with_its_own_binary_override
+  - symbol: crates.ctx-cli.tests.e2e.enrich_dispatches_antigravity_to_agy_p_with_its_own_binary_override

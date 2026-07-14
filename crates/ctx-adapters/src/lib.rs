@@ -2,8 +2,10 @@
 
 pub mod agent_contract;
 pub mod analyzer;
+pub mod antigravity;
 pub mod business_context;
 pub mod claude_code;
+pub mod codex;
 mod database;
 pub mod git;
 pub mod gitlab;

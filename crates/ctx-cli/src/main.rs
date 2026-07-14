@@ -9,8 +9,10 @@ use chrono::Utc;
 use clap::{ArgAction, Parser, Subcommand};
 use ctx_adapters::{
     analyzer::AnalyzerRegistry,
+    antigravity::{AntigravityAgent, SubprocessTransport as AntigravitySubprocessTransport},
     business_context::YamlBusinessContextReader,
-    claude_code::{ClaudeCodeAgent, SubprocessTransport},
+    claude_code::{ClaudeCodeAgent, SubprocessTransport as ClaudeSubprocessTransport},
+    codex::{CodexAgent, SubprocessTransport as CodexSubprocessTransport},
     git::GitRepo,
     gitlab::{GitLabClient, GitLabConfig, UreqTransport},
     sqlite::SqliteStore,
@@ -84,7 +86,9 @@ enum Command {
     /// Analyze ingested artifacts with an AI agent for candidate product
     /// knowledge, queued for human verification via `ctx verify`.
     Enrich {
-        /// The agent to run ("claude": headless Claude Code CLI, `claude -p`).
+        /// The agent to run: "claude" (headless Claude Code CLI, `claude
+        /// -p`), "codex" (headless `OpenAI` Codex CLI, `codex exec`), or
+        /// "antigravity" (headless Google Antigravity CLI, `agy -p`).
         #[arg(long, default_value = "claude")]
         agent: String,
     },
@@ -160,7 +164,7 @@ enum CliError {
     Enrich(#[from] EnrichError),
     #[error("unsupported ingest source '{0}'; supported: git, code-comments, gitlab")]
     UnsupportedIngestSource(String),
-    #[error("unsupported agent '{0}'; supported: claude")]
+    #[error("unsupported agent '{0}'; supported: claude, codex, antigravity")]
     UnsupportedAgent(String),
     #[error("--knowledge --accept requires --id <STABLE-ID>")]
     MissingKnowledgeId,
@@ -902,20 +906,34 @@ fn ingest(cli: &Cli, git: &GitRepo, source: &str, since: Option<&str>) -> Result
 }
 
 fn enrich(cli: &Cli, git: &GitRepo, agent: &str) -> Result<(), CliError> {
-    if agent != "claude" {
-        return Err(CliError::UnsupportedAgent(agent.to_owned()));
-    }
     let database_path = database_path(git.root())?;
     let mut store = SqliteStore::open(&database_path)?;
     let repository = git.descriptor()?;
     let now = Utc::now().to_rfc3339();
     store.ensure_repository(&repository, &now)?;
-    // Overridable for tests, which stand in a fake script instead of
-    // depending on a real `claude` installation (mirrors CTX_GITLAB_TOKEN's
-    // env-var escape hatch for GitLab config).
-    let binary = env::var("CTX_CLAUDE_CLI_BINARY").unwrap_or_else(|_| "claude".to_owned());
-    let claude_agent = ClaudeCodeAgent::new(SubprocessTransport::new(binary), None);
-    let report = EnrichRunner::new(&claude_agent, &mut store).run(&repository.id, &now)?;
+    // Each binary override is overridable for tests, which stand in a fake
+    // script instead of depending on a real CLI installation (mirrors
+    // CTX_GITLAB_TOKEN's env-var escape hatch for GitLab config).
+    let report = match agent {
+        "claude" => {
+            let binary = env::var("CTX_CLAUDE_CLI_BINARY").unwrap_or_else(|_| "claude".to_owned());
+            let claude_agent = ClaudeCodeAgent::new(ClaudeSubprocessTransport::new(binary), None);
+            EnrichRunner::new(&claude_agent, &mut store).run(&repository.id, &now)?
+        }
+        "codex" => {
+            let binary = env::var("CTX_CODEX_CLI_BINARY").unwrap_or_else(|_| "codex".to_owned());
+            let codex_agent = CodexAgent::new(CodexSubprocessTransport::new(binary), None);
+            EnrichRunner::new(&codex_agent, &mut store).run(&repository.id, &now)?
+        }
+        "antigravity" => {
+            let binary =
+                env::var("CTX_ANTIGRAVITY_CLI_BINARY").unwrap_or_else(|_| "agy".to_owned());
+            let antigravity_agent =
+                AntigravityAgent::new(AntigravitySubprocessTransport::new(binary), None);
+            EnrichRunner::new(&antigravity_agent, &mut store).run(&repository.id, &now)?
+        }
+        other => return Err(CliError::UnsupportedAgent(other.to_owned())),
+    };
     if cli.json {
         println!("{}", serde_json::to_string_pretty(&report)?);
     } else {

@@ -106,22 +106,6 @@ pub fn analyze<T: AgentTransport>(
     Ok(to_outcome(parsed, neighborhood, &provenance))
 }
 
-/// Runs [`analyze`] and adapts the result to [`SemanticAgent`]'s `PortError`
-/// contract -- shared so every vendor's `impl SemanticAgent` is one line.
-///
-/// # Errors
-/// Returns [`ctx_app::ports::PortError`] wrapping any [`AgentContractError`].
-pub fn analyze_as_semantic_agent<T: AgentTransport>(
-    transport: &T,
-    neighborhood: &ArtifactNeighborhood,
-    produced_at: &str,
-    producer: &str,
-    model: Option<String>,
-) -> Result<AgentOutcome, ctx_app::ports::PortError> {
-    analyze(transport, neighborhood, produced_at, producer, model)
-        .map_err(|error| ctx_app::ports::PortError::new(error.to_string()))
-}
-
 fn known_artifact_ids(neighborhood: &ArtifactNeighborhood) -> Vec<String> {
     let mut ids = vec![format_identity(&neighborhood.subject.identity)];
     ids.extend(

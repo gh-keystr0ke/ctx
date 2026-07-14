@@ -404,12 +404,86 @@ fn enrich_shells_out_to_the_configured_agent_and_reports_its_outcome() {
     assert!(repository.ctx(&["status"])["health"].as_str().is_some());
 }
 
+/// The JSON-contract behavior (dropping untrusted evidence, malformed output,
+/// etc.) is already covered generically by `agent_contract`'s own tests and
+/// by the Claude e2e case above -- this confirms only what's actually new
+/// per agent: `--agent codex`/`--agent antigravity` dispatch to the right
+/// binary via the right env-var override and invoke it with the right argv
+/// shape (`codex exec <prompt>`, `agy -p <prompt>`). Each agent gets its own
+/// fixture repository so the Phase 8 incremental-analysis ledger from one
+/// run never skips the other's.
+#[test]
+fn enrich_dispatches_codex_to_codex_exec_with_its_own_binary_override() {
+    let repository = FixtureRepository::new();
+    repository.ctx(&["init"]);
+    repository.ctx(&["ingest", "git"]);
+
+    let script_path = repository.root().join("fake-codex.sh");
+    fs::write(
+        &script_path,
+        "#!/bin/sh\nif [ \"$1\" != \"exec\" ]; then exit 1; fi\necho '{\"outcome\":\"not_relevant\"}'\n",
+    )
+    .expect("write fake codex script");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut permissions = fs::metadata(&script_path)
+            .expect("script metadata")
+            .permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(&script_path, permissions).expect("chmod fake codex script");
+    }
+
+    let report = repository.ctx_with_env(
+        &["enrich", "--agent", "codex"],
+        &[(
+            "CTX_CODEX_CLI_BINARY",
+            script_path.to_str().expect("utf8 path"),
+        )],
+    );
+
+    assert!(report["neighborhoods_analyzed"].as_u64().unwrap_or(0) > 0);
+}
+
+#[test]
+fn enrich_dispatches_antigravity_to_agy_p_with_its_own_binary_override() {
+    let repository = FixtureRepository::new();
+    repository.ctx(&["init"]);
+    repository.ctx(&["ingest", "git"]);
+
+    let script_path = repository.root().join("fake-agy.sh");
+    fs::write(
+        &script_path,
+        "#!/bin/sh\nif [ \"$1\" != \"-p\" ]; then exit 1; fi\necho '{\"outcome\":\"not_relevant\"}'\n",
+    )
+    .expect("write fake agy script");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut permissions = fs::metadata(&script_path)
+            .expect("script metadata")
+            .permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(&script_path, permissions).expect("chmod fake agy script");
+    }
+
+    let report = repository.ctx_with_env(
+        &["enrich", "--agent", "antigravity"],
+        &[(
+            "CTX_ANTIGRAVITY_CLI_BINARY",
+            script_path.to_str().expect("utf8 path"),
+        )],
+    );
+
+    assert!(report["neighborhoods_analyzed"].as_u64().unwrap_or(0) > 0);
+}
+
 #[test]
 fn enrich_rejects_an_unsupported_agent() {
     let repository = FixtureRepository::new();
     repository.ctx(&["init"]);
 
-    let error = repository.ctx_failure(&["enrich", "--agent", "codex"]);
+    let error = repository.ctx_failure(&["enrich", "--agent", "gpt4"]);
     assert!(
         error["error"]
             .as_str()

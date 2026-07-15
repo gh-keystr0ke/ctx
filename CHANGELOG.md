@@ -2,6 +2,28 @@
 
 All notable changes to `ctx` are documented here. The project follows semantic versioning.
 
+## 0.5.0 — 2026-08-22
+
+### Added
+
+- external development-artifact ingestion: `ctx ingest git` (commit messages, branch names), `ctx ingest code-comments` (comments/docstrings attributed to their nearest symbol), and `ctx ingest gitlab` (issues, merge requests, and their comments — the chosen end-to-end MUST provider) normalize artifacts into their own store (`artifacts`, `artifact_links`), idempotently re-synced, never a `ctx-core::domain::Node` and never automatically promoted to product knowledge;
+- deterministic reference extraction (`ctx-core::linking`) linking a ticket key/issue/MR mention in artifact text to an already-known artifact, and changed-symbol links from an artifact's changeset to the code it touched — never a guessed relationship, and never using AI;
+- bounded artifact-neighborhood assembly (`ctx-core::neighborhood`) — one artifact's own linked artifacts, changed code, nearby tests, and already-mapped product knowledge, one hop only, never the whole repository or artifact backlog — as the unit of work handed to an AI agent;
+- an interchangeable `SemanticAgent` port boundary and three concrete CLI-based agents: Claude Code CLI, OpenAI Codex CLI, and Google Antigravity CLI (`ctx enrich --agent claude|codex|antigravity`, each independently overridable via `CTX_CLAUDE_CLI_BINARY`/`CTX_CODEX_CLI_BINARY`/`CTX_ANTIGRAVITY_CLI_BINARY`), sharing one prompt/JSON-response validation contract (`ctx-adapters::agent_contract`) so every vendor is held to the same evidence-grounding rule regardless of which one produced the response;
+- typed `Feature`/`Requirement`/`Invariant`/`Decision` knowledge candidates (`ctx-core::knowledge::KnowledgeCandidate`) proposed only from evidence an agent actually cited from its given neighborhood; a citation outside that bound, an implementation/test path the neighborhood never surfaced, or malformed output altogether is dropped or rejected, never trusted — absence of extracted knowledge is always preferred to a fabricated candidate;
+- `ctx verify --knowledge` to list and accept/reject pending AI-derived candidates; `--accept --id <STABLE-ID>` writes an ordinary `.context/*.yaml` document through the same import path a hand-authored file uses (no second, parallel truth store), refusing (unless `--force`) a statement that looks like a lexical restatement of an already-active document of the same kind;
+- incremental `ctx enrich`: an artifact whose content hasn't changed since its last analysis (regardless of outcome) is skipped rather than re-sent to an agent every run;
+- incremental `ctx ingest gitlab`: a stored per-project sync cursor narrows each run to issues/MRs GitLab itself reports as updated since the previous run;
+- an artifact-evidence heuristic-scoring signal: an implementation candidate scores higher when the same artifact that backed an accepted AI-derived requirement's evidence also touched that candidate symbol;
+- a precise, per-entity `needs_mappings` status health check (every active Requirement/Invariant/Decision with no implementation mapping, by identifier) replacing a coarser repository-wide aggregate that could hide one freshly accepted, still-unmapped document behind many already-mapped ones;
+- full provenance rendering in `ctx explain` for a document that reached the graph through `ctx verify --knowledge --accept`: which artifacts, which agent (producer/model), and who accepted it and when;
+- `ctx find <name>` discovery command, and independent per-match `ctx impact`/`ctx explain`/`ctx context` results when a short or bare name resolves to several distinct namespaces, instead of an ambiguity error or a merged result.
+
+### Fixed
+
+- a symbol-identity collision: the same-shape identity-matching fallback could let a brand-new file's symbol steal an unrelated, completely unchanged file's stable identity merely by sharing its name, kind, and structural shape — found by running `ctx index` against this repository's own history mid-sprint. The fallback's candidate pool is now restricted to symbols whose own file is actually part of the current transition.
+- a false positive in the new `needs_mappings` health check that would have flagged every `Feature` document as unmapped, including this repository's own — Feature documents are a pure descriptive umbrella by established convention, with the real mapping carried by the Requirements beneath them.
+
 ## 0.4.0 — 2026-08-18
 
 ### Added

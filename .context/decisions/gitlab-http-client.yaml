@@ -14,10 +14,13 @@ decision: >
   makes a handful of sequential requests per run. `GitLabClient` is generic
   over a `GitLabTransport` trait so its HTTP layer is swappable and its own
   tests run against canned fixture responses, never a live GitLab instance
-  or a real socket.
+  or a real socket. Incremental sync (REQ-INCR-001) reuses this same
+  transport unchanged — a cursor only changes the query string a `GET`
+  carries, never the client architecture.
 implementation:
   - symbol: ctx_adapters.gitlab.UreqTransport
   - symbol: ctx_adapters.gitlab.GitLabTransport
   - symbol: ctx_adapters.gitlab.GitLabClient
 tests:
   - symbol: ctx_adapters.gitlab.tests.fetches_issues_and_merge_requests_with_their_comments_and_commits
+  - symbol: ctx_adapters.gitlab.tests.a_sync_cursor_becomes_an_updated_after_query_parameter

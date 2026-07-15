@@ -145,7 +145,9 @@ impl<T: GitLabTransport> GitLabClient<T> {
         }
     }
 
-    /// Fetches every issue and merge request for the configured project,
+    /// Fetches every issue and merge request for the configured project, or
+    /// (when `since` is given) only those GitLab itself reports as updated
+    /// at or after that RFC3339 timestamp (prompt3.md PR-INCR-001, T8.1) --
     /// each with its own comments, and every merge request's associated
     /// commit SHAs. Returns the normalized artifacts and the deterministic
     /// (provider-reported, never AI-derived) links between them: a
@@ -157,12 +159,16 @@ impl<T: GitLabTransport> GitLabClient<T> {
     /// valid JSON.
     pub fn fetch_issue_and_mr_artifacts(
         &self,
+        since: Option<&str>,
     ) -> Result<(Vec<Artifact>, Vec<ArtifactLink>), GitLabError> {
         let mut artifacts = Vec::new();
         let mut links = Vec::new();
+        let updated_after = since
+            .map(|cursor| format!("&updated_after={}", encode_query_value(cursor)))
+            .unwrap_or_default();
 
         for issue in self.get_json::<Vec<RawIssue>>(&format!(
-            "/projects/{}/issues?per_page=100&order_by=iid&sort=asc",
+            "/projects/{}/issues?per_page=100&order_by=iid&sort=asc{updated_after}",
             encoded_project(&self.project)
         ))? {
             let identity = Self::issue_identity(issue.iid);
@@ -176,7 +182,7 @@ impl<T: GitLabTransport> GitLabClient<T> {
         }
 
         for merge_request in self.get_json::<Vec<RawMergeRequest>>(&format!(
-            "/projects/{}/merge_requests?per_page=100&order_by=iid&sort=asc",
+            "/projects/{}/merge_requests?per_page=100&order_by=iid&sort=asc{updated_after}",
             encoded_project(&self.project)
         ))? {
             let identity = Self::merge_request_identity(merge_request.iid);
@@ -314,8 +320,11 @@ impl<T: GitLabTransport> GitLabClient<T> {
 }
 
 impl<T: GitLabTransport> GitLabArtifactSource for GitLabClient<T> {
-    fn issue_and_mr_artifacts(&self) -> Result<(Vec<Artifact>, Vec<ArtifactLink>), PortError> {
-        self.fetch_issue_and_mr_artifacts()
+    fn issue_and_mr_artifacts(
+        &self,
+        since: Option<&str>,
+    ) -> Result<(Vec<Artifact>, Vec<ArtifactLink>), PortError> {
+        self.fetch_issue_and_mr_artifacts(since)
             .map_err(|error| PortError::new(error.to_string()))
     }
 }
@@ -325,6 +334,21 @@ fn encoded_project(project: &str) -> String {
     // when it is percent-encoded; a purely numeric project ID passes
     // through unchanged since `/` is the only character this replaces.
     project.replace('/', "%2F")
+}
+
+/// Percent-encodes the characters an RFC3339 timestamp can actually contain
+/// that are unsafe in a raw query string (`:` and, for a numeric UTC offset
+/// rather than `Z`, `+`) -- not a general query-string encoder, since this
+/// is the only kind of value this module ever puts in one.
+fn encode_query_value(value: &str) -> String {
+    value
+        .chars()
+        .map(|character| match character {
+            ':' => "%3A".to_owned(),
+            '+' => "%2B".to_owned(),
+            other => other.to_string(),
+        })
+        .collect()
 }
 
 #[derive(Deserialize)]
@@ -425,7 +449,7 @@ mod tests {
         let client = GitLabClient::new(FakeTransport { responses }, "billing/subscriptions");
 
         let (artifacts, links) = client
-            .issue_and_mr_artifacts()
+            .issue_and_mr_artifacts(None)
             .expect("issues and merge requests");
 
         assert_eq!(artifacts.len(), 3); // issue + 1 human comment + MR
@@ -465,5 +489,28 @@ mod tests {
                 external_id: "abc123def456".to_owned(),
             })
         );
+    }
+
+    #[test]
+    fn a_sync_cursor_becomes_an_updated_after_query_parameter() {
+        let mut responses = BTreeMap::new();
+        responses.insert(
+            "/projects/billing%2Fsubscriptions/issues?per_page=100&order_by=iid&sort=asc&updated_after=2026-08-21T00%3A00%3A00Z"
+                .to_owned(),
+            "[]".to_owned(),
+        );
+        responses.insert(
+            "/projects/billing%2Fsubscriptions/merge_requests?per_page=100&order_by=iid&sort=asc&updated_after=2026-08-21T00%3A00%3A00Z"
+                .to_owned(),
+            "[]".to_owned(),
+        );
+        let client = GitLabClient::new(FakeTransport { responses }, "billing/subscriptions");
+
+        let (artifacts, links) = client
+            .issue_and_mr_artifacts(Some("2026-08-21T00:00:00Z"))
+            .expect("incremental fetch");
+
+        assert!(artifacts.is_empty());
+        assert!(links.is_empty());
     }
 }

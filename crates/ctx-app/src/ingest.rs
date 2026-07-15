@@ -21,7 +21,7 @@ use thiserror::Error;
 
 use crate::ports::{
     ArtifactLinkStore, ArtifactRepository, GitArtifactSource, GitLabArtifactSource, GitRepository,
-    GraphStore, LanguageAnalyzer, PortError, ReviewRepository,
+    GraphStore, IngestCursorStore, LanguageAnalyzer, PortError, ReviewRepository,
 };
 
 /// Bumped when the normalization this runner applies to Git artifacts
@@ -109,6 +109,10 @@ where
     }
 }
 
+/// The provider tag `GitLabIngestRunner`'s cursor is stored under (matches
+/// `ArtifactProvider::GitLab`'s own serde tag).
+const GITLAB_CURSOR_PROVIDER: &str = "gitlab";
+
 /// Orchestrates GitLab issue/merge-request ingestion (prompt3.md PR-EXT-001
 /// MUST list, the chosen end-to-end provider): reads artifacts and their
 /// provider-reported deterministic links through [`GitLabArtifactSource`],
@@ -116,6 +120,11 @@ where
 /// [`text_reference_links`] the same way [`GitIngestRunner`] does, so a
 /// ticket reference in an MR body can resolve against artifacts from any
 /// source already known for this repository, not only other GitLab ones.
+/// Incremental by default (prompt3.md PR-INCR-001, T8.1): reads the
+/// repository's stored GitLab sync cursor first and asks the source for only
+/// what changed since then, then advances the cursor to `ingested_at` once
+/// the run succeeds -- a failed run leaves the old cursor in place so the
+/// same window is retried next time rather than silently skipped.
 pub struct GitLabIngestRunner<'a, G, S> {
     source: &'a G,
     store: &'a mut S,
@@ -124,7 +133,7 @@ pub struct GitLabIngestRunner<'a, G, S> {
 impl<'a, G, S> GitLabIngestRunner<'a, G, S>
 where
     G: GitLabArtifactSource,
-    S: ArtifactRepository + ArtifactLinkStore,
+    S: ArtifactRepository + ArtifactLinkStore + IngestCursorStore,
 {
     pub const fn new(source: &'a G, store: &'a mut S) -> Self {
         Self { source, store }
@@ -137,9 +146,13 @@ where
         repository: &RepositoryId,
         ingested_at: &str,
     ) -> Result<IngestReport, IngestError> {
+        let cursor = self
+            .store
+            .sync_cursor(repository, GITLAB_CURSOR_PROVIDER)
+            .map_err(IngestError::Store)?;
         let (artifacts, mut links) = self
             .source
-            .issue_and_mr_artifacts()
+            .issue_and_mr_artifacts(cursor.as_deref())
             .map_err(IngestError::Source)?;
         for artifact in &artifacts {
             self.store
@@ -157,6 +170,9 @@ where
         );
         self.store
             .persist_links(repository, &links)
+            .map_err(IngestError::Store)?;
+        self.store
+            .set_sync_cursor(repository, GITLAB_CURSOR_PROVIDER, ingested_at)
             .map_err(IngestError::Store)?;
         Ok(IngestReport {
             artifacts_ingested: artifacts.len(),
@@ -344,6 +360,7 @@ mod tests {
     struct FakeStore {
         artifacts: RefCell<BTreeMap<(ArtifactProvider, ArtifactKind, String), Artifact>>,
         links: RefCell<Vec<ArtifactLink>>,
+        cursors: RefCell<BTreeMap<String, String>>,
     }
 
     impl ArtifactRepository for FakeStore {
@@ -399,6 +416,28 @@ mod tests {
 
         fn list_links(&self, _repository: &RepositoryId) -> Result<Vec<ArtifactLink>, PortError> {
             Ok(self.links.borrow().clone())
+        }
+    }
+
+    impl IngestCursorStore for FakeStore {
+        fn sync_cursor(
+            &self,
+            _repository: &RepositoryId,
+            provider: &str,
+        ) -> Result<Option<String>, PortError> {
+            Ok(self.cursors.borrow().get(provider).cloned())
+        }
+
+        fn set_sync_cursor(
+            &mut self,
+            _repository: &RepositoryId,
+            provider: &str,
+            cursor: &str,
+        ) -> Result<(), PortError> {
+            self.cursors
+                .borrow_mut()
+                .insert(provider.to_owned(), cursor.to_owned());
+            Ok(())
         }
     }
 
@@ -481,13 +520,21 @@ mod tests {
         );
     }
 
+    #[derive(Default)]
     struct FakeGitLabSource {
         artifacts: Vec<Artifact>,
         links: Vec<ArtifactLink>,
+        received_since: RefCell<Vec<Option<String>>>,
     }
 
     impl GitLabArtifactSource for FakeGitLabSource {
-        fn issue_and_mr_artifacts(&self) -> Result<(Vec<Artifact>, Vec<ArtifactLink>), PortError> {
+        fn issue_and_mr_artifacts(
+            &self,
+            since: Option<&str>,
+        ) -> Result<(Vec<Artifact>, Vec<ArtifactLink>), PortError> {
+            self.received_since
+                .borrow_mut()
+                .push(since.map(str::to_owned));
             Ok((self.artifacts.clone(), self.links.clone()))
         }
     }
@@ -537,6 +584,7 @@ mod tests {
         let source = FakeGitLabSource {
             artifacts: vec![issue.clone(), merge_request.clone()],
             links: vec![comments_on.clone()],
+            ..FakeGitLabSource::default()
         };
         let mut store = FakeStore::default();
         let repository = RepositoryId::new("repo:test").expect("repository ID");
@@ -558,6 +606,33 @@ mod tests {
             store.list_artifacts(&repository).expect("artifacts").len(),
             2,
             "re-running ingestion must not duplicate artifacts"
+        );
+    }
+
+    #[test]
+    fn gitlab_ingest_advances_its_sync_cursor_and_passes_it_to_the_next_run() {
+        let source = FakeGitLabSource::default();
+        let mut store = FakeStore::default();
+        let repository = RepositoryId::new("repo:test").expect("repository ID");
+
+        GitLabIngestRunner::new(&source, &mut store)
+            .run(&repository, "2026-08-21T00:00:00Z")
+            .expect("first run");
+        GitLabIngestRunner::new(&source, &mut store)
+            .run(&repository, "2026-08-21T01:00:00Z")
+            .expect("second run");
+
+        assert_eq!(
+            *source.received_since.borrow(),
+            vec![None, Some("2026-08-21T00:00:00Z".to_owned())],
+            "the first run has no prior cursor, the second gets the first run's ingested_at"
+        );
+        assert_eq!(
+            store
+                .sync_cursor(&repository, "gitlab")
+                .expect("stored cursor"),
+            Some("2026-08-21T01:00:00Z".to_owned()),
+            "the cursor advances to the latest successful run's timestamp"
         );
     }
 }

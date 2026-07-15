@@ -1,4 +1,6 @@
-use ctx_app::ports::{ArtifactLinkStore, ArtifactRepository, KnowledgeCandidateStore, PortError};
+use ctx_app::ports::{
+    ArtifactLinkStore, ArtifactRepository, IngestCursorStore, KnowledgeCandidateStore, PortError,
+};
 use ctx_core::{
     artifact::{
         Artifact, ArtifactIdentity, ArtifactKind, ArtifactLink, ArtifactLinkKind,
@@ -516,6 +518,47 @@ impl KnowledgeCandidateStore for SqliteStore {
                 })
             })
             .transpose()
+    }
+}
+
+impl IngestCursorStore for SqliteStore {
+    fn sync_cursor(
+        &self,
+        repository: &RepositoryId,
+        provider: &str,
+    ) -> Result<Option<String>, PortError> {
+        self.connection
+            .query_row(
+                "SELECT ic.cursor
+                 FROM ingest_cursors ic
+                 JOIN repositories r ON r.id = ic.repository_id
+                 WHERE r.stable_id = ?1 AND ic.provider = ?2",
+                params![repository.as_str(), provider],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(database_error)
+    }
+
+    fn set_sync_cursor(
+        &mut self,
+        repository: &RepositoryId,
+        provider: &str,
+        cursor: &str,
+    ) -> Result<(), PortError> {
+        let transaction = self.connection.transaction().map_err(database_error)?;
+        let repository_row = repository_row(&transaction, repository)?;
+        transaction
+            .execute(
+                "INSERT INTO ingest_cursors(repository_id, provider, cursor, updated_at)
+                 VALUES (?1, ?2, ?3, ?3)
+                 ON CONFLICT(repository_id, provider) DO UPDATE SET
+                    cursor = excluded.cursor,
+                    updated_at = excluded.updated_at",
+                params![repository_row, provider, cursor],
+            )
+            .map_err(database_error)?;
+        transaction.commit().map_err(database_error)
     }
 }
 
@@ -1048,6 +1091,41 @@ mod tests {
         assert_eq!(
             updated.get(&artifact.identity),
             Some(&"new-hash".to_owned())
+        );
+    }
+
+    #[test]
+    fn sync_cursor_round_trips_and_advances_in_place() {
+        let directory = tempdir().expect("temporary directory");
+        let (mut store, repository) = open_repository(directory.path());
+
+        assert_eq!(
+            store.sync_cursor(&repository, "gitlab").expect("cursor"),
+            None,
+            "no cursor stored yet"
+        );
+
+        store
+            .set_sync_cursor(&repository, "gitlab", "2026-08-21T00:00:00Z")
+            .expect("set cursor");
+        assert_eq!(
+            store.sync_cursor(&repository, "gitlab").expect("cursor"),
+            Some("2026-08-21T00:00:00Z".to_owned())
+        );
+
+        store
+            .set_sync_cursor(&repository, "gitlab", "2026-08-21T01:00:00Z")
+            .expect("advance cursor");
+        assert_eq!(
+            store.sync_cursor(&repository, "gitlab").expect("cursor"),
+            Some("2026-08-21T01:00:00Z".to_owned()),
+            "re-setting must update the existing row, not create a second one"
+        );
+
+        // A different provider's cursor is tracked independently.
+        assert_eq!(
+            store.sync_cursor(&repository, "code").expect("cursor"),
+            None
         );
     }
 }

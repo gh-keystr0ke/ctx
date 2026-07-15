@@ -17,6 +17,7 @@ const MIGRATIONS: &[(i64, &str)] = &[
     ),
     (3, include_str!("../migrations/003_external_artifacts.sql")),
     (4, include_str!("../migrations/004_enrich_ledger.sql")),
+    (5, include_str!("../migrations/005_ingest_cursors.sql")),
 ];
 
 #[derive(Debug, Error)]
@@ -98,13 +99,13 @@ mod tests {
                     'repositories', 'commits', 'nodes', 'node_versions', 'edges',
                     'sources', 'evidence', 'edge_evidence', 'annotations', 'aliases',
                     'derivations', 'artifacts', 'artifact_links', 'knowledge_candidates',
-                    'artifact_analysis'
+                    'artifact_analysis', 'ingest_cursors'
                 )",
                 [],
                 |row| row.get(0),
             )
             .expect("query schema");
-        assert_eq!(table_count, 15);
+        assert_eq!(table_count, 16);
 
         drop(store);
         SqliteStore::open(&database).expect("migrations are idempotent");

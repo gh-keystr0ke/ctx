@@ -258,10 +258,45 @@ pub trait GitArtifactSource {
 /// AI-derived) links GitLab's own API establishes between them
 /// (prompt3.md PR-EXT-001 MUST list: the chosen end-to-end provider).
 pub trait GitLabArtifactSource {
+    /// Fetches every issue and merge request, or (when `since` is given)
+    /// only those GitLab itself reports as updated at or after that RFC3339
+    /// timestamp (prompt3.md PR-INCR-001, T8.1) -- an incremental sync, not
+    /// a second idempotency mechanism: re-ingesting an artifact this returns
+    /// still upserts by identity exactly as a full sync would.
+    ///
     /// # Errors
     /// Returns [`PortError`] when a GitLab request fails or its response is
     /// invalid.
-    fn issue_and_mr_artifacts(&self) -> Result<(Vec<Artifact>, Vec<ArtifactLink>), PortError>;
+    fn issue_and_mr_artifacts(
+        &self,
+        since: Option<&str>,
+    ) -> Result<(Vec<Artifact>, Vec<ArtifactLink>), PortError>;
+}
+
+/// Per-provider "last synced at" cursor (prompt3.md PR-INCR-001, T8.1):
+/// lets `ctx ingest <source>` ask a provider for only what changed since the
+/// previous run instead of re-fetching everything every time, mirroring
+/// [`IndexStore::latest_commit`]'s pattern for Git itself. Distinct from
+/// [`ArtifactRepository`]'s per-artifact analysis ledger (Phase 8's
+/// `REQ-INCR-002`): this cursor is about what to *ask a provider for*, not
+/// whether to re-analyze what is already stored.
+pub trait IngestCursorStore {
+    /// # Errors
+    /// Returns [`PortError`] when the stored cursor cannot be read.
+    fn sync_cursor(
+        &self,
+        repository: &RepositoryId,
+        provider: &str,
+    ) -> Result<Option<String>, PortError>;
+
+    /// # Errors
+    /// Returns [`PortError`] when the cursor cannot be persisted.
+    fn set_sync_cursor(
+        &mut self,
+        repository: &RepositoryId,
+        provider: &str,
+        cursor: &str,
+    ) -> Result<(), PortError>;
 }
 
 /// Persists raw external artifacts (prompt3.md PR-EXT-*), kept separate from

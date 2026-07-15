@@ -1,0 +1,30 @@
+id: REQ-INCR-001
+type: requirement
+feature: FEAT-INDEXING
+status: active
+statement: >
+  `ctx ingest gitlab` must fetch only issues and merge requests GitLab
+  itself reports as updated since the previous successful run (prompt3.md
+  §18 SHOULD, T8.1/PR-INCR-001), not re-fetch the whole project's history on
+  every invocation. A per-(repository, provider) sync cursor is stored
+  (`ingest_cursors`, mirroring `IndexStore.latest_commit`'s pattern for Git
+  itself) and passed to GitLab's own `updated_after` query parameter; a run
+  with no prior cursor fetches everything, exactly as before this
+  requirement existed. The cursor only advances once a run's artifacts and
+  links are fully persisted — a failed run leaves the previous cursor in
+  place so the same time window is retried on the next run rather than
+  silently skipped. This is a genuine optimization on top of, not a
+  replacement for, `ctx ingest gitlab`'s existing idempotent upsert
+  (REQ-EXT-001): re-ingesting an artifact the incremental fetch happens to
+  return again still versions the same stored row rather than duplicating
+  it, so a wrong or reset cursor degrades to "slower," never "wrong."
+implementation:
+  - symbol: ctx_app.ports.IngestCursorStore
+  - symbol: ctx_app.ingest.GitLabIngestRunner.run
+  - symbol: ctx_adapters.gitlab.GitLabClient.fetch_issue_and_mr_artifacts
+  - symbol: ctx_adapters.sqlite.artifacts.SqliteStore.IngestCursorStore.sync_cursor
+  - symbol: ctx_adapters.sqlite.artifacts.SqliteStore.IngestCursorStore.set_sync_cursor
+tests:
+  - symbol: ctx_app.ingest.tests.gitlab_ingest_advances_its_sync_cursor_and_passes_it_to_the_next_run
+  - symbol: ctx_adapters.gitlab.tests.a_sync_cursor_becomes_an_updated_after_query_parameter
+  - symbol: ctx_adapters.sqlite.artifacts.tests.sync_cursor_round_trips_and_advances_in_place

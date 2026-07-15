@@ -11,9 +11,10 @@ decision: >
   profiling evidence. External development artifacts (commits, branches,
   GitLab issues/MRs, code comments/docstrings) extend this same store as
   their own tables (`artifacts`, `artifact_links`, `knowledge_candidates`,
-  and `artifact_analysis` for `ctx enrich`'s per-artifact incremental
-  ledger) rather than a second storage technology, matching this decision's
-  original reasoning.
+  `artifact_analysis` for `ctx enrich`'s per-artifact incremental ledger,
+  and `ingest_cursors` for `ctx ingest gitlab`'s per-provider sync cursor,
+  REQ-INCR-001) rather than a second storage technology, matching this
+  decision's original reasoning.
 implementation:
   - symbol: ctx_adapters.sqlite.SqliteStore.open
   - symbol: ctx_adapters.sqlite.index.SqliteStore.IndexStore.apply_index

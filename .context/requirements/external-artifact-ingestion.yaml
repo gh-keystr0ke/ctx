@@ -36,7 +36,13 @@ statement: >
   `CommentsOn` its issue/MR, an MR `ContainsCommit` for each of its commits)
   — on top of which the same text-reference scan every other source uses
   still runs, so a ticket mentioned in an MR body can resolve against an
-  artifact from any already-known source, not only GitLab's own.
+  artifact from any already-known source, not only GitLab's own. GitLab
+  ingestion is incremental by default (REQ-INCR-001): a stored sync cursor
+  narrows the fetch to what changed since the previous run, but this is an
+  optimization layered on top of the idempotent upsert this document
+  requires, not a substitute for it — a missing, reset, or wrong cursor
+  still degrades to "fetches more than strictly necessary," never to a
+  duplicated or stale artifact.
 implementation:
   - symbol: ctx_adapters.git.GitRepo.GitArtifactSource.commit_artifacts
   - symbol: ctx_adapters.git.GitRepo.GitArtifactSource.branch_artifacts

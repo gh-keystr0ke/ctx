@@ -12,7 +12,10 @@
 
 use std::collections::HashSet;
 
-use ctx_core::{domain::RepositoryId, knowledge::AgentOutcome, neighborhood::build_neighborhood};
+use ctx_core::{
+    artifact::Artifact, domain::RepositoryId, knowledge::AgentOutcome,
+    neighborhood::build_neighborhood,
+};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -61,6 +64,27 @@ where
         repository: &RepositoryId,
         produced_at: &str,
     ) -> Result<EnrichReport, EnrichError> {
+        self.run_with_progress(repository, produced_at, &mut |_, _, _| {})
+    }
+
+    /// Same as [`Self::run`], but calls `on_progress(position, total,
+    /// subject)` immediately before each real agent call -- the slow step,
+    /// typically a real subprocess/LLM round trip -- so a caller with many
+    /// ingested artifacts can show the user it is still making progress
+    /// rather than looking indistinguishable from a hang. `position` and
+    /// `total` are 1-based positions within the full set of known
+    /// artifacts, including ones this run will end up skipping, so the
+    /// count is stable and meaningful even while skipping.
+    ///
+    /// # Errors
+    /// Returns [`EnrichError`] when stored state cannot be read, the agent
+    /// fails, or resulting candidates cannot be persisted.
+    pub fn run_with_progress(
+        &mut self,
+        repository: &RepositoryId,
+        produced_at: &str,
+        on_progress: &mut dyn FnMut(usize, usize, &Artifact),
+    ) -> Result<EnrichReport, EnrichError> {
         let known_artifacts = self
             .store
             .list_artifacts(repository)
@@ -86,9 +110,10 @@ where
             .analyzed_content_hashes(repository)
             .map_err(EnrichError::Read)?;
 
+        let total = known_artifacts.len();
         let mut report = EnrichReport::default();
         let mut proposed = Vec::new();
-        for subject in &known_artifacts {
+        for (index, subject) in known_artifacts.iter().enumerate() {
             if already_pending.contains(&subject.identity) {
                 report.artifacts_skipped_already_pending += 1;
                 continue;
@@ -97,6 +122,7 @@ where
                 report.artifacts_skipped_unchanged += 1;
                 continue;
             }
+            on_progress(index + 1, total, subject);
             let neighborhood = build_neighborhood(subject, &links, &known_artifacts, &graph);
             let outcome = self
                 .agent
@@ -415,6 +441,40 @@ mod tests {
         assert_eq!(
             store.analyzed.borrow().get(&issue.identity),
             Some(&issue.content_hash)
+        );
+    }
+
+    #[test]
+    fn run_with_progress_reports_position_and_total_only_for_real_analysis() {
+        let first = artifact("1");
+        let second = artifact("2"); // will be skipped: already pending
+        let third = artifact("3");
+        let mut store = FakeStore {
+            artifacts: vec![first.clone(), second.clone(), third.clone()],
+            pending: RefCell::new(vec![candidate(&second.identity)]),
+            ..FakeStore::default()
+        };
+        let agent = FakeAgent {
+            outcome: RefCell::new(BTreeMap::new()),
+            calls: RefCell::new(0),
+        };
+        let repository = RepositoryId::new("repo:test").expect("repository ID");
+        let mut seen = Vec::new();
+
+        EnrichRunner::new(&agent, &mut store)
+            .run_with_progress(
+                &repository,
+                "2026-08-22T00:00:00Z",
+                &mut |position, total, subject| {
+                    seen.push((position, total, subject.identity.external_id.clone()));
+                },
+            )
+            .expect("enrich run");
+
+        assert_eq!(
+            seen,
+            vec![(1, 3, "1".to_owned()), (3, 3, "3".to_owned())],
+            "reported once per real analysis, positioned within the full known-artifact count, skipping the already-pending one silently"
         );
     }
 }

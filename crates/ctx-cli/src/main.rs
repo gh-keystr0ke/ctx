@@ -914,23 +914,47 @@ fn enrich(cli: &Cli, git: &GitRepo, agent: &str) -> Result<(), CliError> {
     // Each binary override is overridable for tests, which stand in a fake
     // script instead of depending on a real CLI installation (mirrors
     // CTX_GITLAB_TOKEN's env-var escape hatch for GitLab config).
+    //
+    // Printed to stderr (never stdout, so --json output stays parseable) so
+    // a real agent call -- which can easily take tens of seconds per
+    // artifact -- never looks indistinguishable from a hang across a large
+    // ingested set.
+    let mut report_progress =
+        |position: usize, total: usize, subject: &ctx_core::artifact::Artifact| {
+            eprintln!(
+                "[{position}/{total}] analyzing {:?} {} via {agent}...",
+                subject.identity.kind, subject.identity.external_id
+            );
+        };
     let report = match agent {
         "claude" => {
             let binary = env::var("CTX_CLAUDE_CLI_BINARY").unwrap_or_else(|_| "claude".to_owned());
             let claude_agent = ClaudeCodeAgent::new(ClaudeSubprocessTransport::new(binary), None);
-            EnrichRunner::new(&claude_agent, &mut store).run(&repository.id, &now)?
+            EnrichRunner::new(&claude_agent, &mut store).run_with_progress(
+                &repository.id,
+                &now,
+                &mut report_progress,
+            )?
         }
         "codex" => {
             let binary = env::var("CTX_CODEX_CLI_BINARY").unwrap_or_else(|_| "codex".to_owned());
             let codex_agent = CodexAgent::new(CodexSubprocessTransport::new(binary), None);
-            EnrichRunner::new(&codex_agent, &mut store).run(&repository.id, &now)?
+            EnrichRunner::new(&codex_agent, &mut store).run_with_progress(
+                &repository.id,
+                &now,
+                &mut report_progress,
+            )?
         }
         "antigravity" => {
             let binary =
                 env::var("CTX_ANTIGRAVITY_CLI_BINARY").unwrap_or_else(|_| "agy".to_owned());
             let antigravity_agent =
                 AntigravityAgent::new(AntigravitySubprocessTransport::new(binary), None);
-            EnrichRunner::new(&antigravity_agent, &mut store).run(&repository.id, &now)?
+            EnrichRunner::new(&antigravity_agent, &mut store).run_with_progress(
+                &repository.id,
+                &now,
+                &mut report_progress,
+            )?
         }
         other => return Err(CliError::UnsupportedAgent(other.to_owned())),
     };

@@ -18,6 +18,7 @@ const MIGRATIONS: &[(i64, &str)] = &[
     (3, include_str!("../migrations/003_external_artifacts.sql")),
     (4, include_str!("../migrations/004_enrich_ledger.sql")),
     (5, include_str!("../migrations/005_ingest_cursors.sql")),
+    (6, include_str!("../migrations/006_decision_method.sql")),
 ];
 
 #[derive(Debug, Error)]

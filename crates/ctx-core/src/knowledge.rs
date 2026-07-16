@@ -95,27 +95,50 @@ pub enum AgentOutcome {
     InsufficientEvidence,
 }
 
-/// A candidate that was accepted, with the human decision recorded alongside
-/// it (PR-VERIFY-002) -- read back by `ctx explain` (Phase 9) to render the
-/// full artifact -> agent -> human chain behind the document it became.
+/// Who made a decision on a pending [`KnowledgeCandidate`] -- a human
+/// (`ctx verify --knowledge`) or an agent's own independent second-opinion
+/// review (`ctx verify --knowledge --auto`). Kept as a real, structured
+/// field rather than folded into the free-text `decided_by` author string,
+/// so `ctx explain` can never render an agent's own decision as though a
+/// human made it (`INV-EPISTEMIC-001` still holds either way: a human
+/// explicitly configured and triggered `--auto`, but the resulting
+/// document's provenance says so honestly rather than looking identical to
+/// a human review that never happened).
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DecisionMethod {
+    Human,
+    Agent,
+}
+
+/// A candidate that was accepted, with the decision recorded alongside it
+/// (PR-VERIFY-002) -- read back by `ctx explain` (Phase 9) to render the
+/// full artifact -> agent-inference -> decision chain behind the document
+/// it became.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AcceptedKnowledgeRecord {
     pub candidate: KnowledgeCandidate,
     pub decided_by: String,
     pub decided_at: String,
+    pub decision_method: DecisionMethod,
 }
 
-/// A human's decision on one pending [`KnowledgeCandidate`] (PR-VERIFY-001).
-/// Unlike the heuristic `SemanticCandidate` accept path (which only asserts
-/// an already-known claim), accepting a `KnowledgeCandidate` creates a new
-/// product-knowledge entity, so acceptance carries the human-chosen stable
-/// ID that entity will have (PR-VERIFY-002 keeps the original candidate row,
+/// A decision on one pending [`KnowledgeCandidate`] (PR-VERIFY-001). Unlike
+/// the heuristic `SemanticCandidate` accept path (which only asserts an
+/// already-known claim), accepting a `KnowledgeCandidate` creates a new
+/// product-knowledge entity, so acceptance carries the chosen stable ID
+/// that entity will have (PR-VERIFY-002 keeps the original candidate row,
 /// status `accepted`, pointing at this same ID, rather than discarding the
 /// chain once the resulting document exists).
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum KnowledgeDecision {
-    Accept { document_id: String },
-    Reject,
+    Accept {
+        document_id: String,
+        method: DecisionMethod,
+    },
+    Reject {
+        method: DecisionMethod,
+    },
 }
 
 #[cfg(test)]

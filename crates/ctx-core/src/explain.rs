@@ -6,6 +6,7 @@ use thiserror::Error;
 use crate::{
     domain::{ClaimClass, ClaimStatus, SourceKind},
     graph::{GraphEdge, GraphEvidence, GraphNode, GraphSnapshot, NodeSummary},
+    knowledge::DecisionMethod,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -37,6 +38,12 @@ pub struct KnowledgeProvenance {
     pub agent_model: Option<String>,
     pub decided_by: String,
     pub decided_at: String,
+    /// Whether `decided_by` names a human (`ctx verify --knowledge`) or an
+    /// agent's own independent second-opinion review (`--auto`) -- kept
+    /// alongside `decided_by` so rendering never has to guess, and never
+    /// silently presents an agent's own decision as a human review that
+    /// never happened (`INV-EPISTEMIC-001`).
+    pub decision_method: DecisionMethod,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]

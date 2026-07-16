@@ -106,6 +106,7 @@ where
             agent_model: record.candidate.provenance.model,
             decided_by: record.decided_by,
             decided_at: record.decided_at,
+            decision_method: record.decision_method,
         }))
     }
 
@@ -316,6 +317,7 @@ mod tests {
             },
             decided_by: "alice".to_owned(),
             decided_at: "2026-08-21T01:00:00Z".to_owned(),
+            decision_method: ctx_core::knowledge::DecisionMethod::Human,
         }
     }
 
@@ -354,6 +356,10 @@ mod tests {
         assert_eq!(provenance.derived_from, vec!["gitlab:issue:317".to_owned()]);
         assert_eq!(provenance.agent_producer, "claude-code");
         assert_eq!(provenance.decided_by, "alice");
+        assert_eq!(
+            provenance.decision_method,
+            ctx_core::knowledge::DecisionMethod::Human
+        );
     }
 
     #[test]

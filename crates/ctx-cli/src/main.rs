@@ -369,6 +369,7 @@ fn verify_knowledge(
             author,
             &now,
             force,
+            ctx_core::knowledge::DecisionMethod::Human,
         )?;
         if cli.json {
             println!(
@@ -381,7 +382,13 @@ fn verify_knowledge(
         return Ok(());
     }
     if let Some(fingerprint) = reject {
-        service.reject(&repository.id, fingerprint, author, &now)?;
+        service.reject(
+            &repository.id,
+            fingerprint,
+            author,
+            &now,
+            ctx_core::knowledge::DecisionMethod::Human,
+        )?;
         if cli.json {
             println!("{}", json!({"ok": true, "fingerprint": fingerprint}));
         } else {
@@ -463,7 +470,13 @@ fn review_knowledge_candidate_interactively(
                 break;
             }
             "n" => {
-                service.reject(repository, &candidate.fingerprint, author, now)?;
+                service.reject(
+                    repository,
+                    &candidate.fingerprint,
+                    author,
+                    now,
+                    ctx_core::knowledge::DecisionMethod::Human,
+                )?;
                 break;
             }
             "s" => break,
@@ -489,6 +502,7 @@ fn accept_knowledge_candidate_interactively(
         author,
         now,
         force,
+        ctx_core::knowledge::DecisionMethod::Human,
     ) {
         Ok(path) => {
             println!("Accepted as {chosen_id} -> {path}");
@@ -509,6 +523,7 @@ fn accept_knowledge_candidate_interactively(
                     author,
                     now,
                     true,
+                    ctx_core::knowledge::DecisionMethod::Human,
                 )?;
                 println!("Accepted as {chosen_id} -> {path}");
             } else {
@@ -807,10 +822,16 @@ fn explain(cli: &Cli, git: &GitRepo, target: &str) -> Result<(), CliError> {
                 provenance.agent_producer,
                 provenance.agent_model.as_deref().unwrap_or("unknown model")
             );
-            println!(
-                "  Verified by: {} at {}",
-                provenance.decided_by, provenance.decided_at
-            );
+            match provenance.decision_method {
+                ctx_core::knowledge::DecisionMethod::Human => println!(
+                    "  Verified by: {} at {}",
+                    provenance.decided_by, provenance.decided_at
+                ),
+                ctx_core::knowledge::DecisionMethod::Agent => println!(
+                    "  Auto-verified by: {} at {} (no human review)",
+                    provenance.decided_by, provenance.decided_at
+                ),
+            }
         }
         for claim in explanation.claims {
             println!("- {}", claim.claim);

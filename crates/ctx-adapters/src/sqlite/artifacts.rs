@@ -412,20 +412,25 @@ impl KnowledgeCandidateStore for SqliteStore {
     ) -> Result<(), PortError> {
         let transaction = self.connection.transaction().map_err(database_error)?;
         let repository_row = repository_row(&transaction, repository)?;
-        let (status, document_id) = match decision {
-            KnowledgeDecision::Accept { document_id } => ("accepted", Some(document_id.as_str())),
-            KnowledgeDecision::Reject => ("rejected", None),
+        let (status, document_id, method) = match decision {
+            KnowledgeDecision::Accept {
+                document_id,
+                method,
+            } => ("accepted", Some(document_id.as_str()), *method),
+            KnowledgeDecision::Reject { method } => ("rejected", None, *method),
         };
         let updated = transaction
             .execute(
                 "UPDATE knowledge_candidates
-                 SET status = ?1, resulting_document_id = ?2, decided_by = ?3, decided_at = ?4
-                 WHERE repository_id = ?5 AND fingerprint = ?6 AND status = 'pending'",
+                 SET status = ?1, resulting_document_id = ?2, decided_by = ?3, decided_at = ?4,
+                     decision_method = ?5
+                 WHERE repository_id = ?6 AND fingerprint = ?7 AND status = 'pending'",
                 params![
                     status,
                     document_id,
                     author,
                     timestamp,
+                    decision_method_str(method),
                     repository_row,
                     fingerprint,
                 ],
@@ -482,7 +487,8 @@ impl KnowledgeCandidateStore for SqliteStore {
                 "SELECT kc.fingerprint, kc.kind, kc.statement, kc.evidence_json,
                         kc.implementation_candidates_json, kc.test_candidates_json,
                         kc.agent_producer, kc.agent_model, kc.input_artifact_ids_json,
-                        kc.produced_at, kc.agent_fingerprint, kc.decided_by, kc.decided_at
+                        kc.produced_at, kc.agent_fingerprint, kc.decided_by, kc.decided_at,
+                        kc.decision_method
                  FROM knowledge_candidates kc
                  JOIN repositories r ON r.id = kc.repository_id
                  WHERE r.stable_id = ?1 AND kc.status = 'accepted'
@@ -505,16 +511,18 @@ impl KnowledgeCandidateStore for SqliteStore {
                         ),
                         row.get::<_, String>(11)?,
                         row.get::<_, String>(12)?,
+                        row.get::<_, Option<String>>(13)?,
                     ))
                 },
             )
             .optional()
             .map_err(database_error)?
-            .map(|(columns, decided_by, decided_at)| {
+            .map(|(columns, decided_by, decided_at, method)| {
                 Ok(ctx_core::knowledge::AcceptedKnowledgeRecord {
                     candidate: candidate_from_columns(columns)?,
                     decided_by,
                     decided_at,
+                    decision_method: parse_decision_method(method.as_deref())?,
                 })
             })
             .transpose()
@@ -818,6 +826,27 @@ fn parse_candidate_kind(value: &str) -> Result<BusinessKind, PortError> {
     }
 }
 
+const fn decision_method_str(method: ctx_core::knowledge::DecisionMethod) -> &'static str {
+    match method {
+        ctx_core::knowledge::DecisionMethod::Human => "human",
+        ctx_core::knowledge::DecisionMethod::Agent => "agent",
+    }
+}
+
+/// `None` covers a row decided before this column existed -- every prior
+/// decision really was a human one, since `--auto` didn't exist yet.
+fn parse_decision_method(
+    value: Option<&str>,
+) -> Result<ctx_core::knowledge::DecisionMethod, PortError> {
+    match value {
+        None | Some("human") => Ok(ctx_core::knowledge::DecisionMethod::Human),
+        Some("agent") => Ok(ctx_core::knowledge::DecisionMethod::Agent),
+        Some(other) => Err(PortError::new(format!(
+            "unknown knowledge decision method '{other}'"
+        ))),
+    }
+}
+
 #[allow(clippy::needless_pass_by_value)]
 fn database_error(error: rusqlite::Error) -> PortError {
     PortError::new(format!("SQLite artifact operation failed: {error}"))
@@ -1019,6 +1048,7 @@ mod tests {
                 &candidate.fingerprint,
                 &KnowledgeDecision::Accept {
                     document_id: "REQ-SUB-014".to_owned(),
+                    method: ctx_core::knowledge::DecisionMethod::Human,
                 },
                 "alice",
                 "2026-08-21T02:00:00Z",
@@ -1032,16 +1062,84 @@ mod tests {
                 .is_empty()
         );
 
+        let record = store
+            .accepted_record_for_document(&repository, "REQ-SUB-014")
+            .expect("read accepted record")
+            .expect("record exists");
+        assert_eq!(
+            record.decision_method,
+            ctx_core::knowledge::DecisionMethod::Human
+        );
+
         let error = store
             .record_decision(
                 &repository,
                 &candidate.fingerprint,
-                &KnowledgeDecision::Reject,
+                &KnowledgeDecision::Reject {
+                    method: ctx_core::knowledge::DecisionMethod::Human,
+                },
                 "alice",
                 "2026-08-21T03:00:00Z",
             )
             .expect_err("an already-decided candidate cannot be decided again");
         assert!(error.to_string().contains("not currently pending"));
+    }
+
+    #[test]
+    fn accepted_record_reports_an_agent_decision_honestly() {
+        let directory = tempdir().expect("temporary directory");
+        let (mut store, repository) = open_repository(directory.path());
+        let candidate = KnowledgeCandidate {
+            fingerprint: KnowledgeCandidate::fingerprint_for(
+                BusinessKind::Invariant,
+                "Never delete paid history.",
+            ),
+            kind: BusinessKind::Invariant,
+            statement: "Never delete paid history.".to_owned(),
+            evidence: vec![ArtifactRef {
+                identity: ArtifactIdentity {
+                    provider: ArtifactProvider::GitLab,
+                    kind: ArtifactKind::Issue,
+                    external_id: "842".to_owned(),
+                },
+                locator: "description".to_owned(),
+                excerpt: "must retain paid history forever".to_owned(),
+            }],
+            implementation_candidates: Vec::new(),
+            test_candidates: Vec::new(),
+            provenance: AgentProvenance {
+                producer: "claude-code".to_owned(),
+                model: None,
+                input_artifact_ids: vec!["gitlab:issue:842".to_owned()],
+                produced_at: "2026-08-21T00:00:00Z".to_owned(),
+                fingerprint: "prompt:v1".to_owned(),
+            },
+        };
+        store
+            .upsert_candidates(&repository, std::slice::from_ref(&candidate))
+            .expect("persist candidate");
+
+        store
+            .record_decision(
+                &repository,
+                &candidate.fingerprint,
+                &KnowledgeDecision::Accept {
+                    document_id: "INV-SUB-002".to_owned(),
+                    method: ctx_core::knowledge::DecisionMethod::Agent,
+                },
+                "claude-code",
+                "2026-08-21T02:00:00Z",
+            )
+            .expect("record accept");
+
+        let record = store
+            .accepted_record_for_document(&repository, "INV-SUB-002")
+            .expect("read accepted record")
+            .expect("record exists");
+        assert_eq!(
+            record.decision_method,
+            ctx_core::knowledge::DecisionMethod::Agent
+        );
     }
 
     #[test]

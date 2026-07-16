@@ -1,7 +1,7 @@
 use ctx_core::{
     business::{BusinessDocument, BusinessKind, ExplicitSymbolLink},
     domain::RepositoryId,
-    knowledge::{KnowledgeCandidate, KnowledgeDecision},
+    knowledge::{DecisionMethod, KnowledgeCandidate, KnowledgeDecision},
     verification::{
         ArtifactEvidenceContext, SemanticCandidate, VerificationDecision, possible_duplicate,
         semantic_candidates,
@@ -147,6 +147,7 @@ where
     /// Returns [`VerificationError`] when `fingerprint` is not currently
     /// pending, a likely duplicate exists and `force` is false, the document
     /// file already exists, or persistence fails.
+    #[allow(clippy::too_many_arguments)]
     pub fn accept(
         &mut self,
         repository: &RepositoryId,
@@ -155,6 +156,7 @@ where
         author: &str,
         timestamp: &str,
         force: bool,
+        method: DecisionMethod,
     ) -> Result<String, VerificationError> {
         let candidate = self
             .candidates(repository)?
@@ -186,6 +188,7 @@ where
                 fingerprint,
                 &KnowledgeDecision::Accept {
                     document_id: document_id.to_owned(),
+                    method,
                 },
                 author,
                 timestamp,
@@ -206,12 +209,13 @@ where
         fingerprint: &str,
         author: &str,
         timestamp: &str,
+        method: DecisionMethod,
     ) -> Result<(), VerificationError> {
         self.store
             .record_decision(
                 repository,
                 fingerprint,
-                &KnowledgeDecision::Reject,
+                &KnowledgeDecision::Reject { method },
                 author,
                 timestamp,
             )
@@ -376,6 +380,7 @@ mod knowledge_tests {
                 "alice",
                 "2026-08-21T00:00:00Z",
                 false,
+                DecisionMethod::Human,
             )
             .expect("accept");
 
@@ -392,7 +397,8 @@ mod knowledge_tests {
             (
                 candidate.fingerprint.clone(),
                 KnowledgeDecision::Accept {
-                    document_id: "REQ-SUB-014".to_owned()
+                    document_id: "REQ-SUB-014".to_owned(),
+                    method: DecisionMethod::Human,
                 }
             )
         );
@@ -419,6 +425,7 @@ mod knowledge_tests {
                 "alice",
                 "2026-08-21T00:00:00Z",
                 false,
+                DecisionMethod::Human,
             )
             .expect("accept");
 
@@ -444,6 +451,7 @@ mod knowledge_tests {
                 "alice",
                 "2026-08-21T00:00:00Z",
                 false,
+                DecisionMethod::Human,
             )
             .expect_err("unknown fingerprint must fail");
 
@@ -491,6 +499,7 @@ mod knowledge_tests {
                 "alice",
                 "2026-08-21T00:00:00Z",
                 false,
+                DecisionMethod::Human,
             )
             .expect_err("a likely restatement must be refused without force");
         assert!(matches!(
@@ -508,6 +517,7 @@ mod knowledge_tests {
                 "alice",
                 "2026-08-21T00:00:00Z",
                 true,
+                DecisionMethod::Human,
             )
             .expect("force overrides the duplicate check");
         assert_eq!(path, ".context/fake/REQ-SUB-002.yaml");
@@ -529,13 +539,19 @@ mod knowledge_tests {
                 &candidate.fingerprint,
                 "alice",
                 "2026-08-21T00:00:00Z",
+                DecisionMethod::Human,
             )
             .expect("reject");
 
         assert!(writer.written.borrow().is_empty());
         assert_eq!(
             store.decisions.borrow()[0],
-            (candidate.fingerprint, KnowledgeDecision::Reject)
+            (
+                candidate.fingerprint,
+                KnowledgeDecision::Reject {
+                    method: DecisionMethod::Human
+                }
+            )
         );
     }
 }

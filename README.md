@@ -2,7 +2,7 @@
 
 `ctx` is a local-first product-context engine for Python, Rust, and Go repositories. It connects a small, explicit set of features, requirements, invariants, and decisions to code and tests, then uses those claims to answer impact questions, review diffs, and compile bounded context for coding agents.
 
-The current release is deterministic and works without an LLM or network service. Semantic findings carry their origin, evidence, confidence, validity, and staleness instead of being silently promoted to facts.
+The core — indexing, impact, explain, review, Context Packs — is deterministic and works without an LLM or network service. External knowledge ingestion and AI-assisted candidate extraction are optional, additive layers on top: `ctx ingest`/`ctx enrich` reach out to GitLab or a locally installed agent CLI only when explicitly run, and an agent's output is never more than a `pending` inference until a human accepts it through `ctx verify`. Every semantic finding — deterministic or AI-derived — carries its origin, evidence, confidence, validity, and staleness instead of being silently promoted to a fact.
 
 ## What works
 
@@ -17,8 +17,11 @@ The current release is deterministic and works without an LLM or network service
 - evidence-backed `impact`, `explain`, and high-precision `review`
 - token-budgeted Context Packs
 - heuristic relation suggestions with durable accept/reject decisions
+- external development-artifact ingestion — Git commit messages and branch names, code comments/docstrings, and GitLab issues/merge requests with their comments — normalized into their own store, idempotently re-synced, and deterministically linked to already-indexed code and to each other, never automatically promoted to product knowledge
+- an interchangeable AI-agent boundary (`ctx enrich --agent claude|codex|antigravity`) that proposes typed Feature/Requirement/Invariant/Decision candidates from one bounded artifact neighborhood at a time, grounded only in evidence the agent actually cited; malformed output or evidence outside that neighborhood is rejected, never guessed at, and a candidate stays an inference until a human accepts it
+- `ctx verify --knowledge` to accept or reject AI-derived candidates, with basic duplicate detection against already-active documents and the full artifact → agent-inference → human-verification chain surfaced by `ctx explain`
 - a read-only stdio MCP server exposing the same application use cases
-- local SQLite storage; source code is never sent elsewhere
+- local SQLite storage; source code is never sent elsewhere — an AI agent only ever sees the one bounded artifact neighborhood it is asked about, and only when `ctx enrich` is run explicitly
 
 ## Install
 
@@ -66,6 +69,22 @@ ctx review --base main
 ```
 
 After committing an accepted change, run `ctx index` again. Changed implementation bodies mark affected semantic claims stale until they are reviewed or re-established.
+
+## Mine existing knowledge instead of writing it by hand
+
+If a team already has commit history, code comments, or a GitLab project full of issues and merge requests, `ctx` can propose product-context documents from that instead of requiring everything to be authored from scratch:
+
+```bash
+ctx ingest git             # commit messages and branch names
+ctx ingest code-comments   # comments and docstrings, attributed to their nearest symbol
+ctx ingest gitlab          # issues, merge requests, and their comments — see Configuration
+
+ctx enrich --agent claude  # or --agent codex / --agent antigravity
+
+ctx verify --knowledge     # review each proposed candidate; accept allocates its stable ID
+```
+
+Ingested artifacts are never product knowledge on their own — they are source material an agent may derive typed candidates from, and a candidate is never asserted until `ctx verify --knowledge --accept --id <ID>` names it. Accepting writes an ordinary `.context/*.yaml` file; the next `ctx index` absorbs it exactly like a hand-authored one. Re-running `ctx enrich` skips an artifact whose content hasn't changed since its last analysis, and `ctx verify --knowledge --accept` refuses (unless `--force`) a statement that looks like a restatement of an already-active document, naming which one.
 
 ## Author product context
 
@@ -130,6 +149,18 @@ Include and exclude entries are repository-relative directory prefixes. Exclusio
 
 The database lives at `.ctx/ctx.db`. `ctx init` adds only the database, WAL, and shared-memory filenames to the repository-local Git exclude file; it does not edit the shared `.gitignore`.
 
+`ctx ingest gitlab` needs a `[gitlab]` table naming the project (`base_url` defaults to `https://gitlab.com/api/v4`):
+
+```toml
+[gitlab]
+project = "billing/subscriptions"
+# base_url = "https://gitlab.example.com/api/v4"  # self-managed instances
+```
+
+The access token comes only from the `CTX_GITLAB_TOKEN` environment variable — never from a committed file, so it can never end up in `.ctx/config.toml` by accident. `ctx ingest gitlab` stores a per-project sync cursor and asks GitLab for only what changed since the previous run.
+
+`ctx enrich --agent claude|codex|antigravity` shells out to that agent's own CLI (`claude`, `codex`, `agy`) already on `PATH`; each is independently overridable for testing or an alternate install location via `CTX_CLAUDE_CLI_BINARY`, `CTX_CODEX_CLI_BINARY`, or `CTX_ANTIGRAVITY_CLI_BINARY`. No token or API key is read from `ctx` itself — each CLI handles its own authentication.
+
 ## Command reference
 
 | Command | Purpose |
@@ -141,10 +172,13 @@ The database lives at `.ctx/ctx.db`. `ctx init` adds only the database, WAL, and
 | `ctx explain <target>` | Show stored claims and evidence for an ID or quoted `source -> target` pair |
 | `ctx review [--base REV]` | Review a branch or working diff against strong product contracts |
 | `ctx context <task>` | Compile a bounded Context Pack; accepts repeated `--file` and `--symbol` seeds |
-| `ctx verify` | List or interactively decide heuristic semantic candidates |
+| `ctx find <name>` | Discover indexed symbols/nodes by short or exact name; several matches are never an error |
+| `ctx ingest <source>` | Ingest external artifacts (`git`, `code-comments`, `gitlab`) as normalized, separately stored source material |
+| `ctx enrich [--agent NAME]` | Analyze ingested artifacts with an AI agent (`claude`, `codex`, `antigravity`) for candidate product knowledge |
+| `ctx verify [--knowledge]` | List or interactively decide heuristic semantic candidates, or (`--knowledge`) AI-derived knowledge candidates |
 | `ctx serve --mcp` | Serve the read-only MCP tools over stdio |
 
-Add global `--json` for stable machine-readable output. Add `-v` to review for lower-confidence diagnostics and suppressed-change counts. Script verification decisions with `ctx verify --accept <fingerprint> --author <name>` or `--reject`.
+Add global `--json` for stable machine-readable output. Add `-v` to review for lower-confidence diagnostics and suppressed-change counts. Script verification decisions with `ctx verify --accept <fingerprint> --author <name>` or `--reject`; script knowledge-candidate decisions with `ctx verify --knowledge --accept <fingerprint> --id <STABLE-ID> --author <name>` (add `--force` to accept a likely restatement of an existing document anyway) or `--knowledge --reject`.
 
 `ctx status` is a health report, not just a graph-size counter. It compares the indexed commit with `HEAD`, shows the effective source scope, separates structural facts from assertions and inferences, counts each product-context type, reports dirty inputs/stale/rejected claims, best-effort `SQLAlchemy`/goose schema divergences, and suggests the next action. A current structural graph without product documents is reported as `needs product context`, not `ready`.
 
@@ -235,7 +269,10 @@ See [docs/architecture.md](docs/architecture.md) for boundaries and persistence 
 - Schema-aware review compares a schema-declaring file's diff or a migration's own declared operations; it does not diff an ORM model against its own migration history over time (that is `ctx status`'s reconciliation, which is presence-only and does not compare types/nullability between sources).
 - Heuristic suggestions use lexical, structural, test, and shared-database-interaction signals, not embeddings or an LLM.
 - Endpoint, event, and external-system node types are reserved in the domain model but are not yet extracted from source.
-- There is no web UI, cloud backend, runtime tracing, multi-repository graph, or external ticket/document integration.
+- There is no web UI, cloud backend, runtime tracing, or multi-repository graph.
+- GitLab is the only ticket/review-system integration; GitHub and Jira are not implemented. GitLab sync is incremental for issues/merge requests via a stored per-project cursor, but each returned issue/MR's comments are always fetched in full, not incrementally.
+- `ctx enrich` requires a real, already-authenticated `claude`, `codex`, or `agy` CLI on `PATH`; there is no direct API-key/HTTP integration with any model provider, and no local/offline model support.
+- An AI-derived candidate is always `INFERENCE`, never asserted automatically: `ctx enrich` only ever produces a `pending` candidate, and only a human `ctx verify --knowledge --accept` turns one into a real `.context/*.yaml` document. Duplicate detection against existing documents is lexical term-overlap, not semantic similarity or an embedding model.
 - Review is a conservative aid, not a proof that behavior is correct.
 
 ## License

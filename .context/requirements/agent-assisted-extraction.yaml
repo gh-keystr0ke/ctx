@@ -35,10 +35,15 @@ statement: >
   applies identically to every vendor (ADR-AGENT-001): `--agent codex`
   (`codex exec`, OpenAI) and `--agent antigravity` (`agy -p`, Google) are the
   same guarantee through a different subprocess, not a second implementation
-  of it.
+  of it. `ctx enrich` reports progress to stderr immediately before each
+  real agent call (`[position/total] analyzing ...`, position/total against
+  the full known-artifact count so it stays meaningful across skips) since
+  a real agent round trip can take tens of seconds and, with dozens or
+  hundreds of ingested artifacts, no output at all is indistinguishable
+  from a hang — found from an actual user run, not a test.
 implementation:
   - symbol: ctx_app.ports.SemanticAgent
-  - symbol: ctx_app.enrich.EnrichRunner.run
+  - symbol: ctx_app.enrich.EnrichRunner.run_with_progress
   - symbol: ctx_adapters.agent_contract.analyze
   - symbol: ctx_adapters.agent_contract.to_outcome
   - symbol: ctx_adapters.claude_code.ClaudeCodeAgent.analyze_neighborhood
@@ -56,6 +61,7 @@ tests:
   - symbol: ctx_app.enrich.tests.an_artifact_already_cited_by_a_pending_candidate_is_skipped
   - symbol: ctx_app.enrich.tests.not_relevant_outcomes_never_reach_the_candidate_store
   - symbol: ctx_app.enrich.tests.an_artifact_analyzed_at_its_current_content_hash_is_skipped_next_run
+  - symbol: ctx_app.enrich.tests.run_with_progress_reports_position_and_total_only_for_real_analysis
   - symbol: crates.ctx-cli.tests.e2e.enrich_shells_out_to_the_configured_agent_and_reports_its_outcome
   - symbol: crates.ctx-cli.tests.e2e.enrich_rejects_an_unsupported_agent
   - symbol: crates.ctx-cli.tests.e2e.enrich_dispatches_codex_to_codex_exec_with_its_own_binary_override

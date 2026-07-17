@@ -8,6 +8,7 @@ use crate::{
     domain::{ClaimStatus, NodeKind, RelationKind, StableKey},
     graph::{GraphNode, GraphSnapshot},
     indexing::PlannedNodeAttributes,
+    knowledge::KnowledgeCandidate,
 };
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -398,6 +399,100 @@ pub fn possible_duplicate(
         .map(|(identifier, _)| identifier)
 }
 
+/// A group of still-pending [`KnowledgeCandidate`]s whose statements share
+/// enough vocabulary to plausibly describe one underlying flow rather than
+/// several independent ones -- e.g. a `Status`/`Data`/`Store` triad of
+/// struct-comment candidates that together, not individually, describe one
+/// session lifecycle. Intended to let `ctx verify --knowledge --auto` write
+/// one consolidated document per cluster instead of one per candidate,
+/// without ever guessing a relationship between two candidates of different
+/// [`BusinessKind`]s (a Requirement and a Decision have genuinely different
+/// `.context/*.yaml` shapes, so they never share a cluster). Every pending
+/// candidate belongs to exactly one cluster, including a cluster of one for
+/// a candidate with no close match -- callers never need a separate
+/// "leftover, ungrouped" case.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct CandidateCluster {
+    pub kind: BusinessKind,
+    /// Sorted for deterministic output; never empty.
+    pub fingerprints: Vec<String>,
+}
+
+/// Groups `candidates` by pairwise statement term-overlap, transitively: if
+/// A overlaps B and B overlaps C past [`possible_duplicate`]'s own
+/// similarity threshold, all three land in one cluster even though A and C
+/// alone might not have crossed it -- the same connected-components approach
+/// a human skimming a long candidate list would use, and the same lexical
+/// mechanism this module already uses for duplicate detection against the
+/// active graph, reused rather than reinvented. Deterministic and total:
+/// clusters and the fingerprints within each are sorted, and every input
+/// fingerprint appears in exactly one output cluster.
+#[must_use]
+#[allow(clippy::cast_precision_loss)]
+// Term-overlap counts are bounded by a statement's word count -- never
+// remotely near f32's 24-bit mantissa limit.
+pub fn cluster_candidates(candidates: &[KnowledgeCandidate]) -> Vec<CandidateCluster> {
+    const SIMILARITY_THRESHOLD: f32 = 0.6;
+
+    let terms: Vec<BTreeSet<String>> = candidates
+        .iter()
+        .map(|candidate| tokenize(&candidate.statement))
+        .collect();
+    let mut parent: Vec<usize> = (0..candidates.len()).collect();
+    for i in 0..candidates.len() {
+        if terms[i].is_empty() {
+            continue;
+        }
+        for j in (i + 1)..candidates.len() {
+            if candidates[i].kind != candidates[j].kind || terms[j].is_empty() {
+                continue;
+            }
+            let overlap = terms[i].intersection(&terms[j]).count();
+            let smaller = terms[i].len().min(terms[j].len());
+            let similarity = overlap as f32 / smaller as f32;
+            if similarity >= SIMILARITY_THRESHOLD {
+                union(&mut parent, i, j);
+            }
+        }
+    }
+
+    let mut groups: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
+    for i in 0..candidates.len() {
+        groups.entry(find(&mut parent, i)).or_default().push(i);
+    }
+    let mut clusters: Vec<CandidateCluster> = groups
+        .into_values()
+        .map(|indices| {
+            let mut fingerprints: Vec<String> = indices
+                .iter()
+                .map(|&index| candidates[index].fingerprint.clone())
+                .collect();
+            fingerprints.sort();
+            CandidateCluster {
+                kind: candidates[indices[0]].kind,
+                fingerprints,
+            }
+        })
+        .collect();
+    clusters.sort_by(|left, right| left.fingerprints.cmp(&right.fingerprints));
+    clusters
+}
+
+fn find(parent: &mut [usize], node: usize) -> usize {
+    if parent[node] != node {
+        parent[node] = find(parent, parent[node]);
+    }
+    parent[node]
+}
+
+fn union(parent: &mut [usize], left: usize, right: usize) {
+    let left_root = find(parent, left);
+    let right_root = find(parent, right);
+    if left_root != right_root {
+        parent[left_root.max(right_root)] = left_root.min(right_root);
+    }
+}
+
 fn symbol_file(node: &GraphNode) -> Option<&str> {
     match &node.attributes {
         PlannedNodeAttributes::Symbol { file_path, .. } => Some(file_path),
@@ -748,6 +843,93 @@ mod tests {
             "Subscription cancel access must remain available to the customer.",
         );
         assert_eq!(different_kind, None);
+    }
+
+    fn knowledge_candidate(kind: BusinessKind, statement: &str) -> KnowledgeCandidate {
+        use crate::knowledge::AgentProvenance;
+        KnowledgeCandidate {
+            fingerprint: KnowledgeCandidate::fingerprint_for(kind, statement),
+            kind,
+            statement: statement.to_owned(),
+            evidence: Vec::new(),
+            implementation_candidates: Vec::new(),
+            test_candidates: Vec::new(),
+            provenance: AgentProvenance {
+                producer: "test".to_owned(),
+                model: None,
+                input_artifact_ids: Vec::new(),
+                produced_at: "2026-08-23T00:00:00Z".to_owned(),
+                fingerprint: "fp".to_owned(),
+            },
+        }
+    }
+
+    #[test]
+    fn cluster_candidates_groups_overlapping_statements_of_the_same_kind() {
+        let a = knowledge_candidate(
+            BusinessKind::Requirement,
+            "Cancellation preserves paid access until period end.",
+        );
+        let b = knowledge_candidate(
+            BusinessKind::Requirement,
+            "Cancellation must preserve paid access until the period end.",
+        );
+        let unrelated = knowledge_candidate(
+            BusinessKind::Requirement,
+            "Billing export must run nightly and email finance a CSV report.",
+        );
+        let clusters = cluster_candidates(&[a.clone(), b.clone(), unrelated.clone()]);
+
+        assert_eq!(clusters.len(), 2);
+        let merged = clusters
+            .iter()
+            .find(|cluster| cluster.fingerprints.len() == 2)
+            .expect("a and b cluster together");
+        assert!(merged.fingerprints.contains(&a.fingerprint));
+        assert!(merged.fingerprints.contains(&b.fingerprint));
+        let singleton = clusters
+            .iter()
+            .find(|cluster| cluster.fingerprints.len() == 1)
+            .expect("the unrelated candidate gets its own cluster");
+        assert_eq!(singleton.fingerprints, vec![unrelated.fingerprint]);
+    }
+
+    #[test]
+    fn cluster_candidates_never_merges_across_business_kind() {
+        let statement = "Cancellation preserves paid access until period end.";
+        let requirement = knowledge_candidate(BusinessKind::Requirement, statement);
+        let invariant = knowledge_candidate(BusinessKind::Invariant, statement);
+
+        let clusters = cluster_candidates(&[requirement.clone(), invariant.clone()]);
+
+        assert_eq!(clusters.len(), 2);
+        assert!(
+            clusters
+                .iter()
+                .all(|cluster| cluster.fingerprints.len() == 1)
+        );
+    }
+
+    #[test]
+    fn cluster_candidates_is_transitive_across_a_shared_middle_statement() {
+        // `a` shares {session, status, authenticated} with `b` (3/4 terms,
+        // above threshold); `b` shares {data, store, lifecycle} with `c`
+        // (3/4 terms, above threshold); `a` and `c` alone share nothing.
+        // All three must still land in one cluster via `b`.
+        let a = knowledge_candidate(
+            BusinessKind::Requirement,
+            "Session status authenticated indicator.",
+        );
+        let b = knowledge_candidate(
+            BusinessKind::Requirement,
+            "Session status authenticated data store lifecycle.",
+        );
+        let c = knowledge_candidate(BusinessKind::Requirement, "Data store lifecycle disk.");
+
+        let clusters = cluster_candidates(&[a.clone(), b.clone(), c.clone()]);
+
+        assert_eq!(clusters.len(), 1);
+        assert_eq!(clusters[0].fingerprints.len(), 3);
     }
 
     fn intent_node() -> GraphNode {

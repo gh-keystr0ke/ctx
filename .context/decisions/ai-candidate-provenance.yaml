@@ -35,10 +35,16 @@ decision: >
   explain` (accepted_record_for_document, Phase 9, INV-PROVENANCE-001)
   reads to render the complete artifact-to-inference-to-verification chain;
   the row's persistence past acceptance is what makes that chain
-  reconstructable at all, not just accepted_evidence's narrower reuse.
+  reconstructable at all, not just accepted_evidence's narrower reuse. The
+  recorded decision also carries a DecisionMethod (human or agent), so a
+  future agent-driven decision (`ctx verify --knowledge --auto`) is
+  distinguishable from a human one at read time rather than only at
+  decide time -- the same accepted row `ctx explain` reads is what makes
+  that distinction renderable, not a separate parallel record.
 implementation:
   - symbol: ctx_core.knowledge.KnowledgeCandidate
   - symbol: ctx_core.knowledge.AgentProvenance
+  - symbol: ctx_core.knowledge.DecisionMethod
   - symbol: ctx_app.ports.KnowledgeCandidateStore
   - symbol: ctx_adapters.sqlite.artifacts.SqliteStore.KnowledgeCandidateStore.upsert_candidates
   - symbol: ctx_adapters.sqlite.artifacts.SqliteStore.KnowledgeCandidateStore.pending_candidates
@@ -48,4 +54,5 @@ implementation:
 tests:
   - symbol: ctx_adapters.sqlite.artifacts.tests.pending_candidates_round_trip_and_stay_out_once_decided
   - symbol: ctx_adapters.sqlite.artifacts.tests.accepting_a_candidate_removes_it_from_pending_and_records_the_resulting_document
+  - symbol: ctx_adapters.sqlite.artifacts.tests.accepted_record_reports_an_agent_decision_honestly
   - symbol: ctx_app.query.tests.a_requirement_from_an_accepted_candidate_carries_its_full_provenance_chain

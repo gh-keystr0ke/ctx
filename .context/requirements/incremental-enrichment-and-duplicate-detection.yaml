@@ -19,7 +19,11 @@ statement: >
   term-overlap similarity check against the current graph, never a second AI
   call, and advisory only: `--force` (or, interactively, an explicit y/n
   confirmation naming the existing document) creates it anyway. Refusing
-  never writes anything. Per-provider GitLab sync cursors (REQ-INCR-001,
+  never writes anything -- this check runs regardless of whether the
+  eventual accept is recorded as a human or an agent decision
+  (DecisionMethod, INV-PROVENANCE-001): `--auto`, once it lands, gets no
+  exemption from the duplicate check a human accept already has to pass.
+  Per-provider GitLab sync cursors (REQ-INCR-001,
   T8.1) landed separately: `ctx ingest gitlab` now fetches only issues/MRs
   updated since the last run rather than re-fetching everything every time
   -- this document was stale on that point until this revalidation caught

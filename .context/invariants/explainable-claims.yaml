@@ -22,11 +22,22 @@ statement: >
   hand-authored `.context/*.yaml` document has no candidate row, so it
   carries none of this rather than a guessed substitute — the same "explain
   only from what's actually stored" discipline this invariant already
-  requires of every other claim.
+  requires of every other claim. The chain also carries a structured
+  `decision_method` (`human` or `agent`) alongside `decided_by`/`decided_at`,
+  kept as its own typed field rather than folded into the free-text author
+  string, so an agent's own independent second-opinion review
+  (`ctx verify --knowledge --auto`, once it lands) can never render as though
+  a human reviewed it: `ctx explain` prints "Verified by" for a human
+  decision and "Auto-verified by ... (no human review)" for an agent one.
+  `INV-EPISTEMIC-001` still holds either way — a human explicitly configured
+  and triggered `--auto` — but the rendered provenance says so honestly
+  rather than looking identical to a human review that never happened.
 implementation:
   - symbol: ctx_adapters.sqlite.context.create_claim_if_missing
   - symbol: ctx_adapters.sqlite.context.persist_symbol_claim
   - symbol: ctx_core.explain.explain
+  - symbol: ctx_core.explain.KnowledgeProvenance
+  - symbol: ctx_core.knowledge.DecisionMethod
   - symbol: ctx_app.query.QueryService.explain
   - symbol: ctx_app.query.QueryService.knowledge_provenance_for
 tests:
@@ -36,3 +47,4 @@ tests:
   - symbol: ctx_app.query.tests.a_requirement_from_an_accepted_candidate_carries_its_full_provenance_chain
   - symbol: ctx_app.query.tests.a_hand_authored_requirement_carries_no_provenance_chain
   - symbol: ctx_app.query.tests.a_relationship_query_never_carries_a_provenance_chain
+  - symbol: ctx_adapters.sqlite.artifacts.tests.accepted_record_reports_an_agent_decision_honestly

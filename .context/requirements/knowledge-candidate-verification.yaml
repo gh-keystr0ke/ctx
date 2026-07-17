@@ -27,7 +27,11 @@ statement: >
   rather than reverting it to pending). Accepting also checks for a likely
   duplicate first (REQ-INCR-002): unless `--force`, a statement that
   restates an already-active document of the same kind is refused before
-  anything is written.
+  anything is written. Every decision also records a `DecisionMethod`
+  (`human` for this interactive/scripted flow, `agent` reserved for a future
+  `--auto` independent second-opinion review) alongside the existing
+  author/timestamp, so the resulting provenance can never misrepresent an
+  agent's own decision as a human one (INV-PROVENANCE-001).
 implementation:
   - symbol: ctx_app.verification.KnowledgeVerificationService.accept
   - symbol: ctx_app.verification.KnowledgeVerificationService.reject

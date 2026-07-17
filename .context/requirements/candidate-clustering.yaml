@@ -1,0 +1,34 @@
+id: REQ-INCR-003
+type: requirement
+feature: FEAT-INDEXING
+status: active
+statement: >
+  Pending AI-derived KnowledgeCandidates must be groupable by shared
+  vocabulary before a bulk decision is made on them, so a cluster of
+  candidates that together describe one underlying flow (e.g. a
+  Status/Data/Store triad of struct-comment candidates jointly describing one
+  session lifecycle) can become one consolidated `.context/*.yaml` document
+  instead of one per candidate -- the user's explicit ask when reviewing 900+
+  candidates by hand proved impractical ("не плодить дубли и объединять их").
+  `cluster_candidates` groups pending candidates by pairwise statement
+  term-overlap, reusing this module's existing lexical-matching machinery
+  (the same `tokenize` helper and a comparable similarity threshold as
+  `possible_duplicate`, REQ-INCR-002) rather than a second AI call or a
+  separate algorithm. Grouping is transitive (connected components): if A
+  overlaps B and B overlaps C past the threshold, all three cluster together
+  even if A and C alone would not have. Grouping never crosses BusinessKind
+  -- a Requirement and a Decision have genuinely different `.context/*.yaml`
+  shapes, so they never merge into one document regardless of wording
+  similarity. Output is total and deterministic: every input candidate
+  belongs to exactly one output cluster (including a cluster of one for a
+  candidate with no close match), and both the cluster list and the
+  fingerprints within each cluster are sorted. This is a pure `ctx-core`
+  function with no I/O and no CLI wiring yet -- `ctx verify --knowledge
+  --auto`'s merge-accept path (not yet built) is the intended consumer.
+implementation:
+  - symbol: ctx_core.verification.cluster_candidates
+  - symbol: ctx_core.verification.CandidateCluster
+tests:
+  - symbol: ctx_core.verification.tests.cluster_candidates_groups_overlapping_statements_of_the_same_kind
+  - symbol: ctx_core.verification.tests.cluster_candidates_never_merges_across_business_kind
+  - symbol: ctx_core.verification.tests.cluster_candidates_is_transitive_across_a_shared_middle_statement

@@ -23,11 +23,26 @@ decision: >
   analyze()) and every vendor module is a thin AgentTransport
   implementation plus a one-line SemanticAgent delegation, rather than each
   adapter reimplementing (and risking silently diverging on) the same
-  validation rules.
+  validation rules. Independent second-opinion review (`ctx verify
+  --knowledge --auto`, REQ-VERIFY-003) reuses this exact shape rather than
+  inventing a second one: ctx_app.ports.KnowledgeReviewAgent is a deliberate
+  sibling trait to SemanticAgent (a genuinely different question -- "should
+  this already-extracted candidate be accepted" vs. "does this neighborhood
+  state new knowledge" -- with a different input/output shape, not the same
+  trait reused), and ctx_adapters.agent_contract.review() is a second
+  prompt/parse function next to analyze() sharing only AgentTransport and
+  the JSON-extraction helper. Each vendor's `XAgent<T>` implements both
+  traits by delegating to its one already-owned `transport` field -- adding
+  review cost each vendor module exactly one more trait impl, zero new
+  process-invocation code, confirming the same "adding a capability costs
+  only a thin delegation" property this ADR already established for a third
+  vendor.
 implementation:
   - symbol: ctx_app.ports.SemanticAgent
+  - symbol: ctx_app.ports.KnowledgeReviewAgent
   - symbol: ctx_adapters.agent_contract.AgentTransport
   - symbol: ctx_adapters.agent_contract.analyze
+  - symbol: ctx_adapters.agent_contract.review
   - symbol: ctx_adapters.claude_code.ClaudeCodeAgent
   - symbol: ctx_adapters.codex.CodexAgent
   - symbol: ctx_adapters.antigravity.AntigravityAgent
@@ -38,3 +53,4 @@ tests:
   - symbol: ctx_app.enrich.tests.analyzes_every_artifact_and_persists_only_relevant_candidates
   - symbol: crates.ctx-cli.tests.e2e.enrich_dispatches_codex_to_codex_exec_with_its_own_binary_override
   - symbol: crates.ctx-cli.tests.e2e.enrich_dispatches_antigravity_to_agy_p_with_its_own_binary_override
+  - symbol: ctx_adapters.agent_contract.tests.review_can_reject_a_candidate_extraction_already_called_relevant

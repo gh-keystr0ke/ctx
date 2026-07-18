@@ -3,9 +3,9 @@ type: requirement
 feature: FEAT-INDEXING
 status: active
 statement: >
-  `ctx enrich --agent <claude|codex|antigravity>` must analyze one bounded
-  artifact neighborhood (REQ-NEIGHBORHOOD-001) at a time through an
-  interchangeable agent boundary (ADR-AGENT-001) and propose typed
+  `ctx enrich --agent <claude|codex|antigravity> [--model <model>]` must
+  analyze one bounded artifact neighborhood (REQ-NEIGHBORHOOD-001) at a time
+  through an interchangeable agent boundary (ADR-AGENT-001) and propose typed
   Feature/Requirement/Invariant/Decision
   candidates only when the agent's own output cites concrete, verbatim
   evidence from that neighborhood — never free-form reasoning (PR-AI-004).
@@ -20,7 +20,10 @@ statement: >
   agent output is rejected outright rather than guessed at. Every accepted
   candidate carries full provenance (producer, model, the exact input
   artifact ids, a timestamp, and a fingerprint of the prompt that produced
-  it) and is persisted as `pending` (ctx_core.knowledge.KnowledgeCandidate),
+  it) — `--model`, when set, is threaded straight into that same provenance
+  rather than affecting the prompt contract itself, since it names which
+  model the already-selected CLI vendor uses, not a different vendor — and
+  is persisted as `pending` (ctx_core.knowledge.KnowledgeCandidate),
   never auto-promoted to fact or assertion — a human decision through `ctx
   verify` (Phase 6) is the only path from `pending` onward. `ctx enrich`
   skips an artifact already cited as evidence by a pending candidate, and

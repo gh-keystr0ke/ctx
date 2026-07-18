@@ -916,6 +916,91 @@ fn assert_precise_review(review: &Value) {
     );
 }
 
+#[test]
+fn verify_knowledge_auto_reviews_and_accepts_with_an_honest_agent_decision_method() {
+    let repository = FixtureRepository::new();
+    repository.ctx(&["init"]);
+    repository.ctx(&["ingest", "git"]);
+
+    // One script plays both roles a real agent CLI would across the two
+    // calls this test makes: extraction (`ctx enrich`) and independent
+    // review (`ctx verify --knowledge --auto`) use genuinely different
+    // system prompts, so the fake script tells them apart the same way a
+    // human skimming stdin would -- by which prompt it was actually asked.
+    let script_path = repository.root().join("fake-claude.sh");
+    fs::write(
+        &script_path,
+        "#!/bin/sh\n\
+         prompt=\"$2\"\n\
+         if echo \"$prompt\" | grep -q 'second-opinion reviewer'; then\n\
+         fp=$(echo \"$prompt\" | grep '^- fingerprint:' | head -1 | sed 's/^- fingerprint: //')\n\
+         echo \"{\\\"decisions\\\":[{\\\"fingerprint\\\":\\\"$fp\\\",\\\"verdict\\\":\\\"accept\\\"}]}\"\n\
+         else\n\
+         id=$(echo \"$prompt\" | grep -o 'Valid artifact ids for this neighborhood: [^ ,]*' | sed 's/.*: //')\n\
+         echo \"{\\\"outcome\\\":\\\"relevant\\\",\\\"candidates\\\":[{\\\"kind\\\":\\\"requirement\\\",\\\"statement\\\":\\\"Commit history documents cancellation behavior.\\\",\\\"evidence\\\":[{\\\"artifact_id\\\":\\\"$id\\\",\\\"locator\\\":\\\"body\\\",\\\"excerpt\\\":\\\"excerpt\\\"}]}]}\"\n\
+         fi\n",
+    )
+    .expect("write fake claude script");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut permissions = fs::metadata(&script_path)
+            .expect("script metadata")
+            .permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(&script_path, permissions).expect("chmod fake claude script");
+    }
+    let env = [(
+        "CTX_CLAUDE_CLI_BINARY",
+        script_path.to_str().expect("utf8 path"),
+    )];
+
+    let enriched = repository.ctx_with_env(&["enrich", "--agent", "claude"], &env);
+    assert!(enriched["candidates_proposed"].as_u64().unwrap_or(0) > 0);
+    assert_eq!(
+        repository
+            .ctx(&["verify", "--knowledge"])
+            .as_array()
+            .expect("pending candidates")
+            .len(),
+        1
+    );
+
+    let report = repository.ctx_with_env(
+        &[
+            "verify",
+            "--knowledge",
+            "--auto",
+            "--agent",
+            "claude",
+            "--id-prefix",
+            "SUB",
+        ],
+        &env,
+    );
+
+    assert_eq!(report["clusters_reviewed"], 1);
+    assert_eq!(report["documents_written"], 1);
+    assert_eq!(report["candidates_accepted"], 1);
+    assert_eq!(report["candidates_rejected"], 0);
+
+    // Decided, so no longer pending -- and the resulting document exists
+    // under the auto-allocated ID.
+    assert!(
+        repository
+            .ctx(&["verify", "--knowledge"])
+            .as_array()
+            .expect("pending candidates")
+            .is_empty()
+    );
+    let written_path = repository
+        .root()
+        .join(".context/requirements/req-sub-001.yaml");
+    assert!(written_path.exists());
+    let written = fs::read_to_string(&written_path).expect("read written document");
+    assert!(written.contains("Commit history documents cancellation behavior."));
+}
+
 fn run_git(root: &Path, arguments: &[&str]) {
     let output = Command::new("git")
         .arg("-C")

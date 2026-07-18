@@ -91,6 +91,10 @@ enum Command {
         /// "antigravity" (headless Google Antigravity CLI, `agy -p`).
         #[arg(long, default_value = "claude")]
         agent: String,
+        /// Model name to pass to the agent CLI, if it supports one.
+        /// Unset uses the agent's own default model.
+        #[arg(long)]
+        model: Option<String>,
     },
     /// Review a branch or working-tree diff in product terms.
     Review {
@@ -125,10 +129,32 @@ enum Command {
         /// --accept`, ignored otherwise.
         #[arg(long, requires = "accept")]
         id: Option<String>,
-        /// With `--knowledge --accept`: create the document even if it
-        /// looks like a restatement of an already-active one.
-        #[arg(long, requires = "accept")]
+        /// With `--knowledge --accept` or `--knowledge --auto`: create the
+        /// document even if it looks like a restatement of an already-active
+        /// one.
+        #[arg(long)]
         force: bool,
+        /// Run every pending `--knowledge` candidate through an independent
+        /// second-opinion review agent instead of a human: clusters related
+        /// candidates, lets the agent accept/reject each on its own merits
+        /// and merge a cluster into one document where warranted, and
+        /// records every resulting decision as agent-made (`ctx explain`
+        /// renders it as "Auto-verified", never as a human review).
+        /// Requires `--knowledge` and `--id-prefix`.
+        #[arg(long, requires_all = ["knowledge", "id_prefix"])]
+        auto: bool,
+        /// The agent to run with `--auto`: "claude", "codex", or
+        /// "antigravity" (same set as `ctx enrich --agent`).
+        #[arg(long, default_value = "claude")]
+        agent: String,
+        /// Model name to pass to the `--auto` agent CLI, if it supports one.
+        #[arg(long)]
+        model: Option<String>,
+        /// The prefix `--auto` allocates stable IDs under (e.g. "SUB" ->
+        /// `REQ-SUB-001`, `INV-SUB-001`, ...). Required together with
+        /// `--auto`, ignored otherwise.
+        #[arg(long)]
+        id_prefix: Option<String>,
     },
     /// Serve ctx integrations.
     Serve {
@@ -216,7 +242,7 @@ fn run(cli: &Cli) -> Result<(), CliError> {
         Command::Explain { target } => explain(cli, &git, target),
         Command::Find { target } => find(cli, &git, target),
         Command::Ingest { source, since } => ingest(cli, &git, source, since.as_deref()),
-        Command::Enrich { agent } => enrich(cli, &git, agent),
+        Command::Enrich { agent, model } => enrich(cli, &git, agent, model.clone()),
         Command::Review { base } => review(cli, &git, base),
         Command::Context {
             task,
@@ -231,8 +257,22 @@ fn run(cli: &Cli) -> Result<(), CliError> {
             knowledge,
             id,
             force,
+            auto,
+            agent,
+            model,
+            id_prefix,
         } => {
-            if *knowledge {
+            if *auto {
+                verify_knowledge_auto(
+                    cli,
+                    &git,
+                    agent,
+                    model.clone(),
+                    id_prefix.as_deref().expect("clap requires id_prefix"),
+                    author,
+                    *force,
+                )
+            } else if *knowledge {
                 verify_knowledge(
                     cli,
                     &git,
@@ -419,6 +459,78 @@ fn verify_knowledge(
             &now,
             force,
         )?;
+    }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn verify_knowledge_auto(
+    cli: &Cli,
+    git: &GitRepo,
+    agent: &str,
+    model: Option<String>,
+    id_prefix: &str,
+    author: &str,
+    force: bool,
+) -> Result<(), CliError> {
+    let database_path = database_path(git.root())?;
+    let mut store = SqliteStore::open(&database_path)?;
+    let repository = git.descriptor()?;
+    let now = Utc::now().to_rfc3339();
+    let writer = YamlBusinessContextReader::new(git.root().to_path_buf());
+
+    let report = match agent {
+        "claude" => {
+            let binary = env::var("CTX_CLAUDE_CLI_BINARY").unwrap_or_else(|_| "claude".to_owned());
+            let review_agent = ClaudeCodeAgent::new(ClaudeSubprocessTransport::new(binary), model);
+            KnowledgeVerificationService::new(&mut store, &writer).auto(
+                &repository.id,
+                id_prefix,
+                author,
+                &now,
+                force,
+                &review_agent,
+            )?
+        }
+        "codex" => {
+            let binary = env::var("CTX_CODEX_CLI_BINARY").unwrap_or_else(|_| "codex".to_owned());
+            let review_agent = CodexAgent::new(CodexSubprocessTransport::new(binary), model);
+            KnowledgeVerificationService::new(&mut store, &writer).auto(
+                &repository.id,
+                id_prefix,
+                author,
+                &now,
+                force,
+                &review_agent,
+            )?
+        }
+        "antigravity" => {
+            let binary =
+                env::var("CTX_ANTIGRAVITY_CLI_BINARY").unwrap_or_else(|_| "agy".to_owned());
+            let review_agent =
+                AntigravityAgent::new(AntigravitySubprocessTransport::new(binary), model);
+            KnowledgeVerificationService::new(&mut store, &writer).auto(
+                &repository.id,
+                id_prefix,
+                author,
+                &now,
+                force,
+                &review_agent,
+            )?
+        }
+        other => return Err(CliError::UnsupportedAgent(other.to_owned())),
+    };
+    if cli.json {
+        println!("{}", serde_json::to_string_pretty(&report)?);
+    } else {
+        println!(
+            "Reviewed {} cluster(s) via {agent}: {} document(s) written, {} candidate(s) accepted, {} rejected, {} left pending as possible duplicates",
+            report.clusters_reviewed,
+            report.documents_written,
+            report.candidates_accepted,
+            report.candidates_rejected,
+            report.candidates_skipped_possible_duplicate
+        );
     }
     Ok(())
 }
@@ -926,7 +1038,7 @@ fn ingest(cli: &Cli, git: &GitRepo, source: &str, since: Option<&str>) -> Result
     Ok(())
 }
 
-fn enrich(cli: &Cli, git: &GitRepo, agent: &str) -> Result<(), CliError> {
+fn enrich(cli: &Cli, git: &GitRepo, agent: &str, model: Option<String>) -> Result<(), CliError> {
     let database_path = database_path(git.root())?;
     let mut store = SqliteStore::open(&database_path)?;
     let repository = git.descriptor()?;
@@ -950,7 +1062,7 @@ fn enrich(cli: &Cli, git: &GitRepo, agent: &str) -> Result<(), CliError> {
     let report = match agent {
         "claude" => {
             let binary = env::var("CTX_CLAUDE_CLI_BINARY").unwrap_or_else(|_| "claude".to_owned());
-            let claude_agent = ClaudeCodeAgent::new(ClaudeSubprocessTransport::new(binary), None);
+            let claude_agent = ClaudeCodeAgent::new(ClaudeSubprocessTransport::new(binary), model);
             EnrichRunner::new(&claude_agent, &mut store).run_with_progress(
                 &repository.id,
                 &now,
@@ -959,7 +1071,7 @@ fn enrich(cli: &Cli, git: &GitRepo, agent: &str) -> Result<(), CliError> {
         }
         "codex" => {
             let binary = env::var("CTX_CODEX_CLI_BINARY").unwrap_or_else(|_| "codex".to_owned());
-            let codex_agent = CodexAgent::new(CodexSubprocessTransport::new(binary), None);
+            let codex_agent = CodexAgent::new(CodexSubprocessTransport::new(binary), model);
             EnrichRunner::new(&codex_agent, &mut store).run_with_progress(
                 &repository.id,
                 &now,
@@ -970,7 +1082,7 @@ fn enrich(cli: &Cli, git: &GitRepo, agent: &str) -> Result<(), CliError> {
             let binary =
                 env::var("CTX_ANTIGRAVITY_CLI_BINARY").unwrap_or_else(|_| "agy".to_owned());
             let antigravity_agent =
-                AntigravityAgent::new(AntigravitySubprocessTransport::new(binary), None);
+                AntigravityAgent::new(AntigravitySubprocessTransport::new(binary), model);
             EnrichRunner::new(&antigravity_agent, &mut store).run_with_progress(
                 &repository.id,
                 &now,

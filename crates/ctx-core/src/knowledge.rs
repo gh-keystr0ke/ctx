@@ -141,6 +141,46 @@ pub enum KnowledgeDecision {
     },
 }
 
+/// One candidate's outcome from an agent's independent second-opinion review
+/// (`ctx verify --knowledge --auto`) -- deliberately not a mechanical
+/// bulk-accept of everything extraction already called `relevant`: the
+/// review agent re-examines each candidate on its own and can reject it,
+/// per the same evidence-vs-reasoning discipline extraction itself follows.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReviewVerdict {
+    Accept,
+    Reject,
+}
+
+/// One candidate's verdict within a [`ClusterReview`], identified by the
+/// same fingerprint the candidate was proposed and stored under -- never a
+/// position/index, so a review agent can never accidentally decide the
+/// wrong candidate through reordering.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct CandidateReviewDecision {
+    pub fingerprint: String,
+    pub verdict: ReviewVerdict,
+}
+
+/// A review agent's independent second opinion on one
+/// [`crate::verification::CandidateCluster`] -- the pending candidates
+/// [`crate::verification::cluster_candidates`] grouped by shared vocabulary
+/// as plausibly describing one underlying flow. `merged_statement` is
+/// `Some` only when the agent judges two or more accepted candidates in the
+/// cluster to be genuinely the same knowledge restated, not merely lexically
+/// similar -- consolidating them into one document instead of one per
+/// candidate (the user's explicit "не плодить дубли и объединять их" ask).
+/// `None` means the agent judged the accepted candidates in this cluster
+/// distinct enough to stay as separate documents even though they clustered
+/// lexically -- clustering is only a hint for what to review together, never
+/// a decision to merge on its own.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ClusterReview {
+    pub decisions: Vec<CandidateReviewDecision>,
+    pub merged_statement: Option<String>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

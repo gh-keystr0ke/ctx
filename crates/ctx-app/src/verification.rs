@@ -1,17 +1,18 @@
 use ctx_core::{
     business::{BusinessDocument, BusinessKind, ExplicitSymbolLink},
     domain::RepositoryId,
-    knowledge::{DecisionMethod, KnowledgeCandidate, KnowledgeDecision},
+    knowledge::{DecisionMethod, KnowledgeCandidate, KnowledgeDecision, ReviewVerdict},
     verification::{
-        ArtifactEvidenceContext, SemanticCandidate, VerificationDecision, possible_duplicate,
-        semantic_candidates,
+        ArtifactEvidenceContext, KnowledgeIdAllocator, SemanticCandidate, VerificationDecision,
+        cluster_candidates, possible_duplicate, semantic_candidates,
     },
 };
+use serde::Serialize;
 use thiserror::Error;
 
 use crate::ports::{
     ArtifactLinkStore, BusinessContextWriter, CommitMetadata, GraphStore, KnowledgeCandidateStore,
-    PortError, VerificationStore,
+    KnowledgeReviewAgent, PortError, VerificationStore,
 };
 
 #[derive(Debug, Error)]
@@ -27,6 +28,23 @@ pub enum VerificationError {
         existing_id: String,
         statement: String,
     },
+}
+
+/// What one `ctx verify --knowledge --auto` run did, for `--json` output and
+/// the plain-text summary alike: how many clusters an independent review
+/// agent actually looked at, and the resulting split across written
+/// documents (one per accepted, non-duplicate candidate or merged cluster),
+/// individually-decided accept/reject verdicts, and candidates left pending
+/// because they looked like a restatement of an already-active document
+/// (skipped rather than force-created, matching the human accept path's own
+/// default -- REQ-INCR-002).
+#[derive(Clone, Copy, Debug, Default, Serialize)]
+pub struct AutoVerifyReport {
+    pub clusters_reviewed: usize,
+    pub documents_written: usize,
+    pub candidates_accepted: usize,
+    pub candidates_rejected: usize,
+    pub candidates_skipped_possible_duplicate: usize,
 }
 
 pub struct VerificationService<'a, S> {
@@ -221,6 +239,227 @@ where
             )
             .map_err(VerificationError::Store)
     }
+
+    /// Runs every pending candidate through an independent second-opinion
+    /// review agent (`ctx verify --knowledge --auto`) instead of a human:
+    /// clusters related candidates first ([`cluster_candidates`]), asks
+    /// `agent` to accept/reject each one on its own merits and optionally
+    /// name a single merged statement for a cluster whose accepted
+    /// candidates genuinely restate the same knowledge, then writes one
+    /// document per accepted candidate or merged cluster -- exactly the
+    /// `candidate_to_document`/`write_document`/`record_decision` path
+    /// [`Self::accept`] already uses, so an auto-accepted document is
+    /// indistinguishable in shape from a human-accepted one; only
+    /// `method: DecisionMethod::Agent` on the recorded decision marks it
+    /// honestly (`INV-PROVENANCE-001`). Each stable ID is allocated by
+    /// [`KnowledgeIdAllocator`] under `id_prefix` rather than typed by a
+    /// human, since removing exactly that typing is the point of `--auto`.
+    ///
+    /// A candidate (or, for a merge, every candidate in the merged group)
+    /// that looks like a restatement of an already-active document is left
+    /// pending rather than force-created, unless `force` -- the same
+    /// default [`Self::accept`] already applies, so a human can still review
+    /// it through the ordinary interactive flow afterward.
+    ///
+    /// # Errors
+    /// Returns [`VerificationError`] when the graph or candidates cannot be
+    /// loaded, the review agent cannot be reached or returns an invalid
+    /// response, or persistence fails.
+    pub fn auto(
+        &mut self,
+        repository: &RepositoryId,
+        id_prefix: &str,
+        author: &str,
+        timestamp: &str,
+        force: bool,
+        agent: &dyn KnowledgeReviewAgent,
+    ) -> Result<AutoVerifyReport, VerificationError> {
+        let pending = self.candidates(repository)?;
+        let mut report = AutoVerifyReport::default();
+        if pending.is_empty() {
+            return Ok(report);
+        }
+        let graph = self
+            .store
+            .load_graph(repository)
+            .map_err(VerificationError::Store)?;
+        let mut allocator = KnowledgeIdAllocator::new(id_prefix, &graph);
+
+        for cluster in cluster_candidates(&pending) {
+            let members: Vec<KnowledgeCandidate> = cluster
+                .fingerprints
+                .iter()
+                .filter_map(|fingerprint| {
+                    pending
+                        .iter()
+                        .find(|candidate| &candidate.fingerprint == fingerprint)
+                        .cloned()
+                })
+                .collect();
+            report.clusters_reviewed += 1;
+            let review = agent.review(&members).map_err(VerificationError::Store)?;
+
+            let mut accepted = Vec::new();
+            for decision in &review.decisions {
+                match decision.verdict {
+                    ReviewVerdict::Reject => {
+                        self.store
+                            .record_decision(
+                                repository,
+                                &decision.fingerprint,
+                                &KnowledgeDecision::Reject {
+                                    method: DecisionMethod::Agent,
+                                },
+                                author,
+                                timestamp,
+                            )
+                            .map_err(VerificationError::Store)?;
+                        report.candidates_rejected += 1;
+                    }
+                    ReviewVerdict::Accept => {
+                        if let Some(candidate) = members
+                            .iter()
+                            .find(|candidate| candidate.fingerprint == decision.fingerprint)
+                        {
+                            accepted.push(candidate.clone());
+                        }
+                    }
+                }
+            }
+            if accepted.is_empty() {
+                continue;
+            }
+
+            if accepted.len() >= 2
+                && let Some(merged_statement) = &review.merged_statement
+            {
+                self.accept_merged(
+                    repository,
+                    cluster.kind,
+                    merged_statement,
+                    &accepted,
+                    &mut allocator,
+                    &graph,
+                    author,
+                    timestamp,
+                    force,
+                    &mut report,
+                )?;
+                continue;
+            }
+            for candidate in &accepted {
+                self.accept_one_auto(
+                    repository,
+                    candidate,
+                    &mut allocator,
+                    &graph,
+                    author,
+                    timestamp,
+                    force,
+                    &mut report,
+                )?;
+            }
+        }
+        Ok(report)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn accept_one_auto(
+        &mut self,
+        repository: &RepositoryId,
+        candidate: &KnowledgeCandidate,
+        allocator: &mut KnowledgeIdAllocator,
+        graph: &ctx_core::graph::GraphSnapshot,
+        author: &str,
+        timestamp: &str,
+        force: bool,
+        report: &mut AutoVerifyReport,
+    ) -> Result<(), VerificationError> {
+        if !force && possible_duplicate(graph, candidate.kind, &candidate.statement).is_some() {
+            report.candidates_skipped_possible_duplicate += 1;
+            return Ok(());
+        }
+        let document_id = allocator.allocate(candidate.kind);
+        let document = candidate_to_document(candidate, &document_id);
+        self.writer
+            .write_document(&document)
+            .map_err(VerificationError::Store)?;
+        self.store
+            .record_decision(
+                repository,
+                &candidate.fingerprint,
+                &KnowledgeDecision::Accept {
+                    document_id,
+                    method: DecisionMethod::Agent,
+                },
+                author,
+                timestamp,
+            )
+            .map_err(VerificationError::Store)?;
+        report.documents_written += 1;
+        report.candidates_accepted += 1;
+        Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn accept_merged(
+        &mut self,
+        repository: &RepositoryId,
+        kind: BusinessKind,
+        merged_statement: &str,
+        accepted: &[KnowledgeCandidate],
+        allocator: &mut KnowledgeIdAllocator,
+        graph: &ctx_core::graph::GraphSnapshot,
+        author: &str,
+        timestamp: &str,
+        force: bool,
+        report: &mut AutoVerifyReport,
+    ) -> Result<(), VerificationError> {
+        if !force && possible_duplicate(graph, kind, merged_statement).is_some() {
+            report.candidates_skipped_possible_duplicate += accepted.len();
+            return Ok(());
+        }
+        let merged = KnowledgeCandidate {
+            fingerprint: accepted[0].fingerprint.clone(),
+            kind,
+            statement: merged_statement.to_owned(),
+            evidence: accepted
+                .iter()
+                .flat_map(|candidate| candidate.evidence.clone())
+                .collect(),
+            implementation_candidates: accepted
+                .iter()
+                .flat_map(|candidate| candidate.implementation_candidates.clone())
+                .collect(),
+            test_candidates: accepted
+                .iter()
+                .flat_map(|candidate| candidate.test_candidates.clone())
+                .collect(),
+            provenance: accepted[0].provenance.clone(),
+        };
+        let document_id = allocator.allocate(kind);
+        let document = candidate_to_document(&merged, &document_id);
+        self.writer
+            .write_document(&document)
+            .map_err(VerificationError::Store)?;
+        for candidate in accepted {
+            self.store
+                .record_decision(
+                    repository,
+                    &candidate.fingerprint,
+                    &KnowledgeDecision::Accept {
+                        document_id: document_id.clone(),
+                        method: DecisionMethod::Agent,
+                    },
+                    author,
+                    timestamp,
+                )
+                .map_err(VerificationError::Store)?;
+            report.candidates_accepted += 1;
+        }
+        report.documents_written += 1;
+        Ok(())
+    }
 }
 
 fn candidate_to_document(candidate: &KnowledgeCandidate, document_id: &str) -> BusinessDocument {
@@ -257,7 +496,7 @@ mod knowledge_tests {
 
     use ctx_core::{
         artifact::{ArtifactIdentity, ArtifactKind, ArtifactProvider, ArtifactRef},
-        knowledge::AgentProvenance,
+        knowledge::{AgentProvenance, CandidateReviewDecision, ClusterReview},
     };
 
     use super::*;
@@ -333,6 +572,16 @@ mod knowledge_tests {
         fn write_document(&self, document: &BusinessDocument) -> Result<String, PortError> {
             self.written.borrow_mut().push(document.clone());
             Ok(format!(".context/fake/{}.yaml", document.id))
+        }
+    }
+
+    struct FakeReviewAgent<F> {
+        review: F,
+    }
+
+    impl<F: Fn(&[KnowledgeCandidate]) -> ClusterReview> KnowledgeReviewAgent for FakeReviewAgent<F> {
+        fn review(&self, candidates: &[KnowledgeCandidate]) -> Result<ClusterReview, PortError> {
+            Ok((self.review)(candidates))
         }
     }
 
@@ -553,5 +802,232 @@ mod knowledge_tests {
                 }
             )
         );
+    }
+
+    #[test]
+    fn auto_accepts_a_single_candidate_with_an_agent_allocated_id_and_honest_method() {
+        let candidate = candidate(BusinessKind::Requirement, "Cancellation preserves access.");
+        let mut store = FakeStore {
+            pending: vec![candidate.clone()],
+            ..FakeStore::default()
+        };
+        let writer = FakeWriter::default();
+        let repository = RepositoryId::new("repo:test").expect("repository ID");
+        let agent = FakeReviewAgent {
+            review: |candidates: &[KnowledgeCandidate]| ClusterReview {
+                decisions: candidates
+                    .iter()
+                    .map(|candidate| CandidateReviewDecision {
+                        fingerprint: candidate.fingerprint.clone(),
+                        verdict: ReviewVerdict::Accept,
+                    })
+                    .collect(),
+                merged_statement: None,
+            },
+        };
+
+        let report = KnowledgeVerificationService::new(&mut store, &writer)
+            .auto(
+                &repository,
+                "SUB",
+                "auto-claude",
+                "2026-08-23T00:00:00Z",
+                false,
+                &agent,
+            )
+            .expect("auto run");
+
+        assert_eq!(report.clusters_reviewed, 1);
+        assert_eq!(report.documents_written, 1);
+        assert_eq!(report.candidates_accepted, 1);
+        assert_eq!(report.candidates_rejected, 0);
+        let written = writer.written.borrow();
+        assert_eq!(written[0].id, "REQ-SUB-001");
+        assert_eq!(
+            store.decisions.borrow()[0],
+            (
+                candidate.fingerprint,
+                KnowledgeDecision::Accept {
+                    document_id: "REQ-SUB-001".to_owned(),
+                    method: DecisionMethod::Agent,
+                }
+            )
+        );
+    }
+
+    #[test]
+    fn auto_rejects_a_candidate_the_review_agent_rejects() {
+        let candidate = candidate(BusinessKind::Requirement, "Weak unsupported statement.");
+        let mut store = FakeStore {
+            pending: vec![candidate.clone()],
+            ..FakeStore::default()
+        };
+        let writer = FakeWriter::default();
+        let repository = RepositoryId::new("repo:test").expect("repository ID");
+        let agent = FakeReviewAgent {
+            review: |candidates: &[KnowledgeCandidate]| ClusterReview {
+                decisions: candidates
+                    .iter()
+                    .map(|candidate| CandidateReviewDecision {
+                        fingerprint: candidate.fingerprint.clone(),
+                        verdict: ReviewVerdict::Reject,
+                    })
+                    .collect(),
+                merged_statement: None,
+            },
+        };
+
+        let report = KnowledgeVerificationService::new(&mut store, &writer)
+            .auto(
+                &repository,
+                "SUB",
+                "auto-claude",
+                "2026-08-23T00:00:00Z",
+                false,
+                &agent,
+            )
+            .expect("auto run");
+
+        assert_eq!(report.candidates_rejected, 1);
+        assert_eq!(report.documents_written, 0);
+        assert!(writer.written.borrow().is_empty());
+        assert_eq!(
+            store.decisions.borrow()[0],
+            (
+                candidate.fingerprint,
+                KnowledgeDecision::Reject {
+                    method: DecisionMethod::Agent,
+                }
+            )
+        );
+    }
+
+    #[test]
+    fn auto_merges_two_accepted_candidates_of_one_cluster_into_a_single_document() {
+        let first = candidate(BusinessKind::Requirement, "Cancellation preserves access.");
+        let second = candidate(
+            BusinessKind::Requirement,
+            "Cancellation must preserve access.",
+        );
+        let mut store = FakeStore {
+            pending: vec![first.clone(), second.clone()],
+            ..FakeStore::default()
+        };
+        let writer = FakeWriter::default();
+        let repository = RepositoryId::new("repo:test").expect("repository ID");
+        let agent = FakeReviewAgent {
+            review: |candidates: &[KnowledgeCandidate]| ClusterReview {
+                decisions: candidates
+                    .iter()
+                    .map(|candidate| CandidateReviewDecision {
+                        fingerprint: candidate.fingerprint.clone(),
+                        verdict: ReviewVerdict::Accept,
+                    })
+                    .collect(),
+                merged_statement: Some("Cancellation preserves access.".to_owned()),
+            },
+        };
+
+        let report = KnowledgeVerificationService::new(&mut store, &writer)
+            .auto(
+                &repository,
+                "SUB",
+                "auto-claude",
+                "2026-08-23T00:00:00Z",
+                false,
+                &agent,
+            )
+            .expect("auto run");
+
+        assert_eq!(report.documents_written, 1, "one merged document, not two");
+        assert_eq!(report.candidates_accepted, 2);
+        assert_eq!(writer.written.borrow().len(), 1);
+        let decisions = store.decisions.borrow();
+        let document_ids: std::collections::BTreeSet<_> = decisions
+            .iter()
+            .filter_map(|(_, decision)| match decision {
+                KnowledgeDecision::Accept { document_id, .. } => Some(document_id.clone()),
+                KnowledgeDecision::Reject { .. } => None,
+            })
+            .collect();
+        assert_eq!(
+            document_ids.len(),
+            1,
+            "both candidates point at the same merged document"
+        );
+    }
+
+    #[test]
+    fn auto_leaves_a_likely_duplicate_pending_unless_forced() {
+        let candidate = candidate(
+            BusinessKind::Requirement,
+            "Cancellation preserves paid access until the period ends.",
+        );
+        let existing = ctx_core::graph::GraphNode {
+            stable_key: ctx_core::domain::StableKey::new("intent:REQ-SUB-001").expect("stable key"),
+            kind: ctx_core::domain::NodeKind::Requirement,
+            name: "Cancellation preserves access".to_owned(),
+            content_hash: "hash".to_owned(),
+            attributes: ctx_core::indexing::PlannedNodeAttributes::Business {
+                id: "REQ-SUB-001".to_owned(),
+                status: "active".to_owned(),
+                body: "Cancellation preserves paid access until the period ends.".to_owned(),
+                feature: None,
+                source_uri: "requirement.yaml".to_owned(),
+            },
+        };
+        let mut store = FakeStore {
+            pending: vec![candidate.clone()],
+            graph: ctx_core::graph::GraphSnapshot {
+                nodes: [(existing.stable_key.clone(), existing)]
+                    .into_iter()
+                    .collect(),
+                edges: Vec::new(),
+            },
+            ..FakeStore::default()
+        };
+        let writer = FakeWriter::default();
+        let repository = RepositoryId::new("repo:test").expect("repository ID");
+        let agent = FakeReviewAgent {
+            review: |candidates: &[KnowledgeCandidate]| ClusterReview {
+                decisions: candidates
+                    .iter()
+                    .map(|candidate| CandidateReviewDecision {
+                        fingerprint: candidate.fingerprint.clone(),
+                        verdict: ReviewVerdict::Accept,
+                    })
+                    .collect(),
+                merged_statement: None,
+            },
+        };
+
+        let report = KnowledgeVerificationService::new(&mut store, &writer)
+            .auto(
+                &repository,
+                "SUB",
+                "auto-claude",
+                "2026-08-23T00:00:00Z",
+                false,
+                &agent,
+            )
+            .expect("auto run");
+
+        assert_eq!(report.candidates_skipped_possible_duplicate, 1);
+        assert_eq!(report.documents_written, 0);
+        assert!(store.decisions.borrow().is_empty());
+
+        let forced_report = KnowledgeVerificationService::new(&mut store, &writer)
+            .auto(
+                &repository,
+                "SUB",
+                "auto-claude",
+                "2026-08-23T00:01:00Z",
+                true,
+                &agent,
+            )
+            .expect("forced auto run");
+
+        assert_eq!(forced_report.documents_written, 1);
+        assert_eq!(forced_report.candidates_accepted, 1);
     }
 }

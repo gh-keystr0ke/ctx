@@ -28,6 +28,24 @@ impl BusinessKind {
             Self::Decision => RelationKind::Satisfies,
         }
     }
+
+    /// The conventional `.context/*.yaml` ID stem for this kind (`REQ`,
+    /// `INV`, `ADR`, `FEAT`), matching this repository's own existing
+    /// document IDs (`REQ-INCR-002`, `INV-EPISTEMIC-001`, `ADR-CORE-001`,
+    /// `FEAT-INDEXING`). Used to allocate a stable ID automatically where no
+    /// human types one by hand (`ctx verify --knowledge --auto`,
+    /// [`crate::verification::KnowledgeIdAllocator`]) -- the interactive
+    /// path still always takes a human-chosen ID verbatim and never derives
+    /// one, per REQ-VERIFY-002.
+    #[must_use]
+    pub const fn id_stem(self) -> &'static str {
+        match self {
+            Self::Feature => "FEAT",
+            Self::Requirement => "REQ",
+            Self::Invariant => "INV",
+            Self::Decision => "ADR",
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]

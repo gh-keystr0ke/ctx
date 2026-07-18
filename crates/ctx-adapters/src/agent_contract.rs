@@ -12,10 +12,15 @@
 //! [`AgentTransport`] plus a call into [`analyze`] -- never touching this
 //! validation logic, and never touching `ctx-core`/`ctx-app`.
 
+use std::collections::BTreeSet;
+
 use ctx_core::{
     artifact::{ArtifactIdentity, ArtifactKind, ArtifactProvider},
     business::BusinessKind,
-    knowledge::{AgentOutcome, AgentProvenance, KnowledgeCandidate},
+    knowledge::{
+        AgentOutcome, AgentProvenance, CandidateReviewDecision, ClusterReview, KnowledgeCandidate,
+        ReviewVerdict,
+    },
     neighborhood::{ArtifactNeighborhood, render_neighborhood},
 };
 use serde::Deserialize;
@@ -283,6 +288,111 @@ fn resolve_identity(id: &str, neighborhood: &ArtifactNeighborhood) -> Option<Art
         .map(|linked| linked.artifact.identity.clone())
 }
 
+const REVIEW_SYSTEM_PROMPT: &str = r#"You are an independent second-opinion reviewer for AI-derived product-knowledge candidates. Another agent already extracted these candidates and judged them "relevant" to propose -- your job is to critically re-examine each one on its own merits and decide whether it should actually be accepted, not to rubber-stamp the earlier judgment.
+
+Below is one cluster of candidates grouped together because their statements share enough vocabulary to plausibly describe the same underlying flow -- this grouping is only a lexical hint about what to review together, not a judgment that they must be merged.
+
+For each candidate, decide "accept" (a well-grounded, evidence-backed statement worth keeping as real product knowledge) or "reject" (weak, unsupported by its own evidence, redundant with another candidate in this cluster, or not actually meaningful product knowledge).
+
+Respond with exactly one JSON object and nothing else: no prose, no markdown fence, no explanation outside the JSON.
+
+{"decisions":[{"fingerprint":"<exact fingerprint from below>","verdict":"accept|reject"}],"merged_statement":"<a single statement consolidating every accepted candidate in this cluster -- include this field only if two or more candidates are accepted AND they genuinely restate the same knowledge rather than being merely similar-sounding; omit the field entirely otherwise>"}
+
+Rules:
+- decisions must include exactly one entry for every candidate fingerprint listed below -- no more, no fewer, and never an invented fingerprint.
+- Prefer "reject" over accepting a candidate whose evidence doesn't actually support its statement.
+- Only include merged_statement when confident the accepted candidates describe the same knowledge, not just related knowledge -- when in doubt, omit it and let them stay separate documents."#;
+
+/// Runs one [`crate::agent_contract`]-extracted cluster of candidates
+/// through an independent second-opinion review (`ctx verify --knowledge
+/// --auto`): the same [`AgentTransport`] boundary every vendor already
+/// implements for extraction, a different prompt and response contract.
+/// Never trusts a fingerprint the agent didn't see, and never accepts a
+/// `decisions` list that doesn't cover the input candidates exactly once
+/// each -- malformed review output is rejected outright rather than guessed
+/// at, the same discipline [`analyze`] already applies to extraction output.
+///
+/// # Errors
+/// Returns [`AgentContractError`] when the transport fails, the response
+/// isn't valid JSON, or `decisions` names an unknown or duplicate
+/// fingerprint, or omits one of the input candidates.
+pub fn review<T: AgentTransport>(
+    transport: &T,
+    candidates: &[KnowledgeCandidate],
+) -> Result<ClusterReview, AgentContractError> {
+    let prompt = format!("{REVIEW_SYSTEM_PROMPT}\n\n{}", render_cluster(candidates));
+    let raw = transport.run(&prompt)?;
+    let object = extract_json_object(&raw)
+        .ok_or_else(|| AgentContractError::InvalidJson("no JSON object found".to_owned()))?;
+    let parsed: RawReviewOutput = serde_json::from_str(object)
+        .map_err(|error| AgentContractError::InvalidJson(error.to_string()))?;
+
+    let known: BTreeSet<&str> = candidates
+        .iter()
+        .map(|candidate| candidate.fingerprint.as_str())
+        .collect();
+    let mut seen: BTreeSet<String> = BTreeSet::new();
+    let mut decisions = Vec::with_capacity(parsed.decisions.len());
+    for raw_decision in parsed.decisions {
+        if !known.contains(raw_decision.fingerprint.as_str()) {
+            return Err(AgentContractError::InvalidJson(format!(
+                "review decided an unknown fingerprint: {}",
+                raw_decision.fingerprint
+            )));
+        }
+        if !seen.insert(raw_decision.fingerprint.clone()) {
+            return Err(AgentContractError::InvalidJson(format!(
+                "review decided the same fingerprint twice: {}",
+                raw_decision.fingerprint
+            )));
+        }
+        decisions.push(CandidateReviewDecision {
+            fingerprint: raw_decision.fingerprint,
+            verdict: raw_decision.verdict,
+        });
+    }
+    if seen.len() != known.len() {
+        return Err(AgentContractError::InvalidJson(
+            "review did not decide every candidate in the cluster".to_owned(),
+        ));
+    }
+
+    Ok(ClusterReview {
+        decisions,
+        merged_statement: parsed.merged_statement,
+    })
+}
+
+fn render_cluster(candidates: &[KnowledgeCandidate]) -> String {
+    use std::fmt::Write as _;
+
+    let mut text = String::new();
+    for candidate in candidates {
+        let _ = writeln!(
+            text,
+            "- fingerprint: {}\n  kind: {:?}\n  statement: {}",
+            candidate.fingerprint, candidate.kind, candidate.statement
+        );
+        for evidence in &candidate.evidence {
+            let _ = writeln!(text, "  evidence: {}", evidence.excerpt);
+        }
+    }
+    text
+}
+
+#[derive(Deserialize)]
+struct RawReviewOutput {
+    decisions: Vec<RawReviewDecision>,
+    #[serde(default)]
+    merged_statement: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct RawReviewDecision {
+    fingerprint: String,
+    verdict: ReviewVerdict,
+}
+
 #[cfg(test)]
 mod tests {
     use ctx_core::{
@@ -423,5 +533,109 @@ mod tests {
         let outcome = run(response, &neighborhood).expect("parsed outcome");
 
         assert_eq!(outcome, AgentOutcome::NotRelevant);
+    }
+
+    fn review_candidate(fingerprint: &str, statement: &str) -> KnowledgeCandidate {
+        KnowledgeCandidate {
+            fingerprint: fingerprint.to_owned(),
+            kind: BusinessKind::Requirement,
+            statement: statement.to_owned(),
+            evidence: vec![ctx_core::artifact::ArtifactRef {
+                identity: ArtifactIdentity {
+                    provider: ArtifactProvider::GitLab,
+                    kind: ArtifactKind::Issue,
+                    external_id: "317".to_owned(),
+                },
+                locator: "body".to_owned(),
+                excerpt: "excerpt".to_owned(),
+            }],
+            implementation_candidates: Vec::new(),
+            test_candidates: Vec::new(),
+            provenance: AgentProvenance {
+                producer: "test-agent".to_owned(),
+                model: None,
+                input_artifact_ids: vec!["gitlab:issue:317".to_owned()],
+                produced_at: "2026-08-21T00:00:00Z".to_owned(),
+                fingerprint: "fp".to_owned(),
+            },
+        }
+    }
+
+    #[test]
+    fn review_accepts_and_merges_when_the_agent_says_so() {
+        let candidates = vec![
+            review_candidate("fp1", "Cancellation preserves paid access."),
+            review_candidate("fp2", "Cancellation must preserve paid access."),
+        ];
+        let transport = FakeTransport {
+            response: r#"{"decisions":[{"fingerprint":"fp1","verdict":"accept"},{"fingerprint":"fp2","verdict":"accept"}],"merged_statement":"Cancellation preserves paid access."}"#.to_owned(),
+        };
+
+        let result = review(&transport, &candidates).expect("parsed review");
+
+        assert_eq!(result.decisions.len(), 2);
+        assert!(
+            result
+                .decisions
+                .iter()
+                .all(|decision| decision.verdict == ReviewVerdict::Accept)
+        );
+        assert_eq!(
+            result.merged_statement,
+            Some("Cancellation preserves paid access.".to_owned())
+        );
+    }
+
+    #[test]
+    fn review_can_reject_a_candidate_extraction_already_called_relevant() {
+        let candidates = vec![
+            review_candidate("fp1", "Cancellation preserves paid access."),
+            review_candidate("fp2", "Vague unsupported statement."),
+        ];
+        let transport = FakeTransport {
+            response: r#"{"decisions":[{"fingerprint":"fp1","verdict":"accept"},{"fingerprint":"fp2","verdict":"reject"}]}"#
+                .to_owned(),
+        };
+
+        let result = review(&transport, &candidates).expect("parsed review");
+
+        assert_eq!(result.merged_statement, None);
+        let fp2 = result
+            .decisions
+            .iter()
+            .find(|decision| decision.fingerprint == "fp2")
+            .expect("fp2 decision");
+        assert_eq!(fp2.verdict, ReviewVerdict::Reject);
+    }
+
+    #[test]
+    fn review_rejects_an_invented_fingerprint_not_trusted() {
+        let candidates = vec![review_candidate(
+            "fp1",
+            "Cancellation preserves paid access.",
+        )];
+        let transport = FakeTransport {
+            response: r#"{"decisions":[{"fingerprint":"fp-invented","verdict":"accept"}]}"#
+                .to_owned(),
+        };
+
+        let result = review(&transport, &candidates);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn review_rejects_a_decision_list_missing_a_candidate() {
+        let candidates = vec![
+            review_candidate("fp1", "Cancellation preserves paid access."),
+            review_candidate("fp2", "A second, distinct statement."),
+        ];
+        let transport = FakeTransport {
+            response: r#"{"decisions":[{"fingerprint":"fp1","verdict":"accept"}]}"#.to_owned(),
+        };
+
+        let result = review(&transport, &candidates);
+
+        assert!(result.is_err());
     }
 }

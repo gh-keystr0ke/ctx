@@ -6,8 +6,11 @@
 
 use std::process::Command;
 
-use ctx_app::ports::{PortError, SemanticAgent};
-use ctx_core::{knowledge::AgentOutcome, neighborhood::ArtifactNeighborhood};
+use ctx_app::ports::{KnowledgeReviewAgent, PortError, SemanticAgent};
+use ctx_core::{
+    knowledge::{AgentOutcome, ClusterReview, KnowledgeCandidate},
+    neighborhood::ArtifactNeighborhood,
+};
 
 use crate::agent_contract::{self, AgentContractError, AgentTransport};
 
@@ -83,6 +86,13 @@ impl<T: AgentTransport> SemanticAgent for ClaudeCodeAgent<T> {
         produced_at: &str,
     ) -> Result<AgentOutcome, PortError> {
         self.analyze_neighborhood(neighborhood, produced_at)
+            .map_err(|error| PortError::new(error.to_string()))
+    }
+}
+
+impl<T: AgentTransport> KnowledgeReviewAgent for ClaudeCodeAgent<T> {
+    fn review(&self, candidates: &[KnowledgeCandidate]) -> Result<ClusterReview, PortError> {
+        agent_contract::review(&self.transport, candidates)
             .map_err(|error| PortError::new(error.to_string()))
     }
 }

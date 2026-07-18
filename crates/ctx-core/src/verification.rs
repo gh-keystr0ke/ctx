@@ -399,6 +399,62 @@ pub fn possible_duplicate(
         .map(|(identifier, _)| identifier)
 }
 
+/// Allocates stable `.context/*.yaml` document IDs for
+/// `ctx verify --knowledge --auto`, the one accept path where no human types
+/// an ID by hand (REQ-VERIFY-002's interactive/scripted path still always
+/// takes a human-chosen ID verbatim and never derives one -- this is a
+/// deliberately separate allocator for the deliberately separate flow that
+/// needs it). Every ID is `<kind stem>-<prefix>-<NNN>` (e.g. `REQ-SUB-001`),
+/// matching this repository's own existing convention
+/// ([`BusinessKind::id_stem`]); `prefix` is the one thing a human still
+/// supplies (`--id-prefix`), since a fully content-derived ID is exactly
+/// what REQ-VERIFY-002 already rules out for the same underlying reason --
+/// a guessed name is a silent, easy-to-miss way to collide with or shadow
+/// existing product knowledge.
+///
+/// Numbering starts at 1 and skips any ID already in use, including one
+/// this same allocator has already handed out earlier in the same run --
+/// `used` is updated in place on every call, so allocating several documents
+/// in one `--auto` invocation never collides with each other, not only with
+/// IDs that existed before the run started.
+pub struct KnowledgeIdAllocator {
+    prefix: String,
+    used: BTreeSet<String>,
+}
+
+impl KnowledgeIdAllocator {
+    #[must_use]
+    pub fn new(prefix: impl Into<String>, graph: &GraphSnapshot) -> Self {
+        let used = graph
+            .nodes
+            .values()
+            .filter_map(|node| match &node.attributes {
+                PlannedNodeAttributes::Business { id, .. } => Some(id.clone()),
+                PlannedNodeAttributes::Symbol { .. }
+                | PlannedNodeAttributes::File { .. }
+                | PlannedNodeAttributes::Interaction { .. } => None,
+            })
+            .collect();
+        Self {
+            prefix: prefix.into(),
+            used,
+        }
+    }
+
+    #[must_use]
+    pub fn allocate(&mut self, kind: BusinessKind) -> String {
+        let stem = kind.id_stem();
+        let mut number = 1u32;
+        loop {
+            let id = format!("{stem}-{}-{number:03}", self.prefix);
+            if self.used.insert(id.clone()) {
+                return id;
+            }
+            number += 1;
+        }
+    }
+}
+
 /// A group of still-pending [`KnowledgeCandidate`]s whose statements share
 /// enough vocabulary to plausibly describe one underlying flow rather than
 /// several independent ones -- e.g. a `Status`/`Data`/`Store` triad of
@@ -930,6 +986,44 @@ mod tests {
 
         assert_eq!(clusters.len(), 1);
         assert_eq!(clusters[0].fingerprints.len(), 3);
+    }
+
+    #[test]
+    fn id_allocator_numbers_sequentially_and_never_repeats_within_a_run() {
+        let graph = GraphSnapshot::default();
+        let mut allocator = KnowledgeIdAllocator::new("SUB", &graph);
+
+        assert_eq!(allocator.allocate(BusinessKind::Requirement), "REQ-SUB-001");
+        assert_eq!(allocator.allocate(BusinessKind::Requirement), "REQ-SUB-002");
+        // A different kind gets its own independent numbering under the
+        // same prefix, since the kind stem already keeps them apart.
+        assert_eq!(allocator.allocate(BusinessKind::Invariant), "INV-SUB-001");
+    }
+
+    #[test]
+    fn id_allocator_skips_ids_already_used_in_the_graph() {
+        let existing = GraphNode {
+            stable_key: StableKey::new("intent:REQ-SUB-001").expect("stable key"),
+            kind: NodeKind::Requirement,
+            name: "Existing".to_owned(),
+            content_hash: "hash".to_owned(),
+            attributes: PlannedNodeAttributes::Business {
+                id: "REQ-SUB-001".to_owned(),
+                status: "active".to_owned(),
+                body: "Existing requirement.".to_owned(),
+                feature: None,
+                source_uri: "requirement.yaml".to_owned(),
+            },
+        };
+        let graph = GraphSnapshot {
+            nodes: [(existing.stable_key.clone(), existing)]
+                .into_iter()
+                .collect(),
+            edges: Vec::new(),
+        };
+        let mut allocator = KnowledgeIdAllocator::new("SUB", &graph);
+
+        assert_eq!(allocator.allocate(BusinessKind::Requirement), "REQ-SUB-002");
     }
 
     fn intent_node() -> GraphNode {

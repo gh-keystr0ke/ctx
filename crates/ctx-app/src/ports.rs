@@ -9,7 +9,9 @@ use ctx_core::{
     graph::GraphSnapshot,
     indexing::{FileChange, IndexPlan, RepositorySnapshot},
     ir::FileAnalysis,
-    knowledge::{AcceptedKnowledgeRecord, AgentOutcome, KnowledgeCandidate, KnowledgeDecision},
+    knowledge::{
+        AcceptedKnowledgeRecord, AgentOutcome, ClusterReview, KnowledgeCandidate, KnowledgeDecision,
+    },
     neighborhood::ArtifactNeighborhood,
     verification::{SemanticCandidate, VerificationDecision},
 };
@@ -475,4 +477,24 @@ pub trait SemanticAgent {
         neighborhood: &ArtifactNeighborhood,
         produced_at: &str,
     ) -> Result<AgentOutcome, PortError>;
+}
+
+/// The interchangeable AI-agent boundary for `ctx verify --knowledge
+/// --auto`'s independent second-opinion review -- deliberately a sibling
+/// trait to [`SemanticAgent`], not a shared one: extraction decides "does
+/// this bounded neighborhood state new knowledge," review decides "should
+/// this already-extracted candidate actually be accepted," a genuinely
+/// different question with a different input shape (a candidate cluster,
+/// not an artifact neighborhood) and a different output shape (per-candidate
+/// verdicts plus an optional merge, not new candidates).
+pub trait KnowledgeReviewAgent {
+    /// Independently reviews one [`ctx_core::verification::CandidateCluster`]'s
+    /// candidates and returns a verdict on each, plus an optional merged
+    /// statement when two or more accepted candidates genuinely restate the
+    /// same knowledge.
+    ///
+    /// # Errors
+    /// Returns [`PortError`] when the agent cannot be reached, or its output
+    /// cannot be parsed and validated as the expected contract.
+    fn review(&self, candidates: &[KnowledgeCandidate]) -> Result<ClusterReview, PortError>;
 }

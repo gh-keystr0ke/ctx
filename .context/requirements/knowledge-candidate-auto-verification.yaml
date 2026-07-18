@@ -1,0 +1,65 @@
+id: REQ-VERIFY-003
+type: requirement
+feature: FEAT-INDEXING
+status: active
+statement: >
+  `ctx verify --knowledge --auto --agent <claude|codex|antigravity> [--model
+  <model>] --id-prefix <PREFIX>` must let a review agent decide pending
+  AI-derived KnowledgeCandidates in bulk, without requiring a human to press
+  accept/reject hundreds of times by hand -- the user's own experience
+  ("900 раз нажимать y") reviewing a real antigravity-enriched repository.
+  This is deliberately NOT a mechanical bulk-accept of everything extraction
+  already called `relevant`: the review agent is a genuine independent
+  second opinion (ctx_app.ports.KnowledgeReviewAgent) that re-examines each
+  candidate on its own merits and can reject it, the same
+  evidence-vs-reasoning discipline REQ-AI-001's extraction contract already
+  applies. Pending candidates are first grouped by
+  ctx_core.verification.cluster_candidates (REQ-INCR-003) so candidates that
+  together describe one underlying flow can be reviewed together; the review
+  agent then returns a per-candidate accept/reject verdict for every
+  candidate in the cluster plus, only when it judges two or more accepted
+  candidates to genuinely restate the same knowledge (not merely lexically
+  similar), one merged statement -- consolidating them into a single
+  document instead of one per candidate (the user's explicit "не плодить
+  дубли и объединять их" ask). A cluster whose accepted candidates the agent
+  does NOT merge still becomes one document per candidate, exactly like the
+  human accept path.
+
+  Every resulting decision is recorded with `DecisionMethod::Agent`
+  (INV-PROVENANCE-001), never `Human`, so `ctx explain` renders it honestly
+  as "Auto-verified" and never as though a human reviewed it --
+  `INV-EPISTEMIC-001` still holds either way, since a human explicitly
+  configured and triggered `--auto`, but the provenance never lies about
+  what actually happened. Each accepted document's stable ID is allocated by
+  `ctx_core.verification.KnowledgeIdAllocator` under the required
+  `--id-prefix` (`<kind stem>-<prefix>-<NNN>`, e.g. `REQ-SUB-001`) rather
+  than guessed from content -- REQ-VERIFY-002's "no ID is ever guessed or
+  derived from content" guarantee holds for `--auto` too, just satisfied by
+  a human-supplied prefix instead of a full human-typed ID, since typing a
+  full ID per candidate is exactly the six-hour cost this feature removes.
+  A candidate (or every candidate in a merged group) that looks like a
+  restatement of an already-active document is left pending rather than
+  force-created, unless `--force` -- the same default REQ-INCR-002's
+  duplicate check already applies to a human accept.
+implementation:
+  - symbol: ctx_core.knowledge.ReviewVerdict
+  - symbol: ctx_core.knowledge.CandidateReviewDecision
+  - symbol: ctx_core.knowledge.ClusterReview
+  - symbol: ctx_core.business.BusinessKind.id_stem
+  - symbol: ctx_core.verification.KnowledgeIdAllocator
+  - symbol: ctx_app.ports.KnowledgeReviewAgent
+  - symbol: ctx_app.verification.KnowledgeVerificationService.auto
+  - symbol: ctx_app.verification.AutoVerifyReport
+  - symbol: ctx_adapters.agent_contract.review
+tests:
+  - symbol: ctx_adapters.agent_contract.tests.review_accepts_and_merges_when_the_agent_says_so
+  - symbol: ctx_adapters.agent_contract.tests.review_can_reject_a_candidate_extraction_already_called_relevant
+  - symbol: ctx_adapters.agent_contract.tests.review_rejects_an_invented_fingerprint_not_trusted
+  - symbol: ctx_adapters.agent_contract.tests.review_rejects_a_decision_list_missing_a_candidate
+  - symbol: ctx_app.verification.knowledge_tests.auto_accepts_a_single_candidate_with_an_agent_allocated_id_and_honest_method
+  - symbol: ctx_app.verification.knowledge_tests.auto_rejects_a_candidate_the_review_agent_rejects
+  - symbol: ctx_app.verification.knowledge_tests.auto_merges_two_accepted_candidates_of_one_cluster_into_a_single_document
+  - symbol: ctx_app.verification.knowledge_tests.auto_leaves_a_likely_duplicate_pending_unless_forced
+  - symbol: ctx_core.verification.tests.id_allocator_numbers_sequentially_and_never_repeats_within_a_run
+  - symbol: ctx_core.verification.tests.id_allocator_skips_ids_already_used_in_the_graph
+  - symbol: crates.ctx-cli.tests.e2e.verify_knowledge_auto_reviews_and_accepts_with_an_honest_agent_decision_method

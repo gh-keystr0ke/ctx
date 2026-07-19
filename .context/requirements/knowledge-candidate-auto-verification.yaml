@@ -40,7 +40,19 @@ statement: >
   A candidate (or every candidate in a merged group) that looks like a
   restatement of an already-active document is left pending rather than
   force-created, unless `--force` -- the same default REQ-INCR-002's
-  duplicate check already applies to a human accept. `--auto` reports
+  duplicate check already applies to a human accept.
+
+  The allocator's "already used" set is seeded from both the indexed graph
+  AND a fresh `BusinessContextReader.read_all()` of `.context/*.yaml` on
+  disk (`KnowledgeIdAllocator.mark_used`) -- the graph alone can lag behind
+  disk (a document written, e.g. by hand or by an earlier `--auto`/accept
+  run, since the last `ctx index`), and allocating an ID that collides with
+  one already on disk doesn't fail just that document: it aborts the entire
+  `--auto` run at `write_document`'s pre-existing duplicate-file check with
+  a misleading "candidates could not be loaded" error, even though hundreds
+  of other pending candidates were never actually looked at. Found from a
+  real `--auto --id-prefix ML` run against another repository that failed
+  immediately on cluster 1 of 715 this way. `--auto` reports
   progress to stderr immediately before reviewing each cluster
   (`[position/total] reviewing cluster (kind, N candidate(s)) via
   <agent>...`), the same fix and the same reasoning `ctx enrich` already
@@ -48,17 +60,54 @@ statement: >
   seconds, and silence across several clusters is indistinguishable from a
   hang -- found from an actual user hitting the identical symptom on
   `--auto` specifically, not from a test.
+
+  The progress line alone only says a cluster is *being* reviewed, never
+  what the agent actually decided -- the same user asked for that
+  immediately after the progress-output fix landed. `auto_with_progress`
+  therefore also calls `on_result(position, total, reviewed)` right after
+  each cluster's decisions are recorded, once per candidate the agent
+  returned a verdict for, each a `ctx_app.verification.ReviewedCandidate`
+  (the candidate's statement plus a `ctx_app.verification.CandidateOutcome`
+  -- `Accepted { document_id }`, `Rejected`, or `SkippedPossibleDuplicate {
+  existing_id }`, the last covering the possible-duplicate skip above even
+  though the agent itself voted `Accept`). The CLI prints one indented line
+  per candidate underneath its cluster's progress line.
+
+  The same `[position/total]` also mirrors into the terminal tab title
+  (`ctx_cli.tab_title.set_title`, xterm `OSC 0`,
+  `\x1b]0;<title>\x07` -- the only tab-title mechanism with practically
+  universal terminal support), written synchronously on every
+  `on_progress` call rather than animated on a timer: an animated spinner
+  version of this was tried and reverted in the same session -- twitchy
+  regardless of glyph choice, since the tab bar renders the title through
+  the terminal UI's own proportional font rather than the monospace font
+  used for terminal content, and added complexity (a background thread,
+  `Drop`-based cleanup) for a cosmetic effect the user didn't end up
+  wanting once the static per-cluster prints already covered progress
+  visibility. The static title write is deliberately kept: it's the one
+  thing the animation gave that the stderr prints below don't -- progress
+  visible at a glance across several open terminal tabs without switching
+  to the one running `--auto`. Reset to a plain `"ctx"` once the run
+  finishes rather than left on the last cluster's position. A no-op when
+  stderr isn't a terminal, so redirected/CI output never receives raw
+  escape bytes.
 implementation:
   - symbol: ctx_core.knowledge.ReviewVerdict
   - symbol: ctx_core.knowledge.CandidateReviewDecision
   - symbol: ctx_core.knowledge.ClusterReview
   - symbol: ctx_core.business.BusinessKind.id_stem
   - symbol: ctx_core.verification.KnowledgeIdAllocator
+  - symbol: ctx_core.verification.KnowledgeIdAllocator.mark_used
+  - symbol: ctx_app.ports.BusinessContextReader
   - symbol: ctx_app.ports.KnowledgeReviewAgent
   - symbol: ctx_app.verification.KnowledgeVerificationService.auto
   - symbol: ctx_app.verification.KnowledgeVerificationService.auto_with_progress
+  - symbol: ctx_app.verification.KnowledgeVerificationService.process_cluster
   - symbol: ctx_app.verification.AutoVerifyReport
+  - symbol: ctx_app.verification.CandidateOutcome
+  - symbol: ctx_app.verification.ReviewedCandidate
   - symbol: ctx_adapters.agent_contract.review
+  - symbol: ctx_cli.tab_title.set_title
 tests:
   - symbol: ctx_adapters.agent_contract.tests.review_accepts_and_merges_when_the_agent_says_so
   - symbol: ctx_adapters.agent_contract.tests.review_can_reject_a_candidate_extraction_already_called_relevant
@@ -70,5 +119,8 @@ tests:
   - symbol: ctx_app.verification.knowledge_tests.auto_leaves_a_likely_duplicate_pending_unless_forced
   - symbol: ctx_core.verification.tests.id_allocator_numbers_sequentially_and_never_repeats_within_a_run
   - symbol: ctx_core.verification.tests.id_allocator_skips_ids_already_used_in_the_graph
+  - symbol: ctx_app.verification.knowledge_tests.auto_skips_an_id_already_on_disk_even_when_the_graph_has_not_indexed_it_yet
   - symbol: ctx_app.verification.knowledge_tests.auto_with_progress_reports_position_and_total_once_per_cluster
+  - symbol: ctx_app.verification.knowledge_tests.auto_with_progress_reports_a_result_per_candidate_after_each_cluster
+  - symbol: ctx_cli.tab_title.tests.title_sequence_wraps_the_title_in_osc_0
   - symbol: crates.ctx-cli.tests.e2e.verify_knowledge_auto_reviews_and_accepts_with_an_honest_agent_decision_method

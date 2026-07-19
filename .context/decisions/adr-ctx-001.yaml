@@ -1,0 +1,5 @@
+id: ADR-CTX-001
+type: decision
+status: active
+title: ALTER TABLE ADD CONSTRAINT and DROP CONSTRAINT remain unsupported because bare c…
+decision: ALTER TABLE ADD CONSTRAINT and DROP CONSTRAINT remain unsupported because bare constraint names cannot be reliably resolved to columns without the existing table definition.

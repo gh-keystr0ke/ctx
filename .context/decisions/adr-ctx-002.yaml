@@ -1,0 +1,5 @@
+id: ADR-CTX-002
+type: decision
+status: active
+title: Accepted knowledge candidates are written as ordinary business-context YAML docu…
+decision: Accepted knowledge candidates are written as ordinary business-context YAML documents so indexing uses the existing product-knowledge store rather than a parallel truth store.

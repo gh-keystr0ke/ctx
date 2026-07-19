@@ -1,0 +1,5 @@
+id: ADR-CTX-004
+type: decision
+status: active
+title: Call-graph escalation sources are restricted to Function and Method symbols to a…
+decision: Call-graph escalation sources are restricted to Function and Method symbols to avoid duplicate and rename-only false-positive findings.

@@ -1,0 +1,7 @@
+id: ADR-CTX-003
+type: decision
+status: active
+title: Accepting a KnowledgeCandidate creates a new product-knowledge entity with the c…
+decision: Accepting a KnowledgeCandidate creates a new product-knowledge entity with the chosen stable ID while retaining the original candidate row as accepted and pointing it to that same ID.
+implementation:
+- symbol: ctx_core.knowledge.KnowledgeDecision

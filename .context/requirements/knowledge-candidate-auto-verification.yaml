@@ -40,7 +40,14 @@ statement: >
   A candidate (or every candidate in a merged group) that looks like a
   restatement of an already-active document is left pending rather than
   force-created, unless `--force` -- the same default REQ-INCR-002's
-  duplicate check already applies to a human accept.
+  duplicate check already applies to a human accept. `--auto` reports
+  progress to stderr immediately before reviewing each cluster
+  (`[position/total] reviewing cluster (kind, N candidate(s)) via
+  <agent>...`), the same fix and the same reasoning `ctx enrich` already
+  needed (REQ-AI-001): a real review call per cluster can take tens of
+  seconds, and silence across several clusters is indistinguishable from a
+  hang -- found from an actual user hitting the identical symptom on
+  `--auto` specifically, not from a test.
 implementation:
   - symbol: ctx_core.knowledge.ReviewVerdict
   - symbol: ctx_core.knowledge.CandidateReviewDecision
@@ -49,6 +56,7 @@ implementation:
   - symbol: ctx_core.verification.KnowledgeIdAllocator
   - symbol: ctx_app.ports.KnowledgeReviewAgent
   - symbol: ctx_app.verification.KnowledgeVerificationService.auto
+  - symbol: ctx_app.verification.KnowledgeVerificationService.auto_with_progress
   - symbol: ctx_app.verification.AutoVerifyReport
   - symbol: ctx_adapters.agent_contract.review
 tests:
@@ -62,4 +70,5 @@ tests:
   - symbol: ctx_app.verification.knowledge_tests.auto_leaves_a_likely_duplicate_pending_unless_forced
   - symbol: ctx_core.verification.tests.id_allocator_numbers_sequentially_and_never_repeats_within_a_run
   - symbol: ctx_core.verification.tests.id_allocator_skips_ids_already_used_in_the_graph
+  - symbol: ctx_app.verification.knowledge_tests.auto_with_progress_reports_position_and_total_once_per_cluster
   - symbol: crates.ctx-cli.tests.e2e.verify_knowledge_auto_reviews_and_accepts_with_an_honest_agent_decision_method

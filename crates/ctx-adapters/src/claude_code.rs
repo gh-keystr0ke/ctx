@@ -16,25 +16,30 @@ use crate::agent_contract::{self, AgentContractError, AgentTransport};
 
 pub struct SubprocessTransport {
     binary: String,
+    verbose: bool,
 }
 
 impl SubprocessTransport {
     #[must_use]
-    pub fn new(binary: impl Into<String>) -> Self {
+    pub fn new(binary: impl Into<String>, verbose: bool) -> Self {
         Self {
             binary: binary.into(),
+            verbose,
         }
     }
 }
 
 impl Default for SubprocessTransport {
     fn default() -> Self {
-        Self::new("claude")
+        Self::new("claude", false)
     }
 }
 
 impl AgentTransport for SubprocessTransport {
     fn run(&self, prompt: &str) -> Result<String, AgentContractError> {
+        if self.verbose {
+            eprintln!("--- AGENT PROMPT ({}) ---\n{}\n--- END PROMPT ---", self.binary, prompt);
+        }
         let output = Command::new(&self.binary)
             .arg("-p")
             .arg(prompt)
@@ -126,7 +131,7 @@ mod tests {
             std::fs::set_permissions(&script_path, permissions).expect("chmod");
         }
 
-        let transport = SubprocessTransport::new(script_path.to_string_lossy().into_owned());
+        let transport = SubprocessTransport::new(script_path.to_string_lossy().into_owned(), false);
         let output = transport.run("hello neighborhood").expect("script output");
 
         assert!(output.contains("not_relevant"));

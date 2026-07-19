@@ -538,7 +538,7 @@ fn verify_knowledge_auto(
     let report = match agent {
         "claude" => {
             let binary = env::var("CTX_CLAUDE_CLI_BINARY").unwrap_or_else(|_| "claude".to_owned());
-            let review_agent = ClaudeCodeAgent::new(ClaudeSubprocessTransport::new(binary), model);
+            let review_agent = ClaudeCodeAgent::new(ClaudeSubprocessTransport::new(binary, cli.verbose > 0), model);
             KnowledgeVerificationService::new(&mut store, &writer).auto_with_progress(
                 &repository.id,
                 id_prefix,
@@ -552,7 +552,7 @@ fn verify_knowledge_auto(
         }
         "codex" => {
             let binary = env::var("CTX_CODEX_CLI_BINARY").unwrap_or_else(|_| "codex".to_owned());
-            let review_agent = CodexAgent::new(CodexSubprocessTransport::new(binary), model);
+            let review_agent = CodexAgent::new(CodexSubprocessTransport::new(binary, cli.verbose > 0), model);
             KnowledgeVerificationService::new(&mut store, &writer).auto_with_progress(
                 &repository.id,
                 id_prefix,
@@ -568,7 +568,7 @@ fn verify_knowledge_auto(
             let binary =
                 env::var("CTX_ANTIGRAVITY_CLI_BINARY").unwrap_or_else(|_| "agy".to_owned());
             let review_agent =
-                AntigravityAgent::new(AntigravitySubprocessTransport::new(binary), model);
+                AntigravityAgent::new(AntigravitySubprocessTransport::new(binary, cli.verbose > 0), model);
             KnowledgeVerificationService::new(&mut store, &writer).auto_with_progress(
                 &repository.id,
                 id_prefix,
@@ -1125,7 +1125,7 @@ fn enrich(cli: &Cli, git: &GitRepo, agent: &str, model: Option<String>) -> Resul
     let report = match agent {
         "claude" => {
             let binary = env::var("CTX_CLAUDE_CLI_BINARY").unwrap_or_else(|_| "claude".to_owned());
-            let claude_agent = ClaudeCodeAgent::new(ClaudeSubprocessTransport::new(binary), model);
+            let claude_agent = ClaudeCodeAgent::new(ClaudeSubprocessTransport::new(binary, cli.verbose > 0), model);
             EnrichRunner::new(&claude_agent, &mut store).run_with_progress(
                 &repository.id,
                 &now,
@@ -1134,7 +1134,7 @@ fn enrich(cli: &Cli, git: &GitRepo, agent: &str, model: Option<String>) -> Resul
         }
         "codex" => {
             let binary = env::var("CTX_CODEX_CLI_BINARY").unwrap_or_else(|_| "codex".to_owned());
-            let codex_agent = CodexAgent::new(CodexSubprocessTransport::new(binary), model);
+            let codex_agent = CodexAgent::new(CodexSubprocessTransport::new(binary, cli.verbose > 0), model);
             EnrichRunner::new(&codex_agent, &mut store).run_with_progress(
                 &repository.id,
                 &now,
@@ -1145,7 +1145,7 @@ fn enrich(cli: &Cli, git: &GitRepo, agent: &str, model: Option<String>) -> Resul
             let binary =
                 env::var("CTX_ANTIGRAVITY_CLI_BINARY").unwrap_or_else(|_| "agy".to_owned());
             let antigravity_agent =
-                AntigravityAgent::new(AntigravitySubprocessTransport::new(binary), model);
+                AntigravityAgent::new(AntigravitySubprocessTransport::new(binary, cli.verbose > 0), model);
             EnrichRunner::new(&antigravity_agent, &mut store).run_with_progress(
                 &repository.id,
                 &now,

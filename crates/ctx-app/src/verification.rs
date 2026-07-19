@@ -3,8 +3,8 @@ use ctx_core::{
     domain::RepositoryId,
     knowledge::{DecisionMethod, KnowledgeCandidate, KnowledgeDecision, ReviewVerdict},
     verification::{
-        ArtifactEvidenceContext, KnowledgeIdAllocator, SemanticCandidate, VerificationDecision,
-        cluster_candidates, possible_duplicate, semantic_candidates,
+        ArtifactEvidenceContext, CandidateCluster, KnowledgeIdAllocator, SemanticCandidate,
+        VerificationDecision, cluster_candidates, possible_duplicate, semantic_candidates,
     },
 };
 use serde::Serialize;
@@ -274,6 +274,40 @@ where
         force: bool,
         agent: &dyn KnowledgeReviewAgent,
     ) -> Result<AutoVerifyReport, VerificationError> {
+        self.auto_with_progress(
+            repository,
+            id_prefix,
+            author,
+            timestamp,
+            force,
+            agent,
+            &mut |_, _, _| {},
+        )
+    }
+
+    /// Identical to [`Self::auto`], but calls `on_progress(position, total,
+    /// cluster)` immediately before reviewing each cluster -- `position` is
+    /// 1-based, `total` is the number of clusters this run will review.
+    /// Split out the same way [`crate::enrich::EnrichRunner::run_with_progress`]
+    /// is: a real agent call per cluster can take tens of seconds, and with
+    /// dozens of pending candidates grouped into several clusters, silence
+    /// the whole time is indistinguishable from a hang (the exact bug a real
+    /// user already hit once with `ctx enrich` before it got the same fix).
+    ///
+    /// # Errors
+    /// Returns [`VerificationError`] under the same conditions as
+    /// [`Self::auto`].
+    #[allow(clippy::too_many_arguments)]
+    pub fn auto_with_progress(
+        &mut self,
+        repository: &RepositoryId,
+        id_prefix: &str,
+        author: &str,
+        timestamp: &str,
+        force: bool,
+        agent: &dyn KnowledgeReviewAgent,
+        on_progress: &mut dyn FnMut(usize, usize, &CandidateCluster),
+    ) -> Result<AutoVerifyReport, VerificationError> {
         let pending = self.candidates(repository)?;
         let mut report = AutoVerifyReport::default();
         if pending.is_empty() {
@@ -285,7 +319,10 @@ where
             .map_err(VerificationError::Store)?;
         let mut allocator = KnowledgeIdAllocator::new(id_prefix, &graph);
 
-        for cluster in cluster_candidates(&pending) {
+        let clusters = cluster_candidates(&pending);
+        let total = clusters.len();
+        for (index, cluster) in clusters.into_iter().enumerate() {
+            on_progress(index + 1, total, &cluster);
             let members: Vec<KnowledgeCandidate> = cluster
                 .fingerprints
                 .iter()
@@ -1029,5 +1066,48 @@ mod knowledge_tests {
 
         assert_eq!(forced_report.documents_written, 1);
         assert_eq!(forced_report.candidates_accepted, 1);
+    }
+
+    #[test]
+    fn auto_with_progress_reports_position_and_total_once_per_cluster() {
+        // Two unrelated statements never cluster together (no shared
+        // vocabulary), so this is two clusters of one candidate each.
+        let first = candidate(BusinessKind::Requirement, "Cancellation preserves access.");
+        let second = candidate(BusinessKind::Invariant, "Never delete billing history.");
+        let mut store = FakeStore {
+            pending: vec![first.clone(), second.clone()],
+            ..FakeStore::default()
+        };
+        let writer = FakeWriter::default();
+        let repository = RepositoryId::new("repo:test").expect("repository ID");
+        let agent = FakeReviewAgent {
+            review: |candidates: &[KnowledgeCandidate]| ClusterReview {
+                decisions: candidates
+                    .iter()
+                    .map(|candidate| CandidateReviewDecision {
+                        fingerprint: candidate.fingerprint.clone(),
+                        verdict: ReviewVerdict::Accept,
+                    })
+                    .collect(),
+                merged_statement: None,
+            },
+        };
+        let mut seen = Vec::new();
+
+        KnowledgeVerificationService::new(&mut store, &writer)
+            .auto_with_progress(
+                &repository,
+                "SUB",
+                "auto-claude",
+                "2026-08-23T00:00:00Z",
+                false,
+                &agent,
+                &mut |position, total, cluster| {
+                    seen.push((position, total, cluster.fingerprints.len()));
+                },
+            )
+            .expect("auto run");
+
+        assert_eq!(seen, vec![(1, 2, 1), (2, 2, 1)]);
     }
 }

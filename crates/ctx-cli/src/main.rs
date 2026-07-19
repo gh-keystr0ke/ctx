@@ -479,29 +479,43 @@ fn verify_knowledge_auto(
     let now = Utc::now().to_rfc3339();
     let writer = YamlBusinessContextReader::new(git.root().to_path_buf());
 
+    // Same reasoning as `enrich`'s own progress output: a real review call
+    // per cluster can take tens of seconds, and with several clusters,
+    // silence the whole time looks indistinguishable from a hang. Printed
+    // to stderr so --json output stays parseable.
+    let mut report_progress =
+        |position: usize, total: usize, cluster: &ctx_core::verification::CandidateCluster| {
+            eprintln!(
+                "[{position}/{total}] reviewing cluster ({:?}, {} candidate(s)) via {agent}...",
+                cluster.kind,
+                cluster.fingerprints.len()
+            );
+        };
     let report = match agent {
         "claude" => {
             let binary = env::var("CTX_CLAUDE_CLI_BINARY").unwrap_or_else(|_| "claude".to_owned());
             let review_agent = ClaudeCodeAgent::new(ClaudeSubprocessTransport::new(binary), model);
-            KnowledgeVerificationService::new(&mut store, &writer).auto(
+            KnowledgeVerificationService::new(&mut store, &writer).auto_with_progress(
                 &repository.id,
                 id_prefix,
                 author,
                 &now,
                 force,
                 &review_agent,
+                &mut report_progress,
             )?
         }
         "codex" => {
             let binary = env::var("CTX_CODEX_CLI_BINARY").unwrap_or_else(|_| "codex".to_owned());
             let review_agent = CodexAgent::new(CodexSubprocessTransport::new(binary), model);
-            KnowledgeVerificationService::new(&mut store, &writer).auto(
+            KnowledgeVerificationService::new(&mut store, &writer).auto_with_progress(
                 &repository.id,
                 id_prefix,
                 author,
                 &now,
                 force,
                 &review_agent,
+                &mut report_progress,
             )?
         }
         "antigravity" => {
@@ -509,13 +523,14 @@ fn verify_knowledge_auto(
                 env::var("CTX_ANTIGRAVITY_CLI_BINARY").unwrap_or_else(|_| "agy".to_owned());
             let review_agent =
                 AntigravityAgent::new(AntigravitySubprocessTransport::new(binary), model);
-            KnowledgeVerificationService::new(&mut store, &writer).auto(
+            KnowledgeVerificationService::new(&mut store, &writer).auto_with_progress(
                 &repository.id,
                 id_prefix,
                 author,
                 &now,
                 force,
                 &review_agent,
+                &mut report_progress,
             )?
         }
         other => return Err(CliError::UnsupportedAgent(other.to_owned())),

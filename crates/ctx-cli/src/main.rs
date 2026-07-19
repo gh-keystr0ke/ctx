@@ -26,7 +26,10 @@ use ctx_app::{
     query::{QueryError, QueryService},
     review::{ReviewError, ReviewRunner},
     status::{IndexState, StatusError, StatusHealth, StatusService},
-    verification::{KnowledgeVerificationService, VerificationError, VerificationService},
+    verification::{
+        CandidateOutcome, KnowledgeVerificationService, ReviewedCandidate, VerificationError,
+        VerificationService,
+    },
 };
 use ctx_core::business::ContextImportStats;
 use ctx_core::context_pack::ContextRequest;
@@ -35,6 +38,8 @@ use ctx_core::verification::VerificationDecision;
 use serde::Serialize;
 use serde_json::json;
 use thiserror::Error;
+
+mod tab_title;
 
 const DEFAULT_CONFIG: &str = r#"languages = ["python", "rust", "go"]
 
@@ -463,6 +468,19 @@ fn verify_knowledge(
     Ok(())
 }
 
+/// Collapses `statement` to one printable line for `--auto`'s per-candidate
+/// result output, truncated so one long candidate can't push a cluster's
+/// whole result block off-screen.
+fn summarize_statement(statement: &str) -> String {
+    const MAX_CHARS: usize = 100;
+    let collapsed = statement.split_whitespace().collect::<Vec<_>>().join(" ");
+    if collapsed.chars().count() <= MAX_CHARS {
+        return format!("\"{collapsed}\"");
+    }
+    let truncated: String = collapsed.chars().take(MAX_CHARS).collect();
+    format!("\"{truncated}…\"")
+}
+
 #[allow(clippy::too_many_arguments)]
 fn verify_knowledge_auto(
     cli: &Cli,
@@ -483,14 +501,40 @@ fn verify_knowledge_auto(
     // per cluster can take tens of seconds, and with several clusters,
     // silence the whole time looks indistinguishable from a hang. Printed
     // to stderr so --json output stays parseable.
+    //
+    // Also mirrored into the terminal tab title, so the same
+    // `[position/total]` is visible at a glance across several open tabs
+    // without switching to the one actually running `--auto`.
     let mut report_progress =
         |position: usize, total: usize, cluster: &ctx_core::verification::CandidateCluster| {
+            tab_title::set_title(&format!("ctx verify --auto [{position}/{total}] ({agent})"));
             eprintln!(
                 "[{position}/{total}] reviewing cluster ({:?}, {} candidate(s)) via {agent}...",
                 cluster.kind,
                 cluster.fingerprints.len()
             );
         };
+    // Printed right after each cluster's decisions are recorded, so the
+    // "reviewing cluster..." line above is never the last thing shown for
+    // it -- a real user asked what a cluster's outcome actually was right
+    // after the progress-output fix landed, since until now `--auto` never
+    // showed one.
+    let mut report_result = |_position: usize, _total: usize, reviewed: &[ReviewedCandidate]| {
+        for candidate in reviewed {
+            let summary = summarize_statement(&candidate.statement);
+            match &candidate.outcome {
+                CandidateOutcome::Accepted { document_id } => {
+                    eprintln!("    -> accepted {document_id}: {summary}");
+                }
+                CandidateOutcome::Rejected => {
+                    eprintln!("    -> rejected: {summary}");
+                }
+                CandidateOutcome::SkippedPossibleDuplicate { existing_id } => {
+                    eprintln!("    -> skipped (possible duplicate of {existing_id}): {summary}");
+                }
+            }
+        }
+    };
     let report = match agent {
         "claude" => {
             let binary = env::var("CTX_CLAUDE_CLI_BINARY").unwrap_or_else(|_| "claude".to_owned());
@@ -503,6 +547,7 @@ fn verify_knowledge_auto(
                 force,
                 &review_agent,
                 &mut report_progress,
+                &mut report_result,
             )?
         }
         "codex" => {
@@ -516,6 +561,7 @@ fn verify_knowledge_auto(
                 force,
                 &review_agent,
                 &mut report_progress,
+                &mut report_result,
             )?
         }
         "antigravity" => {
@@ -531,10 +577,12 @@ fn verify_knowledge_auto(
                 force,
                 &review_agent,
                 &mut report_progress,
+                &mut report_result,
             )?
         }
         other => return Err(CliError::UnsupportedAgent(other.to_owned())),
     };
+    tab_title::set_title("ctx");
     if cli.json {
         println!("{}", serde_json::to_string_pretty(&report)?);
     } else {

@@ -11,8 +11,8 @@ use serde::Serialize;
 use thiserror::Error;
 
 use crate::ports::{
-    ArtifactLinkStore, BusinessContextWriter, CommitMetadata, GraphStore, KnowledgeCandidateStore,
-    KnowledgeReviewAgent, PortError, VerificationStore,
+    ArtifactLinkStore, BusinessContextReader, BusinessContextWriter, CommitMetadata, GraphStore,
+    KnowledgeCandidateStore, KnowledgeReviewAgent, PortError, VerificationStore,
 };
 
 #[derive(Debug, Error)]
@@ -45,6 +45,33 @@ pub struct AutoVerifyReport {
     pub candidates_accepted: usize,
     pub candidates_rejected: usize,
     pub candidates_skipped_possible_duplicate: usize,
+}
+
+/// What the review agent's verdict on one [`KnowledgeCandidate`] actually
+/// resulted in, once persistence ran -- distinct from [`ReviewVerdict`]
+/// itself, since an `Accept` verdict can still end up
+/// `SkippedPossibleDuplicate` rather than written (REQ-INCR-002's duplicate
+/// check, unless `--force`). Reported per candidate so
+/// [`KnowledgeVerificationService::auto_with_progress`]'s `on_result`
+/// callback can show a real result -- not just "reviewing cluster..." with
+/// no visible outcome, the exact gap a real `--auto` user hit right after
+/// the progress-output fix landed.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(tag = "verdict", rename_all = "snake_case")]
+pub enum CandidateOutcome {
+    Accepted { document_id: String },
+    Rejected,
+    SkippedPossibleDuplicate { existing_id: String },
+}
+
+/// One reviewed candidate's statement and its resulting
+/// [`CandidateOutcome`], in review order -- everything a caller needs to
+/// print a human-readable per-candidate result line without re-deriving it
+/// from [`AutoVerifyReport`]'s aggregate counts.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct ReviewedCandidate {
+    pub statement: String,
+    pub outcome: CandidateOutcome,
 }
 
 pub struct VerificationService<'a, S> {
@@ -130,7 +157,7 @@ pub struct KnowledgeVerificationService<'a, S, W> {
 impl<'a, S, W> KnowledgeVerificationService<'a, S, W>
 where
     S: KnowledgeCandidateStore + GraphStore,
-    W: BusinessContextWriter,
+    W: BusinessContextWriter + BusinessContextReader,
 {
     pub const fn new(store: &'a mut S, writer: &'a W) -> Self {
         Self { store, writer }
@@ -282,17 +309,24 @@ where
             force,
             agent,
             &mut |_, _, _| {},
+            &mut |_, _, _| {},
         )
     }
 
     /// Identical to [`Self::auto`], but calls `on_progress(position, total,
     /// cluster)` immediately before reviewing each cluster -- `position` is
-    /// 1-based, `total` is the number of clusters this run will review.
+    /// 1-based, `total` is the number of clusters this run will review --
+    /// and `on_result(position, total, reviewed)` immediately after that
+    /// cluster's decisions are all recorded, one [`ReviewedCandidate`] per
+    /// candidate the agent actually returned a verdict for, in review order.
     /// Split out the same way [`crate::enrich::EnrichRunner::run_with_progress`]
     /// is: a real agent call per cluster can take tens of seconds, and with
     /// dozens of pending candidates grouped into several clusters, silence
     /// the whole time is indistinguishable from a hang (the exact bug a real
-    /// user already hit once with `ctx enrich` before it got the same fix).
+    /// user already hit once with `ctx enrich` before it got the same fix) --
+    /// `on_result` closes the follow-up gap the same user hit next: the
+    /// progress line alone says a cluster was reviewed but never what the
+    /// agent actually decided.
     ///
     /// # Errors
     /// Returns [`VerificationError`] under the same conditions as
@@ -307,6 +341,7 @@ where
         force: bool,
         agent: &dyn KnowledgeReviewAgent,
         on_progress: &mut dyn FnMut(usize, usize, &CandidateCluster),
+        on_result: &mut dyn FnMut(usize, usize, &[ReviewedCandidate]),
     ) -> Result<AutoVerifyReport, VerificationError> {
         let pending = self.candidates(repository)?;
         let mut report = AutoVerifyReport::default();
@@ -318,86 +353,140 @@ where
             .load_graph(repository)
             .map_err(VerificationError::Store)?;
         let mut allocator = KnowledgeIdAllocator::new(id_prefix, &graph);
+        // The indexed graph can lag behind `.context/*.yaml` on disk (e.g. a
+        // document written since the last `ctx index`) -- reserve those IDs
+        // too, or `allocate` would hand one back out and `write_document`
+        // would reject the whole run with a confusing "already exists".
+        for document in self.writer.read_all().map_err(VerificationError::Store)? {
+            allocator.mark_used(document.id);
+        }
 
         let clusters = cluster_candidates(&pending);
         let total = clusters.len();
         for (index, cluster) in clusters.into_iter().enumerate() {
             on_progress(index + 1, total, &cluster);
-            let members: Vec<KnowledgeCandidate> = cluster
-                .fingerprints
-                .iter()
-                .filter_map(|fingerprint| {
-                    pending
-                        .iter()
-                        .find(|candidate| &candidate.fingerprint == fingerprint)
-                        .cloned()
-                })
-                .collect();
-            report.clusters_reviewed += 1;
-            let review = agent.review(&members).map_err(VerificationError::Store)?;
+            let outcomes = self.process_cluster(
+                repository,
+                &cluster,
+                &pending,
+                &mut allocator,
+                &graph,
+                author,
+                timestamp,
+                force,
+                agent,
+                &mut report,
+            )?;
+            on_result(index + 1, total, &outcomes);
+        }
+        Ok(report)
+    }
 
-            let mut accepted = Vec::new();
-            for decision in &review.decisions {
-                match decision.verdict {
-                    ReviewVerdict::Reject => {
-                        self.store
-                            .record_decision(
-                                repository,
-                                &decision.fingerprint,
-                                &KnowledgeDecision::Reject {
-                                    method: DecisionMethod::Agent,
-                                },
-                                author,
-                                timestamp,
-                            )
-                            .map_err(VerificationError::Store)?;
-                        report.candidates_rejected += 1;
+    /// Reviews and decides every candidate in one cluster: records each
+    /// verdict, writes any accepted (non-duplicate) document(s), and
+    /// returns one [`ReviewedCandidate`] per candidate the agent returned a
+    /// verdict for, in review order -- split out of
+    /// [`Self::auto_with_progress`] purely to keep that loop body readable.
+    #[allow(clippy::too_many_arguments)]
+    fn process_cluster(
+        &mut self,
+        repository: &RepositoryId,
+        cluster: &CandidateCluster,
+        pending: &[KnowledgeCandidate],
+        allocator: &mut KnowledgeIdAllocator,
+        graph: &ctx_core::graph::GraphSnapshot,
+        author: &str,
+        timestamp: &str,
+        force: bool,
+        agent: &dyn KnowledgeReviewAgent,
+        report: &mut AutoVerifyReport,
+    ) -> Result<Vec<ReviewedCandidate>, VerificationError> {
+        let members: Vec<KnowledgeCandidate> = cluster
+            .fingerprints
+            .iter()
+            .filter_map(|fingerprint| {
+                pending
+                    .iter()
+                    .find(|candidate| &candidate.fingerprint == fingerprint)
+                    .cloned()
+            })
+            .collect();
+        report.clusters_reviewed += 1;
+        let review = agent.review(&members).map_err(VerificationError::Store)?;
+
+        let mut outcomes: Vec<ReviewedCandidate> = Vec::new();
+        let mut accepted = Vec::new();
+        for decision in &review.decisions {
+            match decision.verdict {
+                ReviewVerdict::Reject => {
+                    self.store
+                        .record_decision(
+                            repository,
+                            &decision.fingerprint,
+                            &KnowledgeDecision::Reject {
+                                method: DecisionMethod::Agent,
+                            },
+                            author,
+                            timestamp,
+                        )
+                        .map_err(VerificationError::Store)?;
+                    report.candidates_rejected += 1;
+                    if let Some(candidate) = members
+                        .iter()
+                        .find(|candidate| candidate.fingerprint == decision.fingerprint)
+                    {
+                        outcomes.push(ReviewedCandidate {
+                            statement: candidate.statement.clone(),
+                            outcome: CandidateOutcome::Rejected,
+                        });
                     }
-                    ReviewVerdict::Accept => {
-                        if let Some(candidate) = members
-                            .iter()
-                            .find(|candidate| candidate.fingerprint == decision.fingerprint)
-                        {
-                            accepted.push(candidate.clone());
-                        }
+                }
+                ReviewVerdict::Accept => {
+                    if let Some(candidate) = members
+                        .iter()
+                        .find(|candidate| candidate.fingerprint == decision.fingerprint)
+                    {
+                        accepted.push(candidate.clone());
                     }
                 }
             }
-            if accepted.is_empty() {
-                continue;
-            }
+        }
 
+        if !accepted.is_empty() {
             if accepted.len() >= 2
                 && let Some(merged_statement) = &review.merged_statement
             {
-                self.accept_merged(
+                let outcome = self.accept_merged(
                     repository,
                     cluster.kind,
                     merged_statement,
                     &accepted,
-                    &mut allocator,
-                    &graph,
+                    allocator,
+                    graph,
                     author,
                     timestamp,
                     force,
-                    &mut report,
+                    report,
                 )?;
-                continue;
-            }
-            for candidate in &accepted {
-                self.accept_one_auto(
-                    repository,
-                    candidate,
-                    &mut allocator,
-                    &graph,
-                    author,
-                    timestamp,
-                    force,
-                    &mut report,
-                )?;
+                for candidate in &accepted {
+                    outcomes.push(ReviewedCandidate {
+                        statement: candidate.statement.clone(),
+                        outcome: outcome.clone(),
+                    });
+                }
+            } else {
+                for candidate in &accepted {
+                    let outcome = self.accept_one_auto(
+                        repository, candidate, allocator, graph, author, timestamp, force, report,
+                    )?;
+                    outcomes.push(ReviewedCandidate {
+                        statement: candidate.statement.clone(),
+                        outcome,
+                    });
+                }
             }
         }
-        Ok(report)
+        Ok(outcomes)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -411,10 +500,13 @@ where
         timestamp: &str,
         force: bool,
         report: &mut AutoVerifyReport,
-    ) -> Result<(), VerificationError> {
-        if !force && possible_duplicate(graph, candidate.kind, &candidate.statement).is_some() {
+    ) -> Result<CandidateOutcome, VerificationError> {
+        if let Some(existing_id) = (!force)
+            .then(|| possible_duplicate(graph, candidate.kind, &candidate.statement))
+            .flatten()
+        {
             report.candidates_skipped_possible_duplicate += 1;
-            return Ok(());
+            return Ok(CandidateOutcome::SkippedPossibleDuplicate { existing_id });
         }
         let document_id = allocator.allocate(candidate.kind);
         let document = candidate_to_document(candidate, &document_id);
@@ -426,7 +518,7 @@ where
                 repository,
                 &candidate.fingerprint,
                 &KnowledgeDecision::Accept {
-                    document_id,
+                    document_id: document_id.clone(),
                     method: DecisionMethod::Agent,
                 },
                 author,
@@ -435,7 +527,7 @@ where
             .map_err(VerificationError::Store)?;
         report.documents_written += 1;
         report.candidates_accepted += 1;
-        Ok(())
+        Ok(CandidateOutcome::Accepted { document_id })
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -451,10 +543,13 @@ where
         timestamp: &str,
         force: bool,
         report: &mut AutoVerifyReport,
-    ) -> Result<(), VerificationError> {
-        if !force && possible_duplicate(graph, kind, merged_statement).is_some() {
+    ) -> Result<CandidateOutcome, VerificationError> {
+        if let Some(existing_id) = (!force)
+            .then(|| possible_duplicate(graph, kind, merged_statement))
+            .flatten()
+        {
             report.candidates_skipped_possible_duplicate += accepted.len();
-            return Ok(());
+            return Ok(CandidateOutcome::SkippedPossibleDuplicate { existing_id });
         }
         let merged = KnowledgeCandidate {
             fingerprint: accepted[0].fingerprint.clone(),
@@ -495,7 +590,7 @@ where
             report.candidates_accepted += 1;
         }
         report.documents_written += 1;
-        Ok(())
+        Ok(CandidateOutcome::Accepted { document_id })
     }
 }
 
@@ -602,13 +697,34 @@ mod knowledge_tests {
 
     #[derive(Default)]
     struct FakeWriter {
+        /// Documents already present on disk that the indexed graph passed
+        /// to `auto`/`auto_with_progress` doesn't know about -- lets tests
+        /// simulate a stale index without a real filesystem.
+        existing: Vec<BusinessDocument>,
         written: RefCell<Vec<BusinessDocument>>,
     }
 
     impl BusinessContextWriter for FakeWriter {
         fn write_document(&self, document: &BusinessDocument) -> Result<String, PortError> {
+            if self
+                .existing
+                .iter()
+                .chain(self.written.borrow().iter())
+                .any(|written| written.id == document.id)
+            {
+                return Err(PortError::new(format!(
+                    "a business context document already exists at '.context/fake/{}.yaml'",
+                    document.id
+                )));
+            }
             self.written.borrow_mut().push(document.clone());
             Ok(format!(".context/fake/{}.yaml", document.id))
+        }
+    }
+
+    impl BusinessContextReader for FakeWriter {
+        fn read_all(&self) -> Result<Vec<BusinessDocument>, PortError> {
+            Ok(self.existing.clone())
         }
     }
 
@@ -893,6 +1009,51 @@ mod knowledge_tests {
     }
 
     #[test]
+    fn auto_skips_an_id_already_on_disk_even_when_the_graph_has_not_indexed_it_yet() {
+        // Regression: a `.context/*.yaml` document can exist on disk without
+        // yet being reflected in the indexed graph (e.g. written since the
+        // last `ctx index`). The allocator must not reissue that ID -- doing
+        // so aborts the whole `--auto` run with a misleading "candidates
+        // could not be loaded" error on what is really a write conflict.
+        let candidate = candidate(BusinessKind::Requirement, "Cancellation preserves access.");
+        let mut store = FakeStore {
+            pending: vec![candidate.clone()],
+            ..FakeStore::default()
+        };
+        let writer = FakeWriter {
+            existing: vec![candidate_to_document(&candidate, "REQ-SUB-001")],
+            ..FakeWriter::default()
+        };
+        let repository = RepositoryId::new("repo:test").expect("repository ID");
+        let agent = FakeReviewAgent {
+            review: |candidates: &[KnowledgeCandidate]| ClusterReview {
+                decisions: candidates
+                    .iter()
+                    .map(|candidate| CandidateReviewDecision {
+                        fingerprint: candidate.fingerprint.clone(),
+                        verdict: ReviewVerdict::Accept,
+                    })
+                    .collect(),
+                merged_statement: None,
+            },
+        };
+
+        let report = KnowledgeVerificationService::new(&mut store, &writer)
+            .auto(
+                &repository,
+                "SUB",
+                "auto-claude",
+                "2026-08-23T00:00:00Z",
+                false,
+                &agent,
+            )
+            .expect("auto run should skip the on-disk ID rather than fail");
+
+        assert_eq!(report.documents_written, 1);
+        assert_eq!(writer.written.borrow()[0].id, "REQ-SUB-002");
+    }
+
+    #[test]
     fn auto_rejects_a_candidate_the_review_agent_rejects() {
         let candidate = candidate(BusinessKind::Requirement, "Weak unsupported statement.");
         let mut store = FakeStore {
@@ -1105,9 +1266,105 @@ mod knowledge_tests {
                 &mut |position, total, cluster| {
                     seen.push((position, total, cluster.fingerprints.len()));
                 },
+                &mut |_, _, _| {},
             )
             .expect("auto run");
 
         assert_eq!(seen, vec![(1, 2, 1), (2, 2, 1)]);
+    }
+
+    #[test]
+    fn auto_with_progress_reports_a_result_per_candidate_after_each_cluster() {
+        // No vocabulary overlap between any two of these three statements,
+        // so each lands in its own single-candidate cluster -- isolating
+        // one outcome kind (accept/reject/duplicate-skip) per cluster.
+        let accepted_candidate = candidate(
+            BusinessKind::Requirement,
+            "The premium tier grants dashboard exports.",
+        );
+        let rejected_candidate =
+            candidate(BusinessKind::Invariant, "Never delete billing history.");
+        let duplicate_candidate = candidate(
+            BusinessKind::Requirement,
+            "Cancellation preserves paid access until the period ends.",
+        );
+        let existing = ctx_core::graph::GraphNode {
+            stable_key: ctx_core::domain::StableKey::new("intent:REQ-SUB-001").expect("stable key"),
+            kind: ctx_core::domain::NodeKind::Requirement,
+            name: "Cancellation preserves access".to_owned(),
+            content_hash: "hash".to_owned(),
+            attributes: ctx_core::indexing::PlannedNodeAttributes::Business {
+                id: "REQ-SUB-001".to_owned(),
+                status: "active".to_owned(),
+                body: "Cancellation preserves paid access until the period ends.".to_owned(),
+                feature: None,
+                source_uri: "requirement.yaml".to_owned(),
+            },
+        };
+        let mut store = FakeStore {
+            pending: vec![
+                accepted_candidate.clone(),
+                rejected_candidate.clone(),
+                duplicate_candidate.clone(),
+            ],
+            graph: ctx_core::graph::GraphSnapshot {
+                nodes: [(existing.stable_key.clone(), existing)]
+                    .into_iter()
+                    .collect(),
+                edges: Vec::new(),
+            },
+            ..FakeStore::default()
+        };
+        let writer = FakeWriter::default();
+        let repository = RepositoryId::new("repo:test").expect("repository ID");
+        let rejected_fingerprint = rejected_candidate.fingerprint.clone();
+        let agent = FakeReviewAgent {
+            review: move |candidates: &[KnowledgeCandidate]| ClusterReview {
+                decisions: candidates
+                    .iter()
+                    .map(|candidate| CandidateReviewDecision {
+                        fingerprint: candidate.fingerprint.clone(),
+                        verdict: if candidate.fingerprint == rejected_fingerprint {
+                            ReviewVerdict::Reject
+                        } else {
+                            ReviewVerdict::Accept
+                        },
+                    })
+                    .collect(),
+                merged_statement: None,
+            },
+        };
+        let mut results: Vec<ReviewedCandidate> = Vec::new();
+
+        KnowledgeVerificationService::new(&mut store, &writer)
+            .auto_with_progress(
+                &repository,
+                "SUB",
+                "auto-claude",
+                "2026-08-23T00:00:00Z",
+                false,
+                &agent,
+                &mut |_, _, _| {},
+                &mut |_, _, reviewed| results.extend_from_slice(reviewed),
+            )
+            .expect("auto run");
+
+        assert_eq!(results.len(), 3);
+        assert!(results.contains(&ReviewedCandidate {
+            statement: accepted_candidate.statement.clone(),
+            outcome: CandidateOutcome::Accepted {
+                document_id: "REQ-SUB-002".to_owned(),
+            },
+        }));
+        assert!(results.contains(&ReviewedCandidate {
+            statement: rejected_candidate.statement.clone(),
+            outcome: CandidateOutcome::Rejected,
+        }));
+        assert!(results.contains(&ReviewedCandidate {
+            statement: duplicate_candidate.statement.clone(),
+            outcome: CandidateOutcome::SkippedPossibleDuplicate {
+                existing_id: "REQ-SUB-001".to_owned(),
+            },
+        }));
     }
 }

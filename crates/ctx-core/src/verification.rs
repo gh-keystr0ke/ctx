@@ -453,6 +453,16 @@ impl KnowledgeIdAllocator {
             number += 1;
         }
     }
+
+    /// Reserves `id` without allocating it, so a later [`Self::allocate`]
+    /// call skips past it. For IDs the indexed [`GraphSnapshot`] doesn't yet
+    /// know about -- e.g. a `.context/*.yaml` document written since the
+    /// last `ctx index` -- so callers can seed the allocator from the
+    /// on-disk ground truth in addition to the graph and never hand out an
+    /// ID [`crate::verification`]'s own duplicate-file check would reject.
+    pub fn mark_used(&mut self, id: impl Into<String>) {
+        self.used.insert(id.into());
+    }
 }
 
 /// A group of still-pending [`KnowledgeCandidate`]s whose statements share

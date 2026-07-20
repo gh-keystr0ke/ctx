@@ -1,0 +1,5 @@
+id: ADR-CTX-029
+type: decision
+status: active
+title: Schema divergences contribute to the existing NeedsAttention health state, and C…
+decision: Schema divergences contribute to the existing NeedsAttention health state, and CLI text output shows each divergence and its direction.

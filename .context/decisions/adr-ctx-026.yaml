@@ -1,0 +1,5 @@
+id: ADR-CTX-026
+type: decision
+status: active
+title: Raw CHECK expressions are normalized only by stripping comments and whitespace, …
+decision: Raw CHECK expressions are normalized only by stripping comments and whitespace, stored for textual equality and diffing, and never evaluated or interpreted as structured constraint data.

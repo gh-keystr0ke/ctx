@@ -1,0 +1,5 @@
+id: ADR-CTX-027
+type: decision
+status: active
+title: Reference extraction records only that a reference exists and does not decide wh…
+decision: Reference extraction records only that a reference exists and does not decide whether the referenced artifact implements another or is merely mentioned.

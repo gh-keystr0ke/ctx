@@ -1,0 +1,12 @@
+id: ADR-CTX-030
+type: decision
+status: active
+title: Schema review always evaluates migration-declared operations, even for edited mi…
+decision: Schema review always evaluates migration-declared operations, even for edited migration files, while ORM schema declarations with prior versions are evaluated by structural diff.
+implementation:
+- symbol: ctx_core.review.schema_change_findings
+tests:
+- symbol: ctx_core.review.tests.reports_changed_database_reads_and_writes_as_behavior_signals
+- symbol: ctx_core.schema.tests.adding_a_not_null_column_without_default_to_an_existing_table_is_destructive
+- symbol: ctx_core.schema.tests.declared_drop_and_rename_are_destructive
+- symbol: ctx_core.schema.tests.diff_does_not_guess_a_rename_from_name_similarity

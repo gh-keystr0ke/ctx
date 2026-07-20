@@ -1,0 +1,5 @@
+id: ADR-CTX-028
+type: decision
+status: active
+title: SQLAlchemy declarative models are identified by a static __tablename__ string ra…
+decision: SQLAlchemy declarative models are identified by a static __tablename__ string rather than declarative-base resolution.

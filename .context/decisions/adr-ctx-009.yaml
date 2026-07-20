@@ -1,0 +1,7 @@
+id: ADR-CTX-009
+type: decision
+status: active
+title: Do not classify a body change with an unchanged call set as a likely refactor, b…
+decision: Do not classify a body change with an unchanged call set as a likely refactor, because that weaker signal could suppress real behavioral changes such as removed guard conditions and would improperly assume semantic equivalence.
+implementation:
+- symbol: ctx_core.review.classify_behavior_change

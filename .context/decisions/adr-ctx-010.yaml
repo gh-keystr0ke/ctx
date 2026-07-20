@@ -1,0 +1,5 @@
+id: ADR-CTX-010
+type: decision
+status: active
+title: Duplicate detection reuses lexical term-overlap scoring and does not make a seco…
+decision: Duplicate detection reuses lexical term-overlap scoring and does not make a second AI call.

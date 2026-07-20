@@ -1,0 +1,5 @@
+id: ADR-CTX-007
+type: decision
+status: active
+title: Column-level impact is implemented without adding column-level graph nodes to av…
+decision: Column-level impact is implemented without adding column-level graph nodes to avoid ontology sprawl and building a generic SQL engine.

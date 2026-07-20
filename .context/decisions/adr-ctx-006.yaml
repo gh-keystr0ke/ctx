@@ -1,0 +1,5 @@
+id: ADR-CTX-006
+type: decision
+status: active
+title: Changed-symbol linking uses file-level attribution to every indexed symbol in th…
+decision: Changed-symbol linking uses file-level attribution to every indexed symbol in the changed-path set and does not infer which entity changed within a file.

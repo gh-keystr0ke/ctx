@@ -1,0 +1,9 @@
+id: ADR-CTX-008
+type: decision
+status: active
+title: Database-entity review neighborhoods use a bounded two-hop advisory lookup—from …
+decision: Database-entity review neighborhoods use a bounded two-hop advisory lookup—from a stable database entity key to directly related code, then to that code's mapped intent and tests—without further semantic expansion, to prevent widely used tables from connecting unrelated product areas.
+implementation:
+- symbol: ctx_core.review.db_entity_neighborhood
+tests:
+- symbol: ctx_core.review.tests.reports_changed_database_reads_and_writes_as_behavior_signals

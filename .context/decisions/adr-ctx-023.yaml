@@ -1,0 +1,5 @@
+id: ADR-CTX-023
+type: decision
+status: active
+title: Per-provider GitLab sync cursors were deferred; GitLab ingestion remains idempot…
+decision: Per-provider GitLab sync cursors were deferred; GitLab ingestion remains idempotent but refetches all data on every run.

@@ -1,0 +1,9 @@
+id: ADR-CTX-024
+type: decision
+status: active
+title: Potential duplicate detection reuses the existing lexical-matching approach inst…
+decision: Potential duplicate detection reuses the existing lexical-matching approach instead of making another AI call, and its result remains advisory for human review.
+implementation:
+- symbol: ctx_core.verification.possible_duplicate
+tests:
+- symbol: ctx_core.verification.tests.possible_duplicate_finds_a_restated_requirement_by_term_overlap

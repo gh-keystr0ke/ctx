@@ -1,0 +1,5 @@
+id: ADR-CTX-021
+type: decision
+status: active
+title: Observed schema changes remain structurally separate from proven requirement-imp…
+decision: Observed schema changes remain structurally separate from proven requirement-impact findings and carry only a bounded one-hop advisory neighborhood.

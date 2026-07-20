@@ -1,0 +1,7 @@
+id: ADR-CTX-022
+type: decision
+status: active
+title: Parser adapters recognize language-specific SQL syntax, while the core consumes …
+decision: Parser adapters recognize language-specific SQL syntax, while the core consumes only the normalized, explainable database-access fact.
+implementation:
+- symbol: ctx_core.ir.DatabaseAccess

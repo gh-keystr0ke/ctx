@@ -1,0 +1,5 @@
+id: ADR-CTX-025
+type: decision
+status: active
+title: Progress positions are 1-based and measured against the full known-artifact coun…
+decision: Progress positions are 1-based and measured against the full known-artifact count so they remain meaningful when artifacts are skipped.

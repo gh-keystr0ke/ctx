@@ -1,0 +1,5 @@
+id: ADR-CTX-013
+type: decision
+status: active
+title: Goose DDL extraction uses a dedicated deterministic reader instead of a general …
+decision: Goose DDL extraction uses a dedicated deterministic reader instead of a general SQL dialect parser.

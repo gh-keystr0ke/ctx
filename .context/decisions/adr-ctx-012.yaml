@@ -1,0 +1,5 @@
+id: ADR-CTX-012
+type: decision
+status: active
+title: Git ingestion registers its own repository record and does not require indexing …
+decision: Git ingestion registers its own repository record and does not require indexing to have run first.

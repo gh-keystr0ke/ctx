@@ -1,0 +1,9 @@
+id: ADR-CTX-014
+type: decision
+status: active
+title: Knowledge candidate fingerprints use the codebase's plain-string fingerprint con…
+decision: Knowledge candidate fingerprints use the codebase's plain-string fingerprint convention, and candidates are reused only when their kind and exact restated statement match rather than through a content hash.
+implementation:
+- symbol: ctx_core.knowledge.KnowledgeCandidate.fingerprint_for
+tests:
+- symbol: ctx_core.knowledge.tests.fingerprint_is_stable_for_the_same_kind_and_statement

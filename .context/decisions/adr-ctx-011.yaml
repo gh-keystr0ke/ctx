@@ -1,0 +1,7 @@
+id: ADR-CTX-011
+type: decision
+status: active
+title: Evaluation cases reuse the first-party subscriptions fixtures and context docume…
+decision: Evaluation cases reuse the first-party subscriptions fixtures and context documents so they remain aligned with the CLI end-to-end product example.
+implementation:
+- symbol: ctx_eval.cases.SUBSCRIPTION_SERVICE

@@ -1,0 +1,5 @@
+id: ADR-CTX-020
+type: decision
+status: active
+title: Observed deterministic schema changes are represented separately from review fin…
+decision: Observed deterministic schema changes are represented separately from review findings because they do not prove a requirement violation.

@@ -1,0 +1,5 @@
+id: ADR-CTX-019
+type: decision
+status: active
+title: ORM schema identity uses exact string matching; a dynamic __tablename__ causes t…
+decision: ORM schema identity uses exact string matching; a dynamic __tablename__ causes the entire class to remain unrecognized rather than being partially guessed.

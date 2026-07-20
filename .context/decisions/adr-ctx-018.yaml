@@ -1,0 +1,5 @@
+id: ADR-CTX-018
+type: decision
+status: active
+title: Neighborhood rendering uses the context-pack token estimation and truncation fun…
+decision: Neighborhood rendering uses the context-pack token estimation and truncation functions as its single budgeting mechanism.

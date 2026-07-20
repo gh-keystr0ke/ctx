@@ -1,0 +1,5 @@
+id: ADR-CTX-017
+type: decision
+status: active
+title: Migration-derived schemas are best-effort diagnostics only and must not be persi…
+decision: Migration-derived schemas are best-effort diagnostics only and must not be persisted as facts or DEFINES_SCHEMA edges.

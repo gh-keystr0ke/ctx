@@ -1,0 +1,5 @@
+id: ADR-CTX-032
+type: decision
+status: active
+title: Standalone ALTER COLUMN operations use ColumnAlteration and dedicated alteration…
+decision: Standalone ALTER COLUMN operations use ColumnAlteration and dedicated alteration change kinds because they contain the new value but not the prior column state.

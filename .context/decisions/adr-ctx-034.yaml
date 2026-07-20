@@ -1,0 +1,5 @@
+id: ADR-CTX-034
+type: decision
+status: active
+title: The Codex agent uses `codex exec <prompt>` without extra flags for read-only ana…
+decision: The Codex agent uses `codex exec <prompt>` without extra flags for read-only analysis.

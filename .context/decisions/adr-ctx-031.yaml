@@ -1,0 +1,5 @@
+id: ADR-CTX-031
+type: decision
+status: active
+title: SemanticAgent is the interchangeable AI-agent boundary, keeping the core and app…
+decision: SemanticAgent is the interchangeable AI-agent boundary, keeping the core and application layers independent of vendors and models.

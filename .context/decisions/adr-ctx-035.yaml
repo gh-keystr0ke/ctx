@@ -1,0 +1,5 @@
+id: ADR-CTX-035
+type: decision
+status: active
+title: The application layer assembles knowledge provenance because candidate records l…
+decision: The application layer assembles knowledge provenance because candidate records live outside the graph, while the core explain function remains pure.

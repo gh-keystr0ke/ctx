@@ -1,0 +1,5 @@
+id: ADR-CTX-033
+type: decision
+status: active
+title: The Antigravity agent uses `agy -p <prompt>` without elevated permissions becaus…
+decision: The Antigravity agent uses `agy -p <prompt>` without elevated permissions because the artifact neighborhood is embedded in the prompt.

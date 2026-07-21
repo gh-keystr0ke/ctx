@@ -1,0 +1,7 @@
+id: ADR-CTX-038
+type: decision
+status: active
+title: The evaluation corpus is kept small and deterministic, with machine-readable gro…
+decision: The evaluation corpus is kept small and deterministic, with machine-readable ground-truth checks, and its cases are defined in one versioned source file.
+implementation:
+- symbol: ctx_eval.cases.SUBSCRIPTION_SERVICE

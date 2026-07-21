@@ -1,0 +1,7 @@
+id: ADR-CTX-036
+type: decision
+status: active
+title: The core consumes each recognized schema declaration or alteration as a normaliz…
+decision: The core consumes each recognized schema declaration or alteration as a normalized fact and does not merge declarations across migration files into a computed current schema.
+implementation:
+- symbol: ctx_core.ir.SchemaTableDefinition

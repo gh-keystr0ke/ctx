@@ -1,0 +1,5 @@
+id: ADR-CTX-039
+type: decision
+status: active
+title: The evaluation harness calls ctx-app and ctx-adapters directly instead of invoki…
+decision: The evaluation harness calls ctx-app and ctx-adapters directly instead of invoking the compiled ctx binary, preserving typed reports and avoiding duplicated review, impact, and context logic.

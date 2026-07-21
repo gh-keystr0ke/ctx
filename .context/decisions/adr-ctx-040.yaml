@@ -1,0 +1,5 @@
+id: ADR-CTX-040
+type: decision
+status: active
+title: The next scoped priority is to address review recall gaps where genuine behavior…
+decision: The next scoped priority is to address review recall gaps where genuine behavior changes occur in private helpers rather than directly in mapped public entry points, separately from the external-validation gap.

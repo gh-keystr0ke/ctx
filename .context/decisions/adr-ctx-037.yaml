@@ -1,0 +1,7 @@
+id: ADR-CTX-037
+type: decision
+status: active
+title: The deterministic product-quality evaluation harness is development-only, exerci…
+decision: The deterministic product-quality evaluation harness is development-only, exercises the same ctx-app use cases exposed by the CLI, and scores results against machine-readable ground truth rather than a vanity pass count.
+implementation:
+- symbol: ctx_eval.cases

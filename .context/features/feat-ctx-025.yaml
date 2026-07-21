@@ -1,0 +1,5 @@
+id: FEAT-CTX-025
+type: feature
+status: active
+name: The `ctx verify --knowledge --auto` workflow clusters related pending knowledge …
+description: The `ctx verify --knowledge --auto` workflow clusters related pending knowledge candidates, submits each cluster to an independent review agent, and merges accepted candidates when they genuinely restate the same knowledge.

@@ -1,0 +1,5 @@
+id: FEAT-CTX-024
+type: feature
+status: active
+name: The SQLAlchemy extractor reads column constraint keywords and ForeignKey declara…
+description: The SQLAlchemy extractor reads column constraint keywords and ForeignKey declarations from Column and mapped_column calls.

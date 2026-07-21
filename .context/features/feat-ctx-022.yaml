@@ -1,0 +1,5 @@
+id: FEAT-CTX-022
+type: feature
+status: active
+name: The CLI supports ingesting source-code comments and Python docstrings as normali…
+description: The CLI supports ingesting source-code comments and Python docstrings as normalized artifacts through `ctx ingest code-comments`.

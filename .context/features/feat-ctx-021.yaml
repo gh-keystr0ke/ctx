@@ -1,0 +1,5 @@
+id: FEAT-CTX-021
+type: feature
+status: active
+name: The CLI can ingest Git commit and branch artifacts, optionally starting from a s…
+description: The CLI can ingest Git commit and branch artifacts, optionally starting from a specified object ID.

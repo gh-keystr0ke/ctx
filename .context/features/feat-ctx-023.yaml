@@ -1,0 +1,5 @@
+id: FEAT-CTX-023
+type: feature
+status: active
+name: The Python analyzer recognizes SQLAlchemy declarative models as schema definitio…
+description: The Python analyzer recognizes SQLAlchemy declarative models as schema definitions, making ORM-only tables available as data contracts and unifying them with other facts for the same table.

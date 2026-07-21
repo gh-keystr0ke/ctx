@@ -1,0 +1,5 @@
+id: FEAT-CTX-020
+type: feature
+status: active
+name: Static database write evidence links code symbols to specific table columns for …
+description: Static database write evidence links code symbols to specific table columns for reliably identifiable UPDATE, INSERT, and MERGE statements.

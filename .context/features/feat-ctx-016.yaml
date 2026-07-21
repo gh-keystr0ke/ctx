@@ -1,0 +1,5 @@
+id: FEAT-CTX-016
+type: feature
+status: active
+name: Schema extraction supports Go, goose, and SQLAlchemy
+description: Schema extraction supports Go, goose, and SQLAlchemy.

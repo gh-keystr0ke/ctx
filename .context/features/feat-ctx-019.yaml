@@ -1,0 +1,5 @@
+id: FEAT-CTX-019
+type: feature
+status: active
+name: Semantic analysis supports Codex and Antigravity as selectable CLI agents
+description: Semantic analysis supports Codex and Antigravity as selectable CLI agents.

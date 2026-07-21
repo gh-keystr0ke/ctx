@@ -1,0 +1,5 @@
+id: FEAT-CTX-018
+type: feature
+status: active
+name: Schema status reconciliation reports divergence in both directions, including mi…
+description: Schema status reconciliation reports divergence in both directions, including migration-only and ORM-only columns in one run.

@@ -1,0 +1,5 @@
+id: FEAT-CTX-017
+type: feature
+status: active
+name: Schema migration analysis recognizes direct ALTER COLUMN changes to an existing …
+description: Schema migration analysis recognizes direct ALTER COLUMN changes to an existing column's type, nullability, and default value.

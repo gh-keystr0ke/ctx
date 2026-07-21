@@ -1,0 +1,5 @@
+id: FEAT-CTX-008
+type: feature
+status: active
+name: Exact short-name queries may resolve to multiple distinct identifiers, producing…
+description: Exact short-name queries may resolve to multiple distinct identifiers, producing one independently computed impact report or explanation per match rather than an ambiguity error.

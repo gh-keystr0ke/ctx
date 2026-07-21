@@ -1,0 +1,5 @@
+id: FEAT-CTX-009
+type: feature
+status: active
+name: GitLab ingestion incrementally fetches only issues and merge requests updated si…
+description: GitLab ingestion incrementally fetches only issues and merge requests updated since the previous successful run using a per-provider cursor.

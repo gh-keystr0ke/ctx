@@ -1,0 +1,5 @@
+id: FEAT-CTX-010
+type: feature
+status: active
+name: GitLab synchronization supports sync cursors
+description: GitLab synchronization supports sync cursors.

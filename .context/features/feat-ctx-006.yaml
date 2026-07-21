@@ -1,0 +1,5 @@
+id: FEAT-CTX-006
+type: feature
+status: active
+name: CLI text presents schema findings in a dedicated section, while JSON and MCP exp…
+description: CLI text presents schema findings in a dedicated section, while JSON and MCP expose them through ReviewReport.schema_findings.

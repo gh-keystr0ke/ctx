@@ -1,0 +1,5 @@
+id: FEAT-CTX-007
+type: feature
+status: active
+name: Column evidence appears on ReadsFrom/WritesTo edge locators and in Context Pack …
+description: Column evidence appears on ReadsFrom/WritesTo edge locators and in Context Pack node content.

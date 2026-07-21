@@ -1,0 +1,5 @@
+id: ADR-CTX-043
+type: decision
+status: active
+title: Use SQLite as the persistence foundation for the product domain
+decision: Use SQLite as the persistence foundation for the product domain.

@@ -1,0 +1,5 @@
+id: ADR-CTX-041
+type: decision
+status: active
+title: The unified persistent-state model, schema-aware review and reconciliation, colu…
+decision: The unified persistent-state model, schema-aware review and reconciliation, column-level database evidence, and column-level impact seeds are delivered together as release 0.4.0.

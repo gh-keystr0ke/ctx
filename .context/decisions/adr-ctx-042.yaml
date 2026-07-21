@@ -1,0 +1,7 @@
+id: ADR-CTX-042
+type: decision
+status: active
+title: Unsupported migration DDL is excluded from reconciliation so that unrecognized s…
+decision: Unsupported migration DDL is excluded from reconciliation so that unrecognized statements do not create false consistency reports.
+implementation:
+- symbol: ctx_core.schema.reconcile_orm_and_migrations

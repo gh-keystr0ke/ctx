@@ -1,0 +1,7 @@
+id: FEAT-CTX-012
+type: feature
+status: active
+name: Reference kinds support GitLab merge-request references in the `!918` format
+description: Reference kinds support GitLab merge-request references in the `!918` format.
+implementation:
+- symbol: ctx_core.linking.ReferenceKind

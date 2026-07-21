@@ -1,0 +1,5 @@
+id: FEAT-CTX-015
+type: feature
+status: active
+name: Schema definitions support nullable, primary-key, unique, foreign-key, and defau…
+description: Schema definitions support nullable, primary-key, unique, foreign-key, and default column constraints, along with dropped and renamed columns, table drop/rename operations, indexes, and raw CHECK expressions.

@@ -1,0 +1,5 @@
+id: FEAT-CTX-014
+type: feature
+status: active
+name: ctx-eval is a deterministic product-quality evaluation harness that exercises re…
+description: ctx-eval is a deterministic product-quality evaluation harness that exercises real ctx-app index, review, impact, and context use cases against a Git-history corpus and scores typed results for recall, precision, classification accuracy, and Context Pack budget compliance.

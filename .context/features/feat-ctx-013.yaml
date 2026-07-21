@@ -1,0 +1,5 @@
+id: FEAT-CTX-013
+type: feature
+status: active
+name: Review detects destructive SQLAlchemy model changes involving column types, fore…
+description: Review detects destructive SQLAlchemy model changes involving column types, foreign keys, and uniqueness constraints as independent findings.

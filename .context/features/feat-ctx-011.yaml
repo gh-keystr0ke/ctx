@@ -1,0 +1,5 @@
+id: FEAT-CTX-011
+type: feature
+status: active
+name: Goose SQL migrations contribute declared table and column schema facts to the sh…
+description: Goose SQL migrations contribute declared table and column schema facts to the shared database-entity graph, including entities never accessed by application code.

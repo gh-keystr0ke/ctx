@@ -1,0 +1,5 @@
+id: FEAT-CTX-002
+type: feature
+status: active
+name: A table.column impact seed resolves through its table's DbEntity and narrows imp…
+description: A table.column impact seed resolves through its table's DbEntity and narrows implementation impact to readers and writers with evidence naming that column.

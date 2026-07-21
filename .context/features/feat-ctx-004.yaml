@@ -1,0 +1,5 @@
+id: FEAT-CTX-004
+type: feature
+status: active
+name: Automatic runs report an Accepted, Rejected, or SkippedPossibleDuplicate result …
+description: Automatic runs report an Accepted, Rejected, or SkippedPossibleDuplicate result immediately after each candidate cluster is decided.

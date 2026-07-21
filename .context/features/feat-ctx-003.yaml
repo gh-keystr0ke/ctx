@@ -1,0 +1,7 @@
+id: FEAT-CTX-003
+type: feature
+status: active
+name: Agents receive already-known product intent found near a changed symbol so they …
+description: Agents receive already-known product intent found near a changed symbol so they can distinguish new knowledge from additional evidence and avoid proposing duplicates.
+implementation:
+- symbol: ctx_core.neighborhood.RelatedIntent

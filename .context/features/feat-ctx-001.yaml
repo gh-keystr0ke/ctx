@@ -1,0 +1,9 @@
+id: FEAT-CTX-001
+type: feature
+status: active
+name: For a given subject (e.g
+description: For a given subject (e.g. an external artifact), the system assembles a bounded one-hop context neighborhood combining its deterministically-resolved linked artifacts (links to artifacts absent from known_artifacts are omitted, never fabricated), changed or discussed symbols resolved against the code graph, their nearby tests, and already-mapped product knowledge.
+implementation:
+- symbol: ctx_core.neighborhood.build_neighborhood
+tests:
+- symbol: ctx_core.neighborhood.tests.assembles_linked_artifacts_changed_symbols_tests_and_related_knowledge

@@ -1,0 +1,5 @@
+id: FEAT-CTX-005
+type: feature
+status: active
+name: Automatic-run progress is mirrored in the terminal tab title as the current posi…
+description: Automatic-run progress is mirrored in the terminal tab title as the current position and total.

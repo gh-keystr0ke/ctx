@@ -1,0 +1,4 @@
+id: INV-CTX-015
+type: invariant
+status: active
+statement: A statically recognized foreign-key reference may identify only the referenced table; in that case, its column is None, including for bare REFERENCES clauses without a column list.

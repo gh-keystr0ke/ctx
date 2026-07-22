@@ -1,0 +1,4 @@
+id: INV-CTX-014
+type: invariant
+status: active
+statement: A semantic agent's unit of work is limited to one artifact's directly connected context and must never include the whole repository or artifact backlog.

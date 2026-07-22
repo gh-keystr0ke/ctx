@@ -1,0 +1,6 @@
+id: INV-CTX-013
+type: invariant
+status: active
+statement: A schema table definition is marked as an initial column set only when produced by CREATE TABLE, so review can distinguish new-table columns from columns added to existing tables.
+implementation:
+- symbol: ctx_core.ir.SchemaTableDefinition

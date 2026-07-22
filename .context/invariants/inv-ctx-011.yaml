@@ -1,0 +1,4 @@
+id: INV-CTX-011
+type: invariant
+status: active
+statement: A file analysis failure must not block indexing other valid files; the failed file must be reported via failed_files and retried on subsequent runs.

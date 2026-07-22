@@ -1,0 +1,4 @@
+id: INV-CTX-012
+type: invariant
+status: active
+statement: A migration file containing no recognizable DDL must produce no schema finding.

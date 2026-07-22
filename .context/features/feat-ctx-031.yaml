@@ -1,0 +1,5 @@
+id: FEAT-CTX-031
+type: feature
+status: active
+name: The linking reference model supports GitHub/GitLab issue or pull-request referen…
+description: The linking reference model supports GitHub/GitLab issue or pull-request references such as `#482`.

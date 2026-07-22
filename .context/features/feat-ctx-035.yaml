@@ -1,0 +1,7 @@
+id: FEAT-CTX-035
+type: feature
+status: active
+name: The stdio MCP server supports both current server/discover-era and legacy initia…
+description: The stdio MCP server supports both current server/discover-era and legacy initialize clients so local coding agents can migrate independently.
+implementation:
+- symbol: ctx_mcp.serve_stdio

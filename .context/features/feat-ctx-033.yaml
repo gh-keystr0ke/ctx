@@ -1,0 +1,5 @@
+id: FEAT-CTX-033
+type: feature
+status: active
+name: The product supports Go source analysis alongside Python and Rust, including can…
+description: The product supports Go source analysis alongside Python and Rust, including canonical directory-based paths, receiver-namespaced methods, interface/type mapping, const/var block expansion, static SQL literal recognition, registry/config integration, and Go raw-string unquoting.

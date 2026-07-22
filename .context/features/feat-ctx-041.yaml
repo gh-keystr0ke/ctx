@@ -1,0 +1,5 @@
+id: FEAT-CTX-041
+type: feature
+status: active
+name: ctx supports ingesting GitLab issues, merge requests, comments, and merge-reques…
+description: ctx supports ingesting GitLab issues, merge requests, comments, and merge-request commit relationships through a dedicated CLI command.

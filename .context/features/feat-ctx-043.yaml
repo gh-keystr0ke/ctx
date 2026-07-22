@@ -1,0 +1,5 @@
+id: FEAT-CTX-043
+type: feature
+status: active
+name: ctx-core transitively clusters pending knowledge candidates with sufficient stat…
+description: ctx-core transitively clusters pending knowledge candidates with sufficient statement-vocabulary overlap so candidates describing one underlying flow can be handled as a single group.

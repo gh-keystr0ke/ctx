@@ -1,0 +1,4 @@
+id: INV-CTX-005
+type: invariant
+status: active
+statement: A column explicitly renamed away must not also be reported as dropped; review surfaces the rename through `declared_schema_changes` on the same `after` table.

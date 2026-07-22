@@ -1,0 +1,6 @@
+id: INV-CTX-003
+type: invariant
+status: active
+statement: A candidate symbol receives the strongest resolution signal short of an explicit mapping when the same artifact both backs the intent’s accepted AI-derived evidence and ChangedSymbol-links to that symbol.
+implementation:
+- symbol: ctx_core.verification.ResolutionScore

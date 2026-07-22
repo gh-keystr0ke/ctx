@@ -1,0 +1,4 @@
+id: INV-CTX-001
+type: invariant
+status: active
+statement: A byte-identical mapped symbol moved across files must be treated as one changed entity so findings on the unchanged product knowledge it implements are not duplicated.

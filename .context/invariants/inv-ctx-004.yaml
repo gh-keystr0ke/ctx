@@ -1,0 +1,6 @@
+id: INV-CTX-004
+type: invariant
+status: active
+statement: A case evaluation outcome distinguishes successful execution with scored checks from harness failure before scoring; harness failures are Git, storage, or use-case errors rather than ground-truth mismatches.
+implementation:
+- symbol: ctx_eval.report.CaseReport

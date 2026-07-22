@@ -1,0 +1,4 @@
+id: INV-CTX-002
+type: invariant
+status: active
+statement: A candidate decision may update only a pending candidate, so repeated decisions and unknown fingerprints fail instead of modifying decided records.

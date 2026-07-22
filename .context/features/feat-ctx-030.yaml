@@ -1,0 +1,5 @@
+id: FEAT-CTX-030
+type: feature
+status: active
+name: The goose DDL recognizer parses table-level constraints and common table, column…
+description: The goose DDL recognizer parses table-level constraints and common table, column, and index operations.

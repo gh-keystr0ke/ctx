@@ -1,0 +1,5 @@
+id: FEAT-CTX-029
+type: feature
+status: active
+name: The evaluation runner builds each corpus case's repository, records its use-case…
+description: The evaluation runner builds each corpus case's repository, records its use-case results, and scores those results against ground truth.

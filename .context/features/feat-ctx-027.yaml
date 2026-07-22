@@ -1,0 +1,5 @@
+id: FEAT-CTX-027
+type: feature
+status: active
+name: The enrich command can invoke Claude Code through its CLI to analyze one bounded…
+description: The enrich command can invoke Claude Code through its CLI to analyze one bounded artifact neighborhood under a strict JSON response contract.

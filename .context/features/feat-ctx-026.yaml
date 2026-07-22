@@ -1,0 +1,7 @@
+id: FEAT-CTX-026
+type: feature
+status: active
+name: The ctx evaluation runner executes the full evaluation corpus and emits a machin…
+description: The ctx evaluation runner executes the full evaluation corpus and emits a machine-readable summary.
+implementation:
+- symbol: ctx_eval.main

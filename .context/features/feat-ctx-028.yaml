@@ -1,0 +1,5 @@
+id: FEAT-CTX-028
+type: feature
+status: active
+name: ctx enrich reports live per-artifact progress immediately before each agent call…
+description: ctx enrich reports live per-artifact progress immediately before each agent call, including the artifact position, total count, kind, ID, and selected agent.

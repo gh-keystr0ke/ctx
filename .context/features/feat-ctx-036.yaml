@@ -1,0 +1,5 @@
+id: FEAT-CTX-036
+type: feature
+status: active
+name: '`ctx explain` reads accepted knowledge records to render the full artifact-to-ag…'
+description: '`ctx explain` reads accepted knowledge records to render the full artifact-to-agent-inference-to-decision chain behind the resulting document.'

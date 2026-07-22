@@ -1,0 +1,5 @@
+id: FEAT-CTX-039
+type: feature
+status: active
+name: ctx review examines direct structural callers of changed callable symbols and su…
+description: ctx review examines direct structural callers of changed callable symbols and surfaces the callers' product claims as indirect findings.

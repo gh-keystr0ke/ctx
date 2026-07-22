@@ -1,0 +1,5 @@
+id: FEAT-CTX-040
+type: feature
+status: active
+name: ctx status reports presence-only column divergences between SQLAlchemy models an…
+description: ctx status reports presence-only column divergences between SQLAlchemy models and goose migration-derived schemas for entities declared by both sources.

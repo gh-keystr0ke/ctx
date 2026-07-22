@@ -1,0 +1,5 @@
+id: FEAT-CTX-038
+type: feature
+status: active
+name: ctx review detects and reports deterministic destructive schema changes through …
+description: ctx review detects and reports deterministic destructive schema changes through a dedicated schema_findings stream.

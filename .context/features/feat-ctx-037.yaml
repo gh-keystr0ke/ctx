@@ -1,0 +1,5 @@
+id: FEAT-CTX-037
+type: feature
+status: active
+name: ctx explain renders the external-artifact-to-agent-inference-to-human-verificati…
+description: ctx explain renders the external-artifact-to-agent-inference-to-human-verification provenance chain for knowledge accepted through ctx verify --knowledge --accept.

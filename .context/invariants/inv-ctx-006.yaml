@@ -1,0 +1,4 @@
+id: INV-CTX-006
+type: invariant
+status: active
+statement: A cross-file symbol move reported by Git as a delete/add pair must be merged into one silent Rename so findings for its mapped invariant or requirement are not duplicated.

@@ -1,0 +1,4 @@
+id: INV-CTX-008
+type: invariant
+status: active
+statement: A destructive migration must resolve only to the requirement or invariant implemented by the code that directly writes the affected table; callers and shared-table relationships must not bridge to unrelated decisions or requirements.

@@ -1,0 +1,6 @@
+id: INV-CTX-010
+type: invariant
+status: active
+statement: A harness failure while evaluating one case is recorded as CaseReport::Errored instead of being propagated, ensuring that one broken case does not prevent evaluation of the remaining corpus.
+implementation:
+- symbol: ctx_eval.runner.evaluate_case

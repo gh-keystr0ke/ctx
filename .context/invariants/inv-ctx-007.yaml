@@ -1,0 +1,10 @@
+id: INV-CTX-007
+type: invariant
+status: active
+statement: A derived title must use the statement's first sentence, or the whole statement truncated to a bounded length when no sentence break exists, and must never invent text absent from the statement.
+implementation:
+- symbol: ctx_core.knowledge.KnowledgeCandidate.derived_title
+tests:
+- symbol: ctx_core.knowledge.tests.derived_title_keeps_a_short_single_sentence_whole
+- symbol: ctx_core.knowledge.tests.derived_title_takes_the_first_sentence
+- symbol: ctx_core.knowledge.tests.derived_title_truncates_a_long_sentence_without_a_break

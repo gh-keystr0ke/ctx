@@ -1,0 +1,4 @@
+id: INV-CTX-009
+type: invariant
+status: active
+statement: A deterministic external reference is normalized by stripping surrounding whitespace and any `#` or `!` prefix before comparison with an artifact's `external_id`.

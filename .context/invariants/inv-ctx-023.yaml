@@ -1,0 +1,6 @@
+id: INV-CTX-023
+type: invariant
+status: active
+statement: An artifact neighborhood is bounded to one hop around a single artifact and contains nothing beyond that artifact's own connections.
+implementation:
+- symbol: ctx_core.neighborhood.ArtifactNeighborhood

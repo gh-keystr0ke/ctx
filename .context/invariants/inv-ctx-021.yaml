@@ -1,0 +1,4 @@
+id: INV-CTX-021
+type: invariant
+status: active
+statement: An ALTER TABLE ALTER COLUMN TYPE schema change records only the new column type and has no access to the prior type, unlike ColumnTypeChanged changes derived from a diff.

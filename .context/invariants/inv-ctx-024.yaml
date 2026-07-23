@@ -1,0 +1,6 @@
+id: INV-CTX-024
+type: invariant
+status: active
+statement: An artifact neighborhood’s symbol paths identify either symbols touched by the artifact’s changeset or symbols discussed by a code comment or docstring.
+implementation:
+- symbol: ctx_core.neighborhood.ArtifactNeighborhood

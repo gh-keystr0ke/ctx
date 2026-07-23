@@ -1,0 +1,10 @@
+id: INV-CTX-022
+type: invariant
+status: active
+statement: An active Requirement, Invariant, or Decision is considered unmapped when no active Implements, Enforces, or Satisfies edge points to it; Features are excluded from this check.
+implementation:
+- symbol: ctx_core.verification.intents_without_mapping
+tests:
+- symbol: ctx_core.verification.tests.an_unmapped_feature_is_never_flagged
+- symbol: ctx_core.verification.tests.intents_without_mapping_finds_only_the_unmapped_one
+- symbol: ctx_app.status.tests.an_unmapped_document_forces_needs_mappings_even_when_others_are_well_mapped

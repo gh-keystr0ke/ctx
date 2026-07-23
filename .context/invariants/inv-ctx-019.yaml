@@ -1,0 +1,8 @@
+id: INV-CTX-019
+type: invariant
+status: active
+statement: Agent provenance includes a deterministic fingerprint of the exact prompt and configuration that produced the output, enabling reproducibility auditing.
+implementation:
+- symbol: ctx_core.knowledge.AgentProvenance
+tests:
+- symbol: ctx_app.query.tests.a_requirement_from_an_accepted_candidate_carries_its_full_provenance_chain

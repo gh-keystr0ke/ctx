@@ -1,0 +1,4 @@
+id: INV-CTX-020
+type: invariant
+status: active
+statement: Agent-provided evidence IDs and implementation or test paths must belong to the supplied neighborhood; invalid references are discarded, and an emptied relevant result becomes insufficient evidence.

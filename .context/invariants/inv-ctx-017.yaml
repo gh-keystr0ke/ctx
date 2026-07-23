@@ -1,0 +1,6 @@
+id: INV-CTX-017
+type: invariant
+status: active
+statement: Adding a NOT NULL column without a DEFAULT to a pre-existing table is treated as a destructive migration because existing rows have no value for the new column.
+implementation:
+- symbol: ctx_core.schema.SchemaChangeKind

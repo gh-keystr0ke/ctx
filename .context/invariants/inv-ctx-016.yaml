@@ -1,0 +1,4 @@
+id: INV-CTX-016
+type: invariant
+status: active
+statement: API-reported comment relationships use CommentsOn and remain distinct from text-derived References relationships.

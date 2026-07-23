@@ -1,0 +1,4 @@
+id: INV-CTX-018
+type: invariant
+status: active
+statement: After a real behavior change is committed and indexed, invalidated human-verified assertions must be marked stale, and `ctx impact` must expose that staleness as uncertainty rather than retaining, removing, or hiding it.

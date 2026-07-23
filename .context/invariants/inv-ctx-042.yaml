@@ -1,0 +1,4 @@
+id: INV-CTX-042
+type: invariant
+status: active
+statement: Computing a Summary from a completed corpus run is pure and reads only already-recorded outcomes.

@@ -1,0 +1,13 @@
+id: INV-CTX-045
+type: invariant
+status: active
+statement: Declared schema changes are determined from the operations a schema-declaring statement or file declares about its own table, independently of prior versions, and remain meaningful for brand-new files.
+implementation:
+- symbol: ctx_core.schema.declared_schema_changes
+tests:
+- symbol: ctx_core.schema.tests.a_freshly_created_table_is_not_destructive
+- symbol: ctx_core.schema.tests.a_nullable_added_column_is_not_destructive
+- symbol: ctx_core.schema.tests.adding_a_not_null_column_without_default_to_an_existing_table_is_destructive
+- symbol: ctx_core.schema.tests.declared_alter_column_operations_classify_correctly
+- symbol: ctx_core.schema.tests.declared_drop_and_rename_are_destructive
+- symbol: ctx_core.schema.tests.diff_does_not_guess_a_rename_from_name_similarity

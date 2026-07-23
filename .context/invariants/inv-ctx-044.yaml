@@ -1,0 +1,4 @@
+id: INV-CTX-044
+type: invariant
+status: active
+statement: Database access column details are populated only when SQL statically and reliably identifies columns; an empty column set means attribution is unknown rather than that no columns are touched.

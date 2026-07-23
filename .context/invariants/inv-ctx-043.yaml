@@ -1,0 +1,8 @@
+id: INV-CTX-043
+type: invariant
+status: active
+statement: Creating a new table emits only one TableCreated summary; its initial columns are not reported as separate schema changes because no downstream dependencies exist yet.
+implementation:
+- symbol: ctx_core.schema.declared_schema_changes
+tests:
+- symbol: ctx_core.schema.tests.a_freshly_created_table_is_not_destructive

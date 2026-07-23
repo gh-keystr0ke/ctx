@@ -1,0 +1,4 @@
+id: INV-CTX-031
+type: invariant
+status: active
+statement: Artifact-neighborhood assembly performs only pure, one-hop reads over data whose links have already been established deterministically.

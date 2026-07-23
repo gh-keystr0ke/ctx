@@ -1,0 +1,9 @@
+id: INV-CTX-032
+type: invariant
+status: active
+statement: Automatically allocated knowledge document IDs use the format `<kind stem>-<prefix>-<NNN>`, with numbering starting at 1 and skipping IDs already used either before or during the current run.
+implementation:
+- symbol: ctx_core.verification.KnowledgeIdAllocator
+tests:
+- symbol: ctx_core.verification.tests.id_allocator_numbers_sequentially_and_never_repeats_within_a_run
+- symbol: ctx_core.verification.tests.id_allocator_skips_ids_already_used_in_the_graph

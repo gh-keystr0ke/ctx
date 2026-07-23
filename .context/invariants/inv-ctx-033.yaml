@@ -1,0 +1,6 @@
+id: INV-CTX-033
+type: invariant
+status: active
+statement: Caller lookup returns only direct, structurally proven callers, limited to one hop and deduplicated.
+implementation:
+- symbol: ctx_core.review.callers_of

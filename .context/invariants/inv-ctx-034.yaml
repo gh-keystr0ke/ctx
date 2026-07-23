@@ -1,0 +1,6 @@
+id: INV-CTX-034
+type: invariant
+status: active
+statement: 'Candidate clustering must be deterministic and total: clusters and their fingerprints are sorted, and every input fingerprint belongs to exactly one output cluster.'
+implementation:
+- symbol: ctx_core.verification.cluster_candidates

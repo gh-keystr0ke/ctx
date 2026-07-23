@@ -1,0 +1,6 @@
+id: INV-CTX-028
+type: invariant
+status: active
+statement: An interchangeable agent's own name is never treated as part of the product-knowledge ontology; it is only a label on the claim.
+implementation:
+- symbol: ctx_core.knowledge.AgentProvenance

@@ -1,0 +1,4 @@
+id: INV-CTX-027
+type: invariant
+status: active
+statement: An ingested code-comment artifact is linked to a graph symbol only when its canonical path identifies exactly one currently indexed CodeSymbol; ambiguous paths remain unlinked.

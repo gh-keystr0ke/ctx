@@ -1,0 +1,4 @@
+id: INV-CTX-029
+type: invariant
+status: active
+statement: Artifact relationships are created only from identifiers literally present in an artifact's own text, never from AI inference or by inventing unknown targets.

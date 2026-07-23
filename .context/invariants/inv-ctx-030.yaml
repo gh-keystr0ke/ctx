@@ -1,0 +1,4 @@
+id: INV-CTX-030
+type: invariant
+status: active
+statement: Artifact-neighborhood assembly must never fabricate links or expand beyond one deterministic hop.

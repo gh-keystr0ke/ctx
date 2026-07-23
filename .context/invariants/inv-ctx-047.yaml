@@ -1,0 +1,4 @@
+id: INV-CTX-047
+type: invariant
+status: active
+statement: Each ALTER TABLE ... ALTER COLUMN sub-clause represents only the single attribute it changes, never the existing column's full state.

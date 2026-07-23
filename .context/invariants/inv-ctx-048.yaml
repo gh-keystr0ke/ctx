@@ -1,0 +1,9 @@
+id: INV-CTX-048
+type: invariant
+status: active
+statement: Each CandidateReviewDecision must identify its candidate by the same fingerprint used when the candidate was proposed and stored, never by position or index, so reordering cannot cause the wrong candidate to be decided.
+implementation:
+- symbol: ctx_core.knowledge.CandidateReviewDecision
+tests:
+- symbol: ctx_adapters.agent_contract.tests.review_rejects_a_decision_list_missing_a_candidate
+- symbol: ctx_adapters.agent_contract.tests.review_rejects_an_invented_fingerprint_not_trusted

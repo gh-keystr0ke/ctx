@@ -1,0 +1,6 @@
+id: INV-CTX-050
+type: invariant
+status: active
+statement: Each evaluation case runs in a fresh temporary Git repository through the real ctx-app use cases and returns a recorded run.
+implementation:
+- symbol: ctx_eval.harness.run_case

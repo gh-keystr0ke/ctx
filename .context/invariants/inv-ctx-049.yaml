@@ -1,0 +1,4 @@
+id: INV-CTX-049
+type: invariant
+status: active
+statement: Each Check contributes evidence for one product-quality dimension, enabling precision- and recall-shaped evaluation metrics instead of a vanity pass count.

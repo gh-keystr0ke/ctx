@@ -1,0 +1,4 @@
+id: INV-CTX-038
+type: invariant
+status: active
+statement: Column evidence remains empty when columns cannot be reliably attributed, including DELETE, INSERT without a column list, and SELECT/read forms.

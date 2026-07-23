@@ -1,0 +1,4 @@
+id: INV-CTX-040
+type: invariant
+status: active
+statement: Column renames must not be inferred from name or type similarity; absent and newly present columns are reported separately unless an explicit rename is declared.

@@ -1,0 +1,4 @@
+id: INV-CTX-037
+type: invariant
+status: active
+statement: Colliding symbols without historical grounding must receive distinct, stable, deterministic ordinal-suffixed identities instead of causing indexing to abort.

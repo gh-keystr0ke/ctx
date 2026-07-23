@@ -1,0 +1,6 @@
+id: INV-CTX-039
+type: invariant
+status: active
+statement: For ALTER COLUMN nullability changes, nullable=false (tightening) encodes as Some(false) and emits SET NOT NULL, while nullable=true (relaxing) encodes as Some(true) and emits DROP NOT NULL.
+implementation:
+- symbol: ctx_core.ir.ColumnAlteration

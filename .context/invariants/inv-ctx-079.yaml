@@ -1,0 +1,4 @@
+id: INV-CTX-079
+type: invariant
+status: active
+statement: Re-ingesting an artifact link must be idempotent even when one of its mutually exclusive nullable targets is NULL.

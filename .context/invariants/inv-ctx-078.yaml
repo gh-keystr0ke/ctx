@@ -1,0 +1,4 @@
+id: INV-CTX-078
+type: invariant
+status: active
+statement: Product knowledge with the same wording but different kinds is not treated as a duplicate; an Invariant restating a Requirement remains distinct.

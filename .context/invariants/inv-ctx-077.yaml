@@ -1,0 +1,4 @@
+id: INV-CTX-077
+type: invariant
+status: active
+statement: Planned Rust identities must be unique.

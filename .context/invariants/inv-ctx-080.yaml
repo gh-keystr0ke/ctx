@@ -1,0 +1,8 @@
+id: INV-CTX-080
+type: invariant
+status: active
+statement: Reconstructed migration schemas are diagnostic-only and must not be persisted as schema-definition edges or treated as an entity's current schema.
+implementation:
+- symbol: ctx_core.schema.reconcile_orm_and_migrations
+tests:
+- symbol: ctx_core.indexing.tests.database_entities_and_facts_follow_the_current_symbol_snapshot

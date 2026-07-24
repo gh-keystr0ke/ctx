@@ -1,0 +1,4 @@
+id: INV-CTX-084
+type: invariant
+status: active
+statement: Schema diffs must never infer column renames; absent and newly named columns are reported independently unless the source explicitly declares a rename.

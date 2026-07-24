@@ -1,0 +1,8 @@
+id: INV-CTX-081
+type: invariant
+status: active
+statement: Related knowledge items are sorted by identifier before capping/truncation so cap-hit results are deterministic, independent of the graph's incidental edge storage or insertion order.
+implementation:
+- symbol: ctx_core.neighborhood.related_knowledge
+tests:
+- symbol: ctx_core.neighborhood.tests.related_knowledge_caps_deterministically_by_identifier_not_edge_order

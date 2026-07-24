@@ -1,0 +1,6 @@
+id: INV-CTX-082
+type: invariant
+status: active
+statement: Rendered neighborhoods use the grouped Issue / MR / Branch / Commit / Changed symbols / Tests plain-text shape and are truncated to the token budget using the same budgeting mechanism as Context Packs.
+implementation:
+- symbol: ctx_core.neighborhood.RenderedNeighborhood

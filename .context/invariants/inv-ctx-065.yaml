@@ -1,0 +1,4 @@
+id: INV-CTX-065
+type: invariant
+status: active
+statement: Indirect caller findings are explicitly marked as uncertain, deduplicated by caller and intent across the review pass, and limited to exactly one call hop.

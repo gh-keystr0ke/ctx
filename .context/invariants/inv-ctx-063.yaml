@@ -1,0 +1,6 @@
+id: INV-CTX-063
+type: invariant
+status: active
+statement: Impact queries must preserve distinct cross-file identities across sequential indexing transitions.
+implementation:
+- symbol: ctx_eval.cases.multi_commit_feature_evolution

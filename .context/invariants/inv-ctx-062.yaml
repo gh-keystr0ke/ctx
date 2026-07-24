@@ -1,0 +1,4 @@
+id: INV-CTX-062
+type: invariant
+status: active
+statement: ID allocation must skip IDs found in on-disk .context YAML documents even when the indexed graph does not yet know about them, preventing allocation of an ID that duplicate-file verification would reject.

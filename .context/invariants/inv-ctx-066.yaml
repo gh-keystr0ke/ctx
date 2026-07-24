@@ -1,0 +1,9 @@
+id: INV-CTX-066
+type: invariant
+status: active
+statement: Indirect findings must be deduplicated globally by caller and intent, with the longest canonical path chosen deterministically when multiple changed entities explain the same pair.
+implementation:
+- symbol: ctx_core.review.indirect_call_findings
+tests:
+- symbol: ctx_core.review.tests.behavior_change_with_documented_requirement_creates_one_precise_finding
+- symbol: crates.ctx-cli.tests.e2e.complete_product_journey_is_deterministic_and_evidence_backed

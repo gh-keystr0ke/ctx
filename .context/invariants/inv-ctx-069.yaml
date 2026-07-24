@@ -1,0 +1,8 @@
+id: INV-CTX-069
+type: invariant
+status: active
+statement: Neighborhood rendering must reserve a margin when truncating so the ellipsis and token re-estimation round-up do not cause the result to exceed the remaining token budget.
+implementation:
+- symbol: ctx_core.neighborhood.render_neighborhood
+tests:
+- symbol: ctx_core.neighborhood.tests.render_truncates_to_the_token_budget_and_reports_it

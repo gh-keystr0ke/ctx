@@ -1,0 +1,9 @@
+id: INV-CTX-068
+type: invariant
+status: active
+statement: Lexical clustering may group knowledge candidates for review but must never trigger merging by itself; accepted candidates may be consolidated only when the review agent judges two or more to express genuinely identical knowledge, while distinct candidates remain separate documents.
+implementation:
+- symbol: ctx_core.knowledge.ClusterReview
+tests:
+- symbol: ctx_adapters.agent_contract.tests.review_accepts_and_merges_when_the_agent_says_so
+- symbol: ctx_app.verification.knowledge_tests.auto_merges_two_accepted_candidates_of_one_cluster_into_a_single_document

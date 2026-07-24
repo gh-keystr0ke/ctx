@@ -1,0 +1,4 @@
+id: INV-CTX-067
+type: invariant
+status: active
+statement: Knowledge ID allocation seeds used IDs from disk so stale indexes and individual ID collisions do not abort an entire automatic run.

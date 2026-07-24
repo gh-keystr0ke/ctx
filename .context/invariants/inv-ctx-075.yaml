@@ -1,0 +1,8 @@
+id: INV-CTX-075
+type: invariant
+status: active
+statement: Only changed functions and methods may trigger indirect-call escalation; container symbols must not serve as escalation sources merely because their aggregate body hashes changed with nested children.
+implementation:
+- symbol: ctx_core.review.indirect_call_findings
+tests:
+- symbol: ctx_core.review.tests.classifies_contract_and_formatting_changes_without_guessing_equivalence

@@ -1,0 +1,4 @@
+id: INV-CTX-073
+type: invariant
+status: active
+statement: Once a pending-queue item is decided, it must remain untouched, with this guarantee enforced by the decision-recording method.

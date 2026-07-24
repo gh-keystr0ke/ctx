@@ -1,0 +1,6 @@
+id: INV-CTX-074
+type: invariant
+status: active
+statement: One-hop escalation must continue surfacing a still-active semantic claim when its own body is unchanged but a dependency it calls has changed, regardless of unrelated stale claims.
+implementation:
+- symbol: ctx_eval.cases.stale_semantic_mapping

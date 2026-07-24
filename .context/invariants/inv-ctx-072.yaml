@@ -1,0 +1,6 @@
+id: INV-CTX-072
+type: invariant
+status: active
+statement: ORM-to-migration schema reconciliation detects only columns absent from one source and does not compare column attributes such as type or nullability.
+implementation:
+- symbol: ctx_core.schema.DivergenceKind

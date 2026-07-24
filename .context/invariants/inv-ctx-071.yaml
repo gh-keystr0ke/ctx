@@ -1,0 +1,6 @@
+id: INV-CTX-071
+type: invariant
+status: active
+statement: 'Numeric references consist of a # or ! marker followed by one or more ASCII digits and must end at a word boundary.'
+implementation:
+- symbol: ctx_core.linking.match_numeric_reference

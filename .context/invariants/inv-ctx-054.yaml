@@ -1,0 +1,4 @@
+id: INV-CTX-054
+type: invariant
+status: active
+statement: Enrichment records every analyzed artifact regardless of outcome and skips re-analysis while its current content hash matches the analysis ledger.

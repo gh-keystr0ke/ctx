@@ -1,0 +1,4 @@
+id: INV-CTX-055
+type: invariant
+status: active
+statement: Evaluation must be a deterministic, pure comparison of a CaseRun and Check, without accessing the filesystem, Git, or SQLite.

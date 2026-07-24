@@ -1,0 +1,6 @@
+id: INV-CTX-051
+type: invariant
+status: active
+statement: Each neighborhood caps the number of linked artifacts, symbols, tests, and related-knowledge items independently of its token budget, bounding the input shape as well as its rendered size.
+implementation:
+- symbol: ctx_core.neighborhood.MAX_LINKED_ARTIFACTS

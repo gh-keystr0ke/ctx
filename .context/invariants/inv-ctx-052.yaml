@@ -1,0 +1,4 @@
+id: INV-CTX-052
+type: invariant
+status: active
+statement: Enrichment analyzes artifacts not already cited by pending candidates and persists only relevant results as pending candidates, never as established facts.

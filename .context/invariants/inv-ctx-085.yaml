@@ -1,0 +1,6 @@
+id: INV-CTX-085
+type: invariant
+status: active
+statement: Schema operation fields are independent, additive observations because one DDL statement or ORM class may express multiple operation kinds.
+implementation:
+- symbol: ctx_core.ir.SchemaTableDefinition

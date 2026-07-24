@@ -1,0 +1,4 @@
+id: INV-CTX-056
+type: invariant
+status: active
+statement: Every evaluation corpus case must run cleanly and all of its ground-truth checks must pass.

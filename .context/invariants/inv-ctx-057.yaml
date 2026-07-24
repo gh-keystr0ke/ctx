@@ -1,0 +1,6 @@
+id: INV-CTX-057
+type: invariant
+status: active
+statement: Every pending KnowledgeCandidate must belong to exactly one cluster, with unmatched candidates placed in singleton clusters.
+implementation:
+- symbol: ctx_core.verification.CandidateCluster

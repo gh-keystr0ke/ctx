@@ -1,0 +1,4 @@
+id: INV-CTX-100
+type: invariant
+status: active
+statement: When a private unmapped helper changes behavior but its mapped public caller does not change, review must surface the caller's Implements claim, attribute the finding to that caller, identify the indirect helper, and traverse exactly one call hop without reaching callers two hops away.

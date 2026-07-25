@@ -1,0 +1,6 @@
+id: INV-CTX-097
+type: invariant
+status: active
+statement: Unset SchemaColumn constraint fields represent information that could not be statically determined, not constraints proven to be absent.
+implementation:
+- symbol: ctx_core.ir.SchemaColumn

@@ -1,0 +1,4 @@
+id: INV-CTX-098
+type: invariant
+status: active
+statement: When a caller receives a direct finding for an intent because its own body changed, the indirect call-graph signal for that same intent must not produce a duplicate finding.

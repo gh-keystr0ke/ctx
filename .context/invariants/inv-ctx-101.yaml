@@ -1,0 +1,4 @@
+id: INV-CTX-101
+type: invariant
+status: active
+statement: When an agent evaluates a bounded artifact neighborhood, extracting no knowledge is always preferred to fabricating a candidate.

@@ -1,0 +1,4 @@
+id: INV-CTX-099
+type: invariant
+status: active
+statement: Text references produce artifact links only when they resolve to the identity of an existing known artifact; unresolved references must not produce guessed links.

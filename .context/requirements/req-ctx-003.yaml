@@ -1,0 +1,4 @@
+id: REQ-CTX-003
+type: requirement
+status: active
+statement: A new migration for a table untouched by mapped code must be treated as non-destructive noise and must not produce a guessed business warning.

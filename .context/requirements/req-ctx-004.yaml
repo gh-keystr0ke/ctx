@@ -1,0 +1,4 @@
+id: REQ-CTX-004
+type: requirement
+status: active
+statement: A single file analyzer failure must not abort indexing; the file must be reported as failed and retried on subsequent index runs.

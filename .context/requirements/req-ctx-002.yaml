@@ -1,0 +1,4 @@
+id: REQ-CTX-002
+type: requirement
+status: active
+statement: A migration's declared schema changes must be evaluated independently of history, so a newly introduced column drop is immediately destructive.

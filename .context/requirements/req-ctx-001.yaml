@@ -1,0 +1,4 @@
+id: REQ-CTX-001
+type: requirement
+status: active
+statement: A migration that widens an existing column's type and tightens its nullability through ALTER COLUMN must be detected as destructive, including through the code path distinct from ADD COLUMN.

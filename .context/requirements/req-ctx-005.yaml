@@ -1,0 +1,4 @@
+id: REQ-CTX-005
+type: requirement
+status: active
+statement: A single structural diff of a SQLAlchemy model must detect column type changes, dropped foreign keys, and removed unique constraints as destructive changes.

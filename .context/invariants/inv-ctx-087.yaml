@@ -1,0 +1,4 @@
+id: INV-CTX-087
+type: invariant
+status: active
+statement: Schema-change classification must operate deterministically on a framework-neutral normalized IR populated identically by every schema source.

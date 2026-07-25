@@ -1,0 +1,4 @@
+id: INV-CTX-091
+type: invariant
+status: active
+statement: The ctx core must remain deterministic and contain no filesystem, Git, database, terminal, or network code; callers supply observations and the core returns decisions.

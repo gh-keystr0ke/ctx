@@ -1,0 +1,4 @@
+id: INV-CTX-089
+type: invariant
+status: active
+statement: Tables declared only through SQLAlchemy declarative models must surface as data contracts, and ORM declarations, SQL literals, and goose migrations must resolve to the same DbEntity.

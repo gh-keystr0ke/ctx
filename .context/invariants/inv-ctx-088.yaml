@@ -1,0 +1,6 @@
+id: INV-CTX-088
+type: invariant
+status: active
+statement: SchemaColumn.data_type preserves the raw declared type text and is neither normalized nor validated against a SQL dialect.
+implementation:
+- symbol: ctx_core.ir.SchemaColumn

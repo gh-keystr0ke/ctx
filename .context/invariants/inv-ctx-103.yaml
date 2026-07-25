@@ -1,0 +1,6 @@
+id: INV-CTX-103
+type: invariant
+status: active
+statement: render_neighborhood returns an error message when token_budget is zero.
+implementation:
+- symbol: ctx_core.neighborhood.render_neighborhood

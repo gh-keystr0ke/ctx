@@ -1,0 +1,6 @@
+id: INV-CTX-096
+type: invariant
+status: active
+statement: URL matching stops at whitespace, an enclosing bracket or quote, or trailing sentence punctuation that is almost never part of the URL.
+implementation:
+- symbol: ctx_core.linking.match_url

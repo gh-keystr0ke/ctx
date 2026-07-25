@@ -1,0 +1,6 @@
+id: INV-CTX-094
+type: invariant
+status: active
+statement: Ticket keys must match a whole word consisting of 2–10 uppercase ASCII letters, a hyphen, and 1–6 ASCII digits, excluding suffixes and matches beginning mid-word.
+implementation:
+- symbol: ctx_core.linking.match_ticket_key

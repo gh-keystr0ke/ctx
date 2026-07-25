@@ -1,0 +1,4 @@
+id: INV-CTX-093
+type: invariant
+status: active
+statement: The goose/SQLAlchemy DDL recognizer must not crash ctx index when migration text contains multi-byte UTF-8 characters at ASCII keyword offsets; unrecognized clauses should fail recognition safely.

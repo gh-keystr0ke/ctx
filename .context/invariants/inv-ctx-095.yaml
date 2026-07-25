@@ -1,0 +1,6 @@
+id: INV-CTX-095
+type: invariant
+status: active
+statement: Ticket matching must reject numeric portions longer than six digits instead of consuming a six-digit prefix and silently truncating the token.
+implementation:
+- symbol: ctx_core.linking.match_ticket_key

@@ -1,0 +1,6 @@
+id: INV-CTX-092
+type: invariant
+status: active
+statement: The evaluation runner exits non-zero whenever any evaluation case fails or errors, allowing it to serve as a regression gate.
+implementation:
+- symbol: ctx_eval.main

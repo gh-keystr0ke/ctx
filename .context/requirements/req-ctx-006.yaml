@@ -1,0 +1,6 @@
+id: REQ-CTX-006
+type: requirement
+status: active
+statement: A ticket key embedded in a URL path must be detected as a separate reference in addition to the URL itself.
+implementation:
+- symbol: ctx_core.linking.match_at

@@ -1,0 +1,11 @@
+id: REQ-CTX-017
+type: requirement
+status: active
+statement: Provenance for an agent’s output must record who produced it, what it read, and when, independently of the concrete CLI agent used.
+implementation:
+- symbol: ctx_core.knowledge.AgentProvenance
+tests:
+- symbol: ctx_adapters.sqlite.artifacts.tests.accepted_record_reports_an_agent_decision_honestly
+- symbol: ctx_adapters.sqlite.artifacts.tests.accepting_a_candidate_removes_it_from_pending_and_records_the_resulting_document
+- symbol: ctx_adapters.sqlite.artifacts.tests.pending_candidates_round_trip_and_stay_out_once_decided
+- symbol: ctx_app.query.tests.a_requirement_from_an_accepted_candidate_carries_its_full_provenance_chain

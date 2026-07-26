@@ -1,0 +1,6 @@
+id: REQ-CTX-021
+type: requirement
+status: active
+statement: Reviewing an aggregate multi-commit span containing a changed public signature must classify the whole span as ContractChanged rather than BehaviorPotentiallyChanged.
+implementation:
+- symbol: ctx_eval.cases.multi_commit_feature_evolution

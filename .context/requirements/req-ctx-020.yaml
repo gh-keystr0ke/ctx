@@ -1,0 +1,6 @@
+id: REQ-CTX-020
+type: requirement
+status: active
+statement: Review must collapse a cross-file symbol deletion/addition pair sharing one stable graph key into a single Rename so that findings against the same intent are not duplicated.
+implementation:
+- symbol: ctx_core.review.merge_cross_file_moves

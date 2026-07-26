@@ -1,0 +1,4 @@
+id: REQ-CTX-019
+type: requirement
+status: active
+statement: Schema-aware review computes and includes a schema_findings stream as part of the review findings output.

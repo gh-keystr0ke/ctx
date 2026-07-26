@@ -1,0 +1,4 @@
+id: REQ-CTX-026
+type: requirement
+status: active
+statement: The evaluation corpus must cover meaningful behavior changes, formatting-only noise, unrelated refactors, in-file renames, cross-file symbol moves, deleted contract implementations, changed database writes, stale semantic mappings, shared-test isolation, newly added call edges, and a realistic multi-commit history.

@@ -1,0 +1,9 @@
+id: REQ-CTX-022
+type: requirement
+status: active
+statement: Scoring must use every currently known artifact link and, for intents created from accepted AI-derived knowledge candidates, the candidate's supporting evidence artifacts keyed by the resulting document ID; hand-authored intents have no such evidence entry and their scores remain unaffected.
+implementation:
+- symbol: ctx_core.verification.ArtifactEvidenceContext
+tests:
+- symbol: ctx_core.verification.tests.a_symbol_changed_by_the_same_artifact_that_backs_the_requirement_scores_higher
+- symbol: ctx_core.verification.tests.an_intent_from_an_accepted_ai_derived_candidate_gets_mapping_candidates_like_any_other

@@ -1,0 +1,4 @@
+id: REQ-CTX-024
+type: requirement
+status: active
+statement: Successful reference extraction must not by itself cause the linking module to infer a relation kind; relation-kind inference is outside this module's scope.

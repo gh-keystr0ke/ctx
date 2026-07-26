@@ -1,0 +1,4 @@
+id: REQ-CTX-009
+type: requirement
+status: active
+statement: Each extracted code-documentation artifact is attributed to the nearest enclosing symbol, preferring the smallest nested enclosing range or the next symbol for comments directly above an item.

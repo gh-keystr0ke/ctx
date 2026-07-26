@@ -1,0 +1,4 @@
+id: REQ-CTX-011
+type: requirement
+status: active
+statement: Impact resolution must prefer exact literal matches before interpreting a query as table.column, and column resolution requires the table to resolve to exactly one DbEntity.

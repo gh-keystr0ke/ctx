@@ -1,0 +1,4 @@
+id: REQ-CTX-007
+type: requirement
+status: active
+statement: Accept and reject operations must receive a decision method, and accepted records must expose that method when read back for a document.

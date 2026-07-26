@@ -1,0 +1,4 @@
+id: REQ-CTX-008
+type: requirement
+status: active
+statement: Codex and Antigravity CLI binary paths can be overridden independently through CTX-specific environment variables for testability.

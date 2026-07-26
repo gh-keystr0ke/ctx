@@ -1,0 +1,4 @@
+id: REQ-CTX-010
+type: requirement
+status: active
+statement: GitLab access tokens must be read only from the CTX_GITLAB_TOKEN environment variable and never from repository-committed configuration.

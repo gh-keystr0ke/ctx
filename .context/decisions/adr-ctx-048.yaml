@@ -1,0 +1,5 @@
+id: ADR-CTX-048
+type: decision
+status: active
+title: GitLab transport is abstracted behind a small trait so client tests use canned J…
+decision: GitLab transport is abstracted behind a small trait so client tests use canned JSON without live GitLab access or real sockets.

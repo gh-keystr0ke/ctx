@@ -1,0 +1,5 @@
+id: ADR-CTX-045
+type: decision
+status: active
+title: CLI agents share a common transport-agnostic analysis contract, while each vendo…
+decision: CLI agents share a common transport-agnostic analysis contract, while each vendor adapter owns only its process invocation and delegates analysis to the shared module.

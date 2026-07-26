@@ -1,0 +1,5 @@
+id: ADR-CTX-044
+type: decision
+status: active
+title: AI-derived knowledge candidates use a persistent pending queue distinct from the…
+decision: AI-derived knowledge candidates use a persistent pending queue distinct from the recomputable heuristic SemanticCandidate pipeline.

@@ -1,0 +1,5 @@
+id: ADR-CTX-047
+type: decision
+status: active
+title: External artifacts are stored separately from product-graph nodes and never auto…
+decision: External artifacts are stored separately from product-graph nodes and never automatically become Features, Requirements, Invariants, or Decisions.

@@ -1,0 +1,9 @@
+id: REQ-CTX-012
+type: requirement
+status: active
+statement: Incremental planning must compare the current allowed source paths with the stored snapshot so configuration-only boundary changes are processed as file additions and deletions.
+implementation:
+- symbol: ctx_core.indexing.reconcile_source_scope
+tests:
+- symbol: ctx_core.indexing.tests.scope_reconciliation_adds_newly_included_files_without_duplicates
+- symbol: ctx_core.indexing.tests.scope_reconciliation_retires_files_excluded_by_config

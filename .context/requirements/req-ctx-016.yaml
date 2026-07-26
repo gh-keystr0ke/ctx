@@ -1,0 +1,4 @@
+id: REQ-CTX-016
+type: requirement
+status: active
+statement: Migration operations are replayed in file-path order, applying declared add, drop, and rename operations sequentially.

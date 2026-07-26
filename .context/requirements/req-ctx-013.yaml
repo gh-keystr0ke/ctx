@@ -1,0 +1,4 @@
+id: REQ-CTX-013
+type: requirement
+status: active
+statement: Indirect-call review findings must trace private-helper behavior changes exactly one call hop to a mapped caller, without reaching mapped entry points two hops away.

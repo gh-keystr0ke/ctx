@@ -1,0 +1,4 @@
+id: REQ-CTX-015
+type: requirement
+status: active
+statement: Malformed agent JSON must fail rather than be interpreted heuristically, and subprocess arguments must not use shell-string interpolation.

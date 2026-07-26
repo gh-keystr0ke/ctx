@@ -1,0 +1,4 @@
+id: REQ-CTX-014
+type: requirement
+status: active
+statement: Lexical seed detection must not automatically select a test solely because of incidental term overlap in its call list.

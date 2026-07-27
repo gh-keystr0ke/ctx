@@ -1,0 +1,4 @@
+id: REQ-CTX-029
+type: requirement
+status: active
+statement: Acceptance must reject a likely restatement of an active document of the same kind before any write unless explicitly overridden with force or interactive confirmation.

@@ -1,0 +1,4 @@
+id: REQ-CTX-028
+type: requirement
+status: active
+statement: A `ctx impact table.column` query must resolve to the table's `DbEntity` seed and narrow implementation results to readers and writers whose evidence names that column, excluding unrelated table writers.

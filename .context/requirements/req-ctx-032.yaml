@@ -1,0 +1,4 @@
+id: REQ-CTX-032
+type: requirement
+status: active
+statement: For impact, explain, and find queries, CLI text output must section multiple matches as `[i/N]`, while JSON output must return a query and matches array rather than a combined result object.

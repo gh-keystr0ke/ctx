@@ -1,0 +1,4 @@
+id: REQ-CTX-030
+type: requirement
+status: active
+statement: Accepting a knowledge candidate through `--knowledge --accept` requires an explicit human-provided ID; the system must not infer one from candidate content.

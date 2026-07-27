@@ -1,0 +1,4 @@
+id: REQ-CTX-031
+type: requirement
+status: active
+statement: An explicit context-pack symbol or file seed that resolves to multiple matches must add every match as an explicit root in the same pack.

@@ -1,0 +1,10 @@
+id: REQ-CTX-036
+type: requirement
+status: active
+statement: Potential restatements must be detected against every active Requirement, Invariant, or Decision of the same kind using lexical term-overlap, so a restated document does not silently become a new one.
+implementation:
+- symbol: ctx_core.verification.possible_duplicate
+tests:
+- symbol: crates.ctx-cli.tests.e2e.accepting_a_restated_requirement_is_refused_unless_forced
+- symbol: ctx_app.verification.knowledge_tests.accepting_a_likely_restatement_is_refused_unless_forced
+- symbol: ctx_core.verification.tests.possible_duplicate_finds_a_restated_requirement_by_term_overlap

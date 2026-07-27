@@ -1,0 +1,6 @@
+id: REQ-CTX-034
+type: requirement
+status: active
+statement: Indirect calls one hop away must be surfaced by bounded call-graph escalation and distinguished from direct findings.
+implementation:
+- symbol: ctx_eval.cases.cancellation_behavior_change

@@ -1,0 +1,4 @@
+id: REQ-CTX-033
+type: requirement
+status: active
+statement: Git ingestion must idempotently upsert artifacts and resolve text references against every artifact already known to the repository, including artifacts stored by prior runs.

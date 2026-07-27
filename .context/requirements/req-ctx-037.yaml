@@ -1,0 +1,9 @@
+id: REQ-CTX-037
+type: requirement
+status: active
+statement: Review must propagate a changed private helper's behavior impact only to its direct, structurally proven callers, stopping after one hop and avoiding duplicate indirect findings when a caller already has a direct finding for the same intent.
+implementation:
+- symbol: ctx_core.review.indirect_call_findings
+tests:
+- symbol: ctx_core.review.tests.indirect_call_finds_the_mapped_caller_of_a_changed_private_helper
+- symbol: ctx_core.review.tests.indirect_call_signal_does_not_duplicate_a_caller_s_own_direct_finding

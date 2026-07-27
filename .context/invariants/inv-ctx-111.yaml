@@ -1,0 +1,4 @@
+id: INV-CTX-111
+type: invariant
+status: active
+statement: Migration reconciliation replays migrations in file-path order, regardless of node ordering.

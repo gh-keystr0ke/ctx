@@ -1,0 +1,8 @@
+id: INV-CTX-112
+type: invariant
+status: active
+statement: New definitions that share a canonical path must receive distinct symbol keys so each produces a separate index write.
+implementation:
+- symbol: ctx_core.indexing.disambiguated_symbol_key
+tests:
+- symbol: ctx_core.indexing.tests.two_new_symbols_sharing_one_canonical_path_claim_distinct_identities

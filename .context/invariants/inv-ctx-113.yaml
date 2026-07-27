@@ -1,0 +1,4 @@
+id: INV-CTX-113
+type: invariant
+status: active
+statement: Same-shape symbol matching may reuse a prior symbol’s identity only when that symbol belongs to a file being vacated by the current transition; symbols in untouched files are never eligible.

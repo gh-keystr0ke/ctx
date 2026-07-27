@@ -1,0 +1,4 @@
+id: INV-CTX-110
+type: invariant
+status: active
+statement: Knowledge provenance is attached only to single-subject Feature, Requirement, Invariant, or Decision explanations, and is not fabricated for relationship queries or hand-authored documents without candidate records.

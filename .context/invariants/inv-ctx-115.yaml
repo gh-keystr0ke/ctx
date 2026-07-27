@@ -1,0 +1,9 @@
+id: INV-CTX-115
+type: invariant
+status: active
+statement: The artifact-evidence signal is 1.0 only when an artifact backing the intent's accepted evidence also structurally changed the symbol; hand-authored intents without accepted evidence receive 0.0 and the signal is never guessed.
+implementation:
+- symbol: ctx_core.verification.artifact_evidence_signal
+tests:
+- symbol: ctx_core.verification.tests.a_symbol_changed_by_the_same_artifact_that_backs_the_requirement_scores_higher
+- symbol: ctx_core.verification.tests.an_intent_from_an_accepted_ai_derived_candidate_gets_mapping_candidates_like_any_other

@@ -1,0 +1,4 @@
+id: INV-CTX-107
+type: invariant
+status: active
+statement: Configured include and exclude paths must match identically whether or not they end with a trailing separator.

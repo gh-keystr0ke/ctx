@@ -1,0 +1,4 @@
+id: INV-CTX-105
+type: invariant
+status: active
+statement: Agent-proposed knowledge remains an inference until promoted through human verification.

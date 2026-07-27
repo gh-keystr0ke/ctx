@@ -1,0 +1,4 @@
+id: INV-CTX-108
+type: invariant
+status: active
+statement: Cross-file structural-fingerprint identity matching must require both the structural fingerprint and the symbol name to match.

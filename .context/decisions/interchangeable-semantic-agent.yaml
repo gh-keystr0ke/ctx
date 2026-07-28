@@ -55,3 +55,4 @@ tests:
   - symbol: crates.ctx-cli.tests.e2e.enrich_dispatches_antigravity_to_agy_p_with_its_own_binary_override
   - symbol: ctx_adapters.agent_contract.tests.review_can_reject_a_candidate_extraction_already_called_relevant
  
+

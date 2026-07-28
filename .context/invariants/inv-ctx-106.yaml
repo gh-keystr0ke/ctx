@@ -9,3 +9,4 @@ tests:
 - symbol: ctx_adapters.sqlite.artifacts.tests.accepting_a_candidate_removes_it_from_pending_and_records_the_resulting_document
 - symbol: ctx_adapters.sqlite.artifacts.tests.pending_candidates_round_trip_and_stay_out_once_decided
 - symbol: ctx_app.query.tests.a_requirement_from_an_accepted_candidate_carries_its_full_provenance_chain
+

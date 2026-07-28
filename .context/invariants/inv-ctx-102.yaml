@@ -4,3 +4,4 @@ status: active
 statement: Within a repository, repeated identical extraction must deterministically recognize knowledge as already proposed instead of creating duplicates.
 implementation:
 - symbol: ctx_core.knowledge.KnowledgeCandidate
+

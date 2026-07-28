@@ -49,6 +49,15 @@ Rules:
 - implementation_candidates and test_candidates may only name paths that literally appear in the Changed symbols / Tests sections below. Omit either list entirely if nothing applies.
 - Prefer "not_relevant" or "insufficient_evidence" over a fabricated or speculative candidate."#;
 
+/// Appended to the prompt, after [`SYSTEM_PROMPT`]'s own rule restricting
+/// `implementation_candidates`/`test_candidates` to paths literally present
+/// in the neighborhood, only when the caller passes
+/// `allow_ungrounded_symbols = true` to [`analyze`]. Explicitly names and
+/// overrides that specific rule rather than just contradicting it, since an
+/// agent given two silently conflicting instructions in one prompt tends to
+/// follow the stricter one anyway.
+const ALLOW_UNGROUNDED_SYMBOLS_HINT: &str = "\n\nException to the implementation_candidates/test_candidates rule above: you may also propose implementation and test symbols based on your heuristic knowledge of the repository, even if they are not listed in the Valid artifact ids or Changed symbols above.";
+
 #[derive(Debug, Error)]
 pub enum AgentContractError {
     #[error("agent CLI could not be started: {0}")]
@@ -86,15 +95,19 @@ pub fn analyze<T: AgentTransport>(
     produced_at: &str,
     producer: &str,
     model: Option<String>,
+    allow_ungrounded_symbols: bool,
 ) -> Result<AgentOutcome, AgentContractError> {
     let known_ids = known_artifact_ids(neighborhood);
     let rendered = render_neighborhood(neighborhood, DEFAULT_TOKEN_BUDGET)
         .expect("DEFAULT_TOKEN_BUDGET is a nonzero constant");
-    let prompt = format!(
+    let mut prompt = format!(
         "{SYSTEM_PROMPT}\n\nValid artifact ids for this neighborhood: {}\n\n{}",
         known_ids.join(", "),
         rendered.text
     );
+    if allow_ungrounded_symbols {
+        prompt.push_str(ALLOW_UNGROUNDED_SYMBOLS_HINT);
+    }
     let fingerprint = blake3::hash(prompt.as_bytes()).to_hex().to_string();
     let raw = transport.run(&prompt)?;
     let object = extract_json_object(&raw)
@@ -108,7 +121,12 @@ pub fn analyze<T: AgentTransport>(
         produced_at: produced_at.to_owned(),
         fingerprint,
     };
-    Ok(to_outcome(parsed, neighborhood, &provenance))
+    Ok(to_outcome(
+        parsed,
+        neighborhood,
+        &provenance,
+        allow_ungrounded_symbols,
+    ))
 }
 
 fn known_artifact_ids(neighborhood: &ArtifactNeighborhood) -> Vec<String> {
@@ -199,15 +217,18 @@ struct RawEvidence {
 /// Converts the raw, untrusted contract into a real [`AgentOutcome`],
 /// dropping (never fabricating a substitute for) anything that fails
 /// validation: an evidence entry citing an artifact id outside this
-/// neighborhood, an implementation/test candidate naming a path this
-/// neighborhood never surfaced, or a candidate left with no evidence at all
-/// once invalid entries are dropped. A `relevant` outcome that loses every
-/// candidate this way degrades to `InsufficientEvidence` rather than
-/// silently claiming `Relevant` with an empty list (PR-P02, PR-AI-004).
+/// neighborhood (always enforced, regardless of `allow_ungrounded_symbols`),
+/// an implementation/test candidate naming a path this neighborhood never
+/// surfaced (enforced only when `allow_ungrounded_symbols` is `false`), or a
+/// candidate left with no evidence at all once invalid entries are dropped.
+/// A `relevant` outcome that loses every candidate this way degrades to
+/// `InsufficientEvidence` rather than silently claiming `Relevant` with an
+/// empty list (PR-P02, PR-AI-004).
 fn to_outcome(
     parsed: RawAgentOutput,
     neighborhood: &ArtifactNeighborhood,
     provenance: &AgentProvenance,
+    allow_ungrounded_symbols: bool,
 ) -> AgentOutcome {
     let candidates = match parsed {
         RawAgentOutput::NotRelevant => return AgentOutcome::NotRelevant,
@@ -258,12 +279,12 @@ fn to_outcome(
                 implementation_candidates: candidate
                     .implementation_candidates
                     .into_iter()
-                    .filter(|path| known_symbols.contains(path.as_str()))
+                    .filter(|path| allow_ungrounded_symbols || known_symbols.contains(path.as_str()))
                     .collect(),
                 test_candidates: candidate
                     .test_candidates
                     .into_iter()
-                    .filter(|path| known_tests.contains(path.as_str()))
+                    .filter(|path| allow_ungrounded_symbols || known_tests.contains(path.as_str()))
                     .collect(),
                 provenance: provenance.clone(),
             })
@@ -435,6 +456,14 @@ mod tests {
         response: &str,
         neighborhood: &ArtifactNeighborhood,
     ) -> Result<AgentOutcome, AgentContractError> {
+        run_with_ungrounded_symbols(response, neighborhood, false)
+    }
+
+    fn run_with_ungrounded_symbols(
+        response: &str,
+        neighborhood: &ArtifactNeighborhood,
+        allow_ungrounded_symbols: bool,
+    ) -> Result<AgentOutcome, AgentContractError> {
         let transport = FakeTransport {
             response: response.to_owned(),
         };
@@ -444,6 +473,7 @@ mod tests {
             "2026-08-21T00:00:00Z",
             "test-agent",
             None,
+            allow_ungrounded_symbols,
         )
     }
 
@@ -482,6 +512,52 @@ mod tests {
         let outcome = run(response, &neighborhood).expect("parsed outcome");
 
         assert_eq!(outcome, AgentOutcome::InsufficientEvidence);
+    }
+
+    #[test]
+    fn an_implementation_candidate_outside_the_neighborhood_is_dropped_by_default() {
+        let subject = issue();
+        let neighborhood = build_neighborhood(
+            &subject,
+            &[],
+            std::slice::from_ref(&subject),
+            &ctx_core::graph::GraphSnapshot::default(),
+        );
+        let response = r#"{"outcome":"relevant","candidates":[{"kind":"requirement","statement":"Cancellation preserves paid access until paid_until.","evidence":[{"artifact_id":"gitlab:issue:317","locator":"body","excerpt":"must remain usable until paid_until"}],"implementation_candidates":["src/billing/subscriptions.rs"]}]}"#;
+
+        let outcome = run(response, &neighborhood).expect("parsed outcome");
+
+        let AgentOutcome::Relevant(candidates) = outcome else {
+            panic!("expected a relevant outcome");
+        };
+        assert!(candidates[0].implementation_candidates.is_empty());
+    }
+
+    #[test]
+    fn allow_ungrounded_symbols_keeps_an_implementation_candidate_outside_the_neighborhood() {
+        let subject = issue();
+        let neighborhood = build_neighborhood(
+            &subject,
+            &[],
+            std::slice::from_ref(&subject),
+            &ctx_core::graph::GraphSnapshot::default(),
+        );
+        let response = r#"{"outcome":"relevant","candidates":[{"kind":"requirement","statement":"Cancellation preserves paid access until paid_until.","evidence":[{"artifact_id":"gitlab:issue:317","locator":"body","excerpt":"must remain usable until paid_until"}],"implementation_candidates":["src/billing/subscriptions.rs"],"test_candidates":["src/billing/subscriptions_test.rs"]}]}"#;
+
+        let outcome = run_with_ungrounded_symbols(response, &neighborhood, true)
+            .expect("parsed outcome");
+
+        let AgentOutcome::Relevant(candidates) = outcome else {
+            panic!("expected a relevant outcome");
+        };
+        assert_eq!(
+            candidates[0].implementation_candidates,
+            vec!["src/billing/subscriptions.rs".to_owned()]
+        );
+        assert_eq!(
+            candidates[0].test_candidates,
+            vec!["src/billing/subscriptions_test.rs".to_owned()]
+        );
     }
 
     #[test]

@@ -357,6 +357,95 @@ fn ingest_rejects_an_unsupported_source() {
     );
 }
 
+/// Writes a fake `claude` script that always proposes one grounded-evidence
+/// candidate (the evidence artifact id is read out of the prompt itself, so
+/// it's always valid regardless of the flag under test -- `--allow
+/// -ungrounded-symbols` only ever relaxes implementation/test candidate
+/// paths, never evidence grounding) naming `nonexistent/module.rs` and
+/// `nonexistent/module_test.rs` as its implementation/test candidates --
+/// paths that never appear in this fixture's neighborhood.
+fn write_fake_claude_script_with_ungrounded_candidate_paths(script_path: &Path) {
+    fs::write(
+        script_path,
+        "#!/bin/sh\n\
+         prompt=\"$2\"\n\
+         id=$(echo \"$prompt\" | grep -o 'Valid artifact ids for this neighborhood: [^ ,]*' | sed 's/.*: //')\n\
+         echo \"{\\\"outcome\\\":\\\"relevant\\\",\\\"candidates\\\":[{\\\"kind\\\":\\\"requirement\\\",\\\"statement\\\":\\\"Commit history documents cancellation behavior.\\\",\\\"evidence\\\":[{\\\"artifact_id\\\":\\\"$id\\\",\\\"locator\\\":\\\"body\\\",\\\"excerpt\\\":\\\"excerpt\\\"}],\\\"implementation_candidates\\\":[\\\"nonexistent/module.rs\\\"],\\\"test_candidates\\\":[\\\"nonexistent/module_test.rs\\\"]}]}\"\n",
+    )
+    .expect("write fake claude script");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut permissions = fs::metadata(script_path)
+            .expect("script metadata")
+            .permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(script_path, permissions).expect("chmod fake claude script");
+    }
+}
+
+#[test]
+fn enrich_drops_ungrounded_implementation_and_test_candidates_by_default() {
+    let repository = FixtureRepository::new();
+    repository.ctx(&["init"]);
+    repository.ctx(&["ingest", "git"]);
+
+    let script_path = repository.root().join("fake-claude.sh");
+    write_fake_claude_script_with_ungrounded_candidate_paths(&script_path);
+    let env = [(
+        "CTX_CLAUDE_CLI_BINARY",
+        script_path.to_str().expect("utf8 path"),
+    )];
+
+    let enriched = repository.ctx_with_env(&["enrich", "--agent", "claude"], &env);
+    assert!(enriched["candidates_proposed"].as_u64().unwrap_or(0) > 0);
+
+    let pending = repository.ctx(&["verify", "--knowledge"]);
+    let candidates = pending.as_array().expect("pending candidates");
+    assert_eq!(candidates.len(), 1);
+    assert!(candidates[0]["implementation_candidates"]
+        .as_array()
+        .expect("implementation_candidates")
+        .is_empty());
+    assert!(candidates[0]["test_candidates"]
+        .as_array()
+        .expect("test_candidates")
+        .is_empty());
+}
+
+#[test]
+fn enrich_allow_ungrounded_symbols_keeps_implementation_and_test_candidates_outside_the_neighborhood()
+ {
+    let repository = FixtureRepository::new();
+    repository.ctx(&["init"]);
+    repository.ctx(&["ingest", "git"]);
+
+    let script_path = repository.root().join("fake-claude.sh");
+    write_fake_claude_script_with_ungrounded_candidate_paths(&script_path);
+    let env = [(
+        "CTX_CLAUDE_CLI_BINARY",
+        script_path.to_str().expect("utf8 path"),
+    )];
+
+    let enriched = repository.ctx_with_env(
+        &["enrich", "--agent", "claude", "--allow-ungrounded-symbols"],
+        &env,
+    );
+    assert!(enriched["candidates_proposed"].as_u64().unwrap_or(0) > 0);
+
+    let pending = repository.ctx(&["verify", "--knowledge"]);
+    let candidates = pending.as_array().expect("pending candidates");
+    assert_eq!(candidates.len(), 1);
+    assert_eq!(
+        candidates[0]["implementation_candidates"],
+        serde_json::json!(["nonexistent/module.rs"])
+    );
+    assert_eq!(
+        candidates[0]["test_candidates"],
+        serde_json::json!(["nonexistent/module_test.rs"])
+    );
+}
+
 #[test]
 fn enrich_shells_out_to_the_configured_agent_and_reports_its_outcome() {
     let repository = FixtureRepository::new();

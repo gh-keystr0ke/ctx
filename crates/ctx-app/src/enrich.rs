@@ -63,8 +63,14 @@ where
         &mut self,
         repository: &RepositoryId,
         produced_at: &str,
+        allow_ungrounded_symbols: bool,
     ) -> Result<EnrichReport, EnrichError> {
-        self.run_with_progress(repository, produced_at, &mut |_, _, _| {})
+        self.run_with_progress(
+            repository,
+            produced_at,
+            allow_ungrounded_symbols,
+            &mut |_, _, _| {},
+        )
     }
 
     /// Same as [`Self::run`], but calls `on_progress(position, total,
@@ -83,6 +89,7 @@ where
         &mut self,
         repository: &RepositoryId,
         produced_at: &str,
+        allow_ungrounded_symbols: bool,
         on_progress: &mut dyn FnMut(usize, usize, &Artifact),
     ) -> Result<EnrichReport, EnrichError> {
         let known_artifacts = self
@@ -126,7 +133,7 @@ where
             let neighborhood = build_neighborhood(subject, &links, &known_artifacts, &graph);
             let outcome = self
                 .agent
-                .analyze(&neighborhood, produced_at)
+                .analyze(&neighborhood, produced_at, allow_ungrounded_symbols)
                 .map_err(EnrichError::Agent)?;
             report.neighborhoods_analyzed += 1;
             self.store
@@ -284,6 +291,7 @@ mod tests {
             &self,
             neighborhood: &ctx_core::neighborhood::ArtifactNeighborhood,
             _produced_at: &str,
+            _allow_ungrounded_symbols: bool,
         ) -> Result<AgentOutcome, PortError> {
             *self.calls.borrow_mut() += 1;
             Ok(self
@@ -356,7 +364,7 @@ mod tests {
         let repository = RepositoryId::new("repo:test").expect("repository ID");
 
         let report = EnrichRunner::new(&agent, &mut store)
-            .run(&repository, "2026-08-21T00:00:00Z")
+            .run(&repository, "2026-08-21T00:00:00Z", false)
             .expect("enrich run");
 
         assert_eq!(report.neighborhoods_analyzed, 1);
@@ -380,7 +388,7 @@ mod tests {
         let repository = RepositoryId::new("repo:test").expect("repository ID");
 
         let report = EnrichRunner::new(&agent, &mut store)
-            .run(&repository, "2026-08-21T00:00:00Z")
+            .run(&repository, "2026-08-21T00:00:00Z", false)
             .expect("enrich run");
 
         assert_eq!(report.neighborhoods_analyzed, 0);
@@ -401,7 +409,7 @@ mod tests {
         let repository = RepositoryId::new("repo:test").expect("repository ID");
 
         let report = EnrichRunner::new(&agent, &mut store)
-            .run(&repository, "2026-08-21T00:00:00Z")
+            .run(&repository, "2026-08-21T00:00:00Z", false)
             .expect("enrich run");
 
         assert_eq!(report.candidates_proposed, 0);
@@ -422,13 +430,13 @@ mod tests {
         let repository = RepositoryId::new("repo:test").expect("repository ID");
 
         let first = EnrichRunner::new(&agent, &mut store)
-            .run(&repository, "2026-08-21T00:00:00Z")
+            .run(&repository, "2026-08-21T00:00:00Z", false)
             .expect("first run");
         assert_eq!(first.neighborhoods_analyzed, 1);
         assert_eq!(*agent.calls.borrow(), 1);
 
         let second = EnrichRunner::new(&agent, &mut store)
-            .run(&repository, "2026-08-21T01:00:00Z")
+            .run(&repository, "2026-08-21T01:00:00Z", false)
             .expect("second run");
 
         assert_eq!(second.neighborhoods_analyzed, 0);
@@ -465,6 +473,7 @@ mod tests {
             .run_with_progress(
                 &repository,
                 "2026-08-22T00:00:00Z",
+                false,
                 &mut |position, total, subject| {
                     seen.push((position, total, subject.identity.external_id.clone()));
                 },

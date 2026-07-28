@@ -46,7 +46,9 @@ pub struct KnowledgeCandidate {
     pub evidence: Vec<ArtifactRef>,
     /// Candidate implementation anchors the agent found in the same
     /// bounded neighborhood (PR-MAP-001) — themselves still inferences,
-    /// not asserted mappings.
+    /// not asserted mappings. Paths named here are outside the neighborhood
+    /// only when `ctx enrich --allow-ungrounded-symbols` was used to relax
+    /// this grounding for `implementation_candidates`/`test_candidates`.
     pub implementation_candidates: Vec<String>,
     pub test_candidates: Vec<String>,
     pub provenance: AgentProvenance,

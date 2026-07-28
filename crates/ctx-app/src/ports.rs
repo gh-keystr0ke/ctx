@@ -467,7 +467,10 @@ pub trait SemanticAgent {
     /// Analyzes one bounded artifact neighborhood and returns what the agent
     /// found (PR-AI-002). Absence of extracted knowledge (`NotRelevant`/
     /// `InsufficientEvidence`) is always preferred to a fabricated candidate
-    /// (PR-P02, FR-01).
+    /// (PR-P02, FR-01). Evidence artifact-id grounding is always strict;
+    /// `allow_ungrounded_symbols` only relaxes which implementation/test
+    /// candidate paths are accepted, letting the agent name paths outside
+    /// the neighborhood's changed symbols/nearby tests when set.
     ///
     /// # Errors
     /// Returns [`PortError`] when the agent cannot be reached, or its output
@@ -476,6 +479,7 @@ pub trait SemanticAgent {
         &self,
         neighborhood: &ArtifactNeighborhood,
         produced_at: &str,
+        allow_ungrounded_symbols: bool,
     ) -> Result<AgentOutcome, PortError>;
 }
 

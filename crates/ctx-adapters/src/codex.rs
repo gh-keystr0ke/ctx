@@ -78,6 +78,7 @@ impl<T: AgentTransport> CodexAgent<T> {
         &self,
         neighborhood: &ArtifactNeighborhood,
         produced_at: &str,
+        allow_ungrounded_symbols: bool,
     ) -> Result<AgentOutcome, AgentContractError> {
         agent_contract::analyze(
             &self.transport,
@@ -85,6 +86,7 @@ impl<T: AgentTransport> CodexAgent<T> {
             produced_at,
             "codex",
             self.model.clone(),
+            allow_ungrounded_symbols,
         )
     }
 }
@@ -94,8 +96,9 @@ impl<T: AgentTransport> SemanticAgent for CodexAgent<T> {
         &self,
         neighborhood: &ArtifactNeighborhood,
         produced_at: &str,
+        allow_ungrounded_symbols: bool,
     ) -> Result<AgentOutcome, PortError> {
-        self.analyze_neighborhood(neighborhood, produced_at)
+        self.analyze_neighborhood(neighborhood, produced_at, allow_ungrounded_symbols)
             .map_err(|error| PortError::new(error.to_string()))
     }
 }

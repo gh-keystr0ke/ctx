@@ -100,6 +100,12 @@ enum Command {
         /// Unset uses the agent's own default model.
         #[arg(long)]
         model: Option<String>,
+        /// Allow the agent to propose implementation/test candidates from its
+        /// own heuristic knowledge of the repository, even when they are not
+        /// among the neighborhood's changed symbols or nearby tests. Evidence
+        /// artifact-id grounding is unaffected and stays strict either way.
+        #[arg(long)]
+        allow_ungrounded_symbols: bool,
     },
     /// Review a branch or working-tree diff in product terms.
     Review {
@@ -247,7 +253,11 @@ fn run(cli: &Cli) -> Result<(), CliError> {
         Command::Explain { target } => explain(cli, &git, target),
         Command::Find { target } => find(cli, &git, target),
         Command::Ingest { source, since } => ingest(cli, &git, source, since.as_deref()),
-        Command::Enrich { agent, model } => enrich(cli, &git, agent, model.clone()),
+        Command::Enrich {
+            agent,
+            model,
+            allow_ungrounded_symbols,
+        } => enrich(cli, &git, agent, model.clone(), *allow_ungrounded_symbols),
         Command::Review { base } => review(cli, &git, base),
         Command::Context {
             task,
@@ -1101,7 +1111,13 @@ fn ingest(cli: &Cli, git: &GitRepo, source: &str, since: Option<&str>) -> Result
     Ok(())
 }
 
-fn enrich(cli: &Cli, git: &GitRepo, agent: &str, model: Option<String>) -> Result<(), CliError> {
+fn enrich(
+    cli: &Cli,
+    git: &GitRepo,
+    agent: &str,
+    model: Option<String>,
+    allow_ungrounded_symbols: bool,
+) -> Result<(), CliError> {
     let database_path = database_path(git.root())?;
     let mut store = SqliteStore::open(&database_path)?;
     let repository = git.descriptor()?;
@@ -1129,6 +1145,7 @@ fn enrich(cli: &Cli, git: &GitRepo, agent: &str, model: Option<String>) -> Resul
             EnrichRunner::new(&claude_agent, &mut store).run_with_progress(
                 &repository.id,
                 &now,
+                allow_ungrounded_symbols,
                 &mut report_progress,
             )?
         }
@@ -1138,6 +1155,7 @@ fn enrich(cli: &Cli, git: &GitRepo, agent: &str, model: Option<String>) -> Resul
             EnrichRunner::new(&codex_agent, &mut store).run_with_progress(
                 &repository.id,
                 &now,
+                allow_ungrounded_symbols,
                 &mut report_progress,
             )?
         }
@@ -1149,6 +1167,7 @@ fn enrich(cli: &Cli, git: &GitRepo, agent: &str, model: Option<String>) -> Resul
             EnrichRunner::new(&antigravity_agent, &mut store).run_with_progress(
                 &repository.id,
                 &now,
+                allow_ungrounded_symbols,
                 &mut report_progress,
             )?
         }

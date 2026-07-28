@@ -3,17 +3,28 @@ type: requirement
 feature: FEAT-INDEXING
 status: active
 statement: >
-  `ctx enrich --agent <claude|codex|antigravity> [--model <model>]` must
-  analyze one bounded artifact neighborhood (REQ-NEIGHBORHOOD-001) at a time
-  through an interchangeable agent boundary (ADR-AGENT-001) and propose typed
+  `ctx enrich --agent <claude|codex|antigravity> [--model <model>]
+  [--allow-ungrounded-symbols]` must analyze one bounded artifact
+  neighborhood (REQ-NEIGHBORHOOD-001) at a time through an interchangeable
+  agent boundary (ADR-AGENT-001) and propose typed
   Feature/Requirement/Invariant/Decision
   candidates only when the agent's own output cites concrete, verbatim
   evidence from that neighborhood — never free-form reasoning (PR-AI-004).
-  Every evidence entry's artifact id and every implementation/test candidate
-  path is checked against the neighborhood the agent was actually given; a
-  citation outside that bound is dropped, never trusted, and a candidate
-  left with no valid evidence after dropping is dropped entirely. A
-  `relevant` response that loses every candidate this way, or the agent's
+  Every evidence entry's artifact id is always checked against the
+  neighborhood the agent was actually given; a citation outside that bound
+  is dropped, never trusted, regardless of any flag. Every
+  implementation/test candidate path is checked against that same
+  neighborhood too, by default: a path outside it is dropped, never trusted.
+  `--allow-ungrounded-symbols` relaxes only this second check, letting an
+  implementation/test candidate path survive even when it names no symbol
+  or test this neighborhood actually surfaced — a deliberate, explicit
+  escape hatch for artifacts (e.g. Jira issues) with no direct code links,
+  where the strict check would otherwise leave hundreds of requirements
+  with no implementation mapping at all. Evidence grounding itself is never
+  relaxed by this or any flag: a candidate still needs real, verbatim,
+  in-neighborhood evidence to be proposed at all, whichever way the flag is
+  set. A candidate left with no valid evidence after dropping is dropped
+  entirely. A `relevant` response that loses every candidate this way, or the agent's
   own `not_relevant`/`insufficient_evidence` answer, all resolve to "nothing
   proposed" rather than a fabricated substitute (PR-P02, FR-01) — absence of
   extracted knowledge is always the safe outcome. Malformed or unparseable
@@ -55,6 +66,8 @@ implementation:
 tests:
   - symbol: ctx_adapters.agent_contract.tests.a_well_formed_relevant_response_becomes_a_grounded_candidate
   - symbol: ctx_adapters.agent_contract.tests.an_evidence_id_outside_the_neighborhood_is_dropped_not_trusted
+  - symbol: ctx_adapters.agent_contract.tests.an_implementation_candidate_outside_the_neighborhood_is_dropped_by_default
+  - symbol: ctx_adapters.agent_contract.tests.allow_ungrounded_symbols_keeps_an_implementation_candidate_outside_the_neighborhood
   - symbol: ctx_adapters.agent_contract.tests.not_relevant_and_insufficient_evidence_pass_through_unchanged
   - symbol: ctx_adapters.agent_contract.tests.malformed_output_is_rejected_not_guessed_at
   - symbol: ctx_adapters.claude_code.tests.subprocess_transport_invokes_claude_p_and_returns_stdout
@@ -69,4 +82,5 @@ tests:
   - symbol: crates.ctx-cli.tests.e2e.enrich_rejects_an_unsupported_agent
   - symbol: crates.ctx-cli.tests.e2e.enrich_dispatches_codex_to_codex_exec_with_its_own_binary_override
   - symbol: crates.ctx-cli.tests.e2e.enrich_dispatches_antigravity_to_agy_p_with_its_own_binary_override
- 
+  - symbol: crates.ctx-cli.tests.e2e.enrich_drops_ungrounded_implementation_and_test_candidates_by_default
+  - symbol: crates.ctx-cli.tests.e2e.enrich_allow_ungrounded_symbols_keeps_implementation_and_test_candidates_outside_the_neighborhood

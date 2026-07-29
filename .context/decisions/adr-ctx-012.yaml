@@ -3,3 +3,8 @@ type: decision
 status: active
 title: Git ingestion registers its own repository record and does not require indexing …
 decision: Git ingestion registers its own repository record and does not require indexing to have run first.
+implementation:
+  - symbol: ctx_cli.ingest
+  - symbol: ctx_app.ports.IndexStore.ensure_repository
+tests:
+  - symbol: crates.ctx-cli.tests.e2e.ingest_git_reads_commits_and_branches_and_links_a_referenced_ticket

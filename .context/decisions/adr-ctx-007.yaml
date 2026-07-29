@@ -3,3 +3,9 @@ type: decision
 status: active
 title: Column-level impact is implemented without adding column-level graph nodes to av…
 decision: Column-level impact is implemented without adding column-level graph nodes to avoid ontology sprawl and building a generic SQL engine.
+implementation:
+  - symbol: ctx_core.impact.resolve_table_column_seed
+  - symbol: ctx_core.impact.focus_on_column
+tests:
+  - symbol: ctx_core.impact.tests.table_dot_column_seed_resolves_to_the_table_and_narrows_to_column_readers
+  - symbol: ctx_core.impact.tests.unknown_column_falls_back_to_table_level_impact_with_an_uncertainty

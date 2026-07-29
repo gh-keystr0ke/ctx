@@ -3,3 +3,7 @@ type: decision
 status: active
 title: Knowledge-candidate verification uses a separate KnowledgeVerificationService ra…
 decision: Knowledge-candidate verification uses a separate KnowledgeVerificationService rather than the existing heuristic verification queue because accepting new product knowledge requires a human-selected stable ID.
+implementation:
+  - symbol: ctx_app.verification.KnowledgeVerificationService
+tests:
+  - symbol: crates.ctx-cli.tests.e2e.accepting_a_knowledge_candidate_writes_a_context_document_ctx_index_then_absorbs

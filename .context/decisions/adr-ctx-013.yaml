@@ -3,3 +3,8 @@ type: decision
 status: active
 title: Goose DDL extraction uses a dedicated deterministic reader instead of a general …
 decision: Goose DDL extraction uses a dedicated deterministic reader instead of a general SQL dialect parser.
+implementation:
+- symbol: ctx_adapters.goose.extract_schema_tables
+tests:
+- symbol: ctx_adapters.goose.tests.extracts_schema_from_the_up_section_only
+- symbol: ctx_adapters.goose.tests.a_migration_with_no_recognizable_ddl_produces_no_symbols

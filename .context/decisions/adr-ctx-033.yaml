@@ -3,3 +3,7 @@ type: decision
 status: active
 title: The Antigravity agent uses `agy -p <prompt>` without elevated permissions becaus…
 decision: The Antigravity agent uses `agy -p <prompt>` without elevated permissions because the artifact neighborhood is embedded in the prompt.
+implementation:
+  - symbol: ctx_adapters.antigravity.SubprocessTransport.AgentTransport.run
+tests:
+  - symbol: ctx_adapters.antigravity.tests.subprocess_transport_invokes_agy_p_and_returns_stdout

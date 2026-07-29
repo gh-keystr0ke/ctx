@@ -3,3 +3,7 @@ type: decision
 status: active
 title: SemanticAgent is the interchangeable AI-agent boundary, keeping the core and app…
 decision: SemanticAgent is the interchangeable AI-agent boundary, keeping the core and application layers independent of vendors and models.
+implementation:
+  - symbol: ctx_app.ports.SemanticAgent
+tests:
+  - symbol: ctx_app.enrich.tests.analyzes_every_artifact_and_persists_only_relevant_candidates

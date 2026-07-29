@@ -3,3 +3,7 @@ type: decision
 status: active
 title: ALTER TABLE ADD CONSTRAINT and DROP CONSTRAINT remain unsupported because bare c…
 decision: ALTER TABLE ADD CONSTRAINT and DROP CONSTRAINT remain unsupported because bare constraint names cannot be reliably resolved to columns without the existing table definition.
+implementation:
+  - symbol: ctx_adapters.database.parse_alter_table
+tests:
+  - symbol: ctx_adapters.database.tests.alter_table_add_or_drop_constraint_is_unsupported_not_guessed

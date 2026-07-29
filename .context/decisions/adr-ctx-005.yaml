@@ -3,3 +3,7 @@ type: decision
 status: active
 title: ChangeKind::RefactorLikely remains unreachable through pair_symbols because its …
 decision: ChangeKind::RefactorLikely remains unreachable through pair_symbols because its available proxy signal would hide guard-removal changes that the flagship review regression must detect.
+implementation:
+  - symbol: ctx_core.review.pair_symbols
+tests:
+  - symbol: ctx_core.review.tests.refactor_likely_is_unreachable_through_pair_symbols

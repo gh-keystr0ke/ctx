@@ -3,3 +3,7 @@ type: decision
 status: active
 title: Changed-symbol linking uses file-level attribution to every indexed symbol in th…
 decision: Changed-symbol linking uses file-level attribution to every indexed symbol in the changed-path set and does not infer which entity changed within a file.
+implementation:
+  - symbol: ctx_core.linking.changed_symbol_links
+tests:
+  - symbol: ctx_core.linking.tests.changed_symbol_links_attribute_symbols_in_changed_files_only

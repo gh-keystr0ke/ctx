@@ -3,3 +3,9 @@ type: decision
 status: active
 title: Accepted knowledge candidates are written as ordinary business-context YAML docu…
 decision: Accepted knowledge candidates are written as ordinary business-context YAML documents so indexing uses the existing product-knowledge store rather than a parallel truth store.
+implementation:
+  - symbol: ctx_app.verification.KnowledgeVerificationService.accept
+  - symbol: ctx_app.verification.candidate_to_document
+  - symbol: ctx_app.ports.BusinessContextWriter
+tests:
+  - symbol: ctx_app.verification.knowledge_tests.accepting_writes_the_document_and_records_the_decision

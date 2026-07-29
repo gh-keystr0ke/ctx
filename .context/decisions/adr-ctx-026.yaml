@@ -3,3 +3,8 @@ type: decision
 status: active
 title: Raw CHECK expressions are normalized only by stripping comments and whitespace, …
 decision: Raw CHECK expressions are normalized only by stripping comments and whitespace, stored for textual equality and diffing, and never evaluated or interpreted as structured constraint data.
+implementation:
+  - symbol: ctx_adapters.database.apply_table_level_constraint
+  - symbol: ctx_core.schema.diff_schema_tables
+tests:
+  - symbol: ctx_core.schema.tests.check_constraint_text_changes_are_destructive

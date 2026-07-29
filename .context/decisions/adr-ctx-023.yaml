@@ -1,5 +1,12 @@
 id: ADR-CTX-023
 type: decision
-status: active
+status: superseded
 title: Per-provider GitLab sync cursors were deferred; GitLab ingestion remains idempot…
-decision: Per-provider GitLab sync cursors were deferred; GitLab ingestion remains idempotent but refetches all data on every run.
+decision: >
+  Per-provider GitLab sync cursors were initially deferred; GitLab ingestion
+  stayed idempotent but refetched all data on every run. This staging
+  decision was later superseded by REQ-INCR-001, which landed the deferred
+  cursor (ctx_app.ingest.GitLabIngestRunner.run, GITLAB_CURSOR_PROVIDER):
+  current `ctx ingest gitlab` runs fetch only issues/MRs updated since the
+  last run. Kept as a historical record of the staging decision rather than
+  deleted; REQ-INCR-001 is the document describing current behavior.

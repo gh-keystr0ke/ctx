@@ -3,3 +3,9 @@ type: decision
 status: active
 title: SQLAlchemy declarative models are identified by a static __tablename__ string ra…
 decision: SQLAlchemy declarative models are identified by a static __tablename__ string rather than declarative-base resolution.
+implementation:
+  - symbol: ctx_adapters.python.sqlalchemy_schema_table
+tests:
+  - symbol: ctx_adapters.python.tests.ignores_a_dynamic_tablename
+  - symbol: ctx_adapters.python.tests.ignores_classes_without_a_static_tablename
+  - symbol: ctx_adapters.python.tests.extracts_sqlalchemy_declarative_model_columns

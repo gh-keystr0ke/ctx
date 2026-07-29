@@ -3,3 +3,7 @@ type: decision
 status: active
 title: Reference extraction records only that a reference exists and does not decide wh…
 decision: Reference extraction records only that a reference exists and does not decide whether the referenced artifact implements another or is merely mentioned.
+implementation:
+  - symbol: ctx_core.linking.text_reference_links
+tests:
+  - symbol: ctx_core.linking.tests.incidental_mention_still_extracts_the_reference_deterministically

@@ -3,3 +3,7 @@ type: decision
 status: active
 title: Progress positions are 1-based and measured against the full known-artifact coun…
 decision: Progress positions are 1-based and measured against the full known-artifact count so they remain meaningful when artifacts are skipped.
+implementation:
+  - symbol: ctx_app.enrich.EnrichRunner.run_with_progress
+tests:
+  - symbol: ctx_app.enrich.tests.run_with_progress_reports_position_and_total_only_for_real_analysis

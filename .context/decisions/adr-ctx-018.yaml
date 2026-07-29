@@ -3,3 +3,10 @@ type: decision
 status: active
 title: Neighborhood rendering uses the context-pack token estimation and truncation fun…
 decision: Neighborhood rendering uses the context-pack token estimation and truncation functions as its single budgeting mechanism.
+implementation:
+  - symbol: ctx_core.neighborhood.render_neighborhood
+  - symbol: ctx_core.context_pack.estimate_tokens
+  - symbol: ctx_core.context_pack.truncate_to_tokens
+tests:
+  - symbol: ctx_core.neighborhood.tests.render_truncates_to_the_token_budget_and_reports_it
+  - symbol: ctx_core.neighborhood.tests.zero_token_budget_is_rejected

@@ -3,3 +3,7 @@ type: decision
 status: active
 title: ORM schema identity uses exact string matching; a dynamic __tablename__ causes t…
 decision: ORM schema identity uses exact string matching; a dynamic __tablename__ causes the entire class to remain unrecognized rather than being partially guessed.
+implementation:
+  - symbol: ctx_adapters.python.sqlalchemy_schema_table
+tests:
+  - symbol: ctx_adapters.python.tests.ignores_a_dynamic_tablename

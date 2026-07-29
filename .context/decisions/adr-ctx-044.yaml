@@ -3,3 +3,8 @@ type: decision
 status: active
 title: AI-derived knowledge candidates use a persistent pending queue distinct from the…
 decision: AI-derived knowledge candidates use a persistent pending queue distinct from the recomputable heuristic SemanticCandidate pipeline.
+implementation:
+  - symbol: ctx_app.ports.KnowledgeCandidateStore
+  - symbol: ctx_core.verification.SemanticCandidate
+tests:
+  - symbol: ctx_adapters.sqlite.artifacts.tests.pending_candidates_round_trip_and_stay_out_once_decided

@@ -3,3 +3,7 @@ type: decision
 status: active
 title: Use SQLite as the persistence foundation for the product domain
 decision: Use SQLite as the persistence foundation for the product domain.
+implementation:
+  - symbol: ctx_adapters.sqlite.SqliteStore
+tests:
+  - symbol: ctx_adapters.sqlite.tests.creates_and_reopens_a_repository_database

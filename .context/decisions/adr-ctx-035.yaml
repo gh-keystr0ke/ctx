@@ -3,3 +3,10 @@ type: decision
 status: active
 title: The application layer assembles knowledge provenance because candidate records l…
 decision: The application layer assembles knowledge provenance because candidate records live outside the graph, while the core explain function remains pure.
+implementation:
+  - symbol: ctx_app.query.QueryService.explain
+  - symbol: ctx_app.query.QueryService.knowledge_provenance_for
+  - symbol: ctx_core.explain.explain
+tests:
+  - symbol: ctx_app.query.tests.a_requirement_from_an_accepted_candidate_carries_its_full_provenance_chain
+  - symbol: ctx_app.query.tests.a_hand_authored_requirement_carries_no_provenance_chain

@@ -3,3 +3,13 @@ type: decision
 status: active
 title: CLI agents share a common transport-agnostic analysis contract, while each vendo…
 decision: CLI agents share a common transport-agnostic analysis contract, while each vendor adapter owns only its process invocation and delegates analysis to the shared module.
+implementation:
+  - symbol: ctx_adapters.agent_contract.analyze
+  - symbol: ctx_adapters.agent_contract.AgentTransport
+  - symbol: ctx_adapters.claude_code.ClaudeCodeAgent.analyze_neighborhood
+  - symbol: ctx_adapters.codex.CodexAgent.analyze_neighborhood
+  - symbol: ctx_adapters.antigravity.AntigravityAgent.analyze_neighborhood
+tests:
+  - symbol: ctx_adapters.claude_code.tests.subprocess_transport_invokes_claude_p_and_returns_stdout
+  - symbol: ctx_adapters.codex.tests.subprocess_transport_invokes_codex_exec_and_returns_stdout
+  - symbol: ctx_adapters.antigravity.tests.subprocess_transport_invokes_agy_p_and_returns_stdout

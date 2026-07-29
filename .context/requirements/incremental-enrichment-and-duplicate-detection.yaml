@@ -43,3 +43,4 @@ tests:
   - symbol: ctx_core.verification.tests.possible_duplicate_finds_a_restated_requirement_by_term_overlap
   - symbol: ctx_app.verification.knowledge_tests.accepting_a_likely_restatement_is_refused_unless_forced
   - symbol: crates.ctx-cli.tests.e2e.accepting_a_restated_requirement_is_refused_unless_forced
+

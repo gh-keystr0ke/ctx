@@ -2,3 +2,8 @@ id: INV-CTX-040
 type: invariant
 status: active
 statement: Column renames must not be inferred from name or type similarity; absent and newly present columns are reported separately unless an explicit rename is declared.
+implementation:
+  - symbol: ctx_core.schema.diff_schema_tables
+tests:
+  - symbol: ctx_core.schema.tests.diff_does_not_guess_a_rename_from_name_similarity
+  - symbol: ctx_core.schema.tests.diff_respects_an_explicit_rename_declaration

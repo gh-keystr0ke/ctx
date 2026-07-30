@@ -2,3 +2,7 @@ id: INV-CTX-041
 type: invariant
 status: active
 statement: Column-level impact narrowing applies only to implementation; data contracts, requirements, invariants, and tests remain table-level.
+implementation:
+  - symbol: ctx_core.impact.focus_on_column
+tests:
+  - symbol: ctx_core.impact.tests.table_dot_column_seed_resolves_to_the_table_and_narrows_to_column_readers

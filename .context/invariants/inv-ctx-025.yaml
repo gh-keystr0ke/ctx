@@ -2,3 +2,5 @@ id: INV-CTX-025
 type: invariant
 status: active
 statement: An evaluation case consists of a scripted Git history and ground-truth checks that its recorded use-case results must satisfy.
+implementation:
+  - symbol: ctx_eval.cases.EvaluationCase

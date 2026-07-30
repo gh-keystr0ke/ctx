@@ -2,3 +2,7 @@ id: INV-CTX-016
 type: invariant
 status: active
 statement: API-reported comment relationships use CommentsOn and remain distinct from text-derived References relationships.
+implementation:
+  - symbol: ctx_adapters.gitlab.GitLabClient.push_notes
+tests:
+  - symbol: ctx_adapters.gitlab.tests.fetches_issues_and_merge_requests_with_their_comments_and_commits

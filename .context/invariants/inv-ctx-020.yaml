@@ -2,3 +2,8 @@ id: INV-CTX-020
 type: invariant
 status: active
 statement: Agent-provided evidence IDs and implementation or test paths must belong to the supplied neighborhood; invalid references are discarded, and an emptied relevant result becomes insufficient evidence.
+implementation:
+  - symbol: ctx_adapters.agent_contract.to_outcome
+tests:
+  - symbol: ctx_adapters.agent_contract.tests.an_evidence_id_outside_the_neighborhood_is_dropped_not_trusted
+  - symbol: ctx_adapters.agent_contract.tests.not_relevant_and_insufficient_evidence_pass_through_unchanged

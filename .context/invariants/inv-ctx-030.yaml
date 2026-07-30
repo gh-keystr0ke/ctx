@@ -2,3 +2,8 @@ id: INV-CTX-030
 type: invariant
 status: active
 statement: Artifact-neighborhood assembly must never fabricate links or expand beyond one deterministic hop.
+implementation:
+  - symbol: ctx_core.neighborhood.build_neighborhood
+tests:
+  - symbol: ctx_core.neighborhood.tests.a_link_to_an_unknown_artifact_is_omitted_not_fabricated
+  - symbol: ctx_core.neighborhood.tests.a_changed_symbol_not_yet_in_the_graph_is_silently_omitted

@@ -2,3 +2,8 @@ id: INV-CTX-029
 type: invariant
 status: active
 statement: Artifact relationships are created only from identifiers literally present in an artifact's own text, never from AI inference or by inventing unknown targets.
+implementation:
+  - symbol: ctx_core.linking.text_reference_links
+  - symbol: ctx_core.linking.extract_references
+tests:
+  - symbol: ctx_core.linking.tests.text_reference_links_only_target_already_known_artifacts

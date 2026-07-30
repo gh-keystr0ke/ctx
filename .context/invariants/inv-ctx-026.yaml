@@ -2,3 +2,8 @@ id: INV-CTX-026
 type: invariant
 status: active
 statement: An explicit schema or migration seed must not pull in unrelated lexical roots merely because the task text shares vocabulary with them.
+implementation:
+- symbol: ctx_core.context_pack.compile_context_pack
+- symbol: ctx_eval.cases.explicit_schema_seed_does_not_pull_unrelated_lexical_roots
+tests:
+- symbol: ctx_core.context_pack.tests.explicit_seed_prevents_unrelated_lexical_roots

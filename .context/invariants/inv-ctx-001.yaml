@@ -2,3 +2,7 @@ id: INV-CTX-001
 type: invariant
 status: active
 statement: A byte-identical mapped symbol moved across files must be treated as one changed entity so findings on the unchanged product knowledge it implements are not duplicated.
+implementation:
+  - symbol: ctx_core.review.classify_behavior_change
+tests:
+  - symbol: ctx_core.review.tests.cross_file_move_merges_into_one_silent_rename

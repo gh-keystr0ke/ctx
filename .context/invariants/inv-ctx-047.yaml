@@ -2,3 +2,7 @@ id: INV-CTX-047
 type: invariant
 status: active
 statement: Each ALTER TABLE ... ALTER COLUMN sub-clause represents only the single attribute it changes, never the existing column's full state.
+implementation:
+- symbol: ctx_adapters.database.parse_column_alteration
+tests:
+- symbol: ctx_adapters.database.tests.extracts_alter_column_type_nullability_and_default_clauses

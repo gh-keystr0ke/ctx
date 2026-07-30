@@ -2,3 +2,9 @@ id: INV-CTX-052
 type: invariant
 status: active
 statement: Enrichment analyzes artifacts not already cited by pending candidates and persists only relevant results as pending candidates, never as established facts.
+implementation:
+  - symbol: ctx_app.enrich.EnrichRunner.run_with_progress
+tests:
+  - symbol: ctx_app.enrich.tests.analyzes_every_artifact_and_persists_only_relevant_candidates
+  - symbol: ctx_app.enrich.tests.an_artifact_already_cited_by_a_pending_candidate_is_skipped
+  - symbol: ctx_app.enrich.tests.not_relevant_outcomes_never_reach_the_candidate_store

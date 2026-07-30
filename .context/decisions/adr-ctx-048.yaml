@@ -3,3 +3,8 @@ type: decision
 status: active
 title: GitLab transport is abstracted behind a small trait so client tests use canned J…
 decision: GitLab transport is abstracted behind a small trait so client tests use canned JSON without live GitLab access or real sockets.
+implementation:
+  - symbol: ctx_adapters.gitlab.GitLabTransport
+  - symbol: ctx_adapters.gitlab.GitLabClient
+tests:
+  - symbol: ctx_adapters.gitlab.tests.fetches_issues_and_merge_requests_with_their_comments_and_commits

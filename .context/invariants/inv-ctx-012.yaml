@@ -2,3 +2,7 @@ id: INV-CTX-012
 type: invariant
 status: active
 statement: A migration file containing no recognizable DDL must produce no schema finding.
+implementation:
+  - symbol: ctx_adapters.goose.extract_schema_tables
+tests:
+  - symbol: ctx_adapters.goose.tests.a_migration_with_no_recognizable_ddl_produces_no_symbols

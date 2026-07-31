@@ -2,3 +2,7 @@ id: INV-CTX-076
 type: invariant
 status: active
 statement: Persistent `.context/*.yaml` implementation or test mappings must continue to reject ambiguous symbol names by recording `ambiguous:<name>` as unresolved and creating no edge; multi-match relaxation applies only at query time.
+implementation:
+  - symbol: ctx_adapters.sqlite.context.persist_symbol_claim
+tests:
+  - symbol: ctx_adapters.sqlite.context.tests.ambiguous_persistent_mapping_stays_unresolved_instead_of_guessing

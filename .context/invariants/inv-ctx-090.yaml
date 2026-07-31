@@ -2,3 +2,7 @@ id: INV-CTX-090
 type: invariant
 status: active
 statement: The GitLab ingest cursor advances only after artifacts and links are fully persisted; a partial failure retains the old cursor so the same window is retried.
+implementation:
+  - symbol: ctx_app.ingest.GitLabIngestRunner.run
+tests:
+  - symbol: ctx_app.ingest.tests.gitlab_ingest_advances_its_sync_cursor_and_passes_it_to_the_next_run

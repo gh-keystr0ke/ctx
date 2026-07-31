@@ -2,3 +2,6 @@ id: INV-CTX-083
 type: invariant
 status: active
 statement: Schema diffing in core remains framework-neutral and operates only on the shared schema IR.
+implementation:
+  - symbol: ctx_core.ir.SchemaTableDefinition
+  - symbol: ctx_core.schema.diff_schema_tables

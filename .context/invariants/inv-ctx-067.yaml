@@ -2,3 +2,8 @@ id: INV-CTX-067
 type: invariant
 status: active
 statement: Knowledge ID allocation seeds used IDs from disk so stale indexes and individual ID collisions do not abort an entire automatic run.
+implementation:
+  - symbol: ctx_app.verification.KnowledgeVerificationService.auto_with_progress
+  - symbol: ctx_core.verification.KnowledgeIdAllocator.mark_used
+tests:
+  - symbol: ctx_app.verification.knowledge_tests.auto_skips_an_id_already_on_disk_even_when_the_graph_has_not_indexed_it_yet

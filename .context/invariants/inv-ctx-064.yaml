@@ -2,3 +2,7 @@ id: INV-CTX-064
 type: invariant
 status: active
 statement: Implementation-mapping candidate generation treats intent nodes identically regardless of whether they came from an accepted AI-derived KnowledgeCandidate or a hand-authored .context YAML document.
+implementation:
+  - symbol: ctx_core.verification.semantic_candidates
+tests:
+  - symbol: ctx_core.verification.tests.an_intent_from_an_accepted_ai_derived_candidate_gets_mapping_candidates_like_any_other

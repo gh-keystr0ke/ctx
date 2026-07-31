@@ -2,3 +2,9 @@ id: INV-CTX-061
 type: invariant
 status: active
 statement: Goose migration analysis reads only the Up section and recognizes common CREATE TABLE and ALTER TABLE ADD COLUMN forms.
+implementation:
+  - symbol: ctx_adapters.goose.goose_up_section
+  - symbol: ctx_adapters.goose.extract_schema_tables
+tests:
+  - symbol: ctx_adapters.goose.tests.extracts_schema_from_the_up_section_only
+  - symbol: ctx_adapters.goose.tests.recognizes_a_later_migration_that_only_alters_an_existing_table

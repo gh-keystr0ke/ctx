@@ -2,3 +2,8 @@ id: INV-CTX-108
 type: invariant
 status: active
 statement: Cross-file structural-fingerprint identity matching must require both the structural fingerprint and the symbol name to match.
+implementation:
+  - symbol: ctx_core.indexing.match_symbols
+tests:
+  - symbol: ctx_core.indexing.tests.file_rename_preserves_symbol_identity_by_structure
+  - symbol: ctx_core.indexing.tests.differently_named_symbols_with_the_same_shape_do_not_merge_across_files

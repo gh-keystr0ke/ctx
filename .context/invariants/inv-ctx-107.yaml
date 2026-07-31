@@ -2,3 +2,7 @@ id: INV-CTX-107
 type: invariant
 status: active
 statement: Configured include and exclude paths must match identically whether or not they end with a trailing separator.
+implementation:
+  - symbol: ctx_adapters.git.normalize_path_entries
+tests:
+  - symbol: ctx_adapters.git.tests.trailing_slash_on_configured_exclude_still_excludes

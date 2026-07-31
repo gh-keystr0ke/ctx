@@ -2,3 +2,9 @@ id: INV-CTX-105
 type: invariant
 status: active
 statement: Agent-proposed knowledge remains an inference until promoted through human verification.
+implementation:
+  - symbol: ctx_core.knowledge.KnowledgeCandidate
+tests:
+  - symbol: ctx_adapters.sqlite.artifacts.tests.accepted_record_reports_an_agent_decision_honestly
+  - symbol: ctx_adapters.sqlite.artifacts.tests.accepting_a_candidate_removes_it_from_pending_and_records_the_resulting_document
+  - symbol: ctx_adapters.sqlite.artifacts.tests.pending_candidates_round_trip_and_stay_out_once_decided

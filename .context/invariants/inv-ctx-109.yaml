@@ -2,3 +2,7 @@ id: INV-CTX-109
 type: invariant
 status: active
 statement: Cross-file symbol identity matching during incremental indexing must produce the same identities regardless of changed-file processing order.
+implementation:
+  - symbol: ctx_core.indexing.match_symbols
+tests:
+  - symbol: ctx_core.indexing.tests.same_named_same_shaped_symbols_claim_distinct_identities_regardless_of_file_order

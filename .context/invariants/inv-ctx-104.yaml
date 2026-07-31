@@ -2,6 +2,9 @@ id: INV-CTX-104
 type: invariant
 status: active
 statement: A KnowledgeCandidate remains an inference until a human decision promotes it.
+implementation:
+- symbol: ctx_core.knowledge.KnowledgeCandidate
+- symbol: ctx_adapters.sqlite.artifacts.SqliteStore.KnowledgeCandidateStore.record_decision
 tests:
 - symbol: ctx_adapters.sqlite.artifacts.tests.accepted_record_reports_an_agent_decision_honestly
 - symbol: ctx_adapters.sqlite.artifacts.tests.accepting_a_candidate_removes_it_from_pending_and_records_the_resulting_document

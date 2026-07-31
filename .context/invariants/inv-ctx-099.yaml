@@ -2,3 +2,7 @@ id: INV-CTX-099
 type: invariant
 status: active
 statement: Text references produce artifact links only when they resolve to the identity of an existing known artifact; unresolved references must not produce guessed links.
+implementation:
+  - symbol: ctx_core.linking.text_reference_links
+tests:
+  - symbol: ctx_core.linking.tests.text_reference_links_only_target_already_known_artifacts

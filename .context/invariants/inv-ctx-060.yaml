@@ -2,3 +2,7 @@ id: INV-CTX-060
 type: invariant
 status: active
 statement: GitLab-generated system notes are excluded because they do not contain their own evidence text.
+implementation:
+  - symbol: ctx_adapters.gitlab.GitLabClient.push_notes
+tests:
+  - symbol: ctx_adapters.gitlab.tests.fetches_issues_and_merge_requests_with_their_comments_and_commits

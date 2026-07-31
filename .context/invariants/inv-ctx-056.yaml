@@ -2,3 +2,6 @@ id: INV-CTX-056
 type: invariant
 status: active
 statement: Every evaluation corpus case must run cleanly and all of its ground-truth checks must pass.
+implementation:
+- symbol: ctx_eval.runner.run_corpus
+- symbol: ctx_eval.report.summarize

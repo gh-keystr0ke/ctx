@@ -2,3 +2,7 @@ id: INV-CTX-054
 type: invariant
 status: active
 statement: Enrichment records every analyzed artifact regardless of outcome and skips re-analysis while its current content hash matches the analysis ledger.
+implementation:
+  - symbol: ctx_app.enrich.EnrichRunner.run_with_progress
+tests:
+  - symbol: ctx_app.enrich.tests.an_artifact_analyzed_at_its_current_content_hash_is_skipped_next_run

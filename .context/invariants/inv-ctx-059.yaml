@@ -2,3 +2,7 @@ id: INV-CTX-059
 type: invariant
 status: active
 statement: Feature documents are excluded from missing-implementation-mapping health checks because they are descriptive umbrellas without their own implementation links.
+implementation:
+  - symbol: ctx_core.verification.intents_without_mapping
+tests:
+  - symbol: ctx_core.verification.tests.an_unmapped_feature_is_never_flagged

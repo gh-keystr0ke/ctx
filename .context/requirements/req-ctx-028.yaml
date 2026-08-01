@@ -2,3 +2,8 @@ id: REQ-CTX-028
 type: requirement
 status: active
 statement: A `ctx impact table.column` query must resolve to the table's `DbEntity` seed and narrow implementation results to readers and writers whose evidence names that column, excluding unrelated table writers.
+implementation:
+- symbol: ctx_core.impact.focus_on_column
+- symbol: ctx_eval.cases.column_level_impact_seed_narrows_to_column_readers
+tests:
+- symbol: ctx_core.impact.tests.table_dot_column_seed_resolves_to_the_table_and_narrows_to_column_readers

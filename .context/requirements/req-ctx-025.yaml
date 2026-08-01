@@ -2,3 +2,5 @@ id: REQ-CTX-025
 type: requirement
 status: active
 statement: The ctx-eval executable must print a full JSON report and return a non-zero exit status on any evaluation failure, while its test suite serves as the regression gate.
+implementation:
+  - symbol: ctx_eval.main

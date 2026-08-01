@@ -2,3 +2,7 @@ id: REQ-CTX-002
 type: requirement
 status: active
 statement: A migration's declared schema changes must be evaluated independently of history, so a newly introduced column drop is immediately destructive.
+implementation:
+  - symbol: ctx_core.schema.declared_schema_changes
+tests:
+  - symbol: ctx_core.schema.tests.declared_drop_and_rename_are_destructive

@@ -2,3 +2,7 @@ id: REQ-CTX-004
 type: requirement
 status: active
 statement: A single file analyzer failure must not abort indexing; the file must be reported as failed and retried on subsequent index runs.
+implementation:
+- symbol: ctx_app.index.IndexRunner.run
+tests:
+- symbol: crates.ctx-cli.tests.e2e.one_file_failing_analysis_does_not_block_indexing_the_rest

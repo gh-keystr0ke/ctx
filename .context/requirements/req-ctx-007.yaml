@@ -2,3 +2,9 @@ id: REQ-CTX-007
 type: requirement
 status: active
 statement: Accept and reject operations must receive a decision method, and accepted records must expose that method when read back for a document.
+implementation:
+  - symbol: ctx_app.verification.KnowledgeVerificationService.accept
+  - symbol: ctx_app.verification.KnowledgeVerificationService.reject
+  - symbol: ctx_core.knowledge.DecisionMethod
+tests:
+  - symbol: ctx_adapters.sqlite.artifacts.tests.accepted_record_reports_an_agent_decision_honestly

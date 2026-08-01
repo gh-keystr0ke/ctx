@@ -2,3 +2,8 @@ id: INV-CTX-110
 type: invariant
 status: active
 statement: Knowledge provenance is attached only to single-subject Feature, Requirement, Invariant, or Decision explanations, and is not fabricated for relationship queries or hand-authored documents without candidate records.
+implementation:
+  - symbol: ctx_app.query.QueryService.knowledge_provenance_for
+tests:
+  - symbol: ctx_app.query.tests.a_hand_authored_requirement_carries_no_provenance_chain
+  - symbol: ctx_app.query.tests.a_relationship_query_never_carries_a_provenance_chain

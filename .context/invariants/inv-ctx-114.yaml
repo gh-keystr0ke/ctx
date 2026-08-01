@@ -2,3 +2,5 @@ id: INV-CTX-114
 type: invariant
 status: active
 statement: Source ranges describe a specific version of a source file and never participate in stable symbol identity.
+implementation:
+  - symbol: ctx_core.ir.SourceRange

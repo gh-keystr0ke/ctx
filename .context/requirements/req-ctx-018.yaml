@@ -2,3 +2,9 @@ id: REQ-CTX-018
 type: requirement
 status: active
 statement: Reference extraction must recognize Jira-style ticket keys, issue references, merge-request references, and tracker URLs.
+implementation:
+  - symbol: ctx_core.linking.extract_references
+tests:
+  - symbol: ctx_core.linking.tests.extracts_a_ticket_key_regardless_of_where_it_appears
+  - symbol: ctx_core.linking.tests.extracts_issue_and_merge_request_numbers
+  - symbol: ctx_core.linking.tests.extracts_a_full_ticket_url_and_trims_trailing_punctuation

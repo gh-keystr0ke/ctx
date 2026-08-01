@@ -2,3 +2,7 @@ id: REQ-CTX-016
 type: requirement
 status: active
 statement: Migration operations are replayed in file-path order, applying declared add, drop, and rename operations sequentially.
+implementation:
+  - symbol: ctx_core.schema.reconcile_orm_and_migrations
+tests:
+  - symbol: ctx_core.schema.tests.reconciliation_replays_migrations_in_file_path_order

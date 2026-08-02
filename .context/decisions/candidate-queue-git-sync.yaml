@@ -1,0 +1,79 @@
+id: ADR-EXT-004
+type: decision
+title: Pending knowledge candidates sync via a git-tracked file, not the local database
+status: accepted
+decision: >
+  Every other part of `ctx` converges identically for a whole team through
+  Git: `.context/*.yaml` (accepted product knowledge) and the structural
+  index both rebuild identically from the same committed inputs on any
+  checkout. The one exception was the AI-derived pending-candidate queue
+  (`ctx enrich`/`ctx verify --knowledge`), which lived only in the local,
+  gitignored `.ctx/ctx.db` `knowledge_candidates` table: two developers
+  running `ctx enrich` against the same artifacts redundantly re-ran the
+  LLM agent, and one developer's accept/reject decision on a candidate was
+  invisible to another, who could see the same candidate resurface as
+  pending. Already-accepted candidates never had this problem, since
+  acceptance already writes an ordinary `.context/*.yaml` document
+  (unchanged by this decision) -- only the pending queue itself did.
+
+  The fix: one plain YAML file per candidate under a new git-tracked
+  `.ctx-candidates/` directory (a sibling of `.context/` and `.ctx/`,
+  deliberately kept outside `.context/` so
+  ctx_adapters.business_context.YamlBusinessContextReader's recursive
+  `.context/` scan -- which tries to parse every `.yaml`/`.yml`/`.md` file
+  under it as a BusinessDocument -- never touches it), named by the first
+  16 hex characters of `blake3::hash(candidate.fingerprint)`. This is
+  content-addressed the same way Git's own object store is: two developers
+  independently proposing the identical `(kind, statement)` candidate
+  (ctx_core.knowledge.KnowledgeCandidate.fingerprint_for) converge on the
+  exact same filename, so a redundant re-proposal is a Git no-op, never a
+  conflict. Different candidates never share a file. The only conflict
+  surface left is two different decisions recorded concurrently on the
+  same fingerprint -- a meaningful disagreement worth a human's attention
+  through Git's ordinary merge conflict, not spurious noise from unrelated
+  candidates landing near each other. File contents are exactly
+  KnowledgeCandidate flattened with the decision-state fields that
+  previously lived as extra SQL columns (status, resulting_document_id,
+  decided_by, decided_at, decision_method) -- a straight re-serialization
+  of the same information, not a new schema.
+
+  ctx_app.ports.KnowledgeCandidateStore's trait contract is completely
+  unchanged (ADR-EXT-002 still describes what it guarantees); only
+  ctx_adapters.sqlite.SqliteStore's implementation of that one trait
+  changed, from SQL rows to plain filesystem reads/writes rooted at the
+  checkout root -- chosen over splitting KnowledgeCandidateStore into a
+  separate struct, since ctx_app.enrich.EnrichRunner and
+  ctx_app.verification.KnowledgeVerificationService both require ONE type
+  to satisfy several port traits together (KnowledgeCandidateStore +
+  GraphStore, at minimum), so a separate struct would have forced an
+  unwanted generic-parameter refactor of both for no behavioral benefit.
+  The `repository` parameter every KnowledgeCandidateStore method still
+  takes is intentionally unused in this implementation: one checkout root
+  implies exactly one `.ctx-candidates/` directory, so there is nothing
+  left to scope by.
+
+  Writes are plain `fs::write`, no tempfile-and-rename atomicity and no
+  lockfile -- matching this codebase's existing accepted risk for
+  git-tracked YAML writes (ctx_adapters.business_context's write_document
+  already writes `.context/*.yaml` the same way). `ctx` was never
+  multi-process-safe for two concurrent local `ctx enrich` runs even under
+  SQL, so this introduces no new risk, and the ADR records it as accepted
+  rather than solved.
+implementation:
+  - symbol: ctx_adapters.candidate_queue.upsert
+  - symbol: ctx_adapters.candidate_queue.pending
+  - symbol: ctx_adapters.candidate_queue.record_decision
+  - symbol: ctx_adapters.candidate_queue.accepted_evidence
+  - symbol: ctx_adapters.candidate_queue.accepted_record_for_document
+  - symbol: ctx_adapters.sqlite.SqliteStore.open
+tests:
+  - symbol: ctx_adapters.candidate_queue.tests.upserting_two_candidates_writes_two_files
+  - symbol: ctx_adapters.candidate_queue.tests.re_upserting_the_same_fingerprint_is_a_no_op
+  - symbol: ctx_adapters.candidate_queue.tests.deciding_a_pending_candidate_rewrites_its_file_in_place
+  - symbol: ctx_adapters.candidate_queue.tests.deciding_an_unknown_fingerprint_errors
+  - symbol: ctx_adapters.candidate_queue.tests.deciding_an_already_decided_fingerprint_errors
+  - symbol: ctx_adapters.candidate_queue.tests.accepted_evidence_groups_by_resulting_document_id
+  - symbol: ctx_adapters.candidate_queue.tests.accepted_record_for_document_round_trips_decision_metadata
+  - symbol: ctx_adapters.candidate_queue.tests.a_stray_non_yaml_file_is_ignored
+  - symbol: ctx_adapters.candidate_queue.tests.pending_lists_only_pending_status_in_deterministic_order
+  - symbol: crates.ctx-cli.tests.e2e.a_pending_candidate_survives_losing_the_local_database_once_committed

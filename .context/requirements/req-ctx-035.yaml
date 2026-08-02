@@ -2,3 +2,8 @@ id: REQ-CTX-035
 type: requirement
 status: active
 statement: Mapping health must report every active Requirement, Invariant, or Decision that lacks an active implementation edge.
+implementation:
+- symbol: ctx_core.verification.intents_without_mapping
+- symbol: ctx_app.status.classify_health
+tests:
+- symbol: ctx_core.verification.tests.intents_without_mapping_finds_only_the_unmapped_one

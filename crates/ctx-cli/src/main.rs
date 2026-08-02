@@ -319,7 +319,7 @@ fn verify(
     author: &str,
 ) -> Result<(), CliError> {
     let database_path = database_path(git.root())?;
-    let mut store = SqliteStore::open(&database_path)?;
+    let mut store = SqliteStore::open(&database_path, git.root())?;
     let repository = git.descriptor()?;
     let head = git.head()?;
     let now = Utc::now().to_rfc3339();
@@ -409,7 +409,7 @@ fn verify_knowledge(
     force: bool,
 ) -> Result<(), CliError> {
     let database_path = database_path(git.root())?;
-    let mut store = SqliteStore::open(&database_path)?;
+    let mut store = SqliteStore::open(&database_path, git.root())?;
     let repository = git.descriptor()?;
     let now = Utc::now().to_rfc3339();
     let writer = YamlBusinessContextReader::new(git.root().to_path_buf());
@@ -502,7 +502,7 @@ fn verify_knowledge_auto(
     force: bool,
 ) -> Result<(), CliError> {
     let database_path = database_path(git.root())?;
-    let mut store = SqliteStore::open(&database_path)?;
+    let mut store = SqliteStore::open(&database_path, git.root())?;
     let repository = git.descriptor()?;
     let now = Utc::now().to_rfc3339();
     let writer = YamlBusinessContextReader::new(git.root().to_path_buf());
@@ -753,7 +753,7 @@ fn context(
     token_budget: usize,
 ) -> Result<(), CliError> {
     let database_path = database_path(git.root())?;
-    let store = SqliteStore::open(&database_path)?;
+    let store = SqliteStore::open(&database_path, git.root())?;
     let repository = git.descriptor()?;
     let request = ContextRequest {
         task: task.to_owned(),
@@ -810,7 +810,7 @@ fn context(
 
 fn review(cli: &Cli, git: &GitRepo, base: &str) -> Result<(), CliError> {
     let database_path = database_path(git.root())?;
-    let store = SqliteStore::open(&database_path)?;
+    let store = SqliteStore::open(&database_path, git.root())?;
     let analyzer = AnalyzerRegistry::builtins(git.root(), &git.source_scope().languages)?;
     let repository = git.descriptor()?;
     let report =
@@ -926,7 +926,7 @@ fn print_schema_findings(findings: &[ctx_core::review::SchemaFinding]) {
 
 fn impact(cli: &Cli, git: &GitRepo, target: &str) -> Result<(), CliError> {
     let database_path = database_path(git.root())?;
-    let store = SqliteStore::open(&database_path)?;
+    let store = SqliteStore::open(&database_path, git.root())?;
     let repository = git.descriptor()?;
     let reports = QueryService::new(&store).impact(&repository.id, target)?;
     if cli.json {
@@ -975,7 +975,7 @@ fn impact(cli: &Cli, git: &GitRepo, target: &str) -> Result<(), CliError> {
 
 fn explain(cli: &Cli, git: &GitRepo, target: &str) -> Result<(), CliError> {
     let database_path = database_path(git.root())?;
-    let store = SqliteStore::open(&database_path)?;
+    let store = SqliteStore::open(&database_path, git.root())?;
     let repository = git.descriptor()?;
     let explanations = QueryService::new(&store).explain(&repository.id, target)?;
     if cli.json {
@@ -1046,7 +1046,7 @@ fn explain(cli: &Cli, git: &GitRepo, target: &str) -> Result<(), CliError> {
 
 fn find(cli: &Cli, git: &GitRepo, target: &str) -> Result<(), CliError> {
     let database_path = database_path(git.root())?;
-    let store = SqliteStore::open(&database_path)?;
+    let store = SqliteStore::open(&database_path, git.root())?;
     let repository = git.descriptor()?;
     let matches = QueryService::new(&store).find(&repository.id, target)?;
     if cli.json {
@@ -1069,7 +1069,7 @@ fn find(cli: &Cli, git: &GitRepo, target: &str) -> Result<(), CliError> {
 
 fn ingest(cli: &Cli, git: &GitRepo, source: &str, since: Option<&str>) -> Result<(), CliError> {
     let database_path = database_path(git.root())?;
-    let mut store = SqliteStore::open(&database_path)?;
+    let mut store = SqliteStore::open(&database_path, git.root())?;
     let repository = git.descriptor()?;
     let now = Utc::now().to_rfc3339();
     // Ingestion is meant to work standalone, before or independent of
@@ -1119,7 +1119,7 @@ fn enrich(
     allow_ungrounded_symbols: bool,
 ) -> Result<(), CliError> {
     let database_path = database_path(git.root())?;
-    let mut store = SqliteStore::open(&database_path)?;
+    let mut store = SqliteStore::open(&database_path, git.root())?;
     let repository = git.descriptor()?;
     let now = Utc::now().to_rfc3339();
     store.ensure_repository(&repository, &now)?;
@@ -1206,8 +1206,11 @@ fn initialize(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
     for directory in ["features", "requirements", "invariants", "decisions"] {
         fs::create_dir_all(git.root().join(".context").join(directory))?;
     }
+    // Git-tracked pending-candidate queue (ADR-EXT-004) -- unlike .ctx/,
+    // meant to be committed once a real candidate file exists in it.
+    fs::create_dir_all(git.root().join(".ctx-candidates"))?;
     let database_path = ctx_directory.join("ctx.db");
-    SqliteStore::open(&database_path)?;
+    SqliteStore::open(&database_path, git.root())?;
     git.ignore_local_database()?;
     let languages = GitRepo::discover(git.root())?.source_scope().languages;
 
@@ -1233,7 +1236,7 @@ fn initialize(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
 
 fn index(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
     let database_path = database_path(git.root())?;
-    let mut store = SqliteStore::open(&database_path)?;
+    let mut store = SqliteStore::open(&database_path, git.root())?;
     let analyzer = AnalyzerRegistry::builtins(git.root(), &git.source_scope().languages)?;
     let now = Utc::now().to_rfc3339();
     let code = IndexRunner::new(git, &analyzer, &mut store).run(&now)?;
@@ -1289,7 +1292,7 @@ fn index(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
 
 fn status(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
     let database_path = database_path(git.root())?;
-    let store = SqliteStore::open(&database_path)?;
+    let store = SqliteStore::open(&database_path, git.root())?;
     let status = StatusService::new(git, &store).inspect()?;
     if cli.json {
         println!("{}", serde_json::to_string_pretty(&status)?);

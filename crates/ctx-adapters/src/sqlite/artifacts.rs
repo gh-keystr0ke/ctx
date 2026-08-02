@@ -6,13 +6,13 @@ use ctx_core::{
         Artifact, ArtifactIdentity, ArtifactKind, ArtifactLink, ArtifactLinkKind,
         ArtifactLinkTarget, ArtifactProvider, ArtifactRef,
     },
-    business::BusinessKind,
     domain::{RepositoryId, StableKey},
-    knowledge::{AgentProvenance, KnowledgeCandidate, KnowledgeDecision},
+    knowledge::{KnowledgeCandidate, KnowledgeDecision},
 };
 use rusqlite::{OptionalExtension, Transaction, params};
 
 use super::SqliteStore;
+use crate::candidate_queue;
 
 impl ArtifactRepository for SqliteStore {
     fn upsert_artifact(
@@ -314,218 +314,51 @@ impl ArtifactLinkStore for SqliteStore {
     }
 }
 
+/// Backed by the git-tracked `.ctx-candidates/` file queue (`ADR-EXT-004`),
+/// not this struct's SQL connection -- every method below ignores
+/// `repository`, since one checkout root implies exactly one
+/// `.ctx-candidates/` directory. See `crate::candidate_queue` for the
+/// actual read/write logic.
 impl KnowledgeCandidateStore for SqliteStore {
     fn upsert_candidates(
         &mut self,
-        repository: &RepositoryId,
+        _repository: &RepositoryId,
         candidates: &[KnowledgeCandidate],
     ) -> Result<(), PortError> {
-        let transaction = self.connection.transaction().map_err(database_error)?;
-        let repository_row = repository_row(&transaction, repository)?;
-        for candidate in candidates {
-            let evidence_json =
-                serde_json::to_string(&candidate.evidence).map_err(serialization_error)?;
-            let implementation_json = serde_json::to_string(&candidate.implementation_candidates)
-                .map_err(serialization_error)?;
-            let tests_json =
-                serde_json::to_string(&candidate.test_candidates).map_err(serialization_error)?;
-            let input_artifacts_json =
-                serde_json::to_string(&candidate.provenance.input_artifact_ids)
-                    .map_err(serialization_error)?;
-            transaction
-                .execute(
-                    "INSERT INTO knowledge_candidates(
-                        repository_id, fingerprint, kind, statement, evidence_json,
-                        implementation_candidates_json, test_candidates_json, agent_producer,
-                        agent_model, input_artifact_ids_json, produced_at, agent_fingerprint,
-                        status
-                     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, 'pending')
-                     ON CONFLICT(repository_id, fingerprint) DO NOTHING",
-                    params![
-                        repository_row,
-                        candidate.fingerprint,
-                        candidate_kind_str(candidate.kind),
-                        candidate.statement,
-                        evidence_json,
-                        implementation_json,
-                        tests_json,
-                        candidate.provenance.producer,
-                        candidate.provenance.model,
-                        input_artifacts_json,
-                        candidate.provenance.produced_at,
-                        candidate.provenance.fingerprint,
-                    ],
-                )
-                .map_err(database_error)?;
-        }
-        transaction.commit().map_err(database_error)
+        candidate_queue::upsert(self.root(), candidates)
     }
 
     fn pending_candidates(
         &self,
-        repository: &RepositoryId,
+        _repository: &RepositoryId,
     ) -> Result<Vec<KnowledgeCandidate>, PortError> {
-        let mut statement = self
-            .connection
-            .prepare(
-                "SELECT kc.fingerprint, kc.kind, kc.statement, kc.evidence_json,
-                        kc.implementation_candidates_json, kc.test_candidates_json,
-                        kc.agent_producer, kc.agent_model, kc.input_artifact_ids_json,
-                        kc.produced_at, kc.agent_fingerprint
-                 FROM knowledge_candidates kc
-                 JOIN repositories r ON r.id = kc.repository_id
-                 WHERE r.stable_id = ?1 AND kc.status = 'pending'
-                 ORDER BY kc.id",
-            )
-            .map_err(database_error)?;
-        let rows = statement
-            .query_map([repository.as_str()], |row| {
-                Ok((
-                    row.get::<_, String>(0)?,
-                    row.get::<_, String>(1)?,
-                    row.get::<_, String>(2)?,
-                    row.get::<_, String>(3)?,
-                    row.get::<_, String>(4)?,
-                    row.get::<_, String>(5)?,
-                    row.get::<_, String>(6)?,
-                    row.get::<_, Option<String>>(7)?,
-                    row.get::<_, String>(8)?,
-                    row.get::<_, String>(9)?,
-                    row.get::<_, String>(10)?,
-                ))
-            })
-            .map_err(database_error)?;
-        let mut candidates = Vec::new();
-        for row in rows {
-            candidates.push(candidate_from_columns(row.map_err(database_error)?)?);
-        }
-        Ok(candidates)
+        candidate_queue::pending(self.root())
     }
 
     fn record_decision(
         &mut self,
-        repository: &RepositoryId,
+        _repository: &RepositoryId,
         fingerprint: &str,
         decision: &KnowledgeDecision,
         author: &str,
         timestamp: &str,
     ) -> Result<(), PortError> {
-        let transaction = self.connection.transaction().map_err(database_error)?;
-        let repository_row = repository_row(&transaction, repository)?;
-        let (status, document_id, method) = match decision {
-            KnowledgeDecision::Accept {
-                document_id,
-                method,
-            } => ("accepted", Some(document_id.as_str()), *method),
-            KnowledgeDecision::Reject { method } => ("rejected", None, *method),
-        };
-        let updated = transaction
-            .execute(
-                "UPDATE knowledge_candidates
-                 SET status = ?1, resulting_document_id = ?2, decided_by = ?3, decided_at = ?4,
-                     decision_method = ?5
-                 WHERE repository_id = ?6 AND fingerprint = ?7 AND status = 'pending'",
-                params![
-                    status,
-                    document_id,
-                    author,
-                    timestamp,
-                    decision_method_str(method),
-                    repository_row,
-                    fingerprint,
-                ],
-            )
-            .map_err(database_error)?;
-        if updated == 0 {
-            return Err(PortError::new(format!(
-                "knowledge candidate '{fingerprint}' is not currently pending"
-            )));
-        }
-        transaction.commit().map_err(database_error)
+        candidate_queue::record_decision(self.root(), fingerprint, decision, author, timestamp)
     }
 
     fn accepted_evidence(
         &self,
-        repository: &RepositoryId,
+        _repository: &RepositoryId,
     ) -> Result<std::collections::BTreeMap<String, Vec<ArtifactRef>>, PortError> {
-        let mut statement = self
-            .connection
-            .prepare(
-                "SELECT kc.resulting_document_id, kc.evidence_json
-                 FROM knowledge_candidates kc
-                 JOIN repositories r ON r.id = kc.repository_id
-                 WHERE r.stable_id = ?1 AND kc.status = 'accepted'
-                   AND kc.resulting_document_id IS NOT NULL
-                 ORDER BY kc.id",
-            )
-            .map_err(database_error)?;
-        let rows = statement
-            .query_map([repository.as_str()], |row| {
-                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
-            })
-            .map_err(database_error)?;
-        let mut evidence_by_document = std::collections::BTreeMap::new();
-        for row in rows {
-            let (document_id, evidence_json) = row.map_err(database_error)?;
-            let evidence: Vec<ArtifactRef> =
-                serde_json::from_str(&evidence_json).map_err(serialization_error)?;
-            evidence_by_document
-                .entry(document_id)
-                .or_insert_with(Vec::new)
-                .extend(evidence);
-        }
-        Ok(evidence_by_document)
+        candidate_queue::accepted_evidence(self.root())
     }
 
     fn accepted_record_for_document(
         &self,
-        repository: &RepositoryId,
+        _repository: &RepositoryId,
         document_id: &str,
     ) -> Result<Option<ctx_core::knowledge::AcceptedKnowledgeRecord>, PortError> {
-        self.connection
-            .query_row(
-                "SELECT kc.fingerprint, kc.kind, kc.statement, kc.evidence_json,
-                        kc.implementation_candidates_json, kc.test_candidates_json,
-                        kc.agent_producer, kc.agent_model, kc.input_artifact_ids_json,
-                        kc.produced_at, kc.agent_fingerprint, kc.decided_by, kc.decided_at,
-                        kc.decision_method
-                 FROM knowledge_candidates kc
-                 JOIN repositories r ON r.id = kc.repository_id
-                 WHERE r.stable_id = ?1 AND kc.status = 'accepted'
-                   AND kc.resulting_document_id = ?2",
-                params![repository.as_str(), document_id],
-                |row| {
-                    Ok((
-                        (
-                            row.get::<_, String>(0)?,
-                            row.get::<_, String>(1)?,
-                            row.get::<_, String>(2)?,
-                            row.get::<_, String>(3)?,
-                            row.get::<_, String>(4)?,
-                            row.get::<_, String>(5)?,
-                            row.get::<_, String>(6)?,
-                            row.get::<_, Option<String>>(7)?,
-                            row.get::<_, String>(8)?,
-                            row.get::<_, String>(9)?,
-                            row.get::<_, String>(10)?,
-                        ),
-                        row.get::<_, String>(11)?,
-                        row.get::<_, String>(12)?,
-                        row.get::<_, Option<String>>(13)?,
-                    ))
-                },
-            )
-            .optional()
-            .map_err(database_error)?
-            .map(|(columns, decided_by, decided_at, method)| {
-                Ok(ctx_core::knowledge::AcceptedKnowledgeRecord {
-                    candidate: candidate_from_columns(columns)?,
-                    decided_by,
-                    decided_at,
-                    decision_method: parse_decision_method(method.as_deref())?,
-                })
-            })
-            .transpose()
+        candidate_queue::accepted_record_for_document(self.root(), document_id)
     }
 }
 
@@ -568,54 +401,6 @@ impl IngestCursorStore for SqliteStore {
             .map_err(database_error)?;
         transaction.commit().map_err(database_error)
     }
-}
-
-type CandidateColumns = (
-    String,
-    String,
-    String,
-    String,
-    String,
-    String,
-    String,
-    Option<String>,
-    String,
-    String,
-    String,
-);
-
-fn candidate_from_columns(columns: CandidateColumns) -> Result<KnowledgeCandidate, PortError> {
-    let (
-        fingerprint,
-        kind,
-        statement,
-        evidence_json,
-        implementation_json,
-        tests_json,
-        producer,
-        model,
-        input_artifacts_json,
-        produced_at,
-        agent_fingerprint,
-    ) = columns;
-    Ok(KnowledgeCandidate {
-        fingerprint,
-        kind: parse_candidate_kind(&kind)?,
-        statement,
-        evidence: serde_json::from_str::<Vec<ArtifactRef>>(&evidence_json)
-            .map_err(serialization_error)?,
-        implementation_candidates: serde_json::from_str(&implementation_json)
-            .map_err(serialization_error)?,
-        test_candidates: serde_json::from_str(&tests_json).map_err(serialization_error)?,
-        provenance: AgentProvenance {
-            producer,
-            model,
-            input_artifact_ids: serde_json::from_str(&input_artifacts_json)
-                .map_err(serialization_error)?,
-            produced_at,
-            fingerprint: agent_fingerprint,
-        },
-    })
 }
 
 type ArtifactColumns = (
@@ -805,56 +590,9 @@ fn parse_link_kind(value: &str) -> Result<ArtifactLinkKind, PortError> {
     }
 }
 
-const fn candidate_kind_str(kind: BusinessKind) -> &'static str {
-    match kind {
-        BusinessKind::Feature => "feature",
-        BusinessKind::Requirement => "requirement",
-        BusinessKind::Invariant => "invariant",
-        BusinessKind::Decision => "decision",
-    }
-}
-
-fn parse_candidate_kind(value: &str) -> Result<BusinessKind, PortError> {
-    match value {
-        "feature" => Ok(BusinessKind::Feature),
-        "requirement" => Ok(BusinessKind::Requirement),
-        "invariant" => Ok(BusinessKind::Invariant),
-        "decision" => Ok(BusinessKind::Decision),
-        other => Err(PortError::new(format!(
-            "unknown knowledge candidate kind '{other}'"
-        ))),
-    }
-}
-
-const fn decision_method_str(method: ctx_core::knowledge::DecisionMethod) -> &'static str {
-    match method {
-        ctx_core::knowledge::DecisionMethod::Human => "human",
-        ctx_core::knowledge::DecisionMethod::Agent => "agent",
-    }
-}
-
-/// `None` covers a row decided before this column existed -- every prior
-/// decision really was a human one, since `--auto` didn't exist yet.
-fn parse_decision_method(
-    value: Option<&str>,
-) -> Result<ctx_core::knowledge::DecisionMethod, PortError> {
-    match value {
-        None | Some("human") => Ok(ctx_core::knowledge::DecisionMethod::Human),
-        Some("agent") => Ok(ctx_core::knowledge::DecisionMethod::Agent),
-        Some(other) => Err(PortError::new(format!(
-            "unknown knowledge decision method '{other}'"
-        ))),
-    }
-}
-
 #[allow(clippy::needless_pass_by_value)]
 fn database_error(error: rusqlite::Error) -> PortError {
     PortError::new(format!("SQLite artifact operation failed: {error}"))
-}
-
-#[allow(clippy::needless_pass_by_value)]
-fn serialization_error(error: serde_json::Error) -> PortError {
-    PortError::new(format!("stored artifact data is invalid: {error}"))
 }
 
 #[allow(clippy::needless_pass_by_value)]
@@ -865,12 +603,14 @@ fn domain_error(error: ctx_core::domain::InvalidIdentifier) -> PortError {
 #[cfg(test)]
 mod tests {
     use ctx_app::ports::{IndexStore, RepositoryDescriptor};
+    use ctx_core::{business::BusinessKind, knowledge::AgentProvenance};
     use tempfile::tempdir;
 
     use super::*;
 
     fn open_repository(directory: &std::path::Path) -> (SqliteStore, RepositoryId) {
-        let mut store = SqliteStore::open(&directory.join("ctx.db")).expect("database");
+        let mut store =
+            SqliteStore::open(&directory.join("ctx.db"), directory).expect("database");
         let repository = RepositoryDescriptor {
             id: RepositoryId::new("repo:test").expect("repository ID"),
             root_path: "/repo".to_owned(),

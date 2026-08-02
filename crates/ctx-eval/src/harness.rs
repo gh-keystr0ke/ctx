@@ -68,7 +68,7 @@ pub fn run_case(case: &EvaluationCase) -> Result<CaseRun, HarnessError> {
     let root = directory.path();
     init_repository(root)?;
     fs::create_dir_all(root.join(".ctx"))?;
-    let mut store = SqliteStore::open(&root.join(".ctx").join("ctx.db"))?;
+    let mut store = SqliteStore::open(&root.join(".ctx").join("ctx.db"), root)?;
 
     let mut run = CaseRun::default();
     for step in &case.steps {

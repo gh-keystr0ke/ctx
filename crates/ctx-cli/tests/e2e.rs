@@ -446,6 +446,86 @@ fn enrich_allow_ungrounded_symbols_keeps_implementation_and_test_candidates_outs
     );
 }
 
+/// ADR-EXT-004: the pending candidate queue lives under git-tracked
+/// `.ctx-candidates/`, not only in the gitignored local `.ctx/ctx.db` --
+/// so once committed, a teammate who never ran `ctx enrich` themselves
+/// (simulated here by wiping the local database and starting over) still
+/// sees the exact same pending candidate.
+#[test]
+fn a_pending_candidate_survives_losing_the_local_database_once_committed() {
+    let repository = FixtureRepository::new();
+    repository.ctx(&["init"]);
+    repository.ctx(&["ingest", "git"]);
+
+    let script_path = repository.root().join("fake-claude.sh");
+    fs::write(
+        &script_path,
+        "#!/bin/sh\n\
+         prompt=\"$2\"\n\
+         id=$(echo \"$prompt\" | grep -o 'Valid artifact ids for this neighborhood: [^ ,]*' | sed 's/.*: //')\n\
+         echo \"{\\\"outcome\\\":\\\"relevant\\\",\\\"candidates\\\":[{\\\"kind\\\":\\\"requirement\\\",\\\"statement\\\":\\\"Commit history documents cancellation behavior.\\\",\\\"evidence\\\":[{\\\"artifact_id\\\":\\\"$id\\\",\\\"locator\\\":\\\"body\\\",\\\"excerpt\\\":\\\"excerpt\\\"}]}]}\"\n",
+    )
+    .expect("write fake claude script");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut permissions = fs::metadata(&script_path)
+            .expect("script metadata")
+            .permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(&script_path, permissions).expect("chmod fake claude script");
+    }
+    let env = [(
+        "CTX_CLAUDE_CLI_BINARY",
+        script_path.to_str().expect("utf8 path"),
+    )];
+
+    let enriched = repository.ctx_with_env(&["enrich", "--agent", "claude"], &env);
+    assert!(enriched["candidates_proposed"].as_u64().unwrap_or(0) > 0);
+
+    let queue_dir = repository.root().join(".ctx-candidates");
+    let queue_files: Vec<_> = fs::read_dir(&queue_dir)
+        .expect("read .ctx-candidates")
+        .map(|entry| entry.expect("dir entry").path())
+        .collect();
+    assert_eq!(queue_files.len(), 1, "exactly one candidate file written");
+    let queue_file = &queue_files[0];
+    assert_eq!(
+        queue_file.extension().and_then(|extension| extension.to_str()),
+        Some("yaml")
+    );
+    let queue_file_content = fs::read_to_string(queue_file).expect("read candidate file");
+    assert!(
+        queue_file_content.contains("Commit history documents cancellation behavior."),
+        "candidate file is plain, git-diffable YAML text: {queue_file_content}"
+    );
+
+    run_git(repository.root(), &["add", ".ctx-candidates"]);
+    run_git(
+        repository.root(),
+        &["commit", "--quiet", "-m", "propose candidate"],
+    );
+
+    // Simulate a teammate who never ran `ctx enrich`: their `.ctx/ctx.db` never
+    // saw this candidate, since it's gitignored and starts empty on any fresh
+    // checkout. Deliberately drop CTX_CLAUDE_CLI_BINARY from here on so an
+    // accidental re-invocation of the agent fails loudly instead of silently
+    // reproducing the candidate.
+    fs::remove_file(repository.root().join(".ctx/ctx.db")).expect("remove local database");
+    let _ = fs::remove_file(repository.root().join(".ctx/ctx.db-wal"));
+    let _ = fs::remove_file(repository.root().join(".ctx/ctx.db-shm"));
+    repository.ctx(&["init"]);
+    repository.ctx(&["index"]);
+
+    let pending = repository.ctx(&["verify", "--knowledge"]);
+    let candidates = pending.as_array().expect("pending candidates");
+    assert_eq!(candidates.len(), 1);
+    assert_eq!(
+        candidates[0]["statement"],
+        "Commit history documents cancellation behavior."
+    );
+}
+
 #[test]
 fn enrich_shells_out_to_the_configured_agent_and_reports_its_outcome() {
     let repository = FixtureRepository::new();

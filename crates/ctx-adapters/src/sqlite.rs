@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use rusqlite::Connection;
 use thiserror::Error;
@@ -19,6 +19,10 @@ const MIGRATIONS: &[(i64, &str)] = &[
     (4, include_str!("../migrations/004_enrich_ledger.sql")),
     (5, include_str!("../migrations/005_ingest_cursors.sql")),
     (6, include_str!("../migrations/006_decision_method.sql")),
+    (
+        7,
+        include_str!("../migrations/007_drop_knowledge_candidates.sql"),
+    ),
 ];
 
 #[derive(Debug, Error)]
@@ -32,20 +36,26 @@ pub enum SqliteStoreError {
     Migration(#[from] rusqlite::Error),
 }
 
-/// Concrete `SQLite` source of truth for a local repository.
+/// Concrete `SQLite` source of truth for a local repository, plus the
+/// repository's checkout root -- needed only by the
+/// [`ctx_app::ports::KnowledgeCandidateStore`] impl (`artifacts.rs`), which
+/// reads/writes the git-tracked `.ctx-candidates/` queue directly on disk
+/// rather than through `connection` (`ADR-EXT-004`).
 pub struct SqliteStore {
     connection: Connection,
+    root: PathBuf,
 }
 
 impl SqliteStore {
-    /// Opens a database, configures `SQLite` for local concurrent reads, and
-    /// applies every pending schema migration atomically.
+    /// Opens a database rooted at `root`, configures `SQLite` for local
+    /// concurrent reads, and applies every pending schema migration
+    /// atomically.
     ///
     /// # Errors
     ///
     /// Returns [`SqliteStoreError`] when the file cannot be opened, `SQLite`
     /// configuration fails, or a migration cannot be applied.
-    pub fn open(path: &Path) -> Result<Self, SqliteStoreError> {
+    pub fn open(path: &Path, root: &Path) -> Result<Self, SqliteStoreError> {
         let mut connection = Connection::open(path).map_err(|source| SqliteStoreError::Open {
             path: path.display().to_string(),
             source,
@@ -73,11 +83,18 @@ impl SqliteStore {
         }
         transaction.commit()?;
 
-        Ok(Self { connection })
+        Ok(Self {
+            connection,
+            root: root.to_path_buf(),
+        })
     }
 
     pub const fn connection(&self) -> &Connection {
         &self.connection
+    }
+
+    pub fn root(&self) -> &Path {
+        &self.root
     }
 }
 
@@ -92,24 +109,24 @@ mod tests {
         let directory = tempdir().expect("temporary directory");
         let database = directory.path().join("ctx.db");
 
-        let store = SqliteStore::open(&database).expect("create database");
+        let store = SqliteStore::open(&database, directory.path()).expect("create database");
         let table_count: i64 = store
             .connection()
             .query_row(
                 "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN (
                     'repositories', 'commits', 'nodes', 'node_versions', 'edges',
                     'sources', 'evidence', 'edge_evidence', 'annotations', 'aliases',
-                    'derivations', 'artifacts', 'artifact_links', 'knowledge_candidates',
+                    'derivations', 'artifacts', 'artifact_links',
                     'artifact_analysis', 'ingest_cursors'
                 )",
                 [],
                 |row| row.get(0),
             )
             .expect("query schema");
-        assert_eq!(table_count, 16);
+        assert_eq!(table_count, 15);
 
         drop(store);
-        SqliteStore::open(&database).expect("migrations are idempotent");
+        SqliteStore::open(&database, directory.path()).expect("migrations are idempotent");
     }
 
     #[test]
@@ -118,7 +135,8 @@ mod tests {
         let database = directory.path().join("legacy.db");
         create_legacy_database_with_duplicate_edges(&database);
 
-        let store = SqliteStore::open(&database).expect("migrate legacy database");
+        let store =
+            SqliteStore::open(&database, directory.path()).expect("migrate legacy database");
         let current: i64 = store
             .connection()
             .query_row(

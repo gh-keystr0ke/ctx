@@ -10,11 +10,16 @@ decision: >
   network service nor an LLM, and no graph database is introduced without
   profiling evidence. External development artifacts (commits, branches,
   GitLab issues/MRs, code comments/docstrings) extend this same store as
-  their own tables (`artifacts`, `artifact_links`, `knowledge_candidates`,
+  their own tables (`artifacts`, `artifact_links`,
   `artifact_analysis` for `ctx enrich`'s per-artifact incremental ledger,
   and `ingest_cursors` for `ctx ingest gitlab`'s per-provider sync cursor,
   REQ-INCR-001) rather than a second storage technology, matching this
-  decision's original reasoning.
+  decision's original reasoning. The one exception is the pending
+  AI-derived knowledge-candidate queue: it moved out of this database
+  (dropping its former `knowledge_candidates` table) into git-tracked
+  files under `.ctx-candidates/` (ADR-EXT-004), since this database is
+  itself gitignored and per-checkout, and the pending queue specifically
+  needs to survive across checkouts for a team to share it.
 implementation:
   - symbol: ctx_adapters.sqlite.SqliteStore.open
   - symbol: ctx_adapters.sqlite.index.SqliteStore.IndexStore.apply_index

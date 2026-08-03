@@ -8,3 +8,4 @@ implementation:
   - symbol: ctx_app.ports.IndexStore.ensure_repository
 tests:
   - symbol: crates.ctx-cli.tests.e2e.ingest_git_reads_commits_and_branches_and_links_a_referenced_ticket
+

@@ -7,3 +7,4 @@ implementation:
   - symbol: ctx_adapters.sqlite.SqliteStore
 tests:
   - symbol: ctx_adapters.sqlite.tests.creates_and_reopens_a_repository_database
+

@@ -84,7 +84,7 @@ ctx enrich --agent claude  # or --agent codex / --agent antigravity
 ctx verify --knowledge     # review each proposed candidate; accept allocates its stable ID
 ```
 
-Ingested artifacts are never product knowledge on their own — they are source material an agent may derive typed candidates from, and a candidate is never asserted until `ctx verify --knowledge --accept --id <ID>` names it. Accepting writes an ordinary `.context/*.yaml` file; the next `ctx index` absorbs it exactly like a hand-authored one. Re-running `ctx enrich` skips an artifact whose content hasn't changed since its last analysis, and `ctx verify --knowledge --accept` refuses (unless `--force`) a statement that looks like a restatement of an already-active document, naming which one.
+Ingested artifacts are never product knowledge on their own — they are source material an agent may derive typed candidates from, and a candidate is never asserted until `ctx verify --knowledge --accept --id <ID>` names it. The pending candidate itself, before any decision, is already a Git-tracked file under `.ctx-candidates/`, so it isn't lost or duplicated across a team. Accepting writes an ordinary `.context/*.yaml` file; the next `ctx index` absorbs it exactly like a hand-authored one. Re-running `ctx enrich` skips an artifact whose content hasn't changed since its last analysis, and `ctx verify --knowledge --accept` refuses (unless `--force`) a statement that looks like a restatement of an already-active document, naming which one.
 
 ## Author product context
 
@@ -148,6 +148,8 @@ exclude = ["generated", "vendor", "build", "dist", "target", ".venv"]
 Include and exclude entries are repository-relative directory prefixes. Exclusions win. Generated, vendor, build, virtual-environment, cache, and non-configured source paths are also protected by built-in filtering. Commit the config when a team should share it. Changing languages or path boundaries is reconciled against the stored snapshot on the next index.
 
 The database lives at `.ctx/ctx.db`. `ctx init` adds only the database, WAL, and shared-memory filenames to the repository-local Git exclude file; it does not edit the shared `.gitignore`.
+
+Pending AI-derived knowledge candidates (from `ctx enrich`) are the one exception to `.ctx/`'s local-only rule: they live under `.ctx-candidates/`, one plain YAML file per candidate, named by a content hash of its fingerprint. Unlike `.ctx/ctx.db`, this directory is ordinary Git-tracked content — `git add`/commit/push/pull it like `.context/` so a teammate sees the same pending queue and the same accept/reject decisions without re-running `ctx enrich` or losing another person's review.
 
 `ctx ingest gitlab` needs a `[gitlab]` table naming the project (`base_url` defaults to `https://gitlab.com/api/v4`):
 

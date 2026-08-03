@@ -18,7 +18,7 @@ statement: >
   short of an actual mapping. This uses only already-known deterministic
   ArtifactLink data (never a second AI call) and only ever affects intents
   with a recorded evidence trail; a hand-authored `.context/*.yaml` document
-  has no accepted-candidate row and so is scored exactly as before. Status
+  has no accepted-candidate record and so is scored exactly as before. Status
   health surfaces a mapping gap per entity (REQ-STATUS-001), not as an
   aggregate count, so one freshly accepted document with no mapping is never
   hidden behind other already-mapped documents.

@@ -18,7 +18,7 @@ statement: >
   absorbs it like any hand-authored document — no second, parallel truth
   store. Writing never overwrites an existing file: a document ID already in
   use fails clearly instead of silently replacing it. The original
-  candidate row survives acceptance or rejection (status `accepted` or
+  candidate record survives acceptance or rejection (status `accepted` or
   `rejected`, with the resulting document ID attached on accept) rather than
   being discarded, so the artifact-to-inference-to-decision chain stays
   intact for `ctx explain` to walk (Phase 9, REQ-EXPLAIN-002). A rejected

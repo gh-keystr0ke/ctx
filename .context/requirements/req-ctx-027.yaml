@@ -4,3 +4,4 @@ status: active
 statement: The evaluation harness reloads .ctx/config.toml on every evaluation step.
 implementation:
   - symbol: ctx_eval.harness.run_case
+

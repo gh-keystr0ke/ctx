@@ -4,3 +4,4 @@ status: active
 statement: Server construction must return McpServerError when the repository is uninitialized or its store or metadata cannot be opened.
 implementation:
   - symbol: ctx_mcp.McpServer.new
+

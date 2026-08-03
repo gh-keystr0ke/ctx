@@ -4,3 +4,4 @@ status: active
 statement: Enrichment progress is written to stderr rather than stdout so JSON output remains parseable.
 implementation:
   - symbol: ctx_cli.enrich
+

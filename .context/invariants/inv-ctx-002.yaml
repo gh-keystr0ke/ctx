@@ -6,3 +6,4 @@ implementation:
   - symbol: ctx_adapters.sqlite.artifacts.SqliteStore.KnowledgeCandidateStore.record_decision
 tests:
   - symbol: ctx_app.verification.knowledge_tests.accepting_an_unknown_fingerprint_fails_clearly
+

@@ -6,3 +6,4 @@ implementation:
   - symbol: ctx_adapters.sqlite.artifacts.SqliteStore.KnowledgeCandidateStore.record_decision
 tests:
   - symbol: ctx_adapters.sqlite.artifacts.tests.pending_candidates_round_trip_and_stay_out_once_decided
+

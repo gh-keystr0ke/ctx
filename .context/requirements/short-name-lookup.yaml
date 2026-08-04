@@ -41,3 +41,4 @@ tests:
   - symbol: ctx_core.explain.tests.multiple_short_name_matches_produce_independent_explanations
   - symbol: ctx_adapters.sqlite.context.tests.ambiguous_persistent_mapping_stays_unresolved_instead_of_guessing
   - symbol: crates.ctx-cli.tests.e2e.mixed_python_rust_and_go_repository_indexes_and_reviews_through_one_registry
+

@@ -44,3 +44,4 @@ tests:
   - symbol: ctx_core.indexing.tests.two_new_symbols_sharing_one_canonical_path_claim_distinct_identities
   - symbol: ctx_core.indexing.tests.database_entities_and_facts_follow_the_current_symbol_snapshot
   - symbol: ctx_core.schema.tests.reconciliation_replays_migrations_in_file_path_order
+

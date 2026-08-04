@@ -32,3 +32,4 @@ tests:
   - symbol: ctx_core.indexing.tests.same_named_same_shaped_symbols_claim_distinct_identities_regardless_of_file_order
   - symbol: ctx_core.indexing.tests.a_new_files_same_shaped_symbol_does_not_steal_an_unrelated_unchanged_files_identity
   - symbol: ctx_core.indexing.tests.database_entities_and_facts_follow_the_current_symbol_snapshot
+

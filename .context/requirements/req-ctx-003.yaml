@@ -2,3 +2,10 @@ id: REQ-CTX-003
 type: requirement
 status: active
 statement: A new migration for a table untouched by mapped code must be treated as non-destructive noise and must not produce a guessed business warning.
+implementation:
+  - symbol: ctx_core.schema.declared_schema_changes
+  - symbol: ctx_core.review.schema_change_findings
+  - symbol: ctx_core.review.db_entity_neighborhood
+tests:
+  - symbol: ctx_core.schema.tests.a_freshly_created_table_is_not_destructive
+  - symbol: crates.ctx-eval.tests.regression.full_corpus_passes_every_ground_truth_check

@@ -10,3 +10,8 @@ decision: >
   current `ctx ingest gitlab` runs fetch only issues/MRs updated since the
   last run. Kept as a historical record of the staging decision rather than
   deleted; REQ-INCR-001 is the document describing current behavior.
+implementation:
+  - symbol: ctx_app.ingest.GitLabIngestRunner.run
+tests:
+  - symbol: ctx_app.ingest.tests.gitlab_ingest_persists_provider_reported_links_and_stays_idempotent
+  - symbol: ctx_app.ingest.tests.gitlab_ingest_advances_its_sync_cursor_and_passes_it_to_the_next_run

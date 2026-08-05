@@ -3,3 +3,15 @@ type: decision
 status: active
 title: The unified persistent-state model, schema-aware review and reconciliation, colu…
 decision: The unified persistent-state model, schema-aware review and reconciliation, column-level database evidence, and column-level impact seeds are delivered together as release 0.4.0.
+implementation:
+  - symbol: ctx_core.indexing.add_database_facts
+  - symbol: ctx_core.indexing.add_database_access_edges
+  - symbol: ctx_core.review.schema_change_findings
+  - symbol: ctx_core.schema.reconcile_orm_and_migrations
+  - symbol: ctx_core.impact.resolve_table_column_seed
+  - symbol: ctx_core.impact.focus_on_column
+tests:
+  - symbol: ctx_core.indexing.tests.column_level_write_access_is_unioned_into_edge_evidence
+  - symbol: ctx_core.schema.tests.reconciliation_replays_migrations_in_file_path_order
+  - symbol: ctx_core.impact.tests.table_dot_column_seed_resolves_to_the_table_and_narrows_to_column_readers
+  - symbol: crates.ctx-eval.tests.regression.full_corpus_passes_every_ground_truth_check

@@ -3,3 +3,6 @@ type: decision
 status: active
 title: External artifacts are excluded from ctx impact and ctx context traversal
 decision: External artifacts are excluded from ctx impact and ctx context traversal.
+implementation:
+  - symbol: ctx_app.query.QueryService.impact
+  - symbol: ctx_app.query.QueryService.context

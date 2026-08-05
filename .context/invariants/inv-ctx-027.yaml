@@ -2,3 +2,8 @@ id: INV-CTX-027
 type: invariant
 status: active
 statement: An ingested code-comment artifact is linked to a graph symbol only when its canonical path identifies exactly one currently indexed CodeSymbol; ambiguous paths remain unlinked.
+implementation:
+  - symbol: ctx_app.ingest.CodeDocIngestRunner.canonical_path_index
+  - symbol: ctx_app.ingest.CodeDocIngestRunner.run
+tests:
+  - symbol: crates.ctx-cli.tests.e2e.ingest_code_comments_attaches_a_doc_comment_to_its_nearest_symbol

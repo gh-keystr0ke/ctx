@@ -2,3 +2,11 @@ id: INV-CTX-091
 type: invariant
 status: active
 statement: The ctx core must remain deterministic and contain no filesystem, Git, database, terminal, or network code; callers supply observations and the core returns decisions.
+implementation:
+  - symbol: ctx_core.indexing.plan_incremental_index
+  - symbol: ctx_core.review.build_review_findings
+  - symbol: ctx_core.impact.analyze_impact
+  - symbol: ctx_core.context_pack.compile_context_pack
+  - symbol: ctx_core.verification.semantic_candidates
+tests:
+  - symbol: crates.ctx-cli.tests.e2e.complete_product_journey_is_deterministic_and_evidence_backed

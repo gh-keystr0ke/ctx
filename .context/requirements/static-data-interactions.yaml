@@ -28,3 +28,4 @@ tests:
   - symbol: ctx_core.indexing.tests.database_entities_and_facts_follow_the_current_symbol_snapshot
   - symbol: ctx_core.indexing.tests.column_level_write_access_is_unioned_into_edge_evidence
   - symbol: ctx_adapters.sqlite.index.tests.database_facts_persist_with_static_evidence_and_status_counts
+

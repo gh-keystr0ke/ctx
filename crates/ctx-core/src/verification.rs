@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use serde::{Deserialize, Serialize};
 
@@ -42,6 +42,177 @@ pub struct ArtifactEvidenceContext {
     pub accepted_evidence: BTreeMap<String, Vec<ArtifactRef>>,
 }
 
+type NodeSet = BTreeSet<StableKey>;
+type Interactions = BTreeSet<(StableKey, RelationKind)>;
+type ExistingSemanticPairs = BTreeMap<StableKey, BTreeMap<RelationKind, BTreeSet<StableKey>>>;
+
+/// Read-only indexes shared by every intent/symbol scoring pair in one
+/// verification pass. Building these once keeps the scoring semantics
+/// unchanged while avoiding repeated full-graph scans and tokenization.
+struct VerificationIndex {
+    terms_by_node: BTreeMap<StableKey, BTreeSet<String>>,
+    existing_semantic_pairs: ExistingSemanticPairs,
+    verified_symbols_by_intent: BTreeMap<StableKey, NodeSet>,
+    linked_tests_by_intent: BTreeMap<StableKey, NodeSet>,
+    active_call_neighbors: BTreeMap<StableKey, NodeSet>,
+    all_call_neighbors: BTreeMap<StableKey, NodeSet>,
+    interactions_by_symbol: BTreeMap<StableKey, Interactions>,
+    interaction_targets_by_symbol: BTreeMap<StableKey, NodeSet>,
+    verified_interactions_by_intent: BTreeMap<StableKey, Interactions>,
+    verified_interaction_targets_by_intent: BTreeMap<StableKey, NodeSet>,
+    verified_files_by_intent: BTreeMap<StableKey, BTreeSet<String>>,
+    artifact_symbols_by_intent: BTreeMap<String, NodeSet>,
+}
+
+impl VerificationIndex {
+    fn new(graph: &GraphSnapshot, artifact_context: &ArtifactEvidenceContext) -> Self {
+        let terms_by_node = graph
+            .nodes
+            .values()
+            .map(|node| (node.stable_key.clone(), node_terms(node)))
+            .collect();
+        let existing_semantic_pairs = existing_semantic_pairs(graph);
+        let mut verified_symbols_by_intent: BTreeMap<StableKey, NodeSet> = BTreeMap::new();
+        let mut linked_tests_by_intent: BTreeMap<StableKey, NodeSet> = BTreeMap::new();
+        let mut active_call_neighbors: BTreeMap<StableKey, NodeSet> = BTreeMap::new();
+        let mut all_call_neighbors: BTreeMap<StableKey, NodeSet> = BTreeMap::new();
+        let mut interactions_by_symbol: BTreeMap<StableKey, Interactions> = BTreeMap::new();
+        let mut interaction_targets_by_symbol: BTreeMap<StableKey, NodeSet> = BTreeMap::new();
+
+        for edge in &graph.edges {
+            if edge.kind == RelationKind::Calls {
+                all_call_neighbors
+                    .entry(edge.source.clone())
+                    .or_default()
+                    .insert(edge.target.clone());
+                all_call_neighbors
+                    .entry(edge.target.clone())
+                    .or_default()
+                    .insert(edge.source.clone());
+                if edge.status == ClaimStatus::Active {
+                    active_call_neighbors
+                        .entry(edge.source.clone())
+                        .or_default()
+                        .insert(edge.target.clone());
+                    active_call_neighbors
+                        .entry(edge.target.clone())
+                        .or_default()
+                        .insert(edge.source.clone());
+                }
+            }
+            if edge.status != ClaimStatus::Active {
+                continue;
+            }
+            if matches!(
+                edge.kind,
+                RelationKind::Implements | RelationKind::Enforces | RelationKind::Satisfies
+            ) {
+                verified_symbols_by_intent
+                    .entry(edge.target.clone())
+                    .or_default()
+                    .insert(edge.source.clone());
+            }
+            if edge.kind == RelationKind::CoveredBy {
+                linked_tests_by_intent
+                    .entry(edge.source.clone())
+                    .or_default()
+                    .insert(edge.target.clone());
+            }
+            if matches!(edge.kind, RelationKind::ReadsFrom | RelationKind::WritesTo) {
+                interactions_by_symbol
+                    .entry(edge.source.clone())
+                    .or_default()
+                    .insert((edge.target.clone(), edge.kind));
+                interaction_targets_by_symbol
+                    .entry(edge.source.clone())
+                    .or_default()
+                    .insert(edge.target.clone());
+            }
+        }
+
+        let mut verified_interactions_by_intent = BTreeMap::new();
+        let mut verified_interaction_targets_by_intent = BTreeMap::new();
+        let mut verified_files_by_intent = BTreeMap::new();
+        for (intent, verified_symbols) in &verified_symbols_by_intent {
+            let mut interactions = Interactions::new();
+            let mut interaction_targets = NodeSet::new();
+            let mut files = BTreeSet::new();
+            for symbol in verified_symbols {
+                if let Some(symbol_interactions) = interactions_by_symbol.get(symbol) {
+                    interactions.extend(symbol_interactions.iter().cloned());
+                }
+                if let Some(symbol_targets) = interaction_targets_by_symbol.get(symbol) {
+                    interaction_targets.extend(symbol_targets.iter().cloned());
+                }
+                if let Some(file) = graph.nodes.get(symbol).and_then(symbol_file) {
+                    files.insert(file.to_owned());
+                }
+            }
+            verified_interactions_by_intent.insert(intent.clone(), interactions);
+            verified_interaction_targets_by_intent.insert(intent.clone(), interaction_targets);
+            verified_files_by_intent.insert(intent.clone(), files);
+        }
+
+        let artifact_symbols_by_intent = artifact_symbols_by_intent(artifact_context);
+
+        Self {
+            terms_by_node,
+            existing_semantic_pairs,
+            verified_symbols_by_intent,
+            linked_tests_by_intent,
+            active_call_neighbors,
+            all_call_neighbors,
+            interactions_by_symbol,
+            interaction_targets_by_symbol,
+            verified_interactions_by_intent,
+            verified_interaction_targets_by_intent,
+            verified_files_by_intent,
+            artifact_symbols_by_intent,
+        }
+    }
+
+    fn already_linked(
+        &self,
+        symbol: &StableKey,
+        intent: &StableKey,
+        relation: RelationKind,
+    ) -> bool {
+        self.existing_semantic_pairs
+            .get(symbol)
+            .and_then(|relations| relations.get(&relation))
+            .is_some_and(|targets| targets.contains(intent))
+    }
+}
+
+fn artifact_symbols_by_intent(
+    artifact_context: &ArtifactEvidenceContext,
+) -> BTreeMap<String, NodeSet> {
+    let mut changed_symbols_by_artifact: HashMap<_, NodeSet> = HashMap::new();
+    for link in &artifact_context.links {
+        if link.kind == ArtifactLinkKind::ChangedSymbol
+            && let ArtifactLinkTarget::CodeSymbol(symbol) = &link.target
+        {
+            changed_symbols_by_artifact
+                .entry(link.source.clone())
+                .or_default()
+                .insert(symbol.clone());
+        }
+    }
+    artifact_context
+        .accepted_evidence
+        .iter()
+        .filter_map(|(intent, evidence)| {
+            let symbols = evidence
+                .iter()
+                .filter_map(|item| changed_symbols_by_artifact.get(&item.identity))
+                .flatten()
+                .cloned()
+                .collect::<NodeSet>();
+            (!symbols.is_empty()).then(|| (intent.clone(), symbols))
+        })
+        .collect()
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SemanticCandidate {
     pub fingerprint: String,
@@ -68,7 +239,7 @@ pub fn semantic_candidates(
     graph: &GraphSnapshot,
     artifact_context: &ArtifactEvidenceContext,
 ) -> Vec<SemanticCandidate> {
-    let linked = existing_semantic_pairs(graph);
+    let index = VerificationIndex::new(graph, artifact_context);
     let intents = graph
         .nodes
         .values()
@@ -83,14 +254,10 @@ pub fn semantic_candidates(
     for intent in intents {
         for symbol in &symbols {
             let relation = relation_for_intent(intent.kind);
-            if linked.contains(&(
-                symbol.stable_key.clone(),
-                intent.stable_key.clone(),
-                relation,
-            )) {
+            if index.already_linked(&symbol.stable_key, &intent.stable_key, relation) {
                 continue;
             }
-            let score = score_candidate(graph, symbol, intent, artifact_context);
+            let score = score_candidate(&index, symbol, intent);
             if score.total < 0.65 {
                 continue;
             }
@@ -122,14 +289,19 @@ pub fn semantic_candidates(
 }
 
 fn score_candidate(
-    graph: &GraphSnapshot,
+    index: &VerificationIndex,
     symbol: &GraphNode,
     intent: &GraphNode,
-    artifact_context: &ArtifactEvidenceContext,
 ) -> ResolutionScore {
-    let symbol_terms = node_terms(symbol);
-    let intent_terms = node_terms(intent);
-    let overlap = symbol_terms.intersection(&intent_terms).count();
+    let symbol_terms = index
+        .terms_by_node
+        .get(&symbol.stable_key)
+        .expect("every scored symbol was indexed");
+    let intent_terms = index
+        .terms_by_node
+        .get(&intent.stable_key)
+        .expect("every scored intent was indexed");
+    let overlap = symbol_terms.intersection(intent_terms).count();
     let lexical: f32 = match overlap {
         0 => 0.0,
         1 => 0.25,
@@ -137,10 +309,10 @@ fn score_candidate(
         3 => 0.75,
         _ => 1.0,
     };
-    let structural = structural_signal(graph, symbol, intent);
-    let test_correlation = test_signal(graph, symbol, intent);
-    let data_interaction = data_interaction_signal(graph, symbol, intent);
-    let artifact_evidence = artifact_evidence_signal(symbol, intent, artifact_context);
+    let structural = structural_signal(index, symbol, intent);
+    let test_correlation = test_signal(index, symbol, intent);
+    let data_interaction = data_interaction_signal(index, symbol, intent);
+    let artifact_evidence = artifact_evidence_signal(index, symbol, intent);
     let total = lexical.mul_add(
         0.35,
         structural.mul_add(
@@ -170,133 +342,83 @@ fn score_candidate(
 /// non-explicit signal. 0.0 for a hand-authored intent with no accepted
 /// evidence trail, never guessed at.
 fn artifact_evidence_signal(
+    index: &VerificationIndex,
     symbol: &GraphNode,
     intent: &GraphNode,
-    artifact_context: &ArtifactEvidenceContext,
 ) -> f32 {
-    let Some(evidence) = artifact_context.accepted_evidence.get(intent.identifier()) else {
+    if index
+        .artifact_symbols_by_intent
+        .get(intent.identifier())
+        .is_some_and(|symbols| symbols.contains(&symbol.stable_key))
+    {
+        1.0
+    } else {
+        0.0
+    }
+}
+
+fn structural_signal(index: &VerificationIndex, symbol: &GraphNode, intent: &GraphNode) -> f32 {
+    let Some(verified_symbols) = index.verified_symbols_by_intent.get(&intent.stable_key) else {
         return 0.0;
     };
-    let backing_artifacts: std::collections::HashSet<_> =
-        evidence.iter().map(|item| &item.identity).collect();
-    let changed_by_backing_artifact = artifact_context.links.iter().any(|link| {
-        link.kind == ArtifactLinkKind::ChangedSymbol
-            && link.target == ArtifactLinkTarget::CodeSymbol(symbol.stable_key.clone())
-            && backing_artifacts.contains(&link.source)
-    });
-    if changed_by_backing_artifact {
-        1.0
-    } else {
-        0.0
-    }
-}
-
-fn structural_signal(graph: &GraphSnapshot, symbol: &GraphNode, intent: &GraphNode) -> f32 {
-    let verified_symbols = graph
-        .edges
-        .iter()
-        .filter(|edge| {
-            edge.target == intent.stable_key
-                && edge.status == ClaimStatus::Active
-                && matches!(
-                    edge.kind,
-                    RelationKind::Implements | RelationKind::Enforces | RelationKind::Satisfies
-                )
-        })
-        .map(|edge| &edge.source)
-        .collect::<BTreeSet<_>>();
-    if graph.edges.iter().any(|edge| {
-        edge.kind == RelationKind::Calls
-            && edge.status == ClaimStatus::Active
-            && ((edge.source == symbol.stable_key && verified_symbols.contains(&edge.target))
-                || (edge.target == symbol.stable_key && verified_symbols.contains(&edge.source)))
-    }) {
-        return 1.0;
-    }
-    let file_path = symbol_file(symbol);
-    let same_file = verified_symbols.iter().any(|key| {
-        graph
-            .nodes
-            .get(*key)
-            .and_then(symbol_file)
-            .zip(file_path)
-            .is_some_and(|(verified, candidate)| verified == candidate)
-    });
-    if same_file { 0.6 } else { 0.0 }
-}
-
-fn test_signal(graph: &GraphSnapshot, symbol: &GraphNode, intent: &GraphNode) -> f32 {
-    let linked_tests = graph
-        .edges
-        .iter()
-        .filter(|edge| {
-            edge.source == intent.stable_key
-                && edge.kind == RelationKind::CoveredBy
-                && edge.status == ClaimStatus::Active
-        })
-        .map(|edge| &edge.target)
-        .collect::<BTreeSet<_>>();
-    if graph.edges.iter().any(|edge| {
-        edge.kind == RelationKind::Calls
-            && ((edge.source == symbol.stable_key && linked_tests.contains(&edge.target))
-                || (edge.target == symbol.stable_key && linked_tests.contains(&edge.source)))
-    }) {
-        1.0
-    } else {
-        0.0
-    }
-}
-
-fn data_interaction_signal(graph: &GraphSnapshot, symbol: &GraphNode, intent: &GraphNode) -> f32 {
-    let verified_symbols = graph
-        .edges
-        .iter()
-        .filter(|edge| {
-            edge.target == intent.stable_key
-                && edge.status == ClaimStatus::Active
-                && matches!(
-                    edge.kind,
-                    RelationKind::Implements | RelationKind::Enforces | RelationKind::Satisfies
-                )
-        })
-        .map(|edge| &edge.source)
-        .collect::<BTreeSet<_>>();
-    let candidate_interactions = graph
-        .edges
-        .iter()
-        .filter(|edge| {
-            edge.source == symbol.stable_key
-                && edge.status == ClaimStatus::Active
-                && matches!(edge.kind, RelationKind::ReadsFrom | RelationKind::WritesTo)
-        })
-        .map(|edge| (&edge.target, edge.kind))
-        .collect::<BTreeSet<_>>();
-    let verified_interactions = graph
-        .edges
-        .iter()
-        .filter(|edge| {
-            verified_symbols.contains(&edge.source)
-                && edge.status == ClaimStatus::Active
-                && matches!(edge.kind, RelationKind::ReadsFrom | RelationKind::WritesTo)
-        })
-        .map(|edge| (&edge.target, edge.kind))
-        .collect::<BTreeSet<_>>();
-    if candidate_interactions
-        .intersection(&verified_interactions)
-        .next()
-        .is_some()
+    if index
+        .active_call_neighbors
+        .get(&symbol.stable_key)
+        .is_some_and(|neighbors| !neighbors.is_disjoint(verified_symbols))
     {
         return 1.0;
     }
-    if candidate_interactions.iter().any(|(candidate, _)| {
-        verified_interactions
-            .iter()
-            .any(|(verified, _)| candidate == verified)
-    }) {
-        0.6
+    let file_path = symbol_file(symbol);
+    let same_file = index
+        .verified_files_by_intent
+        .get(&intent.stable_key)
+        .zip(file_path)
+        .is_some_and(|(files, candidate)| files.contains(candidate));
+    if same_file { 0.6 } else { 0.0 }
+}
+
+fn test_signal(index: &VerificationIndex, symbol: &GraphNode, intent: &GraphNode) -> f32 {
+    let Some(linked_tests) = index.linked_tests_by_intent.get(&intent.stable_key) else {
+        return 0.0;
+    };
+    if index
+        .all_call_neighbors
+        .get(&symbol.stable_key)
+        .is_some_and(|neighbors| !neighbors.is_disjoint(linked_tests))
+    {
+        1.0
     } else {
         0.0
     }
+}
+
+fn data_interaction_signal(
+    index: &VerificationIndex,
+    symbol: &GraphNode,
+    intent: &GraphNode,
+) -> f32 {
+    let Some(candidate_interactions) = index.interactions_by_symbol.get(&symbol.stable_key) else {
+        return 0.0;
+    };
+    let Some(verified_interactions) = index
+        .verified_interactions_by_intent
+        .get(&intent.stable_key)
+    else {
+        return 0.0;
+    };
+    if !candidate_interactions.is_disjoint(verified_interactions) {
+        return 1.0;
+    }
+    let shares_target = index
+        .interaction_targets_by_symbol
+        .get(&symbol.stable_key)
+        .zip(
+            index
+                .verified_interaction_targets_by_intent
+                .get(&intent.stable_key),
+        )
+        .is_some_and(|(candidate, verified)| !candidate.is_disjoint(verified));
+    if shares_target { 0.6 } else { 0.0 }
 }
 
 fn score_evidence(score: &ResolutionScore) -> Vec<String> {
@@ -325,20 +447,22 @@ fn score_evidence(score: &ResolutionScore) -> Vec<String> {
     evidence
 }
 
-fn existing_semantic_pairs(
-    graph: &GraphSnapshot,
-) -> BTreeSet<(StableKey, StableKey, RelationKind)> {
-    graph
-        .edges
-        .iter()
-        .filter(|edge| {
-            matches!(
-                edge.kind,
-                RelationKind::Implements | RelationKind::Enforces | RelationKind::Satisfies
-            )
-        })
-        .map(|edge| (edge.source.clone(), edge.target.clone(), edge.kind))
-        .collect()
+fn existing_semantic_pairs(graph: &GraphSnapshot) -> ExistingSemanticPairs {
+    let mut pairs: ExistingSemanticPairs = BTreeMap::new();
+    for edge in &graph.edges {
+        if matches!(
+            edge.kind,
+            RelationKind::Implements | RelationKind::Enforces | RelationKind::Satisfies
+        ) {
+            pairs
+                .entry(edge.source.clone())
+                .or_default()
+                .entry(edge.kind)
+                .or_default()
+                .insert(edge.target.clone());
+        }
+    }
+    pairs
 }
 
 fn node_terms(node: &GraphNode) -> BTreeSet<String> {
@@ -729,13 +853,11 @@ mod tests {
 
         let candidates = semantic_candidates(&graph, &ArtifactEvidenceContext::default());
 
-        assert!(
-            candidates
-                .iter()
-                .any(|item| item.target == intent.stable_key
-                    && item.source == candidate.stable_key),
-            "an intent with no recorded origin still gets scored like any other"
-        );
+        let proposal = candidates
+            .iter()
+            .find(|item| item.target == intent.stable_key && item.source == candidate.stable_key)
+            .expect("an intent with no recorded origin still gets scored like any other");
+        assert!(proposal.score.artifact_evidence.abs() < f32::EPSILON);
     }
 
     #[test]
@@ -812,6 +934,58 @@ mod tests {
                 .iter()
                 .any(|line| line.contains("same artifact"))
         );
+    }
+
+    #[test]
+    fn indexed_scoring_preserves_existing_edge_status_and_interaction_rules() {
+        let intent = intent_node();
+        let verified = symbol_node("verified", "subscription.cancel_access_existing");
+        let mut candidate = symbol_node("candidate", "subscription.cancel_access_handler");
+        let linked_test = symbol_node("linked-test", "subscription.cancel_access_test");
+        let database = interaction_node("db:subscriptions", "subscriptions");
+        let PlannedNodeAttributes::Symbol { file_path, .. } = &mut candidate.attributes else {
+            unreachable!("candidate is a symbol")
+        };
+        *file_path = "handler.py".to_owned();
+
+        let mut rejected_structural_call = edge(&candidate, &verified, RelationKind::Calls);
+        rejected_structural_call.status = ClaimStatus::Rejected;
+        let mut rejected_test_call = edge(&candidate, &linked_test, RelationKind::Calls);
+        rejected_test_call.status = ClaimStatus::Rejected;
+        let mut rejected_existing_pair = edge(&candidate, &intent, RelationKind::Implements);
+        rejected_existing_pair.status = ClaimStatus::Rejected;
+        let graph = GraphSnapshot {
+            nodes: [
+                intent.clone(),
+                verified.clone(),
+                candidate.clone(),
+                linked_test.clone(),
+                database.clone(),
+            ]
+            .into_iter()
+            .map(|node| (node.stable_key.clone(), node))
+            .collect(),
+            edges: vec![
+                edge(&verified, &intent, RelationKind::Implements),
+                edge(&intent, &linked_test, RelationKind::CoveredBy),
+                rejected_structural_call,
+                rejected_test_call,
+                rejected_existing_pair,
+                edge(&verified, &database, RelationKind::WritesTo),
+                edge(&candidate, &database, RelationKind::ReadsFrom),
+            ],
+        };
+
+        let index = VerificationIndex::new(&graph, &ArtifactEvidenceContext::default());
+
+        assert!(structural_signal(&index, &candidate, &intent).abs() < f32::EPSILON);
+        assert!((test_signal(&index, &candidate, &intent) - 1.0).abs() < f32::EPSILON);
+        assert!((data_interaction_signal(&index, &candidate, &intent) - 0.6).abs() < f32::EPSILON);
+        assert!(index.already_linked(
+            &candidate.stable_key,
+            &intent.stable_key,
+            RelationKind::Implements
+        ));
     }
 
     #[test]

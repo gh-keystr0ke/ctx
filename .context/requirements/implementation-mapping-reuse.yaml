@@ -24,11 +24,15 @@ statement: >
   hidden behind other already-mapped documents.
 implementation:
   - symbol: ctx_core.verification.semantic_candidates
+  - symbol: ctx_core.verification.VerificationIndex
+  - symbol: ctx_core.verification.VerificationIndex.new
   - symbol: ctx_core.verification.score_candidate
   - symbol: ctx_core.verification.artifact_evidence_signal
+  - symbol: ctx_core.verification.artifact_symbols_by_intent
   - symbol: ctx_core.verification.ArtifactEvidenceContext
   - symbol: ctx_app.verification.VerificationService.candidates
   - symbol: ctx_adapters.sqlite.artifacts.SqliteStore.KnowledgeCandidateStore.accepted_evidence
 tests:
   - symbol: ctx_core.verification.tests.an_intent_from_an_accepted_ai_derived_candidate_gets_mapping_candidates_like_any_other
   - symbol: ctx_core.verification.tests.a_symbol_changed_by_the_same_artifact_that_backs_the_requirement_scores_higher
+  - symbol: ctx_core.verification.tests.indexed_scoring_preserves_existing_edge_status_and_interaction_rules

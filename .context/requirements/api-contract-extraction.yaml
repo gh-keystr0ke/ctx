@@ -1,0 +1,24 @@
+id: REQ-FEDERATION-002
+type: requirement
+visibility: public
+status: active
+statement: >-
+  Python FastAPI and Flask endpoint declarations and requests/httpx outbound calls must be
+  recognized deterministically into language-neutral HTTP IR, indexed as commit-bounded FACT
+  relationships with source evidence, retired when syntax disappears, surfaced as bounded API
+  contracts by impact/explain, and reported by review as structural ApiFindings rather than as
+  proven requirement violations; dynamic paths and wholly dynamic outbound URLs must produce no
+  fact instead of a guess.
+implementation:
+  - symbol: ctx_adapters.python.collect_api_endpoints
+  - symbol: ctx_adapters.python.collect_external_calls
+  - symbol: ctx_core.indexing.add_http_facts
+  - symbol: ctx_core.review.diff_api_endpoints
+  - symbol: ctx_core.impact.analyze_impact
+tests:
+  - symbol: ctx_adapters.python.tests.extracts_fastapi_router_and_flask_endpoint_contracts_without_guessing_dynamic_paths
+  - symbol: ctx_adapters.python.tests.extracts_static_requests_and_httpx_calls_and_normalizes_dynamic_path_segments
+  - symbol: ctx_core.indexing.tests.api_and_external_http_facts_follow_the_full_index_lifecycle
+  - symbol: ctx_core.review.tests.api_diff_separates_additions_from_destructive_contract_changes
+  - symbol: ctx_core.impact.tests.includes_an_exposed_api_endpoint_as_its_own_bounded_contract_section
+  - symbol: crates.ctx-cli.tests.e2e.python_http_contracts_index_explain_and_retire_with_static_evidence

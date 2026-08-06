@@ -1,0 +1,21 @@
+id: ADR-FEDERATION-001
+type: decision
+visibility: public
+status: accepted
+title: Model HTTP contracts as their own deterministic fact family
+decision: >-
+  HTTP endpoints and outbound requests use language-neutral ApiEndpoint/ExternalCall IR and
+  repository-scoped API/external nodes connected by EXPOSES and CALLS_EXTERNAL facts; they do not
+  extend DbEntity and indexing never resolves an outbound URL against a neighboring repository.
+  Pure literal URLs are accepted. An f-string or .format URL is accepted only when it has a literal
+  http(s) authority and every interpolation replaces a complete path segment after that authority;
+  the segment is normalized to {param}. Interpolation in the authority, query fragment, or only
+  part of a segment, concatenation, and a whole URL variable remain unknown and emit no fact.
+implementation:
+  - symbol: ctx_core.ir.ApiEndpoint
+  - symbol: ctx_core.ir.ExternalCall
+  - symbol: ctx_core.indexing.add_http_facts
+  - symbol: ctx_adapters.python.static_url_template
+tests:
+  - symbol: ctx_adapters.python.tests.extracts_static_requests_and_httpx_calls_and_normalizes_dynamic_path_segments
+  - symbol: ctx_core.indexing.tests.api_and_external_http_facts_follow_the_full_index_lifecycle

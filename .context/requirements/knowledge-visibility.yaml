@@ -1,0 +1,18 @@
+id: REQ-FEDERATION-001
+type: requirement
+visibility: public
+status: active
+statement: >-
+  Every product-context document has an explicit normalized visibility of public or private;
+  omitted visibility defaults to private, invalid values fail indexing, and only public documents
+  may cross a repository boundary through federation export.
+implementation:
+  - symbol: ctx_core.business.Visibility
+  - symbol: ctx_adapters.business_context.normalize_document
+  - symbol: ctx_adapters.sqlite.context.SqliteStore.BusinessContextStore.sync_context
+  - symbol: ctx_adapters.sqlite.index.SqliteStore.IndexStore.status
+tests:
+  - symbol: ctx_adapters.business_context.tests.visibility_defaults_private_and_accepts_both_explicit_values
+  - symbol: ctx_adapters.business_context.tests.invalid_visibility_is_a_clear_parse_error
+  - symbol: ctx_adapters.sqlite.tests.existing_business_documents_upgrade_as_private_without_data_loss
+  - symbol: ctx_adapters.sqlite.context.tests.explicit_links_persist_an_explainable_evidence_chain

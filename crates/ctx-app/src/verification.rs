@@ -614,6 +614,7 @@ fn candidate_to_document(candidate: &KnowledgeCandidate, document_id: &str) -> B
         title,
         body: candidate.statement.clone(),
         status: "active".to_owned(),
+        visibility: ctx_core::business::Visibility::Private,
         feature: None,
         implementation: to_links(&candidate.implementation_candidates),
         tests: to_links(&candidate.test_candidates),
@@ -875,6 +876,7 @@ mod knowledge_tests {
             attributes: ctx_core::indexing::PlannedNodeAttributes::Business {
                 id: "REQ-SUB-001".to_owned(),
                 status: "active".to_owned(),
+                visibility: ctx_core::business::Visibility::Private,
                 body: "Cancellation preserves paid access until the period ends.".to_owned(),
                 feature: None,
                 source_uri: "requirement.yaml".to_owned(),
@@ -1169,6 +1171,7 @@ mod knowledge_tests {
             attributes: ctx_core::indexing::PlannedNodeAttributes::Business {
                 id: "REQ-SUB-001".to_owned(),
                 status: "active".to_owned(),
+                visibility: ctx_core::business::Visibility::Private,
                 body: "Cancellation preserves paid access until the period ends.".to_owned(),
                 feature: None,
                 source_uri: "requirement.yaml".to_owned(),
@@ -1296,6 +1299,7 @@ mod knowledge_tests {
             attributes: ctx_core::indexing::PlannedNodeAttributes::Business {
                 id: "REQ-SUB-001".to_owned(),
                 status: "active".to_owned(),
+                visibility: ctx_core::business::Visibility::Private,
                 body: "Cancellation preserves paid access until the period ends.".to_owned(),
                 feature: None,
                 source_uri: "requirement.yaml".to_owned(),

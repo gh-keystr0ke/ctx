@@ -23,6 +23,7 @@ const MIGRATIONS: &[(i64, &str)] = &[
         7,
         include_str!("../migrations/007_drop_knowledge_candidates.sql"),
     ),
+    (8, include_str!("../migrations/008_document_visibility.sql")),
 ];
 
 #[derive(Debug, Error)]
@@ -164,6 +165,46 @@ mod tests {
         assert_eq!(current, 1);
         assert_eq!(closed_at, 2);
         assert!(index_exists);
+    }
+
+    #[test]
+    fn existing_business_documents_upgrade_as_private_without_data_loss() {
+        let directory = tempdir().expect("temporary directory");
+        let database = directory.path().join("legacy-visibility.db");
+        let connection = Connection::open(&database).expect("legacy database");
+        connection
+            .execute_batch(&format!(
+                "CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY);
+                 {};
+                 INSERT INTO schema_migrations(version) VALUES (1);
+                 INSERT INTO repositories(id, stable_id, root_path, created_at)
+                    VALUES (1, 'repo:test', '/repo', '2026-08-17T00:00:00Z');
+                 INSERT INTO commits(id, repository_id, oid, authored_at, indexed_at)
+                    VALUES (1, 1, 'aaaaaaaa', '2026-08-17T00:00:00Z', '2026-08-17T00:00:00Z');
+                 INSERT INTO nodes(id, repository_id, kind, stable_key, created_commit)
+                    VALUES (1, 1, 'requirement', 'intent:REQ-LEGACY-001', 1);
+                 INSERT INTO node_versions(
+                    node_id, valid_from, name, content_hash, attributes_json
+                 ) VALUES (
+                    1, 1, 'Legacy requirement', 'hash',
+                    '{{\"type\":\"business\",\"id\":\"REQ-LEGACY-001\",\"status\":\"active\",\"body\":\"Keep it\",\"feature\":null,\"source_uri\":\"legacy.yaml\"}}'
+                 );",
+                include_str!("../migrations/001_initial.sql")
+            ))
+            .expect("legacy schema and document");
+        drop(connection);
+
+        let store = SqliteStore::open(&database, directory.path()).expect("upgrade database");
+        let (name, visibility): (String, String) = store
+            .connection()
+            .query_row(
+                "SELECT name, visibility FROM node_versions WHERE node_id = 1",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("upgraded document");
+        assert_eq!(name, "Legacy requirement");
+        assert_eq!(visibility, "private");
     }
 
     fn create_legacy_database_with_duplicate_edges(database: &Path) {

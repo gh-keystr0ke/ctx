@@ -245,6 +245,7 @@ mod tests {
             attributes: PlannedNodeAttributes::Business {
                 id: id.to_owned(),
                 status: "active".to_owned(),
+                visibility: ctx_core::business::Visibility::Private,
                 body: "Cancellation preserves paid access.".to_owned(),
                 feature: None,
                 source_uri: "requirement.yaml".to_owned(),

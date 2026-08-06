@@ -123,6 +123,7 @@ impl IndexStore for SqliteStore {
             requirements: count_current_nodes(&self.connection, repository_row, "requirement")?,
             invariants: count_current_nodes(&self.connection, repository_row, "invariant")?,
             decisions: count_current_nodes(&self.connection, repository_row, "decision")?,
+            public_documents: count_public_documents(&self.connection, repository_row)?,
             active_edges: count_edges(&self.connection, repository_row, "active")?,
             structural_facts: count_current_edges_by_class(
                 &self.connection,
@@ -146,6 +147,24 @@ impl IndexStore for SqliteStore {
             rejected_semantic_edges: count_edges(&self.connection, repository_row, "rejected")?,
         })
     }
+}
+
+fn count_public_documents(
+    connection: &rusqlite::Connection,
+    repository_row: i64,
+) -> Result<usize, PortError> {
+    connection
+        .query_row(
+            "SELECT COUNT(*)
+             FROM nodes n
+             JOIN node_versions nv ON nv.node_id = n.id AND nv.valid_to IS NULL
+             WHERE n.repository_id = ?1 AND n.retired_commit IS NULL
+               AND n.kind IN ('feature', 'requirement', 'invariant', 'decision')
+               AND nv.visibility = 'public'",
+            [repository_row],
+            |row| row.get(0),
+        )
+        .map_err(database_error)
 }
 
 impl SqliteStore {

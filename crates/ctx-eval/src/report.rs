@@ -662,6 +662,7 @@ mod tests {
             kind,
             identifier: identifier.to_owned(),
             name: identifier.to_owned(),
+            visibility: None,
         }
     }
 

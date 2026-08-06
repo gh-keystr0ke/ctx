@@ -62,6 +62,7 @@ pub struct RepositoryStatus {
     pub requirements: usize,
     pub invariants: usize,
     pub decisions: usize,
+    pub public_documents: usize,
     pub active_edges: usize,
     pub structural_facts: usize,
     pub active_assertions: usize,

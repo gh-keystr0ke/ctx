@@ -1000,6 +1000,13 @@ fn explain(cli: &Cli, git: &GitRepo, target: &str) -> Result<(), CliError> {
         } else {
             println!("Explanation for {target}");
         }
+        if let Some(visibility) = explanation
+            .subjects
+            .iter()
+            .find_map(|subject| subject.visibility)
+        {
+            println!("  Visibility: {}", visibility.as_str());
+        }
         if let Some(provenance) = &explanation.knowledge_provenance {
             println!("  Derived from: {}", provenance.derived_from.join(", "));
             println!(
@@ -1323,6 +1330,14 @@ fn status(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
     println!("  Requirements: {}", status.knowledge.requirements);
     println!("  Invariants: {}", status.knowledge.invariants);
     println!("  Decisions: {}", status.knowledge.decisions);
+    println!(
+        "  Public documents: {} out of {}",
+        status.knowledge.public_documents,
+        status.knowledge.features
+            + status.knowledge.requirements
+            + status.knowledge.invariants
+            + status.knowledge.decisions
+    );
     println!("Relationships:");
     println!("  Structural facts: {}", status.knowledge.structural_facts);
     println!(

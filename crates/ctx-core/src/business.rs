@@ -11,6 +11,24 @@ pub enum BusinessKind {
     Decision,
 }
 
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Visibility {
+    Public,
+    #[default]
+    Private,
+}
+
+impl Visibility {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Public => "public",
+            Self::Private => "private",
+        }
+    }
+}
+
 impl BusinessKind {
     pub const fn node_kind(self) -> NodeKind {
         match self {
@@ -62,6 +80,7 @@ pub struct BusinessDocument {
     pub title: String,
     pub body: String,
     pub status: String,
+    pub visibility: Visibility,
     pub feature: Option<String>,
     pub implementation: Vec<ExplicitSymbolLink>,
     pub tests: Vec<ExplicitSymbolLink>,

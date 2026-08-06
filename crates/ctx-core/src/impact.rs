@@ -947,6 +947,7 @@ mod tests {
             attributes: PlannedNodeAttributes::Business {
                 id: id.to_owned(),
                 status: "active".to_owned(),
+                visibility: crate::business::Visibility::Private,
                 body: "body".to_owned(),
                 feature: None,
                 source_uri: "context.yaml".to_owned(),

@@ -106,6 +106,8 @@ pub struct NodeSummary {
     pub kind: NodeKind,
     pub identifier: String,
     pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub visibility: Option<crate::business::Visibility>,
 }
 
 impl From<&GraphNode> for NodeSummary {
@@ -115,6 +117,10 @@ impl From<&GraphNode> for NodeSummary {
             kind: node.kind,
             identifier: node.identifier().to_owned(),
             name: node.name.clone(),
+            visibility: match &node.attributes {
+                PlannedNodeAttributes::Business { visibility, .. } => Some(*visibility),
+                _ => None,
+            },
         }
     }
 }

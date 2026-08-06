@@ -5,7 +5,7 @@ use std::{
 };
 
 use ctx_app::ports::{BusinessContextReader, BusinessContextWriter, PortError};
-use ctx_core::business::{BusinessDocument, BusinessKind, ExplicitSymbolLink};
+use ctx_core::business::{BusinessDocument, BusinessKind, ExplicitSymbolLink, Visibility};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -22,6 +22,8 @@ pub enum BusinessContextError {
     MissingField { path: String, field: &'static str },
     #[error("business context '{path}' has unsupported type '{kind}'")]
     InvalidKind { path: String, kind: String },
+    #[error("business context '{path}' has invalid visibility '{visibility}'; expected 'public' or 'private'")]
+    InvalidVisibility { path: String, visibility: String },
     #[error("business context ID '{id}' is declared more than once")]
     DuplicateId { id: String },
     #[error("Markdown context '{0}' must start and end YAML front matter with '---'")]
@@ -77,6 +79,7 @@ struct RawDocument {
     description: Option<String>,
     decision: Option<String>,
     status: Option<String>,
+    visibility: Option<String>,
     feature: Option<String>,
     #[serde(default)]
     implementation: Vec<RawLink>,
@@ -201,6 +204,7 @@ fn normalize_document(
         title,
         body,
         status: raw.status.unwrap_or_else(|| "active".to_owned()),
+        visibility: parse_visibility(&display_path, raw.visibility.as_deref())?,
         feature: raw.feature,
         implementation: normalize_links(raw.implementation, "implementation"),
         tests: normalize_links(raw.tests, "tests"),
@@ -313,6 +317,7 @@ struct WrittenDocument<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     feature: Option<&'a str>,
     status: &'a str,
+    visibility: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     name: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -362,6 +367,7 @@ fn written_document(document: &BusinessDocument) -> WrittenDocument<'_> {
         kind,
         feature: document.feature.as_deref(),
         status: &document.status,
+        visibility: document.visibility.as_str(),
         name,
         title,
         statement,
@@ -401,6 +407,20 @@ fn parse_kind(path: &str, kind: &str) -> Result<BusinessKind, BusinessContextErr
     }
 }
 
+fn parse_visibility(
+    path: &str,
+    visibility: Option<&str>,
+) -> Result<Visibility, BusinessContextError> {
+    match visibility {
+        None | Some("private") => Ok(Visibility::Private),
+        Some("public") => Ok(Visibility::Public),
+        Some(visibility) => Err(BusinessContextError::InvalidVisibility {
+            path: path.to_owned(),
+            visibility: visibility.to_owned(),
+        }),
+    }
+}
+
 #[allow(clippy::needless_pass_by_value)]
 fn port_error(error: BusinessContextError) -> PortError {
     PortError::new(error.to_string())
@@ -435,6 +455,7 @@ mod tests {
             title: title.to_owned(),
             body: body.to_owned(),
             status: "active".to_owned(),
+            visibility: Visibility::Private,
             feature: Some("FEAT-INDEXING".to_owned()),
             implementation: vec![ExplicitSymbolLink {
                 symbol: "billing.subscription.SubscriptionService.cancel".to_owned(),
@@ -469,6 +490,45 @@ mod tests {
             read_back[0].implementation[0].symbol,
             "billing.subscription.SubscriptionService.cancel"
         );
+    }
+
+    #[test]
+    fn visibility_defaults_private_and_accepts_both_explicit_values() {
+        for (yaml, expected) in [
+            ("id: REQ-PRIVATE\nstatement: Keep access.\n", Visibility::Private),
+            (
+                "id: REQ-PUBLIC\nvisibility: public\nstatement: Keep access.\n",
+                Visibility::Public,
+            ),
+            (
+                "id: REQ-EXPLICIT-PRIVATE\nvisibility: private\nstatement: Keep access.\n",
+                Visibility::Private,
+            ),
+        ] {
+            let raw: RawDocument = serde_yaml::from_str(yaml).expect("YAML");
+            let document = normalize_document(
+                Path::new("/repo"),
+                Path::new("/repo/.context/requirements/access.yaml"),
+                yaml,
+                raw,
+            )
+            .expect("document");
+            assert_eq!(document.visibility, expected);
+        }
+    }
+
+    #[test]
+    fn invalid_visibility_is_a_clear_parse_error() {
+        let yaml = "id: REQ-INVALID\nvisibility: internal\nstatement: Keep access.\n";
+        let raw: RawDocument = serde_yaml::from_str(yaml).expect("YAML");
+        let error = normalize_document(
+            Path::new("/repo"),
+            Path::new("/repo/.context/requirements/access.yaml"),
+            yaml,
+            raw,
+        )
+        .expect_err("unsupported visibility must fail");
+        assert!(error.to_string().contains("invalid visibility 'internal'"));
     }
 
     #[test]

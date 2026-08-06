@@ -126,6 +126,22 @@ impl FixtureRepository {
         serde_json::from_slice(&output.stderr).expect("ctx JSON error")
     }
 
+    fn ctx_text(&self, arguments: &[&str]) -> String {
+        let output = Command::new(env!("CARGO_BIN_EXE_ctx"))
+            .current_dir(self.root())
+            .args(arguments)
+            .output()
+            .expect("execute ctx");
+        assert!(
+            output.status.success(),
+            "ctx {} failed\nstdout: {}\nstderr: {}",
+            arguments.join(" "),
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8(output.stdout).expect("ctx text output")
+    }
+
     fn ctx_with_env(&self, arguments: &[&str], env: &[(&str, &str)]) -> Value {
         let output = Command::new(env!("CARGO_BIN_EXE_ctx"))
             .current_dir(self.root())
@@ -170,6 +186,49 @@ impl FixtureRepository {
         fs::remove_file(self.root().join(".context/private.yaml")).expect("remove ignored context");
         fs::remove_file(self.root().join(".gitignore")).expect("remove fixture ignore rule");
     }
+}
+
+#[test]
+fn document_visibility_is_reported_by_status_and_explain_in_json_and_text() {
+    let repository = FixtureRepository::new();
+    let requirement_path = repository
+        .root()
+        .join(".context/requirements/cancel-at-period-end.yaml");
+    let requirement = fs::read_to_string(&requirement_path).expect("requirement");
+    fs::write(
+        &requirement_path,
+        requirement.replacen("status: active", "status: active\nvisibility: public", 1),
+    )
+    .expect("public requirement");
+    run_git(repository.root(), &["add", "."]);
+    run_git(
+        repository.root(),
+        &["commit", "--quiet", "-m", "publish requirement"],
+    );
+
+    repository.ctx(&["init"]);
+    repository.ctx(&["index"]);
+    let status = repository.ctx(&["status"]);
+    assert_eq!(status["knowledge"]["public_documents"], 1);
+
+    let public = repository.ctx(&["explain", "REQ-SUB-014"]);
+    assert_eq!(public["matches"][0]["subjects"][0]["visibility"], "public");
+    assert!(
+        repository
+            .ctx_text(&["explain", "REQ-SUB-014"])
+            .contains("Visibility: public")
+    );
+
+    let private = repository.ctx(&["explain", "FEAT-SUBSCRIPTIONS"]);
+    assert_eq!(
+        private["matches"][0]["subjects"][0]["visibility"],
+        "private"
+    );
+    assert!(
+        repository
+            .ctx_text(&["explain", "FEAT-SUBSCRIPTIONS"])
+            .contains("Visibility: private")
+    );
 }
 
 #[test]
@@ -1005,6 +1064,7 @@ fn assert_index_shape(status: &Value) {
     assert_eq!(status["knowledge"]["files"], 2);
     assert_eq!(status["knowledge"]["symbols"], 6);
     assert_eq!(status["knowledge"]["db_entities"], 1);
+    assert_eq!(status["knowledge"]["public_documents"], 0);
     assert_eq!(status["knowledge"]["structural_facts"], 12);
     assert_eq!(status["knowledge"]["active_assertions"], 7);
     assert_eq!(status["knowledge"]["active_edges"], 19);

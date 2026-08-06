@@ -1000,6 +1000,7 @@ mod tests {
             attributes: PlannedNodeAttributes::Business {
                 id: "INV-SUB-002".to_owned(),
                 status: "active".to_owned(),
+                visibility: crate::business::Visibility::Private,
                 body: "Never delete paid history".to_owned(),
                 feature: None,
                 source_uri: "invariant.yaml".to_owned(),
@@ -1036,6 +1037,7 @@ mod tests {
             attributes: PlannedNodeAttributes::Business {
                 id: "FEAT-SUBSCRIPTIONS".to_owned(),
                 status: "active".to_owned(),
+                visibility: crate::business::Visibility::Private,
                 body: "Users can cancel without losing already-paid entitlement.".to_owned(),
                 feature: None,
                 source_uri: "feature.yaml".to_owned(),
@@ -1194,6 +1196,7 @@ mod tests {
             attributes: PlannedNodeAttributes::Business {
                 id: "REQ-SUB-001".to_owned(),
                 status: "active".to_owned(),
+                visibility: crate::business::Visibility::Private,
                 body: "Existing requirement.".to_owned(),
                 feature: None,
                 source_uri: "requirement.yaml".to_owned(),
@@ -1219,6 +1222,7 @@ mod tests {
             attributes: PlannedNodeAttributes::Business {
                 id: "REQ-SUB-001".to_owned(),
                 status: "active".to_owned(),
+                visibility: crate::business::Visibility::Private,
                 body: "Subscription cancel access remains available".to_owned(),
                 feature: None,
                 source_uri: "requirement.yaml".to_owned(),

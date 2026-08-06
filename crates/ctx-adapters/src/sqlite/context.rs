@@ -142,6 +142,7 @@ fn persist_document(
     let attributes = serde_json::to_string(&PlannedNodeAttributes::Business {
         id: document.id.clone(),
         status: document.status.clone(),
+        visibility: document.visibility,
         body: document.body.clone(),
         feature: document.feature.clone(),
         source_uri: document.source_uri.clone(),
@@ -160,12 +161,13 @@ fn persist_document(
         transaction
             .execute(
                 "UPDATE node_versions
-                 SET name = ?1, content_hash = ?2, attributes_json = ?3
-                 WHERE node_id = ?4 AND valid_from = ?5",
+                 SET name = ?1, content_hash = ?2, attributes_json = ?3, visibility = ?4
+                 WHERE node_id = ?5 AND valid_from = ?6",
                 params![
                     document.title,
                     document.content_hash,
                     attributes,
+                    document.visibility.as_str(),
                     node_row,
                     commit_row
                 ],
@@ -182,14 +184,16 @@ fn persist_document(
         .map_err(database_error)?;
     transaction
         .execute(
-            "INSERT INTO node_versions(node_id, valid_from, name, content_hash, attributes_json)
-             VALUES (?1, ?2, ?3, ?4, ?5)",
+            "INSERT INTO node_versions(
+                node_id, valid_from, name, content_hash, attributes_json, visibility
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             params![
                 node_row,
                 commit_row,
                 document.title,
                 document.content_hash,
-                attributes
+                attributes,
+                document.visibility.as_str()
             ],
         )
         .map_err(database_error)?;
@@ -739,6 +743,7 @@ mod tests {
             title: "Keep access".to_owned(),
             body: "Keep access until paid_until".to_owned(),
             status: "active".to_owned(),
+            visibility: ctx_core::business::Visibility::Public,
             feature: None,
             implementation: vec![ExplicitSymbolLink {
                 symbol: "billing.cancel".to_owned(),
@@ -754,6 +759,7 @@ mod tests {
 
         assert_eq!(stats.documents_created, 1);
         assert_eq!(stats.explicit_links_created, 1);
+        assert_public_requirement_round_trip(&store, &repository.id);
         let evidence_chains: i64 = store
             .connection()
             .query_row(
@@ -774,6 +780,29 @@ mod tests {
         assert_eq!(explanation.claims.len(), 1);
         assert_eq!(explanation.claims[0].evidence.len(), 1);
         assert_acceptance_preserves_inference(&mut store, &repository.id, &commit);
+    }
+
+    fn assert_public_requirement_round_trip(store: &SqliteStore, repository: &RepositoryId) {
+        assert_eq!(
+            store
+                .status(repository)
+                .expect("status")
+                .public_documents,
+            1
+        );
+        let graph = store.load_graph(repository).expect("graph");
+        let requirement = graph
+            .resolve("REQ-SUB-014")
+            .into_iter()
+            .next()
+            .expect("requirement");
+        assert!(matches!(
+            requirement.attributes,
+            PlannedNodeAttributes::Business {
+                visibility: ctx_core::business::Visibility::Public,
+                ..
+            }
+        ));
     }
 
     /// PR-LOOKUP-006/FR-05: query-time lookup (`ctx impact`/`ctx explain`)
@@ -824,6 +853,7 @@ mod tests {
             title: "Keep access".to_owned(),
             body: "Keep access until paid_until".to_owned(),
             status: "active".to_owned(),
+            visibility: ctx_core::business::Visibility::Private,
             feature: None,
             implementation: vec![ExplicitSymbolLink {
                 symbol: "billing.cancel".to_owned(),

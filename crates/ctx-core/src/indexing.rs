@@ -180,6 +180,8 @@ pub enum PlannedNodeAttributes {
     Business {
         id: String,
         status: String,
+        #[serde(default)]
+        visibility: crate::business::Visibility,
         body: String,
         feature: Option<String>,
         source_uri: String,

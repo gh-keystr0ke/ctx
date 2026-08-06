@@ -238,6 +238,8 @@ fn parse_named_item(
         calls: Vec::new(),
         database_accesses: Vec::new(),
         schema_tables: Vec::new(),
+        api_endpoints: Vec::new(),
+        external_calls: Vec::new(),
     })
 }
 
@@ -272,6 +274,8 @@ fn parse_function(
         calls: collect_calls(body, source),
         database_accesses: collect_database_accesses(body, source),
         schema_tables: Vec::new(),
+        api_endpoints: Vec::new(),
+        external_calls: Vec::new(),
     })
 }
 
@@ -303,6 +307,8 @@ fn parse_function_signature(
         calls: Vec::new(),
         database_accesses: Vec::new(),
         schema_tables: Vec::new(),
+        api_endpoints: Vec::new(),
+        external_calls: Vec::new(),
     })
 }
 

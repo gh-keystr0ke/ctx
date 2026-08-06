@@ -336,6 +336,8 @@ fn traversable(
                 | RelationKind::ReadsFrom
                 | RelationKind::WritesTo
                 | RelationKind::DefinesSchema
+                | RelationKind::Exposes
+                | RelationKind::CallsExternal
                 | RelationKind::Emits
                 | RelationKind::Handles
         )
@@ -380,9 +382,11 @@ fn priority(node: &GraphNode, direct: bool, distance: usize) -> ContextPriority 
         NodeKind::Feature => ContextPriority::Feature,
         NodeKind::Decision => ContextPriority::Decision,
         NodeKind::CodeSymbol if node.is_test() => ContextPriority::Test,
-        NodeKind::DbEntity | NodeKind::ExternalSystem | NodeKind::Endpoint | NodeKind::Event => {
-            ContextPriority::DataContract
-        }
+        NodeKind::DbEntity
+        | NodeKind::ExternalSystem
+        | NodeKind::Endpoint
+        | NodeKind::ApiEndpoint
+        | NodeKind::Event => ContextPriority::DataContract,
         NodeKind::CodeSymbol | NodeKind::File if direct || distance <= 1 => {
             ContextPriority::DirectImplementation
         }
@@ -403,6 +407,8 @@ fn node_content(node: &GraphNode) -> String {
             calls,
             database_accesses,
             schema_tables,
+            api_endpoints,
+            external_calls,
             ..
         } => {
             let reads = database_entities(database_accesses, crate::ir::DatabaseAccessKind::Read);
@@ -412,8 +418,32 @@ fn node_content(node: &GraphNode) -> String {
             } else {
                 format!("\nDefines schema: {}", render_schema(schema_tables))
             };
+            let api_line = if api_endpoints.is_empty() {
+                String::new()
+            } else {
+                format!(
+                    "\nExposes: {}",
+                    api_endpoints
+                        .iter()
+                        .map(|endpoint| format!("{} {}", endpoint.method.as_str(), endpoint.path))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            };
+            let external_line = if external_calls.is_empty() {
+                String::new()
+            } else {
+                format!(
+                    "\nCalls external: {}",
+                    external_calls
+                        .iter()
+                        .map(|call| format!("{} {}", call.method.as_str(), call.url))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            };
             format!(
-                "{}:{}-{}\nSignature: {}\nCalls: {}\nDB reads: {}\nDB writes: {}{}",
+                "{}:{}-{}\nSignature: {}\nCalls: {}\nDB reads: {}\nDB writes: {}{}{}{}",
                 file_path,
                 range.start_line,
                 range.end_line,
@@ -426,6 +456,8 @@ fn node_content(node: &GraphNode) -> String {
                 render_entities(&reads),
                 render_entities(&writes),
                 schema_line,
+                api_line,
+                external_line,
             )
         }
         PlannedNodeAttributes::File { path, language, .. } => {
@@ -433,6 +465,22 @@ fn node_content(node: &GraphNode) -> String {
         }
         PlannedNodeAttributes::Interaction { identifier } => {
             format!("Statically discovered data or external contract: {identifier}")
+        }
+        PlannedNodeAttributes::ApiEndpoint { endpoint } => format!(
+            "{} {}\nFramework: {}\nParameters: {}\nReturns: {}",
+            endpoint.method.as_str(),
+            endpoint.path,
+            endpoint.framework,
+            endpoint
+                .params
+                .iter()
+                .map(|param| param.name.as_str())
+                .collect::<Vec<_>>()
+                .join(", "),
+            endpoint.return_type.as_deref().unwrap_or("unknown")
+        ),
+        PlannedNodeAttributes::ExternalCall { call } => {
+            format!("{} {}", call.method.as_str(), call.url)
         }
     }
 }
@@ -608,6 +656,8 @@ const fn evidence_priority(kind: RelationKind) -> usize {
         | RelationKind::ReadsFrom
         | RelationKind::WritesTo
         | RelationKind::DefinesSchema
+        | RelationKind::Exposes
+        | RelationKind::CallsExternal
         | RelationKind::Emits
         | RelationKind::Handles => 5,
     }
@@ -1012,6 +1062,8 @@ mod tests {
                 calls: Vec::new(),
                 database_accesses: Vec::new(),
                 schema_tables: Vec::new(),
+                api_endpoints: Vec::new(),
+                external_calls: Vec::new(),
             },
         }
     }

@@ -6,7 +6,7 @@ use crate::{
     domain::{ClaimStatus, NodeKind, RelationKind, StableKey},
     graph::{GraphEdge, GraphNode, GraphSnapshot, NodeSummary},
     indexing::{FileChange, PlannedNodeAttributes},
-    ir::{DatabaseAccessKind, FileAnalysis, SymbolDefinition, SymbolKind},
+    ir::{ApiEndpoint, DatabaseAccessKind, FileAnalysis, HttpMethod, SymbolDefinition, SymbolKind},
     schema::{SchemaChange, declared_schema_changes, diff_schema_tables},
 };
 
@@ -72,12 +72,64 @@ pub struct SchemaFinding {
     pub related_tests: Vec<NodeSummary>,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ApiChangeKind {
+    Added,
+    Removed,
+    ContractModified,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ApiChange {
+    pub kind: ApiChangeKind,
+    pub method: HttpMethod,
+    pub path: String,
+    pub destructive: bool,
+    pub details: Vec<String>,
+}
+
+impl ApiChange {
+    #[must_use]
+    pub fn description(&self) -> String {
+        let action = match self.kind {
+            ApiChangeKind::Added => "added",
+            ApiChangeKind::Removed => "removed",
+            ApiChangeKind::ContractModified => "changed",
+        };
+        if self.details.is_empty() {
+            format!("{action} {} {}", self.method.as_str(), self.path)
+        } else {
+            format!(
+                "{action} {} {} ({})",
+                self.method.as_str(),
+                self.path,
+                self.details.join("; ")
+            )
+        }
+    }
+}
+
+/// A deterministic API contract change, separate from a product-impact
+/// finding. Its bounded intent/test neighborhood is advisory: an empty
+/// neighborhood means no mapping is known, never that the change is safe.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ApiFinding {
+    pub source_symbol: String,
+    pub file_path: String,
+    pub destructive: bool,
+    pub changes: Vec<ApiChange>,
+    pub related_intents: Vec<NodeSummary>,
+    pub related_tests: Vec<NodeSummary>,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct ReviewReport {
     pub base: String,
     pub changed_entities: Vec<ChangedEntity>,
     pub findings: Vec<ReviewFinding>,
     pub schema_findings: Vec<SchemaFinding>,
+    pub api_findings: Vec<ApiFinding>,
     pub stale_relationships: Vec<String>,
     pub suppressed_non_behavioral_changes: usize,
 }
@@ -180,9 +232,214 @@ pub fn build_review_findings(graph: &GraphSnapshot, input: &ReviewInput) -> Revi
         changed_entities,
         findings,
         schema_findings: schema_change_findings(graph, input),
+        api_findings: api_change_findings(graph, input),
         stale_relationships,
         suppressed_non_behavioral_changes: suppressed,
     }
+}
+
+fn api_change_findings(graph: &GraphSnapshot, input: &ReviewInput) -> Vec<ApiFinding> {
+    let mut findings = Vec::new();
+    for change in &input.changes {
+        let (old_path, new_path) = change_paths(change);
+        let before = old_path
+            .and_then(|path| input.before.get(path))
+            .map_or(&[][..], |analysis| analysis.symbols.as_slice());
+        let after = new_path
+            .and_then(|path| input.after.get(path))
+            .map_or(&[][..], |analysis| analysis.symbols.as_slice());
+        let symbols = before
+            .iter()
+            .map(|symbol| symbol.canonical_path.as_str())
+            .chain(after.iter().map(|symbol| symbol.canonical_path.as_str()))
+            .collect::<BTreeSet<_>>();
+        for canonical_path in symbols {
+            let before_symbol = before
+                .iter()
+                .find(|symbol| symbol.canonical_path == canonical_path);
+            let after_symbol = after
+                .iter()
+                .find(|symbol| symbol.canonical_path == canonical_path);
+            let changes = diff_api_endpoints(
+                before_symbol.map_or(&[][..], |symbol| symbol.api_endpoints.as_slice()),
+                after_symbol.map_or(&[][..], |symbol| symbol.api_endpoints.as_slice()),
+            );
+            if changes.is_empty() {
+                continue;
+            }
+            let destructive = changes.iter().any(|change| change.destructive);
+            let (related_intents, related_tests) =
+                api_symbol_neighborhood(graph, canonical_path);
+            findings.push(ApiFinding {
+                source_symbol: canonical_path.to_owned(),
+                file_path: new_path.or(old_path).unwrap_or("unknown").to_owned(),
+                destructive,
+                changes,
+                related_intents,
+                related_tests,
+            });
+        }
+    }
+    findings.sort_by(|left, right| left.source_symbol.cmp(&right.source_symbol));
+    findings
+}
+
+/// Structurally compares endpoint contracts without attempting rename
+/// inference. A method/path identity that disappears is destructive; a new
+/// identity is informational. Parameter/return changes are compared only
+/// after method and path match exactly.
+#[must_use]
+pub fn diff_api_endpoints(before: &[ApiEndpoint], after: &[ApiEndpoint]) -> Vec<ApiChange> {
+    let before = before
+        .iter()
+        .map(|endpoint| ((endpoint.method, endpoint.path.as_str()), endpoint))
+        .collect::<BTreeMap<_, _>>();
+    let after = after
+        .iter()
+        .map(|endpoint| ((endpoint.method, endpoint.path.as_str()), endpoint))
+        .collect::<BTreeMap<_, _>>();
+    let mut changes = Vec::new();
+    for ((method, path), endpoint) in &before {
+        let Some(current) = after.get(&(*method, *path)) else {
+            changes.push(ApiChange {
+                kind: ApiChangeKind::Removed,
+                method: *method,
+                path: (*path).to_owned(),
+                destructive: true,
+                details: Vec::new(),
+            });
+            continue;
+        };
+        let (details, destructive) = changed_api_contract(endpoint, current);
+        if !details.is_empty() {
+            changes.push(ApiChange {
+                kind: ApiChangeKind::ContractModified,
+                method: *method,
+                path: (*path).to_owned(),
+                destructive,
+                details,
+            });
+        }
+    }
+    for ((method, path), _) in after
+        .iter()
+        .filter(|(identity, _)| !before.contains_key(identity))
+    {
+        changes.push(ApiChange {
+            kind: ApiChangeKind::Added,
+            method: *method,
+            path: (*path).to_owned(),
+            destructive: false,
+            details: Vec::new(),
+        });
+    }
+    changes.sort_by(|left, right| {
+        left.path
+            .cmp(&right.path)
+            .then_with(|| left.method.cmp(&right.method))
+            .then_with(|| change_kind_order(left.kind).cmp(&change_kind_order(right.kind)))
+    });
+    changes
+}
+
+fn changed_api_contract(before: &ApiEndpoint, after: &ApiEndpoint) -> (Vec<String>, bool) {
+    let mut details = Vec::new();
+    let mut destructive = false;
+    let before_params = before
+        .params
+        .iter()
+        .map(|parameter| (parameter.name.as_str(), parameter))
+        .collect::<BTreeMap<_, _>>();
+    let after_params = after
+        .params
+        .iter()
+        .map(|parameter| (parameter.name.as_str(), parameter))
+        .collect::<BTreeMap<_, _>>();
+    for (name, parameter) in &before_params {
+        match after_params.get(name) {
+            None => {
+                details.push(format!("removed parameter {name}"));
+                destructive = true;
+            }
+            Some(current) if *parameter != *current => {
+                details.push(format!("changed parameter {name}"));
+                destructive = true;
+            }
+            Some(_) => {}
+        }
+    }
+    for (name, parameter) in after_params
+        .iter()
+        .filter(|(name, _)| !before_params.contains_key(*name))
+    {
+        details.push(format!(
+            "added {} parameter {name}",
+            if parameter.required {
+                destructive = true;
+                "required"
+            } else {
+                "optional"
+            }
+        ));
+    }
+    if before.return_type != after.return_type {
+        details.push(format!(
+            "return type changed from {} to {}",
+            before.return_type.as_deref().unwrap_or("unknown"),
+            after.return_type.as_deref().unwrap_or("unknown")
+        ));
+        destructive |= before.return_type.is_some();
+    }
+    if before.framework != after.framework {
+        details.push(format!(
+            "framework changed from {} to {}",
+            before.framework, after.framework
+        ));
+    }
+    (details, destructive)
+}
+
+const fn change_kind_order(kind: ApiChangeKind) -> u8 {
+    match kind {
+        ApiChangeKind::Removed => 0,
+        ApiChangeKind::ContractModified => 1,
+        ApiChangeKind::Added => 2,
+    }
+}
+
+fn api_symbol_neighborhood(
+    graph: &GraphSnapshot,
+    canonical_path: &str,
+) -> (Vec<NodeSummary>, Vec<NodeSummary>) {
+    let symbol_keys = graph
+        .resolve(canonical_path)
+        .into_iter()
+        .filter(|node| node.kind == NodeKind::CodeSymbol)
+        .map(|node| node.stable_key.clone())
+        .collect::<BTreeSet<_>>();
+    let mut intents = Vec::new();
+    let mut tests = Vec::new();
+    for edge in graph.edges.iter().filter(|edge| {
+        symbol_keys.contains(&edge.source) && edge.status == ClaimStatus::Active
+    }) {
+        match edge.kind {
+            RelationKind::Implements | RelationKind::Enforces | RelationKind::Satisfies => {
+                if let Some(node) = graph.nodes.get(&edge.target) {
+                    intents.push(NodeSummary::from(node));
+                }
+            }
+            RelationKind::CoveredBy => {
+                if let Some(node) = graph.nodes.get(&edge.target).filter(|node| node.is_test()) {
+                    tests.push(NodeSummary::from(node));
+                }
+            }
+            _ => {}
+        }
+    }
+    (
+        dedup_summaries(intents),
+        dedup_summaries(tests),
+    )
 }
 
 /// Surfaces deterministic schema changes directly from a diff's migration
@@ -971,6 +1228,77 @@ mod tests {
 
     use super::*;
 
+    fn endpoint(method: HttpMethod, path: &str, params: Vec<crate::ir::ApiParam>) -> ApiEndpoint {
+        ApiEndpoint {
+            method,
+            path: path.to_owned(),
+            params,
+            return_type: Some("Subscription".to_owned()),
+            framework: "python_http_framework".to_owned(),
+            range: source_range(),
+        }
+    }
+
+    #[test]
+    fn api_diff_separates_additions_from_destructive_contract_changes() {
+        let before = vec![
+            endpoint(HttpMethod::Delete, "/subscriptions/{id}", Vec::new()),
+            endpoint(HttpMethod::Get, "/subscriptions", Vec::new()),
+        ];
+        let after = vec![
+            endpoint(HttpMethod::Post, "/subscriptions/{id}", Vec::new()),
+            endpoint(
+                HttpMethod::Get,
+                "/subscriptions",
+                vec![crate::ir::ApiParam {
+                    name: "expand".to_owned(),
+                    type_hint: Some("bool".to_owned()),
+                    source: crate::ir::ParamSource::Query,
+                    required: false,
+                }],
+            ),
+        ];
+
+        let changes = diff_api_endpoints(&before, &after);
+        assert_eq!(changes.len(), 3);
+        assert!(changes.iter().any(|change| {
+            change.kind == ApiChangeKind::Removed
+                && change.method == HttpMethod::Delete
+                && change.destructive
+        }));
+        assert!(changes.iter().any(|change| {
+            change.kind == ApiChangeKind::Added
+                && change.method == HttpMethod::Post
+                && !change.destructive
+        }));
+        assert!(changes.iter().any(|change| {
+            change.kind == ApiChangeKind::ContractModified
+                && change.method == HttpMethod::Get
+                && !change.destructive
+                && change.details == vec!["added optional parameter expand"]
+        }));
+    }
+
+    #[test]
+    fn removing_or_changing_a_parameter_is_destructive() {
+        let before = endpoint(
+            HttpMethod::Get,
+            "/subscriptions/{id}",
+            vec![crate::ir::ApiParam {
+                name: "id".to_owned(),
+                type_hint: Some("str".to_owned()),
+                source: crate::ir::ParamSource::Path,
+                required: true,
+            }],
+        );
+        let mut changed = before.clone();
+        changed.params[0].type_hint = Some("UUID".to_owned());
+        assert!(diff_api_endpoints(std::slice::from_ref(&before), &[changed])[0].destructive);
+
+        let removed = endpoint(HttpMethod::Get, "/subscriptions/{id}", Vec::new());
+        assert!(diff_api_endpoints(&[before], &[removed])[0].destructive);
+    }
+
     #[test]
     fn classifies_contract_and_formatting_changes_without_guessing_equivalence() {
         let before = symbol("body-a", "shape", "(value)");
@@ -1100,6 +1428,8 @@ mod tests {
             calls: Vec::new(),
             database_accesses: Vec::new(),
             schema_tables: Vec::new(),
+            api_endpoints: Vec::new(),
+            external_calls: Vec::new(),
         };
         let moved_in = SymbolDefinition {
             canonical_path: "billing.cancellation.SubscriptionService.cancel".to_owned(),
@@ -1263,6 +1593,8 @@ mod tests {
             calls: Vec::new(),
             database_accesses: Vec::new(),
             schema_tables: Vec::new(),
+            api_endpoints: Vec::new(),
+            external_calls: Vec::new(),
         };
         let after = SymbolDefinition {
             body_hash: "new-body".to_owned(),
@@ -1449,6 +1781,8 @@ mod tests {
             }],
             database_accesses: Vec::new(),
             schema_tables: Vec::new(),
+            api_endpoints: Vec::new(),
+            external_calls: Vec::new(),
         }
     }
 
@@ -1487,6 +1821,8 @@ mod tests {
                 calls: Vec::new(),
                 database_accesses: Vec::new(),
                 schema_tables: Vec::new(),
+                api_endpoints: Vec::new(),
+                external_calls: Vec::new(),
             },
         }
     }

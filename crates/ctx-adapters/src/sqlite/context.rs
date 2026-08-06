@@ -640,6 +640,8 @@ const fn relation_kind(kind: RelationKind) -> &'static str {
         RelationKind::ReadsFrom => "readsfrom",
         RelationKind::WritesTo => "writesto",
         RelationKind::DefinesSchema => "definesschema",
+        RelationKind::Exposes => "exposes",
+        RelationKind::CallsExternal => "callsexternal",
         RelationKind::Emits => "emits",
         RelationKind::Handles => "handles",
     }
@@ -729,6 +731,8 @@ mod tests {
                     calls: Vec::new(),
                     database_accesses: Vec::new(),
                     schema_tables: Vec::new(),
+                    api_endpoints: Vec::new(),
+                    external_calls: Vec::new(),
                 },
                 mutation: NodeMutationKind::Create,
             }],
@@ -906,6 +910,8 @@ mod tests {
                 calls: Vec::new(),
                 database_accesses: Vec::new(),
                 schema_tables: Vec::new(),
+                api_endpoints: Vec::new(),
+                external_calls: Vec::new(),
             },
             mutation: NodeMutationKind::Create,
         }

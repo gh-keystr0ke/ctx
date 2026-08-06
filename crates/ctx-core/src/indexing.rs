@@ -6,8 +6,8 @@ use thiserror::Error;
 use crate::{
     domain::{ClaimClass, ClaimStatus, Confidence, NodeKind, RelationKind, SourceKind, StableKey},
     ir::{
-        DatabaseAccess, DatabaseAccessKind, FileAnalysis, SchemaTableDefinition, SourceRange,
-        SymbolDefinition, SymbolKind,
+        ApiEndpoint, DatabaseAccess, DatabaseAccessKind, ExternalCall, FileAnalysis,
+        SchemaTableDefinition, SourceRange, SymbolDefinition, SymbolKind,
     },
 };
 
@@ -28,6 +28,10 @@ pub struct IndexedSymbol {
     pub database_accesses: Vec<DatabaseAccess>,
     #[serde(default)]
     pub schema_tables: Vec<SchemaTableDefinition>,
+    #[serde(default)]
+    pub api_endpoints: Vec<ApiEndpoint>,
+    #[serde(default)]
+    pub external_calls: Vec<ExternalCall>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -173,6 +177,16 @@ pub enum PlannedNodeAttributes {
         database_accesses: Vec<DatabaseAccess>,
         #[serde(default)]
         schema_tables: Vec<SchemaTableDefinition>,
+        #[serde(default)]
+        api_endpoints: Vec<ApiEndpoint>,
+        #[serde(default)]
+        external_calls: Vec<ExternalCall>,
+    },
+    ApiEndpoint {
+        endpoint: ApiEndpoint,
+    },
+    ExternalCall {
+        call: ExternalCall,
     },
     Interaction {
         identifier: String,
@@ -356,6 +370,7 @@ pub fn plan_incremental_index(
     current_symbols.retain(|symbol| !retired.contains(&symbol.stable_key));
     add_resolved_calls(&mut plan, &current_symbols);
     add_database_facts(&mut plan, &historical_database_entities, &current_symbols)?;
+    add_http_facts(&mut plan, &historical_symbols, &current_symbols)?;
     normalize_plan(&mut plan)?;
     Ok(plan)
 }
@@ -508,6 +523,8 @@ fn write_symbol(
             calls: calls.clone(),
             database_accesses: definition.database_accesses.clone(),
             schema_tables: definition.schema_tables.clone(),
+            api_endpoints: definition.api_endpoints.clone(),
+            external_calls: definition.external_calls.clone(),
         },
         mutation,
     });
@@ -526,6 +543,8 @@ fn write_symbol(
         calls,
         database_accesses: definition.database_accesses.clone(),
         schema_tables: definition.schema_tables.clone(),
+        api_endpoints: definition.api_endpoints.clone(),
+        external_calls: definition.external_calls.clone(),
     });
     plan.edges_to_create.push(structural_edge(
         file_key,
@@ -962,6 +981,203 @@ fn database_entity_key(entity: &str) -> Result<StableKey, IndexPlanError> {
         .map_err(|error| IndexPlanError::InvalidStableKey(error.to_string()))
 }
 
+fn add_http_facts(
+    plan: &mut IndexPlan,
+    historical_symbols: &[IndexedSymbol],
+    symbols: &[IndexedSymbol],
+) -> Result<(), IndexPlanError> {
+    let historical_endpoints = indexed_api_endpoints(historical_symbols);
+    let current_endpoints = indexed_api_endpoints(symbols);
+    reconcile_api_endpoint_nodes(plan, &historical_endpoints, &current_endpoints)?;
+
+    let historical_calls = indexed_external_calls(historical_symbols);
+    let current_calls = indexed_external_calls(symbols);
+    reconcile_external_call_nodes(plan, &historical_calls, &current_calls)?;
+
+    let changed = plan
+        .nodes_to_write
+        .iter()
+        .filter(|node| node.kind == NodeKind::CodeSymbol)
+        .map(|node| node.stable_key.clone())
+        .collect::<BTreeSet<_>>();
+    for symbol in symbols
+        .iter()
+        .filter(|symbol| changed.contains(&symbol.stable_key))
+    {
+        add_api_endpoint_edges(plan, symbol)?;
+        add_external_call_edges(plan, symbol)?;
+    }
+    Ok(())
+}
+
+fn indexed_api_endpoints(symbols: &[IndexedSymbol]) -> BTreeMap<String, ApiEndpoint> {
+    let mut endpoints = BTreeMap::new();
+    for endpoint in symbols.iter().flat_map(|symbol| &symbol.api_endpoints) {
+        endpoints
+            .entry(api_endpoint_identifier(endpoint))
+            .or_insert_with(|| endpoint.clone());
+    }
+    endpoints
+}
+
+fn indexed_external_calls(symbols: &[IndexedSymbol]) -> BTreeMap<String, ExternalCall> {
+    let mut calls = BTreeMap::new();
+    for call in symbols.iter().flat_map(|symbol| &symbol.external_calls) {
+        calls
+            .entry(external_call_identifier(call))
+            .or_insert_with(|| call.clone());
+    }
+    calls
+}
+
+fn reconcile_api_endpoint_nodes(
+    plan: &mut IndexPlan,
+    historical: &BTreeMap<String, ApiEndpoint>,
+    current: &BTreeMap<String, ApiEndpoint>,
+) -> Result<(), IndexPlanError> {
+    for (identifier, endpoint) in current {
+        let mutation = match historical.get(identifier) {
+            Some(previous) if previous == endpoint => continue,
+            Some(_) => NodeMutationKind::Version,
+            None => NodeMutationKind::Create,
+        };
+        plan.nodes_to_write.push(PlannedNode {
+            stable_key: api_endpoint_key(endpoint)?,
+            kind: NodeKind::ApiEndpoint,
+            name: identifier.clone(),
+            content_hash: normalized_hash(endpoint),
+            attributes: PlannedNodeAttributes::ApiEndpoint {
+                endpoint: endpoint.clone(),
+            },
+            mutation,
+        });
+    }
+    for endpoint in historical
+        .iter()
+        .filter(|(identifier, _)| !current.contains_key(*identifier))
+        .map(|(_, endpoint)| endpoint)
+    {
+        plan.nodes_to_retire.push(api_endpoint_key(endpoint)?);
+    }
+    Ok(())
+}
+
+fn reconcile_external_call_nodes(
+    plan: &mut IndexPlan,
+    historical: &BTreeMap<String, ExternalCall>,
+    current: &BTreeMap<String, ExternalCall>,
+) -> Result<(), IndexPlanError> {
+    for (identifier, call) in current {
+        let mutation = match historical.get(identifier) {
+            Some(previous) if previous == call => continue,
+            Some(_) => NodeMutationKind::Version,
+            None => NodeMutationKind::Create,
+        };
+        plan.nodes_to_write.push(PlannedNode {
+            stable_key: external_call_key(call)?,
+            kind: NodeKind::ExternalSystem,
+            name: identifier.clone(),
+            content_hash: normalized_hash(call),
+            attributes: PlannedNodeAttributes::ExternalCall { call: call.clone() },
+            mutation,
+        });
+    }
+    for call in historical
+        .iter()
+        .filter(|(identifier, _)| !current.contains_key(*identifier))
+        .map(|(_, call)| call)
+    {
+        plan.nodes_to_retire.push(external_call_key(call)?);
+    }
+    Ok(())
+}
+
+fn add_api_endpoint_edges(
+    plan: &mut IndexPlan,
+    symbol: &IndexedSymbol,
+) -> Result<(), IndexPlanError> {
+    for endpoint in &symbol.api_endpoints {
+        let target = api_endpoint_key(endpoint)?;
+        plan.edges_to_create.push(structural_edge(
+            &symbol.stable_key,
+            &target,
+            RelationKind::Exposes,
+            &symbol.file_path,
+            &normalized_hash(endpoint),
+            &symbol.language,
+            Some(format!(
+                "line:{} decorator:{} {}",
+                endpoint.range.start_line,
+                endpoint.method.as_str(),
+                endpoint.path
+            )),
+        ));
+    }
+    Ok(())
+}
+
+fn add_external_call_edges(
+    plan: &mut IndexPlan,
+    symbol: &IndexedSymbol,
+) -> Result<(), IndexPlanError> {
+    let mut grouped = BTreeMap::<String, Vec<&ExternalCall>>::new();
+    for call in &symbol.external_calls {
+        grouped
+            .entry(external_call_identifier(call))
+            .or_default()
+            .push(call);
+    }
+    for calls in grouped.into_values() {
+        let call = calls[0];
+        let target = external_call_key(call)?;
+        let lines = calls
+            .iter()
+            .map(|call| call.range.start_line.to_string())
+            .collect::<Vec<_>>()
+            .join(",");
+        plan.edges_to_create.push(structural_edge(
+            &symbol.stable_key,
+            &target,
+            RelationKind::CallsExternal,
+            &symbol.file_path,
+            &normalized_hash(call),
+            &symbol.language,
+            Some(format!("lines:{lines} {} {}", call.method.as_str(), call.url)),
+        ));
+    }
+    Ok(())
+}
+
+fn api_endpoint_identifier(endpoint: &ApiEndpoint) -> String {
+    format!("{} {}", endpoint.method.as_str(), endpoint.path)
+}
+
+fn external_call_identifier(call: &ExternalCall) -> String {
+    format!("{} {}", call.method.as_str(), call.url)
+}
+
+fn api_endpoint_key(endpoint: &ApiEndpoint) -> Result<StableKey, IndexPlanError> {
+    StableKey::new(format!(
+        "api_endpoint:{}:{}",
+        endpoint.method.as_str(),
+        endpoint.path
+    ))
+    .map_err(|error| IndexPlanError::InvalidStableKey(error.to_string()))
+}
+
+fn external_call_key(call: &ExternalCall) -> Result<StableKey, IndexPlanError> {
+    StableKey::new(format!(
+        "external_http:{}:{}",
+        call.method.as_str(),
+        call.url
+    ))
+    .map_err(|error| IndexPlanError::InvalidStableKey(error.to_string()))
+}
+
+fn normalized_hash(value: &impl std::fmt::Debug) -> String {
+    format!("{value:?}")
+}
+
 const fn is_callable(kind: SymbolKind) -> bool {
     matches!(
         kind,
@@ -1044,6 +1260,8 @@ mod tests {
             calls: Vec::new(),
             database_accesses: Vec::new(),
             schema_tables: Vec::new(),
+            api_endpoints: Vec::new(),
+            external_calls: Vec::new(),
         }
     }
 
@@ -1068,6 +1286,8 @@ mod tests {
                 calls: Vec::new(),
                 database_accesses: definition.database_accesses.clone(),
                 schema_tables: definition.schema_tables.clone(),
+                api_endpoints: definition.api_endpoints.clone(),
+                external_calls: definition.external_calls.clone(),
             }],
         }
     }
@@ -1178,6 +1398,96 @@ mod tests {
                 .count(),
             1
         );
+    }
+
+    #[test]
+    fn api_and_external_http_facts_follow_the_full_index_lifecycle() {
+        let mut handler = definition("cancel", "billing.cancel", "body-v1", "shape-v1");
+        handler.api_endpoints.push(ApiEndpoint {
+            path: "/subscriptions/{subscription_id}".to_owned(),
+            method: crate::ir::HttpMethod::Delete,
+            params: vec![crate::ir::ApiParam {
+                name: "subscription_id".to_owned(),
+                type_hint: Some("str".to_owned()),
+                source: crate::ir::ParamSource::Path,
+                required: true,
+            }],
+            return_type: Some("Subscription".to_owned()),
+            framework: "python_http_framework".to_owned(),
+            range: range(),
+        });
+        handler.external_calls.push(ExternalCall {
+            method: crate::ir::HttpMethod::Post,
+            url: "https://audit.internal/events".to_owned(),
+            range: range(),
+        });
+        let analyses = BTreeMap::from([(
+            "billing.py".to_owned(),
+            FileAnalysis {
+                path: "billing.py".to_owned(),
+                language: "python".to_owned(),
+                analysis_version: "python-tree-sitter-v4".to_owned(),
+                content_hash: "file-v1".to_owned(),
+                symbols: vec![handler.clone()],
+            },
+        )]);
+        let appeared = plan_incremental_index(
+            &RepositorySnapshot::default(),
+            &analyses,
+            &[FileChange::Added {
+                path: "billing.py".to_owned(),
+            }],
+        )
+        .expect("HTTP facts appear");
+        assert!(appeared.nodes_to_write.iter().any(|node| {
+            node.kind == NodeKind::ApiEndpoint
+                && node.stable_key.as_str()
+                    == "api_endpoint:DELETE:/subscriptions/{subscription_id}"
+        }));
+        assert!(
+            appeared
+                .edges_to_create
+                .iter()
+                .any(|edge| edge.kind == RelationKind::Exposes)
+        );
+        assert!(
+            appeared
+                .edges_to_create
+                .iter()
+                .any(|edge| edge.kind == RelationKind::CallsExternal)
+        );
+
+        let snapshot = RepositorySnapshot {
+            files: BTreeMap::from([(
+                "billing.py".to_owned(),
+                indexed_file("billing.py", &handler),
+            )]),
+        };
+        let without_contracts = definition("cancel", "billing.cancel", "body-v2", "shape-v2");
+        let analyses = BTreeMap::from([(
+            "billing.py".to_owned(),
+            FileAnalysis {
+                path: "billing.py".to_owned(),
+                language: "python".to_owned(),
+                analysis_version: "python-tree-sitter-v4".to_owned(),
+                content_hash: "file-v2".to_owned(),
+                symbols: vec![without_contracts],
+            },
+        )]);
+        let retired = plan_incremental_index(
+            &snapshot,
+            &analyses,
+            &[FileChange::Modified {
+                path: "billing.py".to_owned(),
+            }],
+        )
+        .expect("HTTP facts retire");
+        assert!(retired.nodes_to_retire.iter().any(|key| {
+            key.as_str() == "api_endpoint:DELETE:/subscriptions/{subscription_id}"
+        }));
+        assert!(retired.nodes_to_retire.iter().any(|key| {
+            key.as_str() == "external_http:POST:https://audit.internal/events"
+        }));
     }
 
     #[test]

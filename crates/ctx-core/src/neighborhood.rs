@@ -386,6 +386,8 @@ mod tests {
                 calls: Vec::new(),
                 database_accesses: Vec::new(),
                 schema_tables: Vec::new(),
+                api_endpoints: Vec::new(),
+                external_calls: Vec::new(),
             },
         }
     }
@@ -411,6 +413,8 @@ mod tests {
                 calls: Vec::new(),
                 database_accesses: Vec::new(),
                 schema_tables: Vec::new(),
+                api_endpoints: Vec::new(),
+                external_calls: Vec::new(),
             },
         }
     }

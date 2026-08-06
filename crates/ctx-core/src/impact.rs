@@ -24,6 +24,7 @@ pub struct ImpactReport {
     pub invariants: Vec<NodeSummary>,
     pub decisions: Vec<NodeSummary>,
     pub data_contracts: Vec<NodeSummary>,
+    pub api_contracts: Vec<NodeSummary>,
     pub implementation: Vec<NodeSummary>,
     pub tests: Vec<NodeSummary>,
     pub uncertainties: Vec<ImpactUncertainty>,
@@ -100,6 +101,7 @@ fn analyze_impact_for_seeds(
             | NodeKind::Event => {
                 report.data_contracts.push(summary);
             }
+            NodeKind::ApiEndpoint => report.api_contracts.push(summary),
             NodeKind::CodeSymbol if node.is_test() => report.tests.push(summary),
             NodeKind::CodeSymbol | NodeKind::File => report.implementation.push(summary),
             NodeKind::DomainConcept => {}
@@ -242,6 +244,8 @@ fn expand_structural_seed_neighborhood(
                     | RelationKind::ReadsFrom
                     | RelationKind::WritesTo
                     | RelationKind::DefinesSchema
+                    | RelationKind::Exposes
+                    | RelationKind::CallsExternal
                     | RelationKind::Emits
                     | RelationKind::Handles
             )
@@ -364,6 +368,7 @@ fn sort_report(report: &mut ImpactReport) {
         &mut report.invariants,
         &mut report.decisions,
         &mut report.data_contracts,
+        &mut report.api_contracts,
         &mut report.implementation,
         &mut report.tests,
     ] {
@@ -386,10 +391,35 @@ mod tests {
         domain::{Confidence, SourceKind},
         graph::{GraphEdge, GraphEvidence, GraphNode},
         indexing::PlannedNodeAttributes,
-        ir::{SourceRange, SymbolKind},
+        ir::{ApiEndpoint, HttpMethod, SourceRange, SymbolKind},
     };
 
     use super::*;
+
+    #[test]
+    fn includes_an_exposed_api_endpoint_as_its_own_bounded_contract_section() {
+        let handler = symbol_node("handler", "billing.api.cancel_subscription", SymbolKind::Function);
+        let endpoint = api_endpoint_node("DELETE", "/subscriptions/{id}");
+        let graph = GraphSnapshot {
+            nodes: [handler.clone(), endpoint.clone()]
+                .into_iter()
+                .map(|node| (node.stable_key.clone(), node))
+                .collect(),
+            edges: vec![classified_edge(
+                &handler,
+                &endpoint,
+                RelationKind::Exposes,
+                ClaimClass::Fact,
+                ClaimStatus::Active,
+            )],
+        };
+
+        let report = analyze_impact("billing.api.cancel_subscription", &graph)
+            .expect("impact")
+            .remove(0);
+        assert_eq!(report.api_contracts.len(), 1);
+        assert_eq!(report.api_contracts[0].name, "DELETE /subscriptions/{id}");
+    }
 
     #[test]
     fn follows_only_the_product_chain_and_surfaces_staleness() {
@@ -934,6 +964,8 @@ mod tests {
                 calls: Vec::new(),
                 database_accesses: Vec::new(),
                 schema_tables: Vec::new(),
+                api_endpoints: Vec::new(),
+                external_calls: Vec::new(),
             },
         }
     }
@@ -963,6 +995,30 @@ mod tests {
             content_hash: identifier.to_owned(),
             attributes: PlannedNodeAttributes::Interaction {
                 identifier: identifier.to_owned(),
+            },
+        }
+    }
+
+    fn api_endpoint_node(method: &str, path: &str) -> GraphNode {
+        let method = match method {
+            "DELETE" => HttpMethod::Delete,
+            _ => HttpMethod::Get,
+        };
+        GraphNode {
+            stable_key: StableKey::new(format!("api_endpoint:{method:?}:{path}"))
+                .expect("endpoint key"),
+            kind: NodeKind::ApiEndpoint,
+            name: format!("{} {path}", method.as_str()),
+            content_hash: "endpoint".to_owned(),
+            attributes: PlannedNodeAttributes::ApiEndpoint {
+                endpoint: ApiEndpoint {
+                    path: path.to_owned(),
+                    method,
+                    params: Vec::new(),
+                    return_type: None,
+                    framework: "python_http_framework".to_owned(),
+                    range: SourceRange::default(),
+                },
             },
         }
     }

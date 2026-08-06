@@ -155,6 +155,7 @@ pub enum NodeKind {
     File,
     CodeSymbol,
     Endpoint,
+    ApiEndpoint,
     DbEntity,
     Event,
 }
@@ -168,6 +169,8 @@ pub enum RelationKind {
     ReadsFrom,
     WritesTo,
     DefinesSchema,
+    Exposes,
+    CallsExternal,
     Emits,
     Handles,
     Implements,

@@ -194,6 +194,8 @@ fn collect_type_specs(
             calls: Vec::new(),
             database_accesses: Vec::new(),
             schema_tables: Vec::new(),
+            api_endpoints: Vec::new(),
+            external_calls: Vec::new(),
         });
     }
 }
@@ -226,6 +228,8 @@ fn collect_value_specs(
                 calls: Vec::new(),
                 database_accesses: Vec::new(),
                 schema_tables: Vec::new(),
+                api_endpoints: Vec::new(),
+                external_calls: Vec::new(),
             });
         }
     }
@@ -284,6 +288,8 @@ fn parse_function(
         calls,
         database_accesses,
         schema_tables: Vec::new(),
+        api_endpoints: Vec::new(),
+        external_calls: Vec::new(),
     })
 }
 

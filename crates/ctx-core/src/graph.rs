@@ -22,6 +22,8 @@ impl GraphNode {
             PlannedNodeAttributes::File { path, .. } => path,
             PlannedNodeAttributes::Symbol { canonical_path, .. } => canonical_path,
             PlannedNodeAttributes::Interaction { identifier } => identifier,
+            PlannedNodeAttributes::ApiEndpoint { endpoint } => endpoint.path.as_str(),
+            PlannedNodeAttributes::ExternalCall { call } => call.url.as_str(),
             PlannedNodeAttributes::Business { id, .. } => id,
         }
     }
@@ -80,6 +82,11 @@ impl GraphSnapshot {
                 node.stable_key.as_str() == query
                     || node.identifier() == query
                     || node.name == query
+                    || matches!(
+                        &node.attributes,
+                        PlannedNodeAttributes::ApiEndpoint { endpoint }
+                            if endpoint.path == query
+                    )
             })
             .collect::<Vec<_>>();
         exact.sort_by(|left, right| left.stable_key.cmp(&right.stable_key));

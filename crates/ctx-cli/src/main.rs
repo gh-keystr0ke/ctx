@@ -858,6 +858,7 @@ fn review(cli: &Cli, git: &GitRepo, base: &str) -> Result<(), CliError> {
         println!("Suggested reviewer action: {}", finding.suggested_action);
         println!();
     }
+    print_api_findings(&report.api_findings);
     print_schema_findings(&report.schema_findings);
     if !report.stale_relationships.is_empty() {
         println!("Stale semantic relationships touching changed code:");
@@ -872,6 +873,56 @@ fn review(cli: &Cli, git: &GitRepo, base: &str) -> Result<(), CliError> {
         );
     }
     Ok(())
+}
+
+fn print_api_findings(findings: &[ctx_core::review::ApiFinding]) {
+    if findings.is_empty() {
+        return;
+    }
+    println!("Observed API changes (deterministic; not proven requirement impact):");
+    for finding in findings {
+        println!(
+            "{} — {}",
+            if finding.destructive {
+                "DESTRUCTIVE"
+            } else {
+                "informational"
+            },
+            finding.source_symbol
+        );
+        for change in &finding.changes {
+            println!(
+                "  - [{}] {}",
+                if change.destructive {
+                    "destructive"
+                } else {
+                    "informational"
+                },
+                change.description()
+            );
+        }
+        if finding.related_intents.is_empty() {
+            println!("  Possible product impact: no known mapping found (not proven unrelated).");
+        } else {
+            let intents = finding
+                .related_intents
+                .iter()
+                .map(|intent| intent.identifier.as_str())
+                .collect::<Vec<_>>()
+                .join(", ");
+            println!("  Possible product impact: {intents}");
+        }
+        if !finding.related_tests.is_empty() {
+            let tests = finding
+                .related_tests
+                .iter()
+                .map(|test| test.identifier.as_str())
+                .collect::<Vec<_>>()
+                .join(", ");
+            println!("  Related tests: {tests}");
+        }
+        println!();
+    }
 }
 
 fn print_schema_findings(findings: &[ctx_core::review::SchemaFinding]) {
@@ -955,6 +1006,7 @@ fn impact(cli: &Cli, git: &GitRepo, target: &str) -> Result<(), CliError> {
         print_nodes("Requirements", &report.requirements);
         print_nodes("Invariants", &report.invariants);
         print_nodes("Decisions", &report.decisions);
+        print_nodes("API contracts", &report.api_contracts);
         print_nodes("Implementation", &report.implementation);
         print_nodes("Tests", &report.tests);
         if !report.uncertainties.is_empty() {

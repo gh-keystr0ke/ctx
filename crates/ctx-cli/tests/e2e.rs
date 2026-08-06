@@ -232,6 +232,73 @@ fn document_visibility_is_reported_by_status_and_explain_in_json_and_text() {
 }
 
 #[test]
+fn python_http_contracts_index_explain_and_retire_with_static_evidence() {
+    let repository = FixtureRepository::new();
+    let api_path = repository.root().join("src/billing/api.py");
+    let source = r#"router = APIRouter(prefix="/v1")
+
+@router.delete("/subscriptions/{subscription_id}")
+def cancel_subscription(subscription_id: str, request: Request) -> Subscription:
+    requests.post(f"https://audit.internal/subscriptions/{subscription_id}")
+    return cancel(subscription_id)
+"#;
+    fs::write(&api_path, source).expect("API fixture");
+    run_git(repository.root(), &["add", "."]);
+    run_git(
+        repository.root(),
+        &["commit", "--quiet", "-m", "add Python HTTP contracts"],
+    );
+
+    repository.ctx(&["init"]);
+    repository.ctx(&["index"]);
+    let impact = repository.ctx(&["impact", "billing.api.cancel_subscription"]);
+    assert_eq!(
+        impact["matches"][0]["api_contracts"][0]["name"],
+        "DELETE /v1/subscriptions/{subscription_id}"
+    );
+    assert_eq!(
+        impact["matches"][0]["data_contracts"][0]["name"],
+        "POST https://audit.internal/subscriptions/{param}"
+    );
+    let explanation = repository.ctx(&[
+        "explain",
+        "billing.api.cancel_subscription -> /v1/subscriptions/{subscription_id}",
+    ]);
+    assert_eq!(explanation["matches"][0]["claims"][0]["claim_class"], "fact");
+    assert!(explanation["matches"][0]["claims"][0]["evidence"][0]["locator"]
+        .as_str()
+        .is_some_and(|locator| locator.contains("decorator:DELETE")));
+
+    fs::write(
+        &api_path,
+        source.replacen(
+            "@router.delete(\"/subscriptions/{subscription_id}\")\n",
+            "",
+            1,
+        ),
+    )
+    .expect("remove decorator");
+    let review = repository.ctx(&["review", "--base", "HEAD"]);
+    assert_eq!(review["api_findings"][0]["destructive"], true);
+    assert_eq!(review["api_findings"][0]["changes"][0]["kind"], "removed");
+    run_git(repository.root(), &["add", "."]);
+    run_git(
+        repository.root(),
+        &["commit", "--quiet", "-m", "remove endpoint"],
+    );
+    repository.ctx(&["index"]);
+    let impact = repository.ctx(&["impact", "billing.api.cancel_subscription"]);
+    assert!(impact["matches"][0]["api_contracts"]
+        .as_array()
+        .expect("API contracts")
+        .is_empty());
+    let missing = repository.ctx_failure(&["explain", "/v1/subscriptions/{subscription_id}"]);
+    assert!(missing["error"]
+        .as_str()
+        .is_some_and(|error| error.contains("nothing indexed matches")));
+}
+
+#[test]
 fn complete_product_journey_is_deterministic_and_evidence_backed() {
     let repository = FixtureRepository::new();
 

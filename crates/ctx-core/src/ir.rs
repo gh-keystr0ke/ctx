@@ -36,6 +36,68 @@ pub struct CallSite {
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+pub enum HttpMethod {
+    Get,
+    Post,
+    Put,
+    Delete,
+    Patch,
+}
+
+impl HttpMethod {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Get => "GET",
+            Self::Post => "POST",
+            Self::Put => "PUT",
+            Self::Delete => "DELETE",
+            Self::Patch => "PATCH",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ParamSource {
+    Path,
+    Query,
+    Body,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ApiParam {
+    pub name: String,
+    pub type_hint: Option<String>,
+    pub source: ParamSource,
+    pub required: bool,
+}
+
+/// One HTTP endpoint deterministically declared by source syntax. Framework
+/// names are evidence metadata emitted by adapters; core behavior depends
+/// only on the normalized method/path/parameter contract.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ApiEndpoint {
+    pub path: String,
+    pub method: HttpMethod,
+    pub params: Vec<ApiParam>,
+    pub return_type: Option<String>,
+    pub framework: String,
+    pub range: SourceRange,
+}
+
+/// One statically recognizable outbound HTTP request. `url` may be a full
+/// literal URL or a normalized template whose dynamic path segment is
+/// represented as `{param}`; a wholly dynamic URL never reaches this IR.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ExternalCall {
+    pub method: HttpMethod,
+    pub url: String,
+    pub range: SourceRange,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum DatabaseAccessKind {
     Read,
     Write,
@@ -188,6 +250,10 @@ pub struct SymbolDefinition {
     pub database_accesses: Vec<DatabaseAccess>,
     #[serde(default)]
     pub schema_tables: Vec<SchemaTableDefinition>,
+    #[serde(default)]
+    pub api_endpoints: Vec<ApiEndpoint>,
+    #[serde(default)]
+    pub external_calls: Vec<ExternalCall>,
 }
 
 /// Language-neutral analysis for one complete source file version.

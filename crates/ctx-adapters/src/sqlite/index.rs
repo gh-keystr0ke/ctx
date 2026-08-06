@@ -260,6 +260,8 @@ impl SqliteStore {
                 calls,
                 database_accesses,
                 schema_tables,
+                api_endpoints,
+                external_calls,
             } = attributes
             else {
                 continue;
@@ -279,6 +281,8 @@ impl SqliteStore {
                     calls,
                     database_accesses,
                     schema_tables,
+                    api_endpoints,
+                    external_calls,
                 });
             }
         }
@@ -640,6 +644,7 @@ const fn node_kind(node: &PlannedNode) -> &'static str {
         ctx_core::domain::NodeKind::File => "file",
         ctx_core::domain::NodeKind::CodeSymbol => "code_symbol",
         ctx_core::domain::NodeKind::Endpoint => "endpoint",
+        ctx_core::domain::NodeKind::ApiEndpoint => "api_endpoint",
         ctx_core::domain::NodeKind::DbEntity => "db_entity",
         ctx_core::domain::NodeKind::Event => "event",
     }
@@ -831,6 +836,8 @@ mod tests {
                         calls: Vec::new(),
                         database_accesses: Vec::new(),
                         schema_tables: Vec::new(),
+                        api_endpoints: Vec::new(),
+                        external_calls: Vec::new(),
                     },
                     mutation: NodeMutationKind::Create,
                 },

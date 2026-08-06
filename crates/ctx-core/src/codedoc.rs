@@ -192,6 +192,8 @@ mod tests {
             calls: Vec::<CallSite>::new(),
             database_accesses: Vec::new(),
             schema_tables: Vec::new(),
+            api_endpoints: Vec::new(),
+            external_calls: Vec::new(),
         }
     }
 

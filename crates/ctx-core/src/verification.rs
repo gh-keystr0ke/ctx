@@ -471,6 +471,8 @@ fn node_terms(node: &GraphNode) -> BTreeSet<String> {
         PlannedNodeAttributes::Symbol { canonical_path, .. } => canonical_path.as_str(),
         PlannedNodeAttributes::File { path, .. } => path.as_str(),
         PlannedNodeAttributes::Interaction { identifier } => identifier.as_str(),
+        PlannedNodeAttributes::ApiEndpoint { endpoint } => endpoint.path.as_str(),
+        PlannedNodeAttributes::ExternalCall { call } => call.url.as_str(),
     };
     tokenize(&format!("{} {} {content}", node.identifier(), node.name))
 }
@@ -556,7 +558,9 @@ impl KnowledgeIdAllocator {
                 PlannedNodeAttributes::Business { id, .. } => Some(id.clone()),
                 PlannedNodeAttributes::Symbol { .. }
                 | PlannedNodeAttributes::File { .. }
-                | PlannedNodeAttributes::Interaction { .. } => None,
+                | PlannedNodeAttributes::Interaction { .. }
+                | PlannedNodeAttributes::ApiEndpoint { .. }
+                | PlannedNodeAttributes::ExternalCall { .. } => None,
             })
             .collect();
         Self {
@@ -749,6 +753,7 @@ const fn relation_for_intent(kind: NodeKind) -> RelationKind {
         | NodeKind::File
         | NodeKind::CodeSymbol
         | NodeKind::Endpoint
+        | NodeKind::ApiEndpoint
         | NodeKind::DbEntity
         | NodeKind::Event => RelationKind::Implements,
     }
@@ -1251,6 +1256,8 @@ mod tests {
                 calls: Vec::new(),
                 database_accesses: Vec::new(),
                 schema_tables: Vec::new(),
+                api_endpoints: Vec::new(),
+                external_calls: Vec::new(),
             },
         }
     }

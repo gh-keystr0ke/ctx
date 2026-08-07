@@ -1,0 +1,20 @@
+id: ADR-FEDERATION-003
+type: decision
+visibility: public
+status: accepted
+title: Bound future request tracing at every repository transition
+decision: >-
+  A future ctx trace command will traverse only commit-labelled deterministic structure in the
+  sequence API endpoint EXPOSES handler, handler READS_FROM or WRITES_TO data entities and
+  CALLS_EXTERNAL outbound contracts, FEDERATED_MATCH into a synchronized neighbor endpoint, then
+  that endpoint's EXPOSES handler. It will not treat product-semantic assertions or inferred links
+  as execution flow. Each result will identify the local index commit and every neighbor source
+  commit it used. Cross-repository traversal will stop after eight service transitions, cap the
+  complete result at fifty structural nodes and sixteen branches, and keep a visited set keyed by
+  service name, source commit, HTTP method, and normalized endpoint path. Revisiting that key ends
+  the branch as a reported cycle instead of recursing. A missing outbound match, stale synchronized
+  neighbor, incompatible or absent snapshot, retired local fact, or any cap reached ends only the
+  affected branch and emits an explicit terminal reason; it never silently presents a partial path
+  as complete. Version one will read one synchronized snapshot per service and will not fetch,
+  index, or synchronize during a trace query. These bounds should be configurable only after real
+  corpus evidence shows a need; deterministic defaults are part of the query contract.

@@ -279,7 +279,9 @@ fn to_outcome(
                 implementation_candidates: candidate
                     .implementation_candidates
                     .into_iter()
-                    .filter(|path| allow_ungrounded_symbols || known_symbols.contains(path.as_str()))
+                    .filter(|path| {
+                        allow_ungrounded_symbols || known_symbols.contains(path.as_str())
+                    })
                     .collect(),
                 test_candidates: candidate
                     .test_candidates
@@ -544,8 +546,8 @@ mod tests {
         );
         let response = r#"{"outcome":"relevant","candidates":[{"kind":"requirement","statement":"Cancellation preserves paid access until paid_until.","evidence":[{"artifact_id":"gitlab:issue:317","locator":"body","excerpt":"must remain usable until paid_until"}],"implementation_candidates":["src/billing/subscriptions.rs"],"test_candidates":["src/billing/subscriptions_test.rs"]}]}"#;
 
-        let outcome = run_with_ungrounded_symbols(response, &neighborhood, true)
-            .expect("parsed outcome");
+        let outcome =
+            run_with_ungrounded_symbols(response, &neighborhood, true).expect("parsed outcome");
 
         let AgentOutcome::Relevant(candidates) = outcome else {
             panic!("expected a relevant outcome");

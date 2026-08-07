@@ -208,11 +208,7 @@ fn collect_api_endpoints(
             continue;
         };
         let (methods, framework, prefix) = if operation == "route" {
-            (
-                flask_methods(arguments, source),
-                "flask",
-                String::new(),
-            )
+            (flask_methods(arguments, source), "flask", String::new())
         } else if let Some(method) = http_method(operation) {
             (
                 vec![method],
@@ -357,8 +353,10 @@ fn api_parameter(parameter: Node<'_>, path: &str, source: &[u8]) -> Option<ApiPa
     {
         return None;
     }
-    let has_default = matches!(parameter.kind(), "default_parameter" | "typed_default_parameter")
-        || parameter.child_by_field_name("value").is_some();
+    let has_default = matches!(
+        parameter.kind(),
+        "default_parameter" | "typed_default_parameter"
+    ) || parameter.child_by_field_name("value").is_some();
     let optional_type = type_hint
         .as_deref()
         .is_some_and(|hint| hint.contains("Optional") || hint.contains("None"));
@@ -1093,7 +1091,10 @@ def dynamic():
             .expect("FastAPI handler");
         assert_eq!(get.api_endpoints.len(), 1);
         let endpoint = &get.api_endpoints[0];
-        assert_eq!((endpoint.method, endpoint.path.as_str()), (HttpMethod::Get, "/subscriptions/{subscription_id}"));
+        assert_eq!(
+            (endpoint.method, endpoint.path.as_str()),
+            (HttpMethod::Get, "/subscriptions/{subscription_id}")
+        );
         assert_eq!(endpoint.return_type.as_deref(), Some("Subscription"));
         assert_eq!(
             endpoint

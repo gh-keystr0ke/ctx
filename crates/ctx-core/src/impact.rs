@@ -398,7 +398,11 @@ mod tests {
 
     #[test]
     fn includes_an_exposed_api_endpoint_as_its_own_bounded_contract_section() {
-        let handler = symbol_node("handler", "billing.api.cancel_subscription", SymbolKind::Function);
+        let handler = symbol_node(
+            "handler",
+            "billing.api.cancel_subscription",
+            SymbolKind::Function,
+        );
         let endpoint = api_endpoint_node("DELETE", "/subscriptions/{id}");
         let graph = GraphSnapshot {
             nodes: [handler.clone(), endpoint.clone()]

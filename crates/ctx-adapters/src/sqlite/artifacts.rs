@@ -609,8 +609,7 @@ mod tests {
     use super::*;
 
     fn open_repository(directory: &std::path::Path) -> (SqliteStore, RepositoryId) {
-        let mut store =
-            SqliteStore::open(&directory.join("ctx.db"), directory).expect("database");
+        let mut store = SqliteStore::open(&directory.join("ctx.db"), directory).expect("database");
         let repository = RepositoryDescriptor {
             id: RepositoryId::new("repo:test").expect("repository ID"),
             root_path: "/repo".to_owned(),

@@ -694,7 +694,8 @@ mod tests {
     #[test]
     fn explicit_links_persist_an_explainable_evidence_chain() {
         let directory = tempdir().expect("temporary directory");
-        let mut store = SqliteStore::open(&directory.path().join("ctx.db"), directory.path()).expect("database");
+        let mut store = SqliteStore::open(&directory.path().join("ctx.db"), directory.path())
+            .expect("database");
         let repository = RepositoryDescriptor {
             id: RepositoryId::new("repo:test").expect("repository ID"),
             root_path: "/repo".to_owned(),
@@ -788,10 +789,7 @@ mod tests {
 
     fn assert_public_requirement_round_trip(store: &SqliteStore, repository: &RepositoryId) {
         assert_eq!(
-            store
-                .status(repository)
-                .expect("status")
-                .public_documents,
+            store.status(repository).expect("status").public_documents,
             1
         );
         let graph = store.load_graph(repository).expect("graph");
@@ -817,7 +815,8 @@ mod tests {
     #[test]
     fn ambiguous_persistent_mapping_stays_unresolved_instead_of_guessing() {
         let directory = tempdir().expect("temporary directory");
-        let mut store = SqliteStore::open(&directory.path().join("ctx.db"), directory.path()).expect("database");
+        let mut store = SqliteStore::open(&directory.path().join("ctx.db"), directory.path())
+            .expect("database");
         let repository = RepositoryDescriptor {
             id: RepositoryId::new("repo:test").expect("repository ID"),
             root_path: "/repo".to_owned(),

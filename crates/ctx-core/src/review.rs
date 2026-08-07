@@ -268,8 +268,7 @@ fn api_change_findings(graph: &GraphSnapshot, input: &ReviewInput) -> Vec<ApiFin
                 continue;
             }
             let destructive = changes.iter().any(|change| change.destructive);
-            let (related_intents, related_tests) =
-                api_symbol_neighborhood(graph, canonical_path);
+            let (related_intents, related_tests) = api_symbol_neighborhood(graph, canonical_path);
             findings.push(ApiFinding {
                 source_symbol: canonical_path.to_owned(),
                 file_path: new_path.or(old_path).unwrap_or("unknown").to_owned(),
@@ -419,9 +418,11 @@ fn api_symbol_neighborhood(
         .collect::<BTreeSet<_>>();
     let mut intents = Vec::new();
     let mut tests = Vec::new();
-    for edge in graph.edges.iter().filter(|edge| {
-        symbol_keys.contains(&edge.source) && edge.status == ClaimStatus::Active
-    }) {
+    for edge in graph
+        .edges
+        .iter()
+        .filter(|edge| symbol_keys.contains(&edge.source) && edge.status == ClaimStatus::Active)
+    {
         match edge.kind {
             RelationKind::Implements | RelationKind::Enforces | RelationKind::Satisfies => {
                 if let Some(node) = graph.nodes.get(&edge.target) {
@@ -436,10 +437,7 @@ fn api_symbol_neighborhood(
             _ => {}
         }
     }
-    (
-        dedup_summaries(intents),
-        dedup_summaries(tests),
-    )
+    (dedup_summaries(intents), dedup_summaries(tests))
 }
 
 /// Surfaces deterministic schema changes directly from a diff's migration

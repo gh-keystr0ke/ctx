@@ -22,7 +22,9 @@ pub enum BusinessContextError {
     MissingField { path: String, field: &'static str },
     #[error("business context '{path}' has unsupported type '{kind}'")]
     InvalidKind { path: String, kind: String },
-    #[error("business context '{path}' has invalid visibility '{visibility}'; expected 'public' or 'private'")]
+    #[error(
+        "business context '{path}' has invalid visibility '{visibility}'; expected 'public' or 'private'"
+    )]
     InvalidVisibility { path: String, visibility: String },
     #[error("business context ID '{id}' is declared more than once")]
     DuplicateId { id: String },
@@ -495,7 +497,10 @@ mod tests {
     #[test]
     fn visibility_defaults_private_and_accepts_both_explicit_values() {
         for (yaml, expected) in [
-            ("id: REQ-PRIVATE\nstatement: Keep access.\n", Visibility::Private),
+            (
+                "id: REQ-PRIVATE\nstatement: Keep access.\n",
+                Visibility::Private,
+            ),
             (
                 "id: REQ-PUBLIC\nvisibility: public\nstatement: Keep access.\n",
                 Visibility::Public,

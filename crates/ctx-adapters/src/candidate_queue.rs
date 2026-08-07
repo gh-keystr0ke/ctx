@@ -79,13 +79,12 @@ fn read_all(root: &Path) -> Result<Vec<StoredCandidate>, PortError> {
     if !directory.exists() {
         return Ok(Vec::new());
     }
-    let entries = fs::read_dir(&directory)
-        .map_err(|source| {
-            port_error(CandidateQueueError::Io {
-                path: directory.display().to_string(),
-                source,
-            })
-        })?;
+    let entries = fs::read_dir(&directory).map_err(|source| {
+        port_error(CandidateQueueError::Io {
+            path: directory.display().to_string(),
+            source,
+        })
+    })?;
     let mut stored = Vec::new();
     for entry in entries {
         let entry = entry.map_err(|source| {
@@ -95,9 +94,9 @@ fn read_all(root: &Path) -> Result<Vec<StoredCandidate>, PortError> {
             })
         })?;
         let path = entry.path();
-        let is_yaml = path
-            .extension()
-            .is_some_and(|extension| extension.eq_ignore_ascii_case("yaml") || extension.eq_ignore_ascii_case("yml"));
+        let is_yaml = path.extension().is_some_and(|extension| {
+            extension.eq_ignore_ascii_case("yaml") || extension.eq_ignore_ascii_case("yml")
+        });
         if !is_yaml {
             continue;
         }
@@ -107,13 +106,12 @@ fn read_all(root: &Path) -> Result<Vec<StoredCandidate>, PortError> {
                 source,
             })
         })?;
-        let candidate: StoredCandidate =
-            serde_yaml::from_str(&content).map_err(|error| {
-                port_error(CandidateQueueError::Yaml {
-                    path: path.display().to_string(),
-                    message: error.to_string(),
-                })
-            })?;
+        let candidate: StoredCandidate = serde_yaml::from_str(&content).map_err(|error| {
+            port_error(CandidateQueueError::Yaml {
+                path: path.display().to_string(),
+                message: error.to_string(),
+            })
+        })?;
         stored.push(candidate);
     }
     stored.sort_by(|a, b| a.candidate.fingerprint.cmp(&b.candidate.fingerprint));
@@ -219,7 +217,11 @@ pub fn record_decision(
         KnowledgeDecision::Accept {
             document_id,
             method,
-        } => (CandidateStatus::Accepted, Some(document_id.clone()), *method),
+        } => (
+            CandidateStatus::Accepted,
+            Some(document_id.clone()),
+            *method,
+        ),
         KnowledgeDecision::Reject { method } => (CandidateStatus::Rejected, None, *method),
     };
     stored.status = status;
@@ -505,11 +507,7 @@ mod tests {
         let directory = tempdir().expect("tempdir");
         let accepted = candidate("Already accepted, must not reappear.");
         let still_pending = candidate("Still pending.");
-        upsert(
-            directory.path(),
-            &[accepted.clone(), still_pending.clone()],
-        )
-        .expect("upsert");
+        upsert(directory.path(), &[accepted.clone(), still_pending.clone()]).expect("upsert");
         record_decision(
             directory.path(),
             &accepted.fingerprint,
@@ -525,6 +523,9 @@ mod tests {
         let first = pending(directory.path()).expect("pending first read");
         let second = pending(directory.path()).expect("pending second read");
         assert_eq!(first, vec![still_pending]);
-        assert_eq!(first, second, "order is deterministic across repeated reads");
+        assert_eq!(
+            first, second,
+            "order is deterministic across repeated reads"
+        );
     }
 }

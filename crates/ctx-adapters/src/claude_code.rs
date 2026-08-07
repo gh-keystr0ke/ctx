@@ -38,7 +38,10 @@ impl Default for SubprocessTransport {
 impl AgentTransport for SubprocessTransport {
     fn run(&self, prompt: &str) -> Result<String, AgentContractError> {
         if self.verbose {
-            eprintln!("--- AGENT PROMPT ({}) ---\n{}\n--- END PROMPT ---", self.binary, prompt);
+            eprintln!(
+                "--- AGENT PROMPT ({}) ---\n{}\n--- END PROMPT ---",
+                self.binary, prompt
+            );
         }
         let output = Command::new(&self.binary)
             .arg("-p")

@@ -1142,7 +1142,11 @@ fn add_external_call_edges(
             &symbol.file_path,
             &normalized_hash(call),
             &symbol.language,
-            Some(format!("lines:{lines} {} {}", call.method.as_str(), call.url)),
+            Some(format!(
+                "lines:{lines} {} {}",
+                call.method.as_str(),
+                call.url
+            )),
         ));
     }
     Ok(())
@@ -1482,12 +1486,17 @@ mod tests {
             }],
         )
         .expect("HTTP facts retire");
-        assert!(retired.nodes_to_retire.iter().any(|key| {
-            key.as_str() == "api_endpoint:DELETE:/subscriptions/{subscription_id}"
-        }));
-        assert!(retired.nodes_to_retire.iter().any(|key| {
-            key.as_str() == "external_http:POST:https://audit.internal/events"
-        }));
+        assert!(
+            retired.nodes_to_retire.iter().any(|key| {
+                key.as_str() == "api_endpoint:DELETE:/subscriptions/{subscription_id}"
+            })
+        );
+        assert!(
+            retired
+                .nodes_to_retire
+                .iter()
+                .any(|key| { key.as_str() == "external_http:POST:https://audit.internal/events" })
+        );
     }
 
     #[test]

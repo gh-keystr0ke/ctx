@@ -699,7 +699,8 @@ mod tests {
     #[test]
     fn same_commit_reanalysis_replaces_derived_node_version() {
         let directory = tempdir().expect("temporary directory");
-        let mut store = SqliteStore::open(&directory.path().join("ctx.db"), directory.path()).expect("SQLite store");
+        let mut store = SqliteStore::open(&directory.path().join("ctx.db"), directory.path())
+            .expect("SQLite store");
         let repository = RepositoryDescriptor {
             id: RepositoryId::new("repo:test").expect("repository ID"),
             root_path: "/repo".to_owned(),
@@ -753,7 +754,8 @@ mod tests {
     #[test]
     fn database_facts_persist_with_static_evidence_and_status_counts() {
         let directory = tempdir().expect("temporary directory");
-        let mut store = SqliteStore::open(&directory.path().join("ctx.db"), directory.path()).expect("SQLite store");
+        let mut store = SqliteStore::open(&directory.path().join("ctx.db"), directory.path())
+            .expect("SQLite store");
         let repository = RepositoryDescriptor {
             id: RepositoryId::new("repo:data").expect("repository ID"),
             root_path: "/repo".to_owned(),

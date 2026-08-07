@@ -1,0 +1,23 @@
+id: ADR-FEDERATION-004
+type: decision
+visibility: public
+status: accepted
+title: Scope field-level provenance as a separate Python dataflow investment
+decision: >-
+  Field-level request provenance is not inferred from matching names in the first tracing
+  implementation. A useful deterministic Python solution requires a language-neutral DTO and field
+  IR, recognition of Pydantic models and dataclasses, assignment and constructor-flow summaries,
+  serializer/deserializer handling, bounded interprocedural propagation, and joins to the already
+  known SQL column evidence. The honest implementation estimate is four to seven engineer-weeks:
+  one to two weeks for DTO/field IR and direct intraprocedural assignments, two to three weeks for
+  bounded call summaries and common serializer paths, and one to two weeks for fixtures,
+  uncertainty terminals, review/impact integration, and hardening. Name-based DTO-field to database
+  column matching is only a three-to-five-day experiment but would be INFERENCE, require an explicit
+  verification lifecycle, and must never appear as FACT. Runtime instrumentation could produce
+  stronger observations but introduces deployed agents, sampling, privacy, and a network data plane;
+  it is a separate product category and is not recommended for local-first ctx. The next scope
+  should therefore deliver Python-only deterministic DTO/field IR plus direct intraprocedural flow
+  as one bounded milestone, evaluate it on representative Pydantic/dataclass fixtures, and postpone
+  cross-function and cross-service field traces until measured coverage justifies the remaining
+  investment. Unsupported flow must terminate as unknown with its source locator, never fall back
+  to a name-similarity guess.

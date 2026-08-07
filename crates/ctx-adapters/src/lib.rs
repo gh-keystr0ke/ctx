@@ -8,6 +8,7 @@ mod candidate_queue;
 pub mod claude_code;
 pub mod codex;
 mod database;
+pub mod federation;
 pub mod git;
 pub mod gitlab;
 pub mod go;

@@ -1,8 +1,9 @@
 use std::{
+    collections::{BTreeMap, BTreeSet},
     env, fs,
     io::{self, IsTerminal, Write},
     path::{Path, PathBuf},
-    process::ExitCode,
+    process::{Command as ProcessCommand, ExitCode},
 };
 
 use chrono::Utc;
@@ -13,6 +14,12 @@ use ctx_adapters::{
     business_context::YamlBusinessContextReader,
     claude_code::{ClaudeCodeAgent, SubprocessTransport as ClaudeSubprocessTransport},
     codex::{CodexAgent, SubprocessTransport as CodexSubprocessTransport},
+    federation::{
+        ExportManifest, ExportedDocument, ExportedEndpoint, ExternalCallContract,
+        FEDERATION_SCHEMA_VERSION, FederatedRepositoryData, FederationError, FederationSyncState,
+        NeighborRegistry, RegistryNeighbor, default_export_path, matching_resolutions,
+        neighbor_head, path_template, require_service_name,
+    },
     git::GitRepo,
     gitlab::{GitLabClient, GitLabConfig, UreqTransport},
     sqlite::SqliteStore,
@@ -22,7 +29,7 @@ use ctx_app::{
     enrich::{EnrichError, EnrichRunner},
     index::{IndexError, IndexReport, IndexRunner},
     ingest::{CodeDocIngestRunner, GitIngestRunner, GitLabIngestRunner, IngestError},
-    ports::{GitRepository, IndexStore, PortError},
+    ports::{GitRepository, GraphStore, IndexStore, PortError},
     query::{QueryError, QueryService},
     review::{ReviewError, ReviewRunner},
     status::{IndexState, StatusError, StatusHealth, StatusService},
@@ -31,9 +38,10 @@ use ctx_app::{
         VerificationService,
     },
 };
-use ctx_core::business::ContextImportStats;
+use ctx_core::business::{BusinessKind, ContextImportStats, Visibility};
 use ctx_core::context_pack::ContextRequest;
-use ctx_core::domain::CommitOid;
+use ctx_core::domain::{CommitOid, NodeKind, RelationKind};
+use ctx_core::indexing::PlannedNodeAttributes;
 use ctx_core::verification::VerificationDecision;
 use serde::Serialize;
 use serde_json::json;
@@ -122,6 +130,23 @@ enum Command {
         #[arg(long, default_value_t = 4_000)]
         token_budget: usize,
     },
+    /// Manage local neighboring repository checkouts.
+    Registry {
+        #[command(subcommand)]
+        command: RegistryCommand,
+    },
+    /// Write this service's public product and HTTP contract manifest.
+    Export {
+        #[arg(long)]
+        out: Option<PathBuf>,
+    },
+    /// Refresh and resolve public knowledge from every registered neighbor.
+    Sync,
+    /// Inspect synchronized neighboring repository knowledge.
+    Federation {
+        #[command(subcommand)]
+        command: FederationCommand,
+    },
     /// Review and accept/reject heuristic semantic candidates, or
     /// (`--knowledge`) AI-derived candidates from `ctx enrich`.
     Verify {
@@ -175,6 +200,28 @@ enum Command {
     },
 }
 
+#[derive(Debug, Subcommand)]
+enum RegistryCommand {
+    /// Add a neighboring Git checkout by path.
+    Add {
+        path: PathBuf,
+        #[arg(long)]
+        name: Option<String>,
+    },
+    /// List registered neighboring checkouts.
+    List,
+    /// Remove a neighbor by its service name.
+    Remove { name: String },
+}
+
+#[derive(Debug, Subcommand)]
+enum FederationCommand {
+    /// List neighbor synchronization and staleness state.
+    List,
+    /// Show one neighbor's imported public contracts and local resolutions.
+    Show { name: String },
+}
+
 #[derive(Debug, Error)]
 enum CliError {
     #[error(transparent)]
@@ -199,6 +246,8 @@ enum CliError {
     Ingest(#[from] IngestError),
     #[error(transparent)]
     Enrich(#[from] EnrichError),
+    #[error(transparent)]
+    Federation(#[from] FederationError),
     #[error("unsupported ingest source '{0}'; supported: git, code-comments, gitlab")]
     UnsupportedIngestSource(String),
     #[error("unsupported agent '{0}'; supported: claude, codex, antigravity")]
@@ -217,6 +266,22 @@ enum CliError {
     Port(#[from] PortError),
     #[error("ctx is not initialized; run 'ctx init' first")]
     NotInitialized,
+    #[error(
+        "neighbor '{name}' has federation schema version {actual}, but this ctx supports {expected}; upgrade one side before syncing"
+    )]
+    FederationSchemaMismatch {
+        name: String,
+        actual: u32,
+        expected: u32,
+    },
+    #[error("neighbor '{name}' exported itself as service '{exported}'")]
+    FederationIdentityMismatch { name: String, exported: String },
+    #[error("no synchronized data for neighbor '{0}'; run 'ctx sync' first")]
+    NoFederationData(String),
+    #[error(
+        "ctx export requires an index at HEAD {head}; the current index is {indexed}. Run 'ctx index' first"
+    )]
+    ExportRequiresCurrentIndex { head: String, indexed: String },
 }
 
 #[derive(Serialize)]
@@ -265,6 +330,10 @@ fn run(cli: &Cli) -> Result<(), CliError> {
             symbol,
             token_budget,
         } => context(cli, &git, task, file, symbol, *token_budget),
+        Command::Registry { command } => registry(cli, &git, command),
+        Command::Export { out } => export(cli, &git, out.as_deref()),
+        Command::Sync => sync(cli, &git),
+        Command::Federation { command } => federation(cli, &git, command),
         Command::Verify {
             accept,
             reject,
@@ -308,6 +377,591 @@ fn run(cli: &Cli) -> Result<(), CliError> {
                 Err(CliError::UnsupportedServe)
             }
         }
+    }
+}
+
+#[derive(Serialize)]
+struct RegistryMutationReport {
+    neighbor: RegistryNeighbor,
+    changed: bool,
+}
+
+fn registry(cli: &Cli, git: &GitRepo, command: &RegistryCommand) -> Result<(), CliError> {
+    git.ignore_local_state()?;
+    match command {
+        RegistryCommand::Add { path, name } => {
+            let (_, neighbor, changed) = NeighborRegistry::add(git.root(), path, name.as_deref())?;
+            if cli.json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&RegistryMutationReport { neighbor, changed })?
+                );
+            } else if changed {
+                println!("Registered {} at {}", neighbor.name, neighbor.path);
+            } else {
+                println!(
+                    "{} is already registered at {}",
+                    neighbor.name, neighbor.path
+                );
+            }
+        }
+        RegistryCommand::List => {
+            let registry = NeighborRegistry::load(git.root())?;
+            if cli.json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&json!({"neighbors": registry.neighbors}))?
+                );
+            } else if registry.neighbors.is_empty() {
+                println!("No neighbors registered.");
+            } else {
+                for neighbor in registry.neighbors {
+                    println!("{}\t{}", neighbor.name, neighbor.path);
+                }
+            }
+        }
+        RegistryCommand::Remove { name } => {
+            let removed = NeighborRegistry::remove(git.root(), name)?;
+            let database = git.root().join(".ctx/ctx.db");
+            if database.exists() {
+                SqliteStore::open(&database, git.root())?.remove_federated_repository(name)?;
+            }
+            if cli.json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&RegistryMutationReport {
+                        neighbor: removed,
+                        changed: true
+                    })?
+                );
+            } else {
+                println!("Removed neighbor {name}");
+            }
+        }
+    }
+    Ok(())
+}
+
+fn export(cli: &Cli, git: &GitRepo, out: Option<&Path>) -> Result<(), CliError> {
+    let manifest = build_export_manifest(git)?;
+    let default_path = default_export_path(git.root());
+    let path = out.map_or_else(
+        || default_path.clone(),
+        |requested| {
+            if requested.is_absolute() {
+                requested.to_path_buf()
+            } else {
+                git.root().join(requested)
+            }
+        },
+    );
+    manifest.write(&path)?;
+    git.ignore_local_state()?;
+    if cli.json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&json!({
+                "ok": true,
+                "path": path,
+                "service_name": manifest.service_name,
+                "source_commit": manifest.source_commit,
+                "schema_version": manifest.schema_version,
+                "documents": manifest.documents.len(),
+                "endpoints": manifest.endpoints.len()
+            }))?
+        );
+    } else {
+        println!(
+            "Exported {} public document(s) and {} endpoint(s) for {} at {}",
+            manifest.documents.len(),
+            manifest.endpoints.len(),
+            manifest.service_name,
+            path.display()
+        );
+    }
+    Ok(())
+}
+
+fn build_export_manifest(git: &GitRepo) -> Result<ExportManifest, CliError> {
+    let service_name = require_service_name(git)?.to_owned();
+    let database_path = database_path(git.root())?;
+    let store = SqliteStore::open(&database_path, git.root())?;
+    let repository = git.descriptor()?;
+    let head = git.head()?;
+    let indexed = store.latest_commit(&repository.id)?;
+    if indexed.as_ref().map(|commit| &commit.oid) != Some(&head.oid) {
+        return Err(CliError::ExportRequiresCurrentIndex {
+            head: head.oid.to_string(),
+            indexed: indexed
+                .map_or_else(|| "not indexed".to_owned(), |commit| commit.oid.to_string()),
+        });
+    }
+    let graph = store.load_graph(&repository.id)?;
+    let documents = graph
+        .nodes
+        .values()
+        .filter_map(|node| {
+            let PlannedNodeAttributes::Business {
+                id,
+                status,
+                visibility,
+                body,
+                source_uri,
+                ..
+            } = &node.attributes
+            else {
+                return None;
+            };
+            if *visibility != Visibility::Public {
+                return None;
+            }
+            let kind = match node.kind {
+                NodeKind::Feature => BusinessKind::Feature,
+                NodeKind::Requirement => BusinessKind::Requirement,
+                NodeKind::Invariant => BusinessKind::Invariant,
+                NodeKind::Decision => BusinessKind::Decision,
+                _ => return None,
+            };
+            Some(ExportedDocument {
+                id: id.clone(),
+                kind,
+                title: node.name.clone(),
+                body: body.clone(),
+                status: status.clone(),
+                visibility: *visibility,
+                source_uri: source_uri.clone(),
+                content_hash: node.content_hash.clone(),
+            })
+        })
+        .collect::<Vec<_>>();
+    let endpoints = graph
+        .edges
+        .iter()
+        .filter(|edge| edge.kind == RelationKind::Exposes)
+        .filter_map(|edge| {
+            let source = graph.nodes.get(&edge.source)?;
+            let target = graph.nodes.get(&edge.target)?;
+            let PlannedNodeAttributes::ApiEndpoint { endpoint } = &target.attributes else {
+                return None;
+            };
+            Some(ExportedEndpoint::from_contract(
+                source.identifier().to_owned(),
+                endpoint,
+                &edge.evidence,
+            ))
+        })
+        .collect::<Vec<_>>();
+    Ok(ExportManifest::new(
+        service_name,
+        head.oid.to_string(),
+        documents,
+        endpoints,
+    ))
+}
+
+#[derive(Serialize)]
+struct NeighborSyncSuccess {
+    name: String,
+    path: String,
+    source_commit: String,
+    documents: usize,
+    endpoints: usize,
+    resolutions: usize,
+}
+
+#[derive(Serialize)]
+struct NeighborSyncFailure {
+    name: String,
+    path: String,
+    error: String,
+}
+
+#[derive(Serialize)]
+struct SyncReport {
+    synced: Vec<NeighborSyncSuccess>,
+    errors: Vec<NeighborSyncFailure>,
+    unresolved_calls: Vec<ExternalCallContract>,
+}
+
+fn sync(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
+    require_service_name(git)?;
+    let registry = NeighborRegistry::load(git.root())?;
+    let database_path = database_path(git.root())?;
+    let mut store = SqliteStore::open(&database_path, git.root())?;
+    let repository = git.descriptor()?;
+    let graph = store.load_graph(&repository.id)?;
+    let local_commit = git.head()?.oid.to_string();
+    let calls = external_call_contracts(&graph);
+    let binary = match env::var_os("CTX_FEDERATION_BINARY") {
+        Some(path) => PathBuf::from(path),
+        None => env::current_exe()?,
+    };
+    let synced_at = Utc::now().to_rfc3339();
+    let mut successes = Vec::new();
+    let mut failures = Vec::new();
+
+    for neighbor in &registry.neighbors {
+        let result = sync_neighbor(
+            &mut store,
+            &binary,
+            neighbor,
+            &local_commit,
+            &synced_at,
+            &calls,
+        );
+        match result {
+            Ok(success) => successes.push(success),
+            Err(error) => failures.push(NeighborSyncFailure {
+                name: neighbor.name.clone(),
+                path: neighbor.path.clone(),
+                error,
+            }),
+        }
+    }
+    let all_endpoints = registry
+        .neighbors
+        .iter()
+        .filter_map(|neighbor| store.federated_repository(&neighbor.name).ok())
+        .flat_map(|data| data.endpoints)
+        .collect::<Vec<_>>();
+    let unresolved_calls = unresolved_calls(&calls, &all_endpoints);
+    let report = SyncReport {
+        synced: successes,
+        errors: failures,
+        unresolved_calls,
+    };
+    print_sync_report(cli, &report)?;
+    Ok(())
+}
+
+fn sync_neighbor(
+    store: &mut SqliteStore,
+    binary: &Path,
+    neighbor: &RegistryNeighbor,
+    local_commit: &str,
+    synced_at: &str,
+    calls: &[ExternalCallContract],
+) -> Result<NeighborSyncSuccess, String> {
+    let export_path = PathBuf::from(&neighbor.path).join(".ctx/export.json");
+    let manifest = export_neighbor(binary, neighbor, &export_path)?;
+    if manifest.schema_version != FEDERATION_SCHEMA_VERSION {
+        return Err(CliError::FederationSchemaMismatch {
+            name: neighbor.name.clone(),
+            actual: manifest.schema_version,
+            expected: FEDERATION_SCHEMA_VERSION,
+        }
+        .to_string());
+    }
+    if manifest.service_name != neighbor.name {
+        return Err(CliError::FederationIdentityMismatch {
+            name: neighbor.name.clone(),
+            exported: manifest.service_name,
+        }
+        .to_string());
+    }
+    let resolutions = matching_resolutions(
+        &neighbor.name,
+        &manifest.source_commit,
+        local_commit,
+        synced_at,
+        calls,
+        &manifest.endpoints,
+    );
+    let state = FederationSyncState {
+        source_repo: neighbor.name.clone(),
+        source_path: neighbor.path.clone(),
+        source_commit: manifest.source_commit.clone(),
+        synced_at: synced_at.to_owned(),
+        schema_version: manifest.schema_version,
+    };
+    store
+        .replace_federated_repository(&state, &manifest, &resolutions)
+        .map_err(|error| error.to_string())?;
+    Ok(NeighborSyncSuccess {
+        name: neighbor.name.clone(),
+        path: neighbor.path.clone(),
+        source_commit: manifest.source_commit,
+        documents: manifest.documents.len(),
+        endpoints: manifest.endpoints.len(),
+        resolutions: resolutions.len(),
+    })
+}
+
+fn print_sync_report(cli: &Cli, report: &SyncReport) -> Result<(), CliError> {
+    if cli.json {
+        println!("{}", serde_json::to_string_pretty(&report)?);
+    } else {
+        for success in &report.synced {
+            println!(
+                "Synced {} at {} ({} documents, {} endpoints, {} FEDERATED_MATCH records)",
+                success.name,
+                short_oid(&success.source_commit),
+                success.documents,
+                success.endpoints,
+                success.resolutions
+            );
+        }
+        for failure in &report.errors {
+            eprintln!("Neighbor {} failed: {}", failure.name, failure.error);
+        }
+        for call in &report.unresolved_calls {
+            println!(
+                "Unresolved: {} {} from {} does not resolve to any known neighbor",
+                call.method.as_str(),
+                call.path_template,
+                call.handler
+            );
+        }
+    }
+    Ok(())
+}
+
+fn export_neighbor(
+    binary: &Path,
+    neighbor: &RegistryNeighbor,
+    export_path: &Path,
+) -> Result<ExportManifest, String> {
+    let output = ProcessCommand::new(binary)
+        .current_dir(&neighbor.path)
+        .arg("--json")
+        .arg("export")
+        .arg("--out")
+        .arg(export_path)
+        .output()
+        .map_err(|error| {
+            format!(
+                "could not run ctx for neighbor '{}': {error}",
+                neighbor.name
+            )
+        })?;
+    if !output.status.success() {
+        let message = String::from_utf8_lossy(&output.stderr).trim().to_owned();
+        return Err(if message.is_empty() {
+            format!("neighbor ctx exited with {}", output.status)
+        } else {
+            message
+        });
+    }
+    ExportManifest::read(export_path).map_err(|error| error.to_string())
+}
+
+fn external_call_contracts(graph: &ctx_core::graph::GraphSnapshot) -> Vec<ExternalCallContract> {
+    let mut calls = graph
+        .edges
+        .iter()
+        .filter(|edge| edge.kind == RelationKind::CallsExternal)
+        .filter_map(|edge| {
+            let source = graph.nodes.get(&edge.source)?;
+            let target = graph.nodes.get(&edge.target)?;
+            let PlannedNodeAttributes::ExternalCall { call } = &target.attributes else {
+                return None;
+            };
+            Some(ExternalCallContract {
+                stable_key: edge.fingerprint.clone(),
+                handler: source.identifier().to_owned(),
+                method: call.method,
+                url: call.url.clone(),
+                path_template: path_template(&call.url)?,
+            })
+        })
+        .collect::<Vec<_>>();
+    calls.sort_by(|left, right| left.stable_key.cmp(&right.stable_key));
+    calls.dedup();
+    calls
+}
+
+fn unresolved_calls(
+    calls: &[ExternalCallContract],
+    endpoints: &[ExportedEndpoint],
+) -> Vec<ExternalCallContract> {
+    let resolved = calls
+        .iter()
+        .filter(|call| {
+            endpoints.iter().any(|endpoint| {
+                call.method == endpoint.method
+                    && path_template(&endpoint.path).as_deref() == Some(call.path_template.as_str())
+            })
+        })
+        .map(|call| call.stable_key.as_str())
+        .collect::<BTreeSet<_>>();
+    calls
+        .iter()
+        .filter(|call| !resolved.contains(call.stable_key.as_str()))
+        .cloned()
+        .collect()
+}
+
+#[derive(Serialize)]
+struct FederationListEntry {
+    name: String,
+    path: String,
+    synced_at: Option<String>,
+    source_commit: Option<String>,
+    stale: Option<bool>,
+}
+
+#[derive(Serialize)]
+struct FederationShowReport {
+    name: String,
+    state: FederationSyncState,
+    documents: Vec<ExportedDocument>,
+    endpoints: Vec<ExportedEndpoint>,
+    resolutions: Vec<ctx_adapters::federation::FederatedResolution>,
+    unresolved_calls: Vec<ExternalCallContract>,
+}
+
+fn federation(cli: &Cli, git: &GitRepo, command: &FederationCommand) -> Result<(), CliError> {
+    let registry = NeighborRegistry::load(git.root())?;
+    let database_path = database_path(git.root())?;
+    let store = SqliteStore::open(&database_path, git.root())?;
+    match command {
+        FederationCommand::List => federation_list(cli, &registry, &store),
+        FederationCommand::Show { name } => federation_show(cli, git, &registry, &store, name),
+    }
+}
+
+fn federation_list(
+    cli: &Cli,
+    registry: &NeighborRegistry,
+    store: &SqliteStore,
+) -> Result<(), CliError> {
+    let states = store
+        .federation_sync_states()?
+        .into_iter()
+        .map(|state| (state.source_repo.clone(), state))
+        .collect::<BTreeMap<_, _>>();
+    let entries = registry
+        .neighbors
+        .iter()
+        .map(|neighbor| {
+            let state = states.get(&neighbor.name);
+            FederationListEntry {
+                name: neighbor.name.clone(),
+                path: neighbor.path.clone(),
+                synced_at: state.map(|value| value.synced_at.clone()),
+                source_commit: state.map(|value| value.source_commit.clone()),
+                stale: state.and_then(|value| {
+                    neighbor_head(Path::new(&neighbor.path)).map(|head| head != value.source_commit)
+                }),
+            }
+        })
+        .collect::<Vec<_>>();
+    if cli.json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&json!({"neighbors": entries}))?
+        );
+    } else {
+        print_federation_list(&entries);
+    }
+    Ok(())
+}
+
+fn print_federation_list(entries: &[FederationListEntry]) {
+    if entries.is_empty() {
+        println!("No neighbors registered.");
+        return;
+    }
+    println!("NAME\tPATH\tSYNCED_AT\tSOURCE_COMMIT\tSTALE?");
+    for entry in entries {
+        println!(
+            "{}\t{}\t{}\t{}\t{}",
+            entry.name,
+            entry.path,
+            entry.synced_at.as_deref().unwrap_or("never"),
+            entry
+                .source_commit
+                .as_deref()
+                .map_or_else(|| "-".to_owned(), short_oid),
+            entry
+                .stale
+                .map_or("unknown", |stale| if stale { "yes" } else { "no" })
+        );
+    }
+}
+
+fn federation_show(
+    cli: &Cli,
+    git: &GitRepo,
+    registry: &NeighborRegistry,
+    store: &SqliteStore,
+    name: &str,
+) -> Result<(), CliError> {
+    if !registry
+        .neighbors
+        .iter()
+        .any(|neighbor| neighbor.name == name)
+    {
+        return Err(FederationError::UnknownNeighbor(name.to_owned()).into());
+    }
+    let FederatedRepositoryData {
+        state,
+        documents,
+        endpoints,
+        resolutions,
+    } = store.federated_repository(name)?;
+    let state = state.ok_or_else(|| CliError::NoFederationData(name.to_owned()))?;
+    let repository = git.descriptor()?;
+    let calls = external_call_contracts(&store.load_graph(&repository.id)?);
+    let all_endpoints = registry
+        .neighbors
+        .iter()
+        .filter_map(|neighbor| store.federated_repository(&neighbor.name).ok())
+        .flat_map(|data| data.endpoints)
+        .collect::<Vec<_>>();
+    let report = FederationShowReport {
+        name: name.to_owned(),
+        state,
+        documents,
+        endpoints,
+        resolutions,
+        unresolved_calls: unresolved_calls(&calls, &all_endpoints),
+    };
+    if cli.json {
+        println!("{}", serde_json::to_string_pretty(&report)?);
+    } else {
+        print_federation_show(&report);
+    }
+    Ok(())
+}
+
+fn print_federation_show(report: &FederationShowReport) {
+    println!(
+        "{} at {} (synced {})",
+        report.name,
+        short_oid(&report.state.source_commit),
+        report.state.synced_at
+    );
+    println!("Public documents:");
+    for document in &report.documents {
+        println!("  - {}: {}", document.id, document.title);
+    }
+    println!("Endpoints:");
+    for endpoint in &report.endpoints {
+        println!(
+            "  - {} {} -> {}",
+            endpoint.method.as_str(),
+            endpoint.path,
+            endpoint.handler
+        );
+    }
+    println!("FEDERATED_MATCH records:");
+    for resolution in &report.resolutions {
+        println!(
+            "  - {} {} from {} -> {}",
+            resolution.call.method.as_str(),
+            resolution.call.path_template,
+            resolution.call.handler,
+            resolution.endpoint.handler
+        );
+    }
+    for call in &report.unresolved_calls {
+        println!(
+            "  - unresolved: {} {} from {} does not resolve to any known neighbor",
+            call.method.as_str(),
+            call.path_template,
+            call.handler
+        );
     }
 }
 
@@ -548,7 +1202,10 @@ fn verify_knowledge_auto(
     let report = match agent {
         "claude" => {
             let binary = env::var("CTX_CLAUDE_CLI_BINARY").unwrap_or_else(|_| "claude".to_owned());
-            let review_agent = ClaudeCodeAgent::new(ClaudeSubprocessTransport::new(binary, cli.verbose > 0), model);
+            let review_agent = ClaudeCodeAgent::new(
+                ClaudeSubprocessTransport::new(binary, cli.verbose > 0),
+                model,
+            );
             KnowledgeVerificationService::new(&mut store, &writer).auto_with_progress(
                 &repository.id,
                 id_prefix,
@@ -562,7 +1219,10 @@ fn verify_knowledge_auto(
         }
         "codex" => {
             let binary = env::var("CTX_CODEX_CLI_BINARY").unwrap_or_else(|_| "codex".to_owned());
-            let review_agent = CodexAgent::new(CodexSubprocessTransport::new(binary, cli.verbose > 0), model);
+            let review_agent = CodexAgent::new(
+                CodexSubprocessTransport::new(binary, cli.verbose > 0),
+                model,
+            );
             KnowledgeVerificationService::new(&mut store, &writer).auto_with_progress(
                 &repository.id,
                 id_prefix,
@@ -577,8 +1237,10 @@ fn verify_knowledge_auto(
         "antigravity" => {
             let binary =
                 env::var("CTX_ANTIGRAVITY_CLI_BINARY").unwrap_or_else(|_| "agy".to_owned());
-            let review_agent =
-                AntigravityAgent::new(AntigravitySubprocessTransport::new(binary, cli.verbose > 0), model);
+            let review_agent = AntigravityAgent::new(
+                AntigravitySubprocessTransport::new(binary, cli.verbose > 0),
+                model,
+            );
             KnowledgeVerificationService::new(&mut store, &writer).auto_with_progress(
                 &repository.id,
                 id_prefix,
@@ -1200,7 +1862,10 @@ fn enrich(
     let report = match agent {
         "claude" => {
             let binary = env::var("CTX_CLAUDE_CLI_BINARY").unwrap_or_else(|_| "claude".to_owned());
-            let claude_agent = ClaudeCodeAgent::new(ClaudeSubprocessTransport::new(binary, cli.verbose > 0), model);
+            let claude_agent = ClaudeCodeAgent::new(
+                ClaudeSubprocessTransport::new(binary, cli.verbose > 0),
+                model,
+            );
             EnrichRunner::new(&claude_agent, &mut store).run_with_progress(
                 &repository.id,
                 &now,
@@ -1210,7 +1875,10 @@ fn enrich(
         }
         "codex" => {
             let binary = env::var("CTX_CODEX_CLI_BINARY").unwrap_or_else(|_| "codex".to_owned());
-            let codex_agent = CodexAgent::new(CodexSubprocessTransport::new(binary, cli.verbose > 0), model);
+            let codex_agent = CodexAgent::new(
+                CodexSubprocessTransport::new(binary, cli.verbose > 0),
+                model,
+            );
             EnrichRunner::new(&codex_agent, &mut store).run_with_progress(
                 &repository.id,
                 &now,
@@ -1221,8 +1889,10 @@ fn enrich(
         "antigravity" => {
             let binary =
                 env::var("CTX_ANTIGRAVITY_CLI_BINARY").unwrap_or_else(|_| "agy".to_owned());
-            let antigravity_agent =
-                AntigravityAgent::new(AntigravitySubprocessTransport::new(binary, cli.verbose > 0), model);
+            let antigravity_agent = AntigravityAgent::new(
+                AntigravitySubprocessTransport::new(binary, cli.verbose > 0),
+                model,
+            );
             EnrichRunner::new(&antigravity_agent, &mut store).run_with_progress(
                 &repository.id,
                 &now,
@@ -1270,7 +1940,7 @@ fn initialize(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
     fs::create_dir_all(git.root().join(".ctx-candidates"))?;
     let database_path = ctx_directory.join("ctx.db");
     SqliteStore::open(&database_path, git.root())?;
-    git.ignore_local_database()?;
+    git.ignore_local_state()?;
     let languages = GitRepo::discover(git.root())?.source_scope().languages;
 
     if cli.json {

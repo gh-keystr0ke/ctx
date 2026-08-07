@@ -5,6 +5,7 @@ use thiserror::Error;
 
 mod artifacts;
 mod context;
+mod federation;
 mod graph;
 mod index;
 mod verification;
@@ -24,6 +25,7 @@ const MIGRATIONS: &[(i64, &str)] = &[
         include_str!("../migrations/007_drop_knowledge_candidates.sql"),
     ),
     (8, include_str!("../migrations/008_document_visibility.sql")),
+    (9, include_str!("../migrations/009_federation.sql")),
 ];
 
 #[derive(Debug, Error)]

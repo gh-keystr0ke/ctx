@@ -3,3 +3,6 @@ languages = ["python", "rust"]
 [paths]
 include = ["crates", "fixtures"]
 exclude = ["generated", "vendor", "build", "dist", "target", ".venv"]
+
+[service]
+name = "ctx"

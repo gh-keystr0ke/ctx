@@ -35,6 +35,7 @@ pub struct GitRepo {
     root: PathBuf,
     languages: Vec<SupportedLanguage>,
     path_filter: PathFilter,
+    service_name: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -43,6 +44,12 @@ struct ConfigFile {
     languages: Option<Vec<String>>,
     #[serde(default)]
     paths: ConfigPaths,
+    service: Option<ConfigService>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct ConfigService {
+    name: String,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -63,6 +70,7 @@ struct PathFilter {
 struct RepositoryConfiguration {
     languages: Vec<SupportedLanguage>,
     path_filter: PathFilter,
+    service_name: Option<String>,
 }
 
 impl Default for RepositoryConfiguration {
@@ -70,6 +78,7 @@ impl Default for RepositoryConfiguration {
         Self {
             languages: vec![SupportedLanguage::Python],
             path_filter: PathFilter::default(),
+            service_name: None,
         }
     }
 }
@@ -120,11 +129,17 @@ impl GitRepo {
             root,
             languages: configuration.languages,
             path_filter: configuration.path_filter,
+            service_name: configuration.service_name,
         })
     }
 
     pub fn root(&self) -> &Path {
         &self.root
+    }
+
+    /// Returns the repository's explicit federation identity, when configured.
+    pub fn service_name(&self) -> Option<&str> {
+        self.service_name.as_deref()
     }
 
     /// Keeps machine-local `SQLite` state out of Git without modifying the
@@ -134,7 +149,7 @@ impl GitRepo {
     ///
     /// Returns [`GitError`] when the repository exclude file cannot be found,
     /// read, or updated.
-    pub fn ignore_local_database(&self) -> Result<(), GitError> {
+    pub fn ignore_local_state(&self) -> Result<(), GitError> {
         let bytes = self.output(&["rev-parse", "--git-path", "info/exclude"])?;
         let value = std::str::from_utf8(&bytes)
             .map_err(|_| GitError::InvalidUtf8)?
@@ -145,7 +160,13 @@ impl GitRepo {
             self.root.join(value)
         };
         let mut content = std::fs::read_to_string(&path)?;
-        for pattern in [".ctx/ctx.db", ".ctx/ctx.db-shm", ".ctx/ctx.db-wal"] {
+        for pattern in [
+            ".ctx/ctx.db",
+            ".ctx/ctx.db-shm",
+            ".ctx/ctx.db-wal",
+            ".ctx/registry.toml",
+            ".ctx/export.json",
+        ] {
             if content.lines().any(|line| line.trim() == pattern) {
                 continue;
             }
@@ -157,6 +178,17 @@ impl GitRepo {
         }
         std::fs::write(path, content)?;
         Ok(())
+    }
+
+    /// Backwards-compatible name for callers that only need the database
+    /// exclusions. New code should use [`Self::ignore_local_state`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`GitError`] when the repository exclude file cannot be found,
+    /// read, or updated.
+    pub fn ignore_local_database(&self) -> Result<(), GitError> {
+        self.ignore_local_state()
     }
 
     fn output(&self, args: &[&str]) -> Result<Vec<u8>, GitError> {
@@ -596,6 +628,16 @@ fn load_configuration(root: &Path) -> Result<RepositoryConfiguration, GitError> 
         .collect::<Result<Vec<_>, _>>()?;
     languages.sort();
     languages.dedup();
+    let service_name = match config.service {
+        Some(service) if service.name.trim().is_empty() => {
+            return Err(GitError::Config {
+                path: path.display().to_string(),
+                message: "`[service].name` must be a non-empty string".to_owned(),
+            });
+        }
+        Some(service) => Some(service.name),
+        None => None,
+    };
     let defaults = PathFilter::default();
     Ok(RepositoryConfiguration {
         languages,
@@ -611,6 +653,7 @@ fn load_configuration(root: &Path) -> Result<RepositoryConfiguration, GitError> 
                 normalize_path_entries(config.paths.exclude)
             },
         },
+        service_name,
     })
 }
 

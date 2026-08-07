@@ -264,10 +264,15 @@ def cancel_subscription(subscription_id: str, request: Request) -> Subscription:
         "explain",
         "billing.api.cancel_subscription -> /v1/subscriptions/{subscription_id}",
     ]);
-    assert_eq!(explanation["matches"][0]["claims"][0]["claim_class"], "fact");
-    assert!(explanation["matches"][0]["claims"][0]["evidence"][0]["locator"]
-        .as_str()
-        .is_some_and(|locator| locator.contains("decorator:DELETE")));
+    assert_eq!(
+        explanation["matches"][0]["claims"][0]["claim_class"],
+        "fact"
+    );
+    assert!(
+        explanation["matches"][0]["claims"][0]["evidence"][0]["locator"]
+            .as_str()
+            .is_some_and(|locator| locator.contains("decorator:DELETE"))
+    );
 
     fs::write(
         &api_path,
@@ -288,14 +293,18 @@ def cancel_subscription(subscription_id: str, request: Request) -> Subscription:
     );
     repository.ctx(&["index"]);
     let impact = repository.ctx(&["impact", "billing.api.cancel_subscription"]);
-    assert!(impact["matches"][0]["api_contracts"]
-        .as_array()
-        .expect("API contracts")
-        .is_empty());
+    assert!(
+        impact["matches"][0]["api_contracts"]
+            .as_array()
+            .expect("API contracts")
+            .is_empty()
+    );
     let missing = repository.ctx_failure(&["explain", "/v1/subscriptions/{subscription_id}"]);
-    assert!(missing["error"]
-        .as_str()
-        .is_some_and(|error| error.contains("nothing indexed matches")));
+    assert!(
+        missing["error"]
+            .as_str()
+            .is_some_and(|error| error.contains("nothing indexed matches"))
+    );
 }
 
 #[test]
@@ -529,14 +538,18 @@ fn enrich_drops_ungrounded_implementation_and_test_candidates_by_default() {
     let pending = repository.ctx(&["verify", "--knowledge"]);
     let candidates = pending.as_array().expect("pending candidates");
     assert_eq!(candidates.len(), 1);
-    assert!(candidates[0]["implementation_candidates"]
-        .as_array()
-        .expect("implementation_candidates")
-        .is_empty());
-    assert!(candidates[0]["test_candidates"]
-        .as_array()
-        .expect("test_candidates")
-        .is_empty());
+    assert!(
+        candidates[0]["implementation_candidates"]
+            .as_array()
+            .expect("implementation_candidates")
+            .is_empty()
+    );
+    assert!(
+        candidates[0]["test_candidates"]
+            .as_array()
+            .expect("test_candidates")
+            .is_empty()
+    );
 }
 
 #[test]
@@ -617,7 +630,9 @@ fn a_pending_candidate_survives_losing_the_local_database_once_committed() {
     assert_eq!(queue_files.len(), 1, "exactly one candidate file written");
     let queue_file = &queue_files[0];
     assert_eq!(
-        queue_file.extension().and_then(|extension| extension.to_str()),
+        queue_file
+            .extension()
+            .and_then(|extension| extension.to_str()),
         Some("yaml")
     );
     let queue_file_content = fs::read_to_string(queue_file).expect("read candidate file");
@@ -1105,6 +1120,133 @@ fn one_file_failing_analysis_does_not_block_indexing_the_rest() {
     assert_eq!(still_failed[0]["path"], "src/broken.rs");
 }
 
+#[test]
+fn repositories_export_sync_resolve_and_report_federated_contracts() {
+    let provider = service_repository(
+        "billing-service",
+        r#"router = APIRouter(prefix="/v1")
+
+@router.post("/charges/{charge_id}")
+def create_charge(charge_id: str) -> Charge:
+    return {"id": charge_id}
+"#,
+        &[
+            (
+                "public.yaml",
+                "id: REQ-BILLING-PUBLIC\ntype: requirement\nstatus: active\nvisibility: public\nstatement: Billing accepts charge creation requests.\n",
+            ),
+            (
+                "private.yaml",
+                "id: REQ-BILLING-PRIVATE\ntype: requirement\nstatus: active\nvisibility: private\nstatement: The internal ledger key must remain secret.\n",
+            ),
+        ],
+    );
+    let caller = service_repository(
+        "checkout-service",
+        r#"import requests
+
+def submit_charge(charge_id: str):
+    return requests.post(f"https://billing.internal/v1/charges/{charge_id}")
+
+def notify_unknown():
+    return requests.get("https://unknown.internal/health")
+"#,
+        &[],
+    );
+    let broken = service_repository("broken-service", "def noop():\n    return 1\n", &[]);
+
+    for repository in [&provider, &caller] {
+        ctx_json_at(repository.path(), &["init"]);
+        ctx_json_at(repository.path(), &["index"]);
+    }
+
+    assert_deterministic_public_export(provider.path());
+
+    let provider_path = provider.path().to_str().expect("UTF-8 provider path");
+    let added = ctx_json_at(caller.path(), &["registry", "add", provider_path]);
+    assert_eq!(added["changed"], true);
+    assert_eq!(added["neighbor"]["name"], "billing-service");
+    let idempotent = ctx_json_at(caller.path(), &["registry", "add", provider_path]);
+    assert_eq!(idempotent["changed"], false);
+    let before_sync = ctx_failure_at(caller.path(), &["federation", "show", "billing-service"]);
+    assert!(
+        before_sync["error"]
+            .as_str()
+            .is_some_and(|error| error.contains("run 'ctx sync' first"))
+    );
+
+    let missing = caller.path().join("does-not-exist");
+    let missing_error = ctx_failure_at(
+        caller.path(),
+        &[
+            "registry",
+            "add",
+            missing.to_str().expect("UTF-8 missing path"),
+        ],
+    );
+    assert!(
+        missing_error["error"]
+            .as_str()
+            .is_some_and(|error| error.contains("does not exist"))
+    );
+    ctx_json_at(
+        caller.path(),
+        &[
+            "registry",
+            "add",
+            broken.path().to_str().expect("UTF-8 broken path"),
+        ],
+    );
+
+    let sync = ctx_json_at(caller.path(), &["sync"]);
+    assert_eq!(sync["synced"].as_array().map(Vec::len), Some(1));
+    assert_eq!(sync["synced"][0]["name"], "billing-service");
+    assert_eq!(sync["synced"][0]["resolutions"], 1);
+    assert_eq!(sync["errors"].as_array().map(Vec::len), Some(1));
+    assert_eq!(sync["errors"][0]["name"], "broken-service");
+    assert_eq!(sync["unresolved_calls"].as_array().map(Vec::len), Some(1));
+    assert_eq!(sync["unresolved_calls"][0]["path_template"], "/health");
+
+    let show = ctx_json_at(caller.path(), &["federation", "show", "billing-service"]);
+    assert_eq!(show["documents"][0]["id"], "REQ-BILLING-PUBLIC");
+    assert_eq!(show["endpoints"][0]["path"], "/v1/charges/{charge_id}");
+    assert_eq!(show["resolutions"][0]["status"], "FEDERATED_MATCH");
+    assert_eq!(
+        show["resolutions"][0]["call"]["path_template"],
+        "/v1/charges/{param}"
+    );
+    assert_eq!(show["unresolved_calls"].as_array().map(Vec::len), Some(1));
+
+    assert_neighbor_staleness(caller.path(), provider.path());
+}
+
+#[test]
+fn export_requires_an_explicit_service_identity() {
+    let repository = tempfile::tempdir().expect("temporary repository");
+    fs::create_dir_all(repository.path().join("src")).expect("source directory");
+    fs::create_dir_all(repository.path().join(".ctx")).expect("ctx directory");
+    fs::write(
+        repository.path().join(".ctx/config.toml"),
+        "languages = [\"python\"]\n\n[paths]\ninclude = [\"src\"]\n",
+    )
+    .expect("configuration");
+    fs::write(
+        repository.path().join("src/app.py"),
+        "def run():\n    return 1\n",
+    )
+    .expect("source");
+    initialize_git_repository(repository.path());
+    ctx_json_at(repository.path(), &["init"]);
+    ctx_json_at(repository.path(), &["index"]);
+
+    let error = ctx_failure_at(repository.path(), &["export"]);
+    assert!(
+        error["error"]
+            .as_str()
+            .is_some_and(|message| message.contains("[service].name"))
+    );
+}
+
 fn json_array(values: &[&str]) -> Value {
     Value::Array(
         values
@@ -1310,6 +1452,118 @@ fn run_git(root: &Path, arguments: &[&str]) {
         arguments.join(" "),
         String::from_utf8_lossy(&output.stderr)
     );
+}
+
+fn assert_deterministic_public_export(provider: &Path) {
+    let first_path = provider.join(".ctx/export-one.json");
+    let second_path = provider.join(".ctx/export-two.json");
+    ctx_json_at(
+        provider,
+        &["export", "--out", first_path.to_str().expect("UTF-8 path")],
+    );
+    ctx_json_at(
+        provider,
+        &["export", "--out", second_path.to_str().expect("UTF-8 path")],
+    );
+    let first = fs::read(&first_path).expect("first manifest");
+    let second = fs::read(&second_path).expect("second manifest");
+    assert_eq!(first, second, "same-commit exports must be byte-stable");
+    let manifest: Value = serde_json::from_slice(&first).expect("manifest JSON");
+    assert_eq!(manifest["service_name"], "billing-service");
+    assert_eq!(manifest["documents"].as_array().map(Vec::len), Some(1));
+    assert_eq!(manifest["documents"][0]["id"], "REQ-BILLING-PUBLIC");
+    assert!(!String::from_utf8_lossy(&first).contains("REQ-BILLING-PRIVATE"));
+    assert!(!String::from_utf8_lossy(&first).contains("return {\"id\""));
+    assert_eq!(manifest["endpoints"][0]["method"], "post");
+    assert_eq!(manifest["endpoints"][0]["path"], "/v1/charges/{charge_id}");
+}
+
+fn assert_neighbor_staleness(caller: &Path, provider: &Path) {
+    let list = ctx_json_at(caller, &["federation", "list"]);
+    let billing = list["neighbors"]
+        .as_array()
+        .expect("neighbor list")
+        .iter()
+        .find(|neighbor| neighbor["name"] == "billing-service")
+        .expect("billing neighbor");
+    assert_eq!(billing["stale"], false);
+
+    fs::write(provider.join("README.md"), "new provider commit\n").expect("provider readme");
+    run_git(provider, &["add", "README.md"]);
+    run_git(provider, &["commit", "--quiet", "-m", "provider advances"]);
+    let stale = ctx_json_at(caller, &["federation", "list"]);
+    let billing = stale["neighbors"]
+        .as_array()
+        .expect("neighbor list")
+        .iter()
+        .find(|neighbor| neighbor["name"] == "billing-service")
+        .expect("billing neighbor");
+    assert_eq!(billing["stale"], true);
+}
+
+fn service_repository(service_name: &str, source: &str, documents: &[(&str, &str)]) -> TempDir {
+    let repository = tempfile::tempdir().expect("temporary service repository");
+    fs::create_dir_all(repository.path().join("src")).expect("source directory");
+    fs::create_dir_all(repository.path().join(".ctx")).expect("ctx directory");
+    fs::create_dir_all(repository.path().join(".context/requirements"))
+        .expect("requirements directory");
+    fs::write(
+        repository.path().join(".ctx/config.toml"),
+        format!(
+            "languages = [\"python\"]\n\n[paths]\ninclude = [\"src\"]\n\n[service]\nname = \"{service_name}\"\n"
+        ),
+    )
+    .expect("service configuration");
+    fs::write(repository.path().join("src/app.py"), source).expect("service source");
+    for (name, content) in documents {
+        fs::write(
+            repository.path().join(".context/requirements").join(name),
+            content,
+        )
+        .expect("service document");
+    }
+    initialize_git_repository(repository.path());
+    repository
+}
+
+fn initialize_git_repository(root: &Path) {
+    run_git(root, &["init", "--quiet"]);
+    run_git(root, &["config", "user.name", "ctx tests"]);
+    run_git(root, &["config", "user.email", "ctx@example.invalid"]);
+    run_git(root, &["add", "."]);
+    run_git(root, &["commit", "--quiet", "-m", "service baseline"]);
+}
+
+fn ctx_json_at(root: &Path, arguments: &[&str]) -> Value {
+    let output = Command::new(env!("CARGO_BIN_EXE_ctx"))
+        .current_dir(root)
+        .arg("--json")
+        .args(arguments)
+        .output()
+        .expect("execute ctx");
+    assert!(
+        output.status.success(),
+        "ctx {} failed\nstdout: {}\nstderr: {}",
+        arguments.join(" "),
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    serde_json::from_slice(&output.stdout).expect("ctx JSON response")
+}
+
+fn ctx_failure_at(root: &Path, arguments: &[&str]) -> Value {
+    let output = Command::new(env!("CARGO_BIN_EXE_ctx"))
+        .current_dir(root)
+        .arg("--json")
+        .args(arguments)
+        .output()
+        .expect("execute ctx");
+    assert!(
+        !output.status.success(),
+        "ctx {} unexpectedly succeeded",
+        arguments.join(" ")
+    );
+    serde_json::from_slice(&output.stderr).expect("ctx JSON error")
 }
 
 fn copy_directory(source: &Path, destination: &Path) {

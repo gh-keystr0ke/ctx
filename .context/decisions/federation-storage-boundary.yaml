@@ -1,0 +1,20 @@
+id: ADR-FEDERATION-002
+type: decision
+visibility: public
+status: accepted
+title: Keep synchronized neighbor knowledge outside the local fact graph
+decision: >-
+  Federation manifests are local, commit-labelled snapshots imported into dedicated
+  federated_syncs, federated_documents, federated_endpoints, and
+  federated_external_call_resolutions tables. They never create local nodes or edges. A static
+  method/path-template resolution is labelled FEDERATED_MATCH rather than FACT because its truth
+  depends independently on the local and neighbor commits. Synchronization is explicit, continues
+  after per-neighbor failures, rejects incompatible manifest schema versions, and replaces each
+  successful neighbor snapshot atomically; ordinary indexing never reads neighboring files.
+implementation:
+  - symbol: ctx_adapters.sqlite.federation.SqliteStore.replace_federated_repository
+  - symbol: ctx_adapters.federation.FederatedResolution
+  - symbol: ctx_cli.sync_neighbor
+tests:
+  - symbol: ctx_adapters.sqlite.federation.tests.federated_snapshots_round_trip_without_entering_local_graph_tables
+  - symbol: crates.ctx-cli.tests.e2e.repositories_export_sync_resolve_and_report_federated_contracts

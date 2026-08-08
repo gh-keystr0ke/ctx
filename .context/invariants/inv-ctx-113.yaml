@@ -6,3 +6,4 @@ implementation:
   - symbol: ctx_core.indexing.plan_incremental_index
 tests:
   - symbol: ctx_core.indexing.tests.a_new_files_same_shaped_symbol_does_not_steal_an_unrelated_unchanged_files_identity
+

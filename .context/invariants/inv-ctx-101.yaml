@@ -7,3 +7,4 @@ implementation:
 tests:
   - symbol: ctx_adapters.agent_contract.tests.not_relevant_and_insufficient_evidence_pass_through_unchanged
   - symbol: ctx_adapters.agent_contract.tests.an_evidence_id_outside_the_neighborhood_is_dropped_not_trusted
+

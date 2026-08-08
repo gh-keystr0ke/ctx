@@ -8,3 +8,4 @@ implementation:
 tests:
   - symbol: ctx_adapters.agent_contract.tests.malformed_output_is_rejected_not_guessed_at
   - symbol: ctx_adapters.claude_code.tests.subprocess_transport_invokes_claude_p_and_returns_stdout
+

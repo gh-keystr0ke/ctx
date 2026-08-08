@@ -6,3 +6,4 @@ implementation:
   - symbol: ctx_core.indexing.plan_incremental_index
 tests:
   - symbol: ctx_core.indexing.tests.structurally_equal_symbols_added_together_do_not_impersonate_history
+

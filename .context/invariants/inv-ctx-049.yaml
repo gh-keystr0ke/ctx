@@ -9,3 +9,4 @@ tests:
   - symbol: ctx_eval.report.tests.context_within_budget_checks_estimate_against_requested_budget
   - symbol: ctx_eval.report.tests.forbidden_intent_present_fails_the_precision_check
   - symbol: ctx_eval.report.tests.required_intent_missing_from_findings_fails_the_check
+

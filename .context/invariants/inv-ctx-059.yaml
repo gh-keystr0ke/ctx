@@ -6,3 +6,4 @@ implementation:
   - symbol: ctx_core.verification.intents_without_mapping
 tests:
   - symbol: ctx_core.verification.tests.an_unmapped_feature_is_never_flagged
+

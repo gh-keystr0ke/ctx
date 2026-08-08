@@ -7,3 +7,4 @@ implementation:
   - symbol: ctx_adapters.codex.SubprocessTransport.AgentTransport.run
 tests:
   - symbol: ctx_adapters.codex.tests.subprocess_transport_invokes_codex_exec_and_returns_stdout
+

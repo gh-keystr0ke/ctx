@@ -6,3 +6,4 @@ decision: Observed deterministic schema changes are represented separately from 
 implementation:
   - symbol: ctx_core.review.ReviewReport
   - symbol: ctx_core.review.schema_change_findings
+

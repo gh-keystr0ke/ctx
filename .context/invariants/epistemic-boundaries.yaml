@@ -26,3 +26,4 @@ tests:
   - symbol: ctx_core.verification.tests.candidate_score_exposes_individual_heuristic_signals
   - symbol: ctx_core.context_pack.tests.shared_test_reached_through_the_seeds_call_graph_does_not_bridge_unrelated_intent
   - symbol: ctx_adapters.database.tests.ignores_non_sql_and_unquotes_python_and_rust_literals
+

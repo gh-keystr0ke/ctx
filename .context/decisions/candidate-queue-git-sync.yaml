@@ -77,3 +77,4 @@ tests:
   - symbol: ctx_adapters.candidate_queue.tests.a_stray_non_yaml_file_is_ignored
   - symbol: ctx_adapters.candidate_queue.tests.pending_lists_only_pending_status_in_deterministic_order
   - symbol: crates.ctx-cli.tests.e2e.a_pending_candidate_survives_losing_the_local_database_once_committed
+

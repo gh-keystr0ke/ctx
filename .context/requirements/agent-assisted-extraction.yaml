@@ -84,3 +84,4 @@ tests:
   - symbol: crates.ctx-cli.tests.e2e.enrich_dispatches_antigravity_to_agy_p_with_its_own_binary_override
   - symbol: crates.ctx-cli.tests.e2e.enrich_drops_ungrounded_implementation_and_test_candidates_by_default
   - symbol: crates.ctx-cli.tests.e2e.enrich_allow_ungrounded_symbols_keeps_implementation_and_test_candidates_outside_the_neighborhood
+

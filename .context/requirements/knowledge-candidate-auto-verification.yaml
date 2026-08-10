@@ -125,3 +125,4 @@ tests:
   - symbol: ctx_cli.tab_title.tests.title_sequence_wraps_the_title_in_osc_0
   - symbol: crates.ctx-cli.tests.e2e.verify_knowledge_auto_reviews_and_accepts_with_an_honest_agent_decision_method
  
+

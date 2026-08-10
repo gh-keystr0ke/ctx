@@ -44,3 +44,4 @@ tests:
   - symbol: ctx_core.review.tests.indirect_call_signal_does_not_duplicate_a_caller_s_own_direct_finding
   - symbol: ctx_core.schema.tests.diff_does_not_guess_a_rename_from_name_similarity
   - symbol: ctx_core.schema.tests.adding_a_not_null_column_without_default_to_an_existing_table_is_destructive
+

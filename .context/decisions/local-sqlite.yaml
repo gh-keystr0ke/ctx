@@ -29,3 +29,4 @@ tests:
   - symbol: ctx_adapters.sqlite.tests.migration_closes_duplicate_current_edges_and_enforces_uniqueness
   - symbol: ctx_adapters.sqlite.index.tests.same_commit_reanalysis_replaces_derived_node_version
   - symbol: ctx_adapters.sqlite.index.tests.database_facts_persist_with_static_evidence_and_status_counts
+

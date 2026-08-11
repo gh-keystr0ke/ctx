@@ -48,3 +48,4 @@ tests:
   - symbol: ctx_adapters.business_context.tests.writing_the_same_id_twice_is_rejected_not_silently_overwritten
   - symbol: ctx_adapters.sqlite.artifacts.tests.accepting_a_candidate_removes_it_from_pending_and_records_the_resulting_document
   - symbol: crates.ctx-cli.tests.e2e.accepting_a_knowledge_candidate_writes_a_context_document_ctx_index_then_absorbs
+

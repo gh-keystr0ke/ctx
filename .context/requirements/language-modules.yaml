@@ -25,3 +25,4 @@ tests:
   - symbol: ctx_adapters.go.tests.extracts_go_functions_methods_types_tests_and_calls
   - symbol: ctx_adapters.python.tests.extracts_static_sql_reads_and_writes_only_from_execution_calls
   - symbol: ctx_adapters.rust.tests.extracts_sqlx_and_rusqlite_static_database_accesses
+

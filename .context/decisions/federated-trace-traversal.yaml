@@ -2,6 +2,7 @@ id: ADR-FEDERATION-003
 type: decision
 visibility: public
 status: accepted
+implementation_expected: false
 title: Bound future request tracing at every repository transition
 decision: >-
   A future ctx trace command will traverse only commit-labelled deterministic structure in the

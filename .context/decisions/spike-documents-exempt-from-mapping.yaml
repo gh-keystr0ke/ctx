@@ -1,0 +1,25 @@
+id: ADR-CTX-049
+type: decision
+status: accepted
+title: A document opts out of needs-mappings per-document, not by kind
+decision: >-
+  ctx status's needs-mappings check (PR-MAP-003) already exempts every Feature node by kind,
+  since a Feature is always a pure descriptive umbrella with no implementation/tests of its own.
+  Epic D's federation-tracing spike introduced the first case a Decision has the same property:
+  ADR-FEDERATION-003 and ADR-FEDERATION-004 are honest scope estimates and design ADRs with
+  deliberately no code to point at yet. Excluding all Decisions by kind would hide a real gap --
+  most Decisions do describe an implemented choice and should still be flagged when unmapped -- so
+  the exemption is instead an explicit per-document field, implementation_expected, defaulting to
+  true. A document author sets implementation_expected: false only when the document itself will
+  never gain an implementation/tests mapping by design, not as a way to silence a mapping gap that
+  should eventually be filled. This keeps the check's precision: it still catches one freshly
+  accepted, genuinely-unmapped document sitting among many already-mapped ones (the case PR-MAP-003
+  exists for), while never flagging a document that structurally can't have a mapping.
+implementation:
+  - symbol: ctx_core.business.BusinessDocument
+  - symbol: ctx_core.verification.intents_without_mapping
+  - symbol: ctx_adapters.business_context.normalize_document
+tests:
+  - symbol: ctx_core.verification.tests.an_unmapped_spike_decision_is_never_flagged_but_an_ordinary_one_still_is
+  - symbol: ctx_adapters.business_context.tests.implementation_expected_defaults_true_and_accepts_an_explicit_false
+  - symbol: ctx_adapters.sqlite.context.tests.implementation_expected_false_round_trips_through_sqlite

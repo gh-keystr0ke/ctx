@@ -694,6 +694,16 @@ fn symbol_file(node: &GraphNode) -> Option<&str> {
     }
 }
 
+fn implementation_expected(node: &GraphNode) -> bool {
+    match &node.attributes {
+        PlannedNodeAttributes::Business {
+            implementation_expected,
+            ..
+        } => *implementation_expected,
+        _ => true,
+    }
+}
+
 /// Identifiers of every active Requirement/Invariant/Decision node with no
 /// active `Implements`/`Enforces`/`Satisfies` edge pointing to it (prompt3.md
 /// PR-MAP-003), sorted for deterministic display. Deliberately excludes
@@ -701,11 +711,17 @@ fn symbol_file(node: &GraphNode) -> Option<&str> {
 /// its fixtures is a pure descriptive umbrella with no `implementation`/
 /// `tests` of its own (the Requirements underneath it carry the actual
 /// mapping) -- flagging that as unmapped would be a false positive on the
-/// established convention, not a real gap. Unlike a repository-wide "are
-/// there any active assertions at all" check, this catches the case that
-/// matters most right after `ctx verify --knowledge --accept`: one freshly
-/// accepted document with no mapping, sitting alongside many already-mapped
-/// ones that would otherwise hide it from a coarser aggregate count.
+/// established convention, not a real gap. Also excludes any document
+/// explicitly marked `implementation_expected: false` -- a design-spike
+/// Decision that records a scope estimate or ADR with deliberately no code
+/// to point at (Epic D's tracing/field-provenance spikes are the first
+/// case), the same exemption as Feature but opted into per-document instead
+/// of by node kind, since most Decisions do expect a mapping. Unlike a
+/// repository-wide "are there any active assertions at all" check, this
+/// catches the case that matters most right after `ctx verify --knowledge
+/// --accept`: one freshly accepted document with no mapping, sitting
+/// alongside many already-mapped ones that would otherwise hide it from a
+/// coarser aggregate count.
 #[must_use]
 pub fn intents_without_mapping(graph: &GraphSnapshot) -> Vec<String> {
     let mapped: BTreeSet<&StableKey> = graph
@@ -727,7 +743,8 @@ pub fn intents_without_mapping(graph: &GraphSnapshot) -> Vec<String> {
             matches!(
                 node.kind,
                 NodeKind::Requirement | NodeKind::Invariant | NodeKind::Decision
-            ) && !mapped.contains(&node.stable_key)
+            ) && implementation_expected(node)
+                && !mapped.contains(&node.stable_key)
         })
         .map(|node| node.identifier().to_owned())
         .collect();
@@ -1006,6 +1023,7 @@ mod tests {
                 id: "INV-SUB-002".to_owned(),
                 status: "active".to_owned(),
                 visibility: crate::business::Visibility::Private,
+                implementation_expected: true,
                 body: "Never delete paid history".to_owned(),
                 feature: None,
                 source_uri: "invariant.yaml".to_owned(),
@@ -1043,6 +1061,7 @@ mod tests {
                 id: "FEAT-SUBSCRIPTIONS".to_owned(),
                 status: "active".to_owned(),
                 visibility: crate::business::Visibility::Private,
+                implementation_expected: true,
                 body: "Users can cancel without losing already-paid entitlement.".to_owned(),
                 feature: None,
                 source_uri: "feature.yaml".to_owned(),
@@ -1056,6 +1075,58 @@ mod tests {
         };
 
         assert!(intents_without_mapping(&graph).is_empty());
+    }
+
+    /// A design-spike Decision that opts out with `implementation_expected:
+    /// false` is exempt from the mapping check the same way a Feature is,
+    /// but an ordinary unmapped Decision (the default `true`) still gets
+    /// flagged -- the exemption is per-document, not per-kind.
+    #[test]
+    fn an_unmapped_spike_decision_is_never_flagged_but_an_ordinary_one_still_is() {
+        let spike = GraphNode {
+            stable_key: StableKey::new("intent:ADR-SPIKE").expect("stable key"),
+            kind: NodeKind::Decision,
+            name: "Trace request flow".to_owned(),
+            content_hash: "spike".to_owned(),
+            attributes: PlannedNodeAttributes::Business {
+                id: "ADR-SPIKE".to_owned(),
+                status: "accepted".to_owned(),
+                visibility: crate::business::Visibility::Private,
+                implementation_expected: false,
+                body: "Design spike, no implementation yet.".to_owned(),
+                feature: None,
+                source_uri: "adr-spike.yaml".to_owned(),
+            },
+        };
+        let ordinary = GraphNode {
+            stable_key: StableKey::new("intent:ADR-ORDINARY").expect("stable key"),
+            kind: NodeKind::Decision,
+            name: "Use local SQLite".to_owned(),
+            content_hash: "ordinary".to_owned(),
+            attributes: PlannedNodeAttributes::Business {
+                id: "ADR-ORDINARY".to_owned(),
+                status: "accepted".to_owned(),
+                visibility: crate::business::Visibility::Private,
+                implementation_expected: true,
+                body: "Store claims in local SQLite.".to_owned(),
+                feature: None,
+                source_uri: "adr-ordinary.yaml".to_owned(),
+            },
+        };
+        let graph = GraphSnapshot {
+            nodes: [
+                (spike.stable_key.clone(), spike),
+                (ordinary.stable_key.clone(), ordinary),
+            ]
+            .into_iter()
+            .collect(),
+            edges: Vec::new(),
+        };
+
+        assert_eq!(
+            intents_without_mapping(&graph),
+            vec!["ADR-ORDINARY".to_owned()]
+        );
     }
 
     #[test]
@@ -1202,6 +1273,7 @@ mod tests {
                 id: "REQ-SUB-001".to_owned(),
                 status: "active".to_owned(),
                 visibility: crate::business::Visibility::Private,
+                implementation_expected: true,
                 body: "Existing requirement.".to_owned(),
                 feature: None,
                 source_uri: "requirement.yaml".to_owned(),
@@ -1228,6 +1300,7 @@ mod tests {
                 id: "REQ-SUB-001".to_owned(),
                 status: "active".to_owned(),
                 visibility: crate::business::Visibility::Private,
+                implementation_expected: true,
                 body: "Subscription cancel access remains available".to_owned(),
                 feature: None,
                 source_uri: "requirement.yaml".to_owned(),

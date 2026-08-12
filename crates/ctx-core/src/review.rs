@@ -1835,6 +1835,7 @@ mod tests {
                 id: id.to_owned(),
                 status: "active".to_owned(),
                 visibility: crate::business::Visibility::Private,
+                implementation_expected: true,
                 body: "Keep paid access".to_owned(),
                 feature: None,
                 source_uri: "requirement.yaml".to_owned(),

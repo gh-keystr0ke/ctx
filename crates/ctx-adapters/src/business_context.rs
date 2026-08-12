@@ -83,6 +83,8 @@ struct RawDocument {
     status: Option<String>,
     visibility: Option<String>,
     feature: Option<String>,
+    #[serde(default = "default_implementation_expected")]
+    implementation_expected: bool,
     #[serde(default)]
     implementation: Vec<RawLink>,
     #[serde(default)]
@@ -102,6 +104,10 @@ impl RawLink {
             Self::Name(symbol) | Self::Object { symbol } => symbol,
         }
     }
+}
+
+const fn default_implementation_expected() -> bool {
+    true
 }
 
 fn collect_paths(directory: &Path, paths: &mut Vec<PathBuf>) -> Result<(), BusinessContextError> {
@@ -208,6 +214,7 @@ fn normalize_document(
         status: raw.status.unwrap_or_else(|| "active".to_owned()),
         visibility: parse_visibility(&display_path, raw.visibility.as_deref())?,
         feature: raw.feature,
+        implementation_expected: raw.implementation_expected,
         implementation: normalize_links(raw.implementation, "implementation"),
         tests: normalize_links(raw.tests, "tests"),
         source_uri,
@@ -459,6 +466,7 @@ mod tests {
             status: "active".to_owned(),
             visibility: Visibility::Private,
             feature: Some("FEAT-INDEXING".to_owned()),
+            implementation_expected: true,
             implementation: vec![ExplicitSymbolLink {
                 symbol: "billing.subscription.SubscriptionService.cancel".to_owned(),
                 locator: "implementation[0]".to_owned(),
@@ -534,6 +542,38 @@ mod tests {
         )
         .expect_err("unsupported visibility must fail");
         assert!(error.to_string().contains("invalid visibility 'internal'"));
+    }
+
+    /// A design-spike ADR with no code to point at opts out of the
+    /// needs-mappings check by setting `implementation_expected: false`;
+    /// every other document defaults to `true` so absence never silently
+    /// exempts it (PR-MAP-003).
+    #[test]
+    fn implementation_expected_defaults_true_and_accepts_an_explicit_false() {
+        for (yaml, expected) in [
+            (
+                "id: ADR-DEFAULT\ntype: decision\ntitle: T\ndecision: Keep access.\n",
+                true,
+            ),
+            (
+                "id: ADR-SPIKE\ntype: decision\ntitle: T\ndecision: Keep access.\nimplementation_expected: false\n",
+                false,
+            ),
+            (
+                "id: ADR-EXPLICIT-TRUE\ntype: decision\ntitle: T\ndecision: Keep access.\nimplementation_expected: true\n",
+                true,
+            ),
+        ] {
+            let raw: RawDocument = serde_yaml::from_str(yaml).expect("YAML");
+            let document = normalize_document(
+                Path::new("/repo"),
+                Path::new("/repo/.context/decisions/adr.yaml"),
+                yaml,
+                raw,
+            )
+            .expect("document");
+            assert_eq!(document.implementation_expected, expected);
+        }
     }
 
     #[test]

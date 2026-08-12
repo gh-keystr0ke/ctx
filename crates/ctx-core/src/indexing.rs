@@ -196,10 +196,16 @@ pub enum PlannedNodeAttributes {
         status: String,
         #[serde(default)]
         visibility: crate::business::Visibility,
+        #[serde(default = "default_implementation_expected")]
+        implementation_expected: bool,
         body: String,
         feature: Option<String>,
         source_uri: String,
     },
+}
+
+const fn default_implementation_expected() -> bool {
+    true
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]

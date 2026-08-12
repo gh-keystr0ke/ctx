@@ -143,6 +143,7 @@ fn persist_document(
         id: document.id.clone(),
         status: document.status.clone(),
         visibility: document.visibility,
+        implementation_expected: document.implementation_expected,
         body: document.body.clone(),
         feature: document.feature.clone(),
         source_uri: document.source_uri.clone(),
@@ -748,6 +749,7 @@ mod tests {
             title: "Keep access".to_owned(),
             body: "Keep access until paid_until".to_owned(),
             status: "active".to_owned(),
+            implementation_expected: true,
             visibility: ctx_core::business::Visibility::Public,
             feature: None,
             implementation: vec![ExplicitSymbolLink {
@@ -807,6 +809,73 @@ mod tests {
         ));
     }
 
+    /// A design-spike Decision persisted with `implementation_expected:
+    /// false` round-trips that flag through the real `SQLite` adapter, not
+    /// just a fake store -- the same precedent as
+    /// `explicit_links_persist_an_explainable_evidence_chain`.
+    #[test]
+    fn implementation_expected_false_round_trips_through_sqlite() {
+        let directory = tempdir().expect("temporary directory");
+        let mut store = SqliteStore::open(&directory.path().join("ctx.db"), directory.path())
+            .expect("database");
+        let repository = RepositoryDescriptor {
+            id: RepositoryId::new("repo:test").expect("repository ID"),
+            root_path: "/repo".to_owned(),
+            remote_url: None,
+        };
+        let commit = CommitMetadata {
+            oid: CommitOid::new("abcdef12").expect("commit"),
+            parent_oid: None,
+            authored_at: "2026-08-27T00:00:00Z".to_owned(),
+        };
+        store
+            .ensure_repository(&repository, "2026-08-27T00:00:00Z")
+            .expect("repository");
+        store
+            .apply_index(
+                &repository.id,
+                &commit,
+                "2026-08-27T00:00:00Z",
+                &IndexPlan::default(),
+            )
+            .expect("index");
+        let document = BusinessDocument {
+            id: "ADR-SPIKE".to_owned(),
+            kind: BusinessKind::Decision,
+            title: "Trace request flow".to_owned(),
+            body: "Design spike, no implementation yet.".to_owned(),
+            status: "accepted".to_owned(),
+            implementation_expected: false,
+            visibility: ctx_core::business::Visibility::Private,
+            feature: None,
+            implementation: Vec::new(),
+            tests: Vec::new(),
+            source_uri: ".context/decisions/adr-spike.yaml".to_owned(),
+            content_hash: "document".to_owned(),
+        };
+        store
+            .sync_context(&repository.id, &commit, "2026-08-27T00:00:00Z", &[document])
+            .expect("context");
+
+        let graph = store.load_graph(&repository.id).expect("graph");
+        let spike = graph
+            .resolve("ADR-SPIKE")
+            .into_iter()
+            .next()
+            .expect("spike decision");
+        assert!(matches!(
+            spike.attributes,
+            PlannedNodeAttributes::Business {
+                implementation_expected: false,
+                ..
+            }
+        ));
+        assert!(
+            ctx_core::verification::intents_without_mapping(&graph).is_empty(),
+            "a spike decision with no mapping must never be flagged"
+        );
+    }
+
     /// PR-LOOKUP-006/FR-05: query-time lookup (`ctx impact`/`ctx explain`)
     /// tolerates several exact matches, but a persistent `.context/*.yaml`
     /// mapping must still refuse to guess among them — it needs exactly one.
@@ -856,6 +925,7 @@ mod tests {
             title: "Keep access".to_owned(),
             body: "Keep access until paid_until".to_owned(),
             status: "active".to_owned(),
+            implementation_expected: true,
             visibility: ctx_core::business::Visibility::Private,
             feature: None,
             implementation: vec![ExplicitSymbolLink {

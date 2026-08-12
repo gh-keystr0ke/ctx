@@ -82,6 +82,13 @@ pub struct BusinessDocument {
     pub status: String,
     pub visibility: Visibility,
     pub feature: Option<String>,
+    /// `false` marks this document as deliberately code-free (a design
+    /// spike/ADR recording a decision or scope estimate with no
+    /// implementation to point at) so `ctx status`'s needs-mappings check
+    /// never flags it as an unmapped gap, the same way every `Feature`
+    /// document already is (PR-MAP-003). Defaults to `true`: absence never
+    /// silently exempts a document from the mapping requirement.
+    pub implementation_expected: bool,
     pub implementation: Vec<ExplicitSymbolLink>,
     pub tests: Vec<ExplicitSymbolLink>,
     pub source_uri: String,

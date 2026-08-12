@@ -1078,6 +1078,7 @@ mod tests {
                 id: id.to_owned(),
                 status: "active".to_owned(),
                 visibility: crate::business::Visibility::Private,
+                implementation_expected: true,
                 body: "Paid access remains active until paid_until.".to_owned(),
                 feature: None,
                 source_uri: "context.yaml".to_owned(),

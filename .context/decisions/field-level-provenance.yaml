@@ -2,6 +2,7 @@ id: ADR-FEDERATION-004
 type: decision
 visibility: public
 status: accepted
+implementation_expected: false
 title: Scope field-level provenance as a separate Python dataflow investment
 decision: >-
   Field-level request provenance is not inferred from matching names in the first tracing

@@ -17,7 +17,11 @@ statement: >
   `.context/` and its fixtures is a pure descriptive umbrella with no
   `implementation`/`tests` of its own (the Requirements beneath it carry the
   real mapping), so flagging an unmapped Feature would be a false positive
-  on the established convention, not a real gap. A best-effort
+  on the established convention, not a real gap. A Requirement/Invariant/
+  Decision can opt out the same way per-document, by setting
+  `implementation_expected: false` (ADR-CTX-049) — used only for a document
+  that will never gain a code mapping by design, such as a scope-estimate
+  spike ADR, never as a way to silence a real gap. A best-effort
   SQLAlchemy/goose reconciliation reports a column the ORM expects with no
   migration declaring it, or a migration-declared column with no ORM field,
   only for entities declared by both sources — an entity known from only one
@@ -37,6 +41,7 @@ tests:
   - symbol: ctx_app.status.tests.schema_divergences_prevent_a_ready_report_even_with_strong_assertions
   - symbol: ctx_core.verification.tests.intents_without_mapping_finds_only_the_unmapped_one
   - symbol: ctx_core.verification.tests.an_unmapped_feature_is_never_flagged
+  - symbol: ctx_core.verification.tests.an_unmapped_spike_decision_is_never_flagged_but_an_ordinary_one_still_is
   - symbol: ctx_core.schema.tests.reconciliation_replays_migrations_in_file_path_order
   - symbol: ctx_core.schema.tests.reconciliation_ignores_entities_known_from_only_one_source
 

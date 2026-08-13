@@ -10,3 +10,4 @@ implementation:
 tests:
   - symbol: ctx_app.verification.knowledge_tests.accepting_writes_the_document_and_records_the_decision
 
+

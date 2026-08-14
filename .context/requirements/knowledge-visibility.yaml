@@ -16,3 +16,4 @@ tests:
   - symbol: ctx_adapters.business_context.tests.invalid_visibility_is_a_clear_parse_error
   - symbol: ctx_adapters.sqlite.tests.existing_business_documents_upgrade_as_private_without_data_loss
   - symbol: ctx_adapters.sqlite.context.tests.explicit_links_persist_an_explainable_evidence_chain
+

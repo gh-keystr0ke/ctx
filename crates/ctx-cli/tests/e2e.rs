@@ -1221,6 +1221,234 @@ def notify_unknown():
 }
 
 #[test]
+fn trace_crosses_a_synchronized_neighbor_and_reports_an_unmatched_or_stale_call_honestly() {
+    let fraud_checker = service_repository(
+        "fraud-checker",
+        r#"router = APIRouter()
+
+@router.post("/check")
+def check_fraud(order_id: str):
+    return {"fraud": False}
+"#,
+        &[],
+    );
+    let billing = service_repository(
+        "billing",
+        r#"import requests
+
+router = APIRouter()
+
+@router.post("/pay")
+def pay(order_id: str):
+    requests.post("https://fraud-checker.internal/check")
+    requests.get("https://unknown.internal/health")
+    return {"ok": True}
+"#,
+        &[],
+    );
+
+    for repository in [&fraud_checker, &billing] {
+        ctx_json_at(repository.path(), &["init"]);
+        ctx_json_at(repository.path(), &["index"]);
+    }
+
+    let before_sync = ctx_json_at(billing.path(), &["trace", "POST /pay"]);
+    let calls = before_sync["traces"][0]["calls"].as_array().expect("calls");
+    assert_eq!(calls.len(), 2);
+    for call in calls {
+        assert_eq!(call["resolution"]["Unresolved"], "NoNeighborMatch");
+    }
+
+    ctx_json_at(
+        billing.path(),
+        &[
+            "registry",
+            "add",
+            fraud_checker.path().to_str().expect("UTF-8 path"),
+        ],
+    );
+    ctx_json_at(billing.path(), &["sync"]);
+
+    let synced = ctx_json_at(billing.path(), &["trace", "POST /pay"]);
+    let traces = synced["traces"][0].clone();
+    let calls = traces["calls"].as_array().expect("calls");
+    let crossed = calls
+        .iter()
+        .find_map(|call| call["resolution"]["Crosses"].as_object())
+        .expect("one call crosses into fraud-checker");
+    assert_eq!(crossed["service"], "fraud-checker");
+    assert_eq!(crossed["handler"], "app.check_fraud");
+    assert!(
+        calls
+            .iter()
+            .any(|call| call["resolution"]["Unresolved"] == "NoNeighborMatch")
+    );
+
+    let wrong_target = ctx_failure_at(billing.path(), &["trace", "POST /check"]);
+    let message = wrong_target["error"].as_str().expect("error message");
+    assert!(message.contains("app.pay"), "message was: {message}");
+    assert!(
+        message.contains("ctx trace app.pay"),
+        "message was: {message}"
+    );
+
+    fs::write(
+        fraud_checker.path().join("README.md"),
+        "advance the neighbor\n",
+    )
+    .expect("neighbor readme");
+    run_git(fraud_checker.path(), &["add", "README.md"]);
+    run_git(
+        fraud_checker.path(),
+        &["commit", "--quiet", "-m", "neighbor advances"],
+    );
+
+    let stale = ctx_json_at(billing.path(), &["trace", "POST /pay"]);
+    let calls = stale["traces"][0]["calls"].as_array().expect("calls");
+    let stale_reason = calls
+        .iter()
+        .find_map(|call| call["resolution"]["Unresolved"]["NeighborStale"].as_object())
+        .expect("the crossing call now reports the neighbor as stale");
+    assert_eq!(stale_reason["service"], "fraud-checker");
+}
+
+#[test]
+fn trace_verbose_attaches_product_context_across_a_federation_crossing() {
+    let fraud_checker = service_repository(
+        "fraud-checker",
+        r#"router = APIRouter()
+
+@router.post("/check")
+def check_fraud(order_id: str):
+    return {"fraud": False}
+"#,
+        &[
+            (
+                "feature.yaml",
+                "id: FEAT-FRAUD\ntype: feature\nstatus: active\nvisibility: public\nname: Fraud checks\ndescription: Fraud checking.\n",
+            ),
+            (
+                "req.yaml",
+                "id: REQ-FRAUD-001\ntype: requirement\nstatus: active\nvisibility: public\nfeature: FEAT-FRAUD\nstatement: Every payment must be checked for fraud.\nimplementation:\n  - app.check_fraud\n",
+            ),
+        ],
+    );
+    let billing = service_repository(
+        "billing",
+        r#"import requests
+
+router = APIRouter()
+
+@router.post("/pay")
+def pay(order_id: str):
+    requests.post("https://fraud-checker.internal/check")
+    return {"ok": True}
+"#,
+        &[
+            (
+                "feature.yaml",
+                "id: FEAT-PAY\ntype: feature\nstatus: active\nvisibility: public\nname: Payments\ndescription: Payment processing.\n",
+            ),
+            (
+                "req.yaml",
+                "id: REQ-PAY-001\ntype: requirement\nstatus: active\nvisibility: public\nfeature: FEAT-PAY\nstatement: Billing must process payments.\nimplementation:\n  - app.pay\n",
+            ),
+        ],
+    );
+
+    for repository in [&fraud_checker, &billing] {
+        ctx_json_at(repository.path(), &["init"]);
+        ctx_json_at(repository.path(), &["index"]);
+    }
+    ctx_json_at(
+        billing.path(),
+        &[
+            "registry",
+            "add",
+            fraud_checker.path().to_str().expect("UTF-8 path"),
+        ],
+    );
+    ctx_json_at(billing.path(), &["sync"]);
+
+    let quiet = ctx_json_at(billing.path(), &["trace", "POST /pay"]);
+    assert!(quiet["traces"][0]["product_context"].is_null());
+
+    let verbose = ctx_json_at(billing.path(), &["-v", "trace", "POST /pay"]);
+    let root = &verbose["traces"][0];
+    assert_eq!(
+        root["product_context"]["features"],
+        json_array(&["FEAT-PAY"])
+    );
+    assert_eq!(
+        root["product_context"]["requirements"],
+        json_array(&["REQ-PAY-001"])
+    );
+    let crossed = &root["calls"][0]["resolution"]["Crosses"];
+    assert_eq!(
+        crossed["product_context"]["features"],
+        json_array(&["FEAT-FRAUD"])
+    );
+    assert_eq!(
+        crossed["product_context"]["requirements"],
+        json_array(&["REQ-FRAUD-001"])
+    );
+}
+
+#[test]
+fn explain_trace_finds_every_endpoint_mapped_to_a_feature_and_traces_each() {
+    let billing = service_repository(
+        "billing",
+        r#"router = APIRouter()
+
+@router.post("/pay")
+def pay(order_id: str):
+    return {"ok": True}
+
+@router.get("/refund/{order_id}")
+def refund(order_id: str):
+    return {"refunded": True}
+
+def internal_helper():
+    return 1
+"#,
+        &[
+            (
+                "feature.yaml",
+                "id: FEAT-PAY\ntype: feature\nstatus: active\nvisibility: public\nname: Payments\ndescription: Everything payment related.\n",
+            ),
+            (
+                "req-pay.yaml",
+                "id: REQ-PAY-001\ntype: requirement\nstatus: active\nvisibility: public\nfeature: FEAT-PAY\nstatement: Billing must process payments.\nimplementation:\n  - app.pay\n",
+            ),
+            (
+                "req-refund.yaml",
+                "id: REQ-PAY-002\ntype: requirement\nstatus: active\nvisibility: public\nfeature: FEAT-PAY\nstatement: Billing must allow refunds.\nimplementation:\n  - app.refund\n",
+            ),
+        ],
+    );
+    ctx_json_at(billing.path(), &["init"]);
+    ctx_json_at(billing.path(), &["index"]);
+
+    let without_trace = ctx_json_at(billing.path(), &["explain", "FEAT-PAY"]);
+    assert!(without_trace.get("traces").is_none());
+
+    let with_trace = ctx_json_at(billing.path(), &["explain", "FEAT-PAY", "--trace"]);
+    let traces = with_trace["traces"].as_array().expect("traces array");
+    let mut paths = traces
+        .iter()
+        .map(|trace| trace["path"].as_str().expect("path").to_owned())
+        .collect::<Vec<_>>();
+    paths.sort();
+    assert_eq!(
+        paths,
+        vec!["/pay".to_owned(), "/refund/{order_id}".to_owned()]
+    );
+    for trace in traces {
+        assert!(trace["product_context"].is_null());
+    }
+}
+
+#[test]
 fn export_requires_an_explicit_service_identity() {
     let repository = tempfile::tempdir().expect("temporary repository");
     fs::create_dir_all(repository.path().join("src")).expect("source directory");

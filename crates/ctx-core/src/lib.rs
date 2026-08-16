@@ -18,4 +18,5 @@ pub mod linking;
 pub mod neighborhood;
 pub mod review;
 pub mod schema;
+pub mod trace;
 pub mod verification;

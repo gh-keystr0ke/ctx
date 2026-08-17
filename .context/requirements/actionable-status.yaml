@@ -27,21 +27,32 @@ statement: >
   only for entities declared by both sources — an entity known from only one
   source has nothing to reconcile, and this system never fuzzy-matches schema
   identity. Any divergence folds into the existing needs-attention health
-  state rather than becoming a separate vanity counter.
+  state rather than becoming a separate vanity counter. The needs-attention
+  notice for stale semantic relationships names every one of them as an exact
+  `"source -> target"` string ctx explain accepts directly as a relationship
+  query, the same way the needs-mappings notice already names every unmapped
+  document by identifier -- a bare count with no identifiers left `ctx
+  explain` (which requires a target) with nothing to point at, found by a
+  real user running `ctx sync` immediately after `ctx status` reported
+  stale relationships.
 implementation:
   - symbol: ctx_app.status.StatusService.inspect
   - symbol: ctx_app.status.build_report
   - symbol: ctx_app.status.classify_health
+  - symbol: ctx_app.status.diagnostics
   - symbol: ctx_core.verification.intents_without_mapping
+  - symbol: ctx_core.verification.stale_semantic_claims
   - symbol: ctx_core.schema.reconcile_orm_and_migrations
 tests:
   - symbol: ctx_app.status.tests.structural_only_graph_does_not_report_ready
   - symbol: ctx_app.status.tests.strong_current_assertions_make_the_graph_ready
   - symbol: ctx_app.status.tests.an_unmapped_document_forces_needs_mappings_even_when_others_are_well_mapped
   - symbol: ctx_app.status.tests.schema_divergences_prevent_a_ready_report_even_with_strong_assertions
+  - symbol: ctx_app.status.tests.a_stale_relationship_notice_names_a_runnable_ctx_explain_query
   - symbol: ctx_core.verification.tests.intents_without_mapping_finds_only_the_unmapped_one
   - symbol: ctx_core.verification.tests.an_unmapped_feature_is_never_flagged
   - symbol: ctx_core.verification.tests.an_unmapped_spike_decision_is_never_flagged_but_an_ordinary_one_still_is
+  - symbol: ctx_core.verification.tests.stale_semantic_claims_names_only_the_stale_relationship_as_a_runnable_explain_query
   - symbol: ctx_core.schema.tests.reconciliation_replays_migrations_in_file_path_order
   - symbol: ctx_core.schema.tests.reconciliation_ignores_entities_known_from_only_one_source
 

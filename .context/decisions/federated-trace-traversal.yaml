@@ -2,20 +2,59 @@ id: ADR-FEDERATION-003
 type: decision
 visibility: public
 status: accepted
-implementation_expected: false
-title: Bound future request tracing at every repository transition
+implementation_expected: true
+title: Bound request tracing at every repository transition
 decision: >-
-  A future ctx trace command will traverse only commit-labelled deterministic structure in the
-  sequence API endpoint EXPOSES handler, handler READS_FROM or WRITES_TO data entities and
-  CALLS_EXTERNAL outbound contracts, FEDERATED_MATCH into a synchronized neighbor endpoint, then
-  that endpoint's EXPOSES handler. It will not treat product-semantic assertions or inferred links
-  as execution flow. Each result will identify the local index commit and every neighbor source
-  commit it used. Cross-repository traversal will stop after eight service transitions, cap the
-  complete result at fifty structural nodes and sixteen branches, and keep a visited set keyed by
-  service name, source commit, HTTP method, and normalized endpoint path. Revisiting that key ends
-  the branch as a reported cycle instead of recursing. A missing outbound match, stale synchronized
-  neighbor, incompatible or absent snapshot, retired local fact, or any cap reached ends only the
-  affected branch and emits an explicit terminal reason; it never silently presents a partial path
-  as complete. Version one will read one synchronized snapshot per service and will not fetch,
-  index, or synchronize during a trace query. These bounds should be configurable only after real
-  corpus evidence shows a need; deterministic defaults are part of the query contract.
+  ctx trace traverses only commit-labelled deterministic structure in the sequence API endpoint
+  EXPOSES handler, handler READS_FROM or WRITES_TO data entities and CALLS_EXTERNAL outbound
+  contracts, FEDERATED_MATCH into a synchronized neighbor endpoint, then that endpoint's EXPOSES
+  handler, repeating across as many service transitions as remain. It never treats product-semantic
+  assertions or inferred links as execution flow. Each traced endpoint in the result identifies its
+  own service and source commit, so every commit a trace used is identifiable by walking it.
+  Cross-repository traversal stops after eight service transitions, caps the complete result at
+  fifty structural nodes and sixteen branches, and keeps a visited set keyed by service name, source
+  commit, HTTP method, and normalized endpoint path. Revisiting that key ends the branch as a
+  reported cycle instead of recursing. A missing outbound match, stale synchronized neighbor,
+  incompatible or absent snapshot, retired local fact, or any cap reached ends only the affected
+  branch and emits an explicit terminal reason; it never silently presents a partial path as
+  complete. ctx trace reads one synchronized snapshot per service and never fetches, indexes, or
+  synchronizes during a trace query -- crossing into a neighbor invokes that neighbor's own ctx
+  binary as a subprocess in its own checkout (the remaining budget and visited set passed as an
+  internal, undocumented CLI argument) so only that neighbor's own process ever decides what of its
+  graph is traceable, the same delegation ctx sync already uses for export. These bounds are fixed,
+  not configurable, until real corpus evidence shows a need; deterministic defaults are part of the
+  query contract. A trace target always names an endpoint the local repository exposes, since a
+  trace only ever walks outward from a local EXPOSES edge; a target that instead names an endpoint
+  reached only through an already-synchronized outbound call (a neighbor's own path, as printed by
+  ctx federation show) is not silently redirected there -- it is reported not found, with a pointer
+  to the local handler that already reaches it, so the trace still starts from local structure.
+  Product-semantic assertions stay outside the traversal itself, but ctx trace --verbose (-v)
+  attaches each hop's own Features/Requirements afterward as a display-only annotation -- computed
+  by the same repository that owns that hop, from its own graph, and carried across a federation
+  crossing by the verbose flag traveling with the continuation payload, so a crossed neighbor
+  annotates its own hop the same way. ctx explain <target> --trace shows a separate Traces: section:
+  every HTTP endpoint reachable from the target's own mapped implementation (every endpoint under a
+  Feature via its Requirements, a Requirement's own, or the target's own endpoint if it is already a
+  handler), each fully traced with the same bounds, federation crossing, and --verbose gate as ctx
+  trace.
+implementation:
+  - symbol: ctx_core.trace.trace_endpoint
+  - symbol: ctx_core.trace.resolve_endpoint_seeds
+  - symbol: ctx_core.trace.FederationResolver
+  - symbol: ctx_core.trace.ProductContext
+  - symbol: ctx_cli.CliFederationResolver
+  - symbol: ctx_cli.trace
+  - symbol: ctx_cli.hint_not_found
+  - symbol: ctx_cli.attach_product_context
+  - symbol: ctx_cli.explain
+  - symbol: ctx_cli.traces_for_implementation
+tests:
+  - symbol: ctx_core.trace.tests.traces_reads_writes_and_reports_an_unmatched_outbound_call_honestly
+  - symbol: ctx_core.trace.tests.crosses_into_a_neighbor_and_traces_its_own_handler
+  - symbol: ctx_core.trace.tests.a_cycle_back_to_an_already_visited_endpoint_stops_without_recursing
+  - symbol: ctx_core.trace.tests.the_node_cap_stops_a_branch_once_exhausted
+  - symbol: ctx_core.trace.tests.the_branch_cap_reports_further_calls_as_capped_rather_than_dropping_them
+  - symbol: ctx_core.trace.tests.a_stale_exposes_edge_stops_the_branch_as_a_retired_fact
+  - symbol: crates.ctx-cli.tests.e2e.trace_crosses_a_synchronized_neighbor_and_reports_an_unmatched_or_stale_call_honestly
+  - symbol: crates.ctx-cli.tests.e2e.trace_verbose_attaches_product_context_across_a_federation_crossing
+  - symbol: crates.ctx-cli.tests.e2e.explain_trace_finds_every_endpoint_mapped_to_a_feature_and_traces_each

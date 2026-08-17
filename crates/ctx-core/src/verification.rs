@@ -752,6 +752,35 @@ pub fn intents_without_mapping(graph: &GraphSnapshot) -> Vec<String> {
     identifiers
 }
 
+/// Every stale semantic relationship (`Implements`/`Enforces`/`CoveredBy`/
+/// `DependsOn`/`Satisfies` with `ClaimStatus::Stale`), rendered as the exact
+/// `"source -> target"` string `ctx explain` accepts as a relationship
+/// query -- so a caller (`ctx status`'s "why" notice) can hand the user
+/// something directly runnable instead of a bare count. Sorted for
+/// deterministic display; an edge whose source or target node has since
+/// been retired from the graph is silently skipped rather than rendered
+/// with a missing identifier.
+#[must_use]
+pub fn stale_semantic_claims(graph: &GraphSnapshot) -> Vec<String> {
+    let mut claims = graph
+        .edges
+        .iter()
+        .filter(|edge| edge.kind.is_semantic() && edge.status == ClaimStatus::Stale)
+        .filter_map(|edge| {
+            let source = graph.nodes.get(&edge.source)?;
+            let target = graph.nodes.get(&edge.target)?;
+            Some(format!(
+                "{} -> {}",
+                source.identifier(),
+                target.identifier()
+            ))
+        })
+        .collect::<Vec<_>>();
+    claims.sort();
+    claims.dedup();
+    claims
+}
+
 const fn is_intent(kind: NodeKind) -> bool {
     matches!(
         kind,
@@ -1044,6 +1073,35 @@ mod tests {
         let unmapped = intents_without_mapping(&graph);
 
         assert_eq!(unmapped, vec!["INV-SUB-002".to_owned()]);
+    }
+
+    #[test]
+    fn stale_semantic_claims_names_only_the_stale_relationship_as_a_runnable_explain_query() {
+        let intent = intent_node();
+        let implementer = symbol_node("implementer", "subscription.cancel_access_handler");
+        let mut stale_semantic = edge(&implementer, &intent, RelationKind::Implements);
+        stale_semantic.status = ClaimStatus::Stale;
+        let other = symbol_node("other", "subscription.unrelated");
+        let mut stale_structural = edge(&other, &implementer, RelationKind::Calls);
+        stale_structural.status = ClaimStatus::Stale;
+        let graph = GraphSnapshot {
+            nodes: [intent.clone(), implementer.clone(), other.clone()]
+                .into_iter()
+                .map(|node| (node.stable_key.clone(), node))
+                .collect(),
+            edges: vec![
+                stale_semantic,
+                edge(&other, &intent, RelationKind::CoveredBy),
+                stale_structural,
+            ],
+        };
+
+        let claims = stale_semantic_claims(&graph);
+
+        assert_eq!(
+            claims,
+            vec!["subscription.cancel_access_handler -> REQ-SUB-001".to_owned()]
+        );
     }
 
     /// Real dogfooding catch: every Feature document in this repository's

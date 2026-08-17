@@ -1,7 +1,7 @@
 use ctx_core::{
     domain::CommitOid,
     schema::{SchemaDivergence, reconcile_orm_and_migrations},
-    verification::intents_without_mapping,
+    verification::{intents_without_mapping, stale_semantic_claims},
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -47,6 +47,10 @@ pub struct StatusReport {
     /// per entity, so one freshly accepted, still-unmapped document is
     /// caught even when most other documents already have one.
     pub unmapped_intents: Vec<String>,
+    /// Every stale semantic relationship as a `"source -> target"` string
+    /// `ctx explain` accepts directly -- so `notices`/`suggested_actions`
+    /// can name exactly what to inspect instead of only a count.
+    pub stale_claims: Vec<String>,
     pub notices: Vec<String>,
     pub suggested_actions: Vec<String>,
 }
@@ -90,28 +94,42 @@ where
             .store
             .status(&repository.id)
             .map_err(StatusError::Storage)?;
-        let (schema_divergences, unmapped_intents) = if knowledge.last_indexed_commit.is_some() {
-            let graph = self
-                .store
-                .load_graph(&repository.id)
-                .map_err(StatusError::Storage)?;
-            (
-                reconcile_orm_and_migrations(&graph),
-                intents_without_mapping(&graph),
-            )
-        } else {
-            (Vec::new(), Vec::new())
-        };
+        let (schema_divergences, unmapped_intents, stale_claims) =
+            if knowledge.last_indexed_commit.is_some() {
+                let graph = self
+                    .store
+                    .load_graph(&repository.id)
+                    .map_err(StatusError::Storage)?;
+                (
+                    reconcile_orm_and_migrations(&graph),
+                    intents_without_mapping(&graph),
+                    stale_semantic_claims(&graph),
+                )
+            } else {
+                (Vec::new(), Vec::new(), Vec::new())
+            };
         Ok(build_report(
             repository.root_path,
             head.oid,
             self.git.source_scope(),
             dirty,
             knowledge,
-            schema_divergences,
-            unmapped_intents,
+            GraphAnalysis {
+                schema_divergences,
+                unmapped_intents,
+                stale_claims,
+            },
         ))
     }
+}
+
+/// The graph-derived diagnostics `inspect` only computes once an index
+/// exists -- bundled so `build_report` stays under Clippy's argument limit
+/// as this set grows.
+struct GraphAnalysis {
+    schema_divergences: Vec<SchemaDivergence>,
+    unmapped_intents: Vec<String>,
+    stale_claims: Vec<String>,
 }
 
 fn build_report(
@@ -120,9 +138,13 @@ fn build_report(
     source_scope: SourceScope,
     uncommitted_index_inputs: Vec<String>,
     knowledge: RepositoryStatus,
-    schema_divergences: Vec<SchemaDivergence>,
-    unmapped_intents: Vec<String>,
+    analysis: GraphAnalysis,
 ) -> StatusReport {
+    let GraphAnalysis {
+        schema_divergences,
+        unmapped_intents,
+        stale_claims,
+    } = analysis;
     let index_state = match &knowledge.last_indexed_commit {
         None => IndexState::NotIndexed,
         Some(indexed) if indexed == &head_commit => IndexState::Current,
@@ -141,6 +163,7 @@ fn build_report(
         &uncommitted_index_inputs,
         &schema_divergences,
         &unmapped_intents,
+        &stale_claims,
     );
     StatusReport {
         repository,
@@ -152,6 +175,7 @@ fn build_report(
         knowledge,
         schema_divergences,
         unmapped_intents,
+        stale_claims,
         notices,
         suggested_actions,
     }
@@ -185,6 +209,7 @@ fn diagnostics(
     dirty: &[String],
     schema_divergences: &[SchemaDivergence],
     unmapped_intents: &[String],
+    stale_claims: &[String],
 ) -> (Vec<String>, Vec<String>) {
     let mut notices = Vec::new();
     let mut actions = Vec::new();
@@ -224,13 +249,14 @@ fn diagnostics(
         StatusHealth::NeedsAttention => {
             if knowledge.stale_semantic_edges > 0 {
                 notices.push(format!(
-                    "{} semantic relationship(s) are stale.",
-                    knowledge.stale_semantic_edges
+                    "{} semantic relationship(s) are stale: {}.",
+                    stale_claims.len(),
+                    stale_claims.join("; ")
                 ));
-                actions.push(
-                    "Inspect stale claims with `ctx explain` and refresh their mappings."
-                        .to_owned(),
-                );
+                actions.push(format!(
+                    "Run `ctx explain \"{}\"` (repeat for each listed relationship) to see why and refresh its mapping.",
+                    stale_claims.first().map_or("source -> target", String::as_str)
+                ));
             }
             if !schema_divergences.is_empty() {
                 notices.push(format!(
@@ -268,13 +294,14 @@ mod tests {
         knowledge: RepositoryStatus,
         schema_divergences: Vec<SchemaDivergence>,
     ) -> StatusReport {
-        report_full(knowledge, schema_divergences, Vec::new())
+        report_full(knowledge, schema_divergences, Vec::new(), Vec::new())
     }
 
     fn report_full(
         knowledge: RepositoryStatus,
         schema_divergences: Vec<SchemaDivergence>,
         unmapped_intents: Vec<String>,
+        stale_claims: Vec<String>,
     ) -> StatusReport {
         build_report(
             "/repo".to_owned(),
@@ -286,8 +313,11 @@ mod tests {
             },
             Vec::new(),
             knowledge,
-            schema_divergences,
-            unmapped_intents,
+            GraphAnalysis {
+                schema_divergences,
+                unmapped_intents,
+                stale_claims,
+            },
         )
     }
 
@@ -340,6 +370,7 @@ mod tests {
             },
             Vec::new(),
             vec!["REQ-NEW-001".to_owned()],
+            Vec::new(),
         );
 
         assert_eq!(status.health, StatusHealth::NeedsMappings);
@@ -376,5 +407,38 @@ mod tests {
                 .iter()
                 .any(|notice| notice.contains("divergence"))
         );
+    }
+
+    #[test]
+    fn a_stale_relationship_notice_names_a_runnable_ctx_explain_query() {
+        // The bug this replaced: the notice/action only ever said "N
+        // semantic relationship(s) are stale" with no identifiers, so `ctx
+        // explain` (which requires a target) had nothing to point at -- a
+        // real user hit this directly after `ctx sync`/`ctx status`.
+        let status = report_full(
+            RepositoryStatus {
+                last_indexed_commit: Some(oid("aaaaaaaa")),
+                features: 1,
+                requirements: 1,
+                invariants: 1,
+                active_assertions: 4,
+                stale_semantic_edges: 1,
+                ..RepositoryStatus::default()
+            },
+            Vec::new(),
+            Vec::new(),
+            vec!["subscription.cancel -> REQ-SUB-014".to_owned()],
+        );
+
+        assert_eq!(status.health, StatusHealth::NeedsAttention);
+        assert!(
+            status
+                .notices
+                .iter()
+                .any(|notice| notice.contains("subscription.cancel -> REQ-SUB-014"))
+        );
+        assert!(status.suggested_actions.iter().any(|action| {
+            action.contains("ctx explain \"subscription.cancel -> REQ-SUB-014\"")
+        }));
     }
 }

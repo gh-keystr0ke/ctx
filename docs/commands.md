@@ -15,7 +15,7 @@ Every command accepts two global flags: `--json` for stable machine-readable out
 | Command | Flags | Purpose |
 | --- | --- | --- |
 | `ctx impact <target>` | | Bounded product + implementation + test impact for a file path, canonical symbol, stable ID (`REQ-...`), or `table.column`. See [authoring-context.md](authoring-context.md) for how targets resolve to symbols. |
-| `ctx explain <target>` | | Full stored claims and evidence for a node ID, or a quoted `"source -> target"` relationship. |
+| `ctx explain <target>` | `--trace` | Full stored claims and evidence for a node ID, or a quoted `"source -> target"` relationship. `--trace` additionally traces every HTTP endpoint reachable from the target's own mapped implementation (every endpoint under a Feature, a Requirement's own, or the target itself if it's already a handler), shown as a separate `Traces:` section — same bounds and federation crossing as `ctx trace`, gated the same way by `--verbose`. |
 | `ctx find <name>` | | Discover indexed symbols/nodes by short or exact name. Several matches across namespaces are returned independently, never merged or treated as an error. |
 
 ## Review
@@ -55,6 +55,7 @@ See [docs/federation.md](federation.md) for the full workflow, including what `[
 | `ctx sync` | | Re-export and pull every registered neighbor's manifest, resolve local outbound calls against neighbor endpoints as `FEDERATED_MATCH` records, and report unresolved calls. Continues past a failing neighbor instead of aborting. |
 | `ctx federation list` | | Show every neighbor's last sync time, source commit, and whether it's gone stale since. |
 | `ctx federation show <name>` | | Show one neighbor's imported documents, endpoints, call resolutions, and unresolved calls in full. |
+| `ctx trace <target>` | `-v`/`--verbose` | Trace one HTTP endpoint's request sequence (handler, data reads/writes, outbound calls), crossing into a synchronized neighbor's own sequence wherever a call resolves via `FEDERATED_MATCH`. Bounded and deterministic; never fetches, indexes, or syncs — run `ctx sync` first. `--verbose` attaches each hop's own mapped Features/Requirements. |
 
 ## Serving
 

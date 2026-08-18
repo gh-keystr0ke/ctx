@@ -41,6 +41,7 @@ See [docs/mining-knowledge.md](mining-knowledge.md) for the full workflow.
 | `ctx verify` | `--accept <FINGERPRINT>` \| `--reject <FINGERPRINT>`, `--author <NAME>` (default `local-user`) | List or decide heuristic implementation-link candidates (the deterministic relation suggestions from indexing, not AI-derived). |
 | `ctx verify --knowledge` | `--accept <FINGERPRINT> --id <STABLE-ID>` \| `--reject <FINGERPRINT>`, `--force`, `--author <NAME>` | List or decide pending AI-derived knowledge candidates from `ctx enrich`. Accepting writes an ordinary `.context/*.yaml` document. |
 | `ctx verify --knowledge --auto` | `--agent <NAME>`, `--model <NAME>`, `--id-prefix <PREFIX>` (required) | Have a review agent decide every pending knowledge candidate in bulk instead of a human pressing accept/reject by hand. Every resulting document is recorded as agent-decided (`ctx explain` renders it as "Auto-verified", never as a human review). |
+| `ctx verify --stale` | `--agent <NAME>`, `--model <NAME>`, `--author <NAME>` | Re-review every currently stale semantic claim (an `implementation`/`tests` mapping whose code changed since it was last confirmed) through an independent agent. `accept` is binding — reactivates precisely that one relationship. `reject` is never applied automatically — only ever printed as a suggestion (with the agent's reasoning) for a human to act on. |
 
 ## Federation
 

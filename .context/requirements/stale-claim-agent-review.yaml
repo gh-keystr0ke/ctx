@@ -1,0 +1,91 @@
+id: REQ-VERIFY-004
+type: requirement
+feature: FEAT-INDEXING
+status: active
+statement: >
+  `ctx verify --stale --agent <claude|codex|antigravity> [--model <model>]` must let a review
+  agent re-examine every currently stale semantic claim (an explicit `.context/*.yaml`
+  `implementation`/`tests` mapping whose underlying code changed since it was last confirmed,
+  ctx_core.verification.stale_semantic_claims) and decide whether it still holds, instead of the
+  claim staying stale forever -- by design (docs/architecture.md: "semantic assertions are never
+  silently recreated as facts"), re-indexing alone never heals a stale claim, and the user asked
+  directly for an agent-driven way to re-check it rather than hand-editing `.context/*.yaml` files
+  to force a refresh.
+
+  The user explicitly scoped the two verdicts asymmetrically: an `accept` verdict is binding --
+  ctx_app.ports.StaleClaimStore.reactivate_stale_claim reactivates precisely the one edge identified
+  by its fingerprint (never the whole document that happens to declare it, which would also refresh
+  every other claim that document declares, stale or not) and records an audit annotation. A
+  `reject` verdict is never applied automatically -- ctx-cli only ever prints it as a suggestion
+  (source, target, and the agent's reasoning) for a human to act on, since silently discarding a
+  hand-authored mapping is a materially different risk than confirming one still holds.
+
+  ctx_core.verification.StaleClaim carries what a review needs: the claim's own fingerprint,
+  relation, source/target node summaries, evidence locators, and (always populated, already in
+  memory on the graph) the product intent's full statement text. `symbol_excerpt` -- the current
+  source of whichever side is a CodeSymbol -- is deliberately left `None` by
+  ctx_core.verification.stale_semantic_claim_details (ctx-core never touches the filesystem) and
+  filled in by ctx_cli.enrich_stale_claims_with_current_code reading the symbol's own indexed byte
+  range from disk, which is safe even though the claim itself is stale: the symbol node was already
+  re-indexed fresh at HEAD, so only the semantic edge asserting it still satisfies the product intent
+  is what's marked stale, not the range describing where the symbol currently lives. The whole
+  claim (code excerpt and product intent statement both inlined) is self-contained in the prompt
+  ctx_adapters.agent_contract.review_stale_claims sends -- deliberately not relying on an agent
+  reading files itself, since ctx_adapters.antigravity's own sandbox does not grant that (its
+  existing SemanticAgent/KnowledgeReviewAgent prompts are fully self-contained for the same reason),
+  and a self-contained prompt works identically across all three agents regardless of their own
+  sandbox policy.
+
+  ctx_app.ports.StaleClaimReviewAgent is a third deliberate sibling to SemanticAgent/
+  KnowledgeReviewAgent (ADR-AGENT-001) -- reviewing already-established, previously-confirmed
+  claims against current code is a different question from both "does this neighborhood state new
+  knowledge" and "should this already-extracted candidate be accepted," with its own input (claims,
+  not artifacts or candidates) and output (a verdict plus reasoning, keyed by fingerprint, never a
+  position/index -- the same discipline ctx_core.knowledge.CandidateReviewDecision already follows).
+  Every response is validated the same way `review()` already is: a decision naming an unknown or
+  duplicate fingerprint, or a response that doesn't cover every input claim exactly once, is rejected
+  outright rather than guessed at.
+
+  `ctx status`'s own stale-relationship notice must name every currently stale claim as a runnable
+  `ctx explain "source -> target"` query (REQ-STATUS-001) using the same
+  stale_semantic_claims/stale_semantic_claim_details list `ctx verify --stale` reviews -- the two
+  commands must never disagree about which claims are stale. Gating the NeedsAttention health state
+  on stale_semantic_edges' raw row count while displaying the filtered stale_claims list was found to
+  diverge live (a stale edge whose source or target node was later fully retired, not merely
+  re-shaped, is filtered out of stale_claims but still counted in the raw total) -- classify_health
+  must gate on the same filtered list diagnostics displays, never the raw count, so an orphaned,
+  unactionable stale edge with no resolvable node on either side is never reported as an empty,
+  unactionable notice.
+implementation:
+  - symbol: ctx_core.verification.StaleClaim
+  - symbol: ctx_core.verification.stale_semantic_claim_details
+  - symbol: ctx_core.verification.StaleClaimVerdict
+  - symbol: ctx_app.ports.StaleClaimReviewAgent
+  - symbol: ctx_app.ports.StaleClaimStore
+  - symbol: ctx_app.verification.VerificationService.stale_claims
+  - symbol: ctx_app.verification.VerificationService.review_stale_claims
+  - symbol: ctx_app.verification.StaleClaimReviewReport
+  - symbol: ctx_app.verification.StaleClaimOutcome
+  - symbol: ctx_app.status.classify_health
+  - symbol: ctx_adapters.sqlite.verification.SqliteStore.StaleClaimStore.reactivate_stale_claim
+  - symbol: ctx_adapters.agent_contract.review_stale_claims
+  - symbol: ctx_adapters.claude_code.ClaudeCodeAgent
+  - symbol: ctx_adapters.codex.CodexAgent
+  - symbol: ctx_adapters.antigravity.AntigravityAgent
+  - symbol: ctx_cli.verify_stale
+  - symbol: ctx_cli.enrich_stale_claims_with_current_code
+tests:
+  - symbol: ctx_core.verification.tests.stale_semantic_claim_details_carries_the_fingerprint_and_evidence_a_reviewer_needs
+  - symbol: ctx_adapters.sqlite.verification.stale_claim_tests.reactivates_the_specific_stale_edge_and_records_an_audit_annotation
+  - symbol: ctx_adapters.sqlite.verification.stale_claim_tests.reactivating_an_unknown_fingerprint_is_reported_honestly_rather_than_erroring
+  - symbol: ctx_adapters.agent_contract.tests.review_stale_claims_accepts_when_the_agent_confirms_the_mapping_still_holds
+  - symbol: ctx_adapters.agent_contract.tests.review_stale_claims_can_reject_a_mapping_that_no_longer_holds
+  - symbol: ctx_adapters.agent_contract.tests.review_stale_claims_rejects_an_invented_fingerprint_not_trusted
+  - symbol: ctx_adapters.agent_contract.tests.review_stale_claims_rejects_a_decision_list_missing_a_claim
+  - symbol: ctx_app.verification.stale_claim_tests.stale_claims_lists_every_stale_semantic_edge_from_the_graph
+  - symbol: ctx_app.verification.stale_claim_tests.an_accepted_verdict_reactivates_the_claim_bindingly
+  - symbol: ctx_app.verification.stale_claim_tests.a_rejected_verdict_is_only_a_suggestion_never_applied
+  - symbol: ctx_app.verification.stale_claim_tests.an_accept_that_no_longer_applies_is_reported_honestly
+  - symbol: ctx_app.verification.stale_claim_tests.reviewing_no_claims_never_calls_the_agent
+  - symbol: ctx_app.status.tests.a_stale_edge_whose_node_was_retired_never_produces_an_empty_unactionable_notice
+  - symbol: crates.ctx-cli.tests.e2e.verify_stale_reactivates_an_accepted_claim_and_leaves_a_rejected_one_as_a_suggestion_only

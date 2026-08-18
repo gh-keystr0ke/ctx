@@ -37,12 +37,25 @@ decision: >
   process-invocation code, confirming the same "adding a capability costs
   only a thin delegation" property this ADR already established for a third
   vendor.
+
+  `ctx verify --stale` (REQ-VERIFY-004) confirmed the same shape scales to a
+  third question: ctx_app.ports.StaleClaimReviewAgent is a further sibling
+  trait (re-examining an already-established claim against current code,
+  neither "does this state new knowledge" nor "should this candidate be
+  accepted"), and ctx_adapters.agent_contract.review_stale_claims is a third
+  prompt/parse function next to analyze()/review() sharing the same
+  AgentTransport and JSON-extraction helpers. Each vendor's `XAgent<T>` now
+  implements three traits by delegating to the same one `transport` field --
+  adding this third capability again cost every vendor module exactly one
+  more trait impl and zero new process-invocation code.
 implementation:
   - symbol: ctx_app.ports.SemanticAgent
   - symbol: ctx_app.ports.KnowledgeReviewAgent
+  - symbol: ctx_app.ports.StaleClaimReviewAgent
   - symbol: ctx_adapters.agent_contract.AgentTransport
   - symbol: ctx_adapters.agent_contract.analyze
   - symbol: ctx_adapters.agent_contract.review
+  - symbol: ctx_adapters.agent_contract.review_stale_claims
   - symbol: ctx_adapters.claude_code.ClaudeCodeAgent
   - symbol: ctx_adapters.codex.CodexAgent
   - symbol: ctx_adapters.antigravity.AntigravityAgent
@@ -54,5 +67,6 @@ tests:
   - symbol: crates.ctx-cli.tests.e2e.enrich_dispatches_codex_to_codex_exec_with_its_own_binary_override
   - symbol: crates.ctx-cli.tests.e2e.enrich_dispatches_antigravity_to_agy_p_with_its_own_binary_override
   - symbol: ctx_adapters.agent_contract.tests.review_can_reject_a_candidate_extraction_already_called_relevant
+  - symbol: ctx_adapters.agent_contract.tests.review_stale_claims_can_reject_a_mapping_that_no_longer_holds
  
 

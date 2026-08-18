@@ -762,6 +762,46 @@ pub fn intents_without_mapping(graph: &GraphSnapshot) -> Vec<String> {
 /// with a missing identifier.
 #[must_use]
 pub fn stale_semantic_claims(graph: &GraphSnapshot) -> Vec<String> {
+    let mut claims = stale_semantic_claim_details(graph)
+        .into_iter()
+        .map(|claim| format!("{} -> {}", claim.source.identifier, claim.target.identifier))
+        .collect::<Vec<_>>();
+    claims.sort();
+    claims.dedup();
+    claims
+}
+
+/// One stale semantic relationship, identified by the same `fingerprint` its
+/// edge is stored and re-decided under -- never a position/index, matching
+/// the discipline [`crate::knowledge::CandidateReviewDecision`] already
+/// follows -- plus enough of its own evidence locators for a reviewer (human
+/// or agent) to see where the mapping was declared.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct StaleClaim {
+    pub fingerprint: String,
+    pub relation: RelationKind,
+    pub source: crate::graph::NodeSummary,
+    pub target: crate::graph::NodeSummary,
+    pub evidence_locators: Vec<String>,
+    /// The full statement/body text of whichever side is a product-intent
+    /// node -- already in memory on the graph node, so populated here
+    /// directly (empty only if, unexpectedly, neither side is a Business
+    /// node).
+    pub intent_statement: String,
+    /// The current source excerpt for whichever side is a `CodeSymbol`,
+    /// read from disk -- `ctx-core` never touches the filesystem, so this
+    /// is always `None` here; a caller (`ctx-cli`) fills it in before
+    /// handing claims to a [`StaleClaimVerdict`]-producing agent review.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub symbol_excerpt: Option<String>,
+}
+
+/// Every stale semantic relationship with enough detail to review it (`ctx
+/// verify --stale`), sorted by fingerprint for deterministic display. An
+/// edge whose source or target node has since been retired from the graph
+/// is silently skipped, same as [`stale_semantic_claims`].
+#[must_use]
+pub fn stale_semantic_claim_details(graph: &GraphSnapshot) -> Vec<StaleClaim> {
     let mut claims = graph
         .edges
         .iter()
@@ -769,16 +809,48 @@ pub fn stale_semantic_claims(graph: &GraphSnapshot) -> Vec<String> {
         .filter_map(|edge| {
             let source = graph.nodes.get(&edge.source)?;
             let target = graph.nodes.get(&edge.target)?;
-            Some(format!(
-                "{} -> {}",
-                source.identifier(),
-                target.identifier()
-            ))
+            Some(StaleClaim {
+                fingerprint: edge.fingerprint.clone(),
+                relation: edge.kind,
+                source: crate::graph::NodeSummary::from(source),
+                target: crate::graph::NodeSummary::from(target),
+                evidence_locators: edge
+                    .evidence
+                    .iter()
+                    .map(|evidence| format!("{}#{}", evidence.source_uri, evidence.locator))
+                    .collect(),
+                intent_statement: intent_body(source)
+                    .or_else(|| intent_body(target))
+                    .unwrap_or_default(),
+                symbol_excerpt: None,
+            })
         })
         .collect::<Vec<_>>();
-    claims.sort();
-    claims.dedup();
+    claims.sort_by(|left, right| left.fingerprint.cmp(&right.fingerprint));
+    claims.dedup_by(|left, right| left.fingerprint == right.fingerprint);
     claims
+}
+
+fn intent_body(node: &GraphNode) -> Option<String> {
+    match &node.attributes {
+        PlannedNodeAttributes::Business { body, .. } => Some(body.clone()),
+        _ => None,
+    }
+}
+
+/// One [`StaleClaim`]'s outcome from an independent agent re-review (`ctx
+/// verify --stale --agent`): [`crate::knowledge::ReviewVerdict::Accept`]
+/// means the agent judges the mapping still accurate given the current code
+/// and is applied bindingly (the claim is reactivated); `Reject` is never
+/// applied automatically -- only ever surfaced to a human as a suggestion,
+/// with `reasoning` explaining why, since silently discarding a
+/// hand-authored mapping is a materially different risk than confirming one
+/// still holds.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct StaleClaimVerdict {
+    pub fingerprint: String,
+    pub verdict: crate::knowledge::ReviewVerdict,
+    pub reasoning: String,
 }
 
 const fn is_intent(kind: NodeKind) -> bool {
@@ -823,7 +895,7 @@ mod tests {
     use crate::{
         artifact::{ArtifactIdentity, ArtifactKind, ArtifactProvider},
         domain::{ClaimClass, Confidence, SourceKind},
-        graph::{GraphEdge, GraphNode},
+        graph::{GraphEdge, GraphEvidence, GraphNode},
         ir::{SourceRange, SymbolKind},
     };
 
@@ -1102,6 +1174,50 @@ mod tests {
             claims,
             vec!["subscription.cancel_access_handler -> REQ-SUB-001".to_owned()]
         );
+    }
+
+    #[test]
+    fn stale_semantic_claim_details_carries_the_fingerprint_and_evidence_a_reviewer_needs() {
+        let intent = intent_node();
+        let implementer = symbol_node("implementer", "subscription.cancel_access_handler");
+        let mut stale = edge(&implementer, &intent, RelationKind::Implements);
+        stale.status = ClaimStatus::Stale;
+        stale.evidence = vec![GraphEvidence {
+            source_kind: SourceKind::Documentation,
+            source_uri: "requirement.yaml".to_owned(),
+            commit: Some("abc123".to_owned()),
+            author: None,
+            timestamp: "2026-08-27T00:00:00Z".to_owned(),
+            locator: "implementation[0]".to_owned(),
+            strength: Confidence::CERTAIN,
+        }];
+        let graph = GraphSnapshot {
+            nodes: [intent.clone(), implementer.clone()]
+                .into_iter()
+                .map(|node| (node.stable_key.clone(), node))
+                .collect(),
+            edges: vec![stale.clone()],
+        };
+
+        let claims = stale_semantic_claim_details(&graph);
+
+        assert_eq!(claims.len(), 1);
+        assert_eq!(claims[0].fingerprint, stale.fingerprint);
+        assert_eq!(claims[0].relation, RelationKind::Implements);
+        assert_eq!(
+            claims[0].source.identifier,
+            "subscription.cancel_access_handler"
+        );
+        assert_eq!(claims[0].target.identifier, "REQ-SUB-001");
+        assert_eq!(
+            claims[0].evidence_locators,
+            vec!["requirement.yaml#implementation[0]".to_owned()]
+        );
+        assert_eq!(
+            claims[0].intent_statement,
+            "Subscription cancel access remains available"
+        );
+        assert_eq!(claims[0].symbol_excerpt, None);
     }
 
     /// Real dogfooding catch: every Feature document in this repository's

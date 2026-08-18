@@ -34,8 +34,8 @@ use ctx_app::{
     review::{ReviewError, ReviewRunner},
     status::{IndexState, StatusError, StatusHealth, StatusService},
     verification::{
-        CandidateOutcome, KnowledgeVerificationService, ReviewedCandidate, VerificationError,
-        VerificationService,
+        CandidateOutcome, KnowledgeVerificationService, ReviewedCandidate, StaleClaimOutcome,
+        VerificationError, VerificationService,
     },
 };
 use ctx_core::business::{BusinessKind, ContextImportStats, Visibility};
@@ -47,7 +47,7 @@ use ctx_core::trace::{
     CallResolution, EndpointTrace, FederationResolver as TraceResolver, LocalCall, TerminalReason,
     TraceBudget, VisitedKey, parse_method_path, resolve_endpoint_seeds, trace_endpoint,
 };
-use ctx_core::verification::VerificationDecision;
+use ctx_core::verification::{StaleClaim, VerificationDecision};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use thiserror::Error;
@@ -218,6 +218,15 @@ enum Command {
         /// `--auto`, ignored otherwise.
         #[arg(long)]
         id_prefix: Option<String>,
+        /// Re-review every currently stale semantic claim through an
+        /// independent agent instead of the default heuristic candidates:
+        /// an `accept` verdict is binding (the claim is reactivated,
+        /// precise to that one relationship); a `reject` verdict is never
+        /// applied automatically, only ever printed as a suggestion for a
+        /// human to act on. Uses `--agent`/`--model` like `--auto`.
+        /// Conflicts with `--knowledge`.
+        #[arg(long, conflicts_with = "knowledge")]
+        stale: bool,
     },
     /// Serve ctx integrations.
     Serve {
@@ -388,8 +397,11 @@ fn run(cli: &Cli) -> Result<(), CliError> {
             agent,
             model,
             id_prefix,
+            stale,
         } => {
-            if *auto {
+            if *stale {
+                verify_stale(cli, &git, agent, model.clone(), author)
+            } else if *auto {
                 verify_knowledge_auto(
                     cli,
                     &git,
@@ -1667,6 +1679,184 @@ fn verify_knowledge_auto(
             report.candidates_skipped_possible_duplicate
         );
     }
+    Ok(())
+}
+
+/// Bounded excerpt cap so one huge symbol body never dominates a stale-claim
+/// review prompt -- there's no token-budget renderer to reuse here (that
+/// machinery is `ctx-core`-internal), so a flat byte cap does the same job.
+const MAX_STALE_CLAIM_EXCERPT_BYTES: usize = 6000;
+
+/// Fills in each claim's `symbol_excerpt` by reading the current file at the
+/// `CodeSymbol` side's own indexed byte range -- safe to do even though the
+/// claim went stale, since the *symbol node itself* was already re-indexed
+/// fresh (only the semantic edge asserting it still satisfies the product
+/// intent is what's marked stale); `graph` is loaded from the same store
+/// `stale_claims` used, so its ranges match current code. A file that can't
+/// be read, or a range that no longer lands on a valid slice (for example
+/// uncommitted working-tree edits since the last `ctx index`), leaves
+/// `symbol_excerpt` as `None` rather than guessing or panicking.
+fn enrich_stale_claims_with_current_code(
+    claims: &mut [StaleClaim],
+    graph: &ctx_core::graph::GraphSnapshot,
+    repo_root: &Path,
+) {
+    for claim in claims {
+        let Some(symbol) = [&claim.source, &claim.target]
+            .into_iter()
+            .find(|summary| summary.kind == NodeKind::CodeSymbol)
+        else {
+            continue;
+        };
+        let Ok(stable_key) = ctx_core::domain::StableKey::new(symbol.stable_key.clone()) else {
+            continue;
+        };
+        let Some(node) = graph.nodes.get(&stable_key) else {
+            continue;
+        };
+        let PlannedNodeAttributes::Symbol {
+            file_path, range, ..
+        } = &node.attributes
+        else {
+            continue;
+        };
+        let Ok(content) = std::fs::read_to_string(repo_root.join(file_path)) else {
+            continue;
+        };
+        let Some(excerpt) = content.get(range.start_byte..range.end_byte) else {
+            continue;
+        };
+        let bytes = excerpt.as_bytes();
+        claim.symbol_excerpt = Some(if bytes.len() > MAX_STALE_CLAIM_EXCERPT_BYTES {
+            format!(
+                "{}\n... (truncated)",
+                String::from_utf8_lossy(&bytes[..MAX_STALE_CLAIM_EXCERPT_BYTES])
+            )
+        } else {
+            excerpt.to_owned()
+        });
+    }
+}
+
+fn verify_stale(
+    cli: &Cli,
+    git: &GitRepo,
+    agent: &str,
+    model: Option<String>,
+    author: &str,
+) -> Result<(), CliError> {
+    let database_path = database_path(git.root())?;
+    let mut store = SqliteStore::open(&database_path, git.root())?;
+    let repository = git.descriptor()?;
+    let head = git.head()?;
+    let now = Utc::now().to_rfc3339();
+
+    let mut claims = VerificationService::new(&mut store).stale_claims(&repository.id)?;
+    if claims.is_empty() {
+        if cli.json {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&json!({
+                    "claims_reviewed": 0, "reactivated": 0, "suggested_removals": 0, "results": []
+                }))?
+            );
+        } else {
+            println!("No stale semantic claims.");
+        }
+        return Ok(());
+    }
+    let graph = store.load_graph(&repository.id)?;
+    enrich_stale_claims_with_current_code(&mut claims, &graph, git.root());
+
+    eprintln!("Reviewing {} stale claim(s) via {agent}...", claims.len());
+    let (report, results) = match agent {
+        "claude" => {
+            let binary = env::var("CTX_CLAUDE_CLI_BINARY").unwrap_or_else(|_| "claude".to_owned());
+            let review_agent = ClaudeCodeAgent::new(
+                ClaudeSubprocessTransport::new(binary, cli.verbose > 0),
+                model,
+            );
+            VerificationService::new(&mut store).review_stale_claims(
+                &repository.id,
+                &head,
+                &claims,
+                &review_agent,
+                author,
+                &now,
+            )?
+        }
+        "codex" => {
+            let binary = env::var("CTX_CODEX_CLI_BINARY").unwrap_or_else(|_| "codex".to_owned());
+            let review_agent = CodexAgent::new(
+                CodexSubprocessTransport::new(binary, cli.verbose > 0),
+                model,
+            );
+            VerificationService::new(&mut store).review_stale_claims(
+                &repository.id,
+                &head,
+                &claims,
+                &review_agent,
+                author,
+                &now,
+            )?
+        }
+        "antigravity" => {
+            let binary =
+                env::var("CTX_ANTIGRAVITY_CLI_BINARY").unwrap_or_else(|_| "agy".to_owned());
+            let review_agent = AntigravityAgent::new(
+                AntigravitySubprocessTransport::new(binary, cli.verbose > 0),
+                model,
+            );
+            VerificationService::new(&mut store).review_stale_claims(
+                &repository.id,
+                &head,
+                &claims,
+                &review_agent,
+                author,
+                &now,
+            )?
+        }
+        other => return Err(CliError::UnsupportedAgent(other.to_owned())),
+    };
+    print_stale_review(cli, agent, &report, &results)
+}
+
+fn print_stale_review(
+    cli: &Cli,
+    agent: &str,
+    report: &ctx_app::verification::StaleClaimReviewReport,
+    results: &[ctx_app::verification::ReviewedStaleClaim],
+) -> Result<(), CliError> {
+    if cli.json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&json!({"report": report, "results": results}))?
+        );
+        return Ok(());
+    }
+    for result in results {
+        match &result.outcome {
+            StaleClaimOutcome::Reactivated => {
+                println!("  -> reactivated: {} -> {}", result.source, result.target);
+            }
+            StaleClaimOutcome::SuggestedRemoval { reasoning } => {
+                println!(
+                    "  -> suggest removing: {} -> {} ({reasoning})",
+                    result.source, result.target
+                );
+            }
+            StaleClaimOutcome::AlreadyChanged => {
+                println!(
+                    "  -> already changed, skipped: {} -> {}",
+                    result.source, result.target
+                );
+            }
+        }
+    }
+    println!(
+        "Reviewed {} stale claim(s) via {agent}: {} reactivated, {} suggested for removal (not applied automatically)",
+        report.claims_reviewed, report.reactivated, report.suggested_removals
+    );
     Ok(())
 }
 

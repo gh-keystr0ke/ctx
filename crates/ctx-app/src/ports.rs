@@ -13,7 +13,7 @@ use ctx_core::{
         AcceptedKnowledgeRecord, AgentOutcome, ClusterReview, KnowledgeCandidate, KnowledgeDecision,
     },
     neighborhood::ArtifactNeighborhood,
-    verification::{SemanticCandidate, VerificationDecision},
+    verification::{SemanticCandidate, StaleClaim, StaleClaimVerdict, VerificationDecision},
 };
 use serde::{Deserialize, Serialize};
 
@@ -502,4 +502,51 @@ pub trait KnowledgeReviewAgent {
     /// Returns [`PortError`] when the agent cannot be reached, or its output
     /// cannot be parsed and validated as the expected contract.
     fn review(&self, candidates: &[KnowledgeCandidate]) -> Result<ClusterReview, PortError>;
+}
+
+/// The interchangeable AI-agent boundary for `ctx verify --stale`'s
+/// independent re-review of already-stale semantic claims -- another
+/// sibling to [`SemanticAgent`]/[`KnowledgeReviewAgent`], not a shared
+/// trait: this reviews claims that already exist and once held, deciding
+/// whether current code still supports them, not whether to extract or
+/// accept something new.
+pub trait StaleClaimReviewAgent {
+    /// Independently reviews every claim in `claims` (typically every
+    /// currently stale semantic relationship in one repository) and returns
+    /// one verdict per fingerprint, with reasoning.
+    ///
+    /// # Errors
+    /// Returns [`PortError`] when the agent cannot be reached, or its output
+    /// cannot be parsed and validated as the expected contract.
+    fn review_stale_claims(
+        &self,
+        claims: &[StaleClaim],
+    ) -> Result<Vec<StaleClaimVerdict>, PortError>;
+}
+
+/// Applies a [`StaleClaimReviewAgent`]'s binding `Accept` verdicts: a stale
+/// claim's own storage-layer reactivation, precise to the one edge
+/// identified by `fingerprint` -- never a whole-document re-touch (which
+/// would refresh every other claim that document happens to declare too,
+/// stale or not). A `Reject` verdict is never applied through this trait at
+/// all; it is only ever surfaced to a human as a suggestion.
+pub trait StaleClaimStore {
+    /// Reactivates the stale edge identified by `fingerprint`, if one still
+    /// exists in that state, and records an audit annotation. Returns
+    /// `false` (not an error) when no matching stale edge is found -- for
+    /// example, a concurrent `ctx index` already changed it -- since a
+    /// caller reviewing a possibly-stale snapshot should not treat that as
+    /// fatal.
+    ///
+    /// # Errors
+    /// Returns [`PortError`] when the reactivation cannot be persisted.
+    fn reactivate_stale_claim(
+        &mut self,
+        repository: &RepositoryId,
+        commit: &CommitMetadata,
+        fingerprint: &str,
+        reviewer: &str,
+        reasoning: &str,
+        timestamp: &str,
+    ) -> Result<bool, PortError>;
 }

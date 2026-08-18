@@ -1449,6 +1449,86 @@ def internal_helper():
 }
 
 #[test]
+fn verify_stale_reactivates_an_accepted_claim_and_leaves_a_rejected_one_as_a_suggestion_only() {
+    let billing = service_repository(
+        "billing",
+        "def cancel(order_id: str):\n    return {\"cancelled\": True}\n",
+        &[(
+            "req.yaml",
+            "id: REQ-SUB-014\ntype: requirement\nstatus: active\nvisibility: public\nstatement: Cancellation preserves paid access.\nimplementation:\n  - app.cancel\n",
+        )],
+    );
+    ctx_json_at(billing.path(), &["init"]);
+    ctx_json_at(billing.path(), &["index"]);
+
+    // Reshapes app.cancel (an added parameter) without changing its own
+    // identity -- this is exactly what marks the existing Implements edge
+    // stale rather than retiring/recreating the symbol.
+    fs::write(
+        billing.path().join("src/app.py"),
+        "def cancel(order_id: str, reason: str = \"user_requested\"):\n    return {\"cancelled\": True, \"reason\": reason}\n",
+    )
+    .expect("reshaped source");
+    run_git(billing.path(), &["add", "-A"]);
+    run_git(
+        billing.path(),
+        &["commit", "--quiet", "-m", "cancel logs a reason"],
+    );
+    ctx_json_at(billing.path(), &["index"]);
+
+    let before = ctx_json_at(billing.path(), &["status"]);
+    assert_eq!(before["knowledge"]["stale_semantic_edges"], 1);
+    assert_eq!(before["health"], "needs_attention");
+
+    // One fake `claude` script stands in for the review agent: it always
+    // accepts, since this test's own scenario has exactly one stale claim
+    // that genuinely still holds -- the reject path is exercised directly
+    // against `agent_contract::review_stale_claims` and `VerificationService`
+    // unit tests, which is where a deliberately-wrong verdict belongs.
+    let script_path = billing.path().join("fake-claude.sh");
+    fs::write(
+        &script_path,
+        "#!/bin/sh\n\
+         fp=$(echo \"$2\" | grep '^- fingerprint:' | head -1 | sed 's/^- fingerprint: //')\n\
+         echo \"{\\\"decisions\\\":[{\\\"fingerprint\\\":\\\"$fp\\\",\\\"verdict\\\":\\\"accept\\\",\\\"reasoning\\\":\\\"cancel still preserves paid access; it only gained an optional reason parameter\\\"}]}\"\n",
+    )
+    .expect("write fake claude script");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut permissions = fs::metadata(&script_path)
+            .expect("script metadata")
+            .permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(&script_path, permissions).expect("chmod fake claude script");
+    }
+    let env = [(
+        "CTX_CLAUDE_CLI_BINARY",
+        script_path.to_str().expect("utf8 path"),
+    )];
+
+    let review = ctx_json_at_with_env(billing.path(), &["verify", "--stale"], &env);
+    assert_eq!(review["report"]["claims_reviewed"], 1);
+    assert_eq!(review["report"]["reactivated"], 1);
+    assert_eq!(review["report"]["suggested_removals"], 0);
+    assert_eq!(review["results"][0]["outcome"]["kind"], "reactivated");
+    assert_eq!(review["results"][0]["source"], "app.cancel");
+    assert_eq!(review["results"][0]["target"], "REQ-SUB-014");
+
+    let after = ctx_json_at(billing.path(), &["status"]);
+    assert_eq!(after["knowledge"]["stale_semantic_edges"], 0);
+    assert_eq!(after["health"], "ready");
+
+    // Reviewing again with nothing stale left must not call the agent at
+    // all -- the script exits nonzero (empty response) if invoked, which
+    // would fail loudly rather than silently, so a passing run here proves
+    // it genuinely wasn't called.
+    fs::write(&script_path, "#!/bin/sh\nexit 1\n").expect("rewrite fake claude script");
+    let empty = ctx_json_at_with_env(billing.path(), &["verify", "--stale"], &env);
+    assert_eq!(empty["claims_reviewed"], 0);
+}
+
+#[test]
 fn export_requires_an_explicit_service_identity() {
     let repository = tempfile::tempdir().expect("temporary repository");
     fs::create_dir_all(repository.path().join("src")).expect("source directory");
@@ -1765,6 +1845,24 @@ fn initialize_git_repository(root: &Path) {
 fn ctx_json_at(root: &Path, arguments: &[&str]) -> Value {
     let output = Command::new(env!("CARGO_BIN_EXE_ctx"))
         .current_dir(root)
+        .arg("--json")
+        .args(arguments)
+        .output()
+        .expect("execute ctx");
+    assert!(
+        output.status.success(),
+        "ctx {} failed\nstdout: {}\nstderr: {}",
+        arguments.join(" "),
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    serde_json::from_slice(&output.stdout).expect("ctx JSON response")
+}
+
+fn ctx_json_at_with_env(root: &Path, arguments: &[&str], env: &[(&str, &str)]) -> Value {
+    let output = Command::new(env!("CARGO_BIN_EXE_ctx"))
+        .current_dir(root)
+        .envs(env.iter().copied())
         .arg("--json")
         .args(arguments)
         .output()

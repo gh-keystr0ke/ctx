@@ -4,7 +4,8 @@ use ctx_core::{
     knowledge::{DecisionMethod, KnowledgeCandidate, KnowledgeDecision, ReviewVerdict},
     verification::{
         ArtifactEvidenceContext, CandidateCluster, KnowledgeIdAllocator, SemanticCandidate,
-        VerificationDecision, cluster_candidates, possible_duplicate, semantic_candidates,
+        StaleClaim, VerificationDecision, cluster_candidates, possible_duplicate,
+        semantic_candidates, stale_semantic_claim_details,
     },
 };
 use serde::Serialize;
@@ -12,7 +13,8 @@ use thiserror::Error;
 
 use crate::ports::{
     ArtifactLinkStore, BusinessContextReader, BusinessContextWriter, CommitMetadata, GraphStore,
-    KnowledgeCandidateStore, KnowledgeReviewAgent, PortError, VerificationStore,
+    KnowledgeCandidateStore, KnowledgeReviewAgent, PortError, StaleClaimReviewAgent,
+    StaleClaimStore, VerificationStore,
 };
 
 #[derive(Debug, Error)]
@@ -80,7 +82,11 @@ pub struct VerificationService<'a, S> {
 
 impl<'a, S> VerificationService<'a, S>
 where
-    S: GraphStore + VerificationStore + ArtifactLinkStore + KnowledgeCandidateStore,
+    S: GraphStore
+        + VerificationStore
+        + ArtifactLinkStore
+        + KnowledgeCandidateStore
+        + StaleClaimStore,
 {
     pub const fn new(store: &'a mut S) -> Self {
         Self { store }
@@ -139,6 +145,137 @@ where
             .record_verification(repository, commit, &candidate, decision, author, timestamp)
             .map_err(VerificationError::Store)
     }
+
+    /// Every currently stale semantic claim (`ctx verify --stale`), ready
+    /// for a caller to enrich with each claim's current code excerpt (a
+    /// file read, so it happens outside this pure-store layer) before
+    /// handing them to [`Self::review_stale_claims`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`VerificationError`] when the current graph cannot be
+    /// loaded.
+    pub fn stale_claims(
+        &self,
+        repository: &RepositoryId,
+    ) -> Result<Vec<StaleClaim>, VerificationError> {
+        let graph = self
+            .store
+            .load_graph(repository)
+            .map_err(VerificationError::Store)?;
+        Ok(stale_semantic_claim_details(&graph))
+    }
+
+    /// Runs `claims` through `agent`'s independent re-review and applies
+    /// every binding `Accept` verdict by reactivating that specific claim
+    /// (never touching any other claim the same document happens to
+    /// declare). A `Reject` verdict is never applied -- only ever returned
+    /// as a [`StaleClaimOutcome::SuggestedRemoval`] for a human to act on.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`VerificationError`] when the agent cannot be reached or
+    /// its output fails validation, or a reactivation cannot be persisted.
+    pub fn review_stale_claims(
+        &mut self,
+        repository: &RepositoryId,
+        commit: &CommitMetadata,
+        claims: &[StaleClaim],
+        agent: &impl StaleClaimReviewAgent,
+        reviewer: &str,
+        timestamp: &str,
+    ) -> Result<(StaleClaimReviewReport, Vec<ReviewedStaleClaim>), VerificationError> {
+        if claims.is_empty() {
+            return Ok((StaleClaimReviewReport::default(), Vec::new()));
+        }
+        let verdicts = agent
+            .review_stale_claims(claims)
+            .map_err(VerificationError::Store)?;
+        let mut report = StaleClaimReviewReport::default();
+        let mut results = Vec::with_capacity(verdicts.len());
+        for verdict in verdicts {
+            let Some(claim) = claims
+                .iter()
+                .find(|claim| claim.fingerprint == verdict.fingerprint)
+            else {
+                // agent_contract already validates every verdict's
+                // fingerprint against the input claims before this is
+                // reached; unreachable in practice, skipped rather than
+                // panicking on a boundary this layer doesn't itself own.
+                continue;
+            };
+            report.claims_reviewed += 1;
+            let outcome = match verdict.verdict {
+                ReviewVerdict::Accept => {
+                    let reactivated = self
+                        .store
+                        .reactivate_stale_claim(
+                            repository,
+                            commit,
+                            &verdict.fingerprint,
+                            reviewer,
+                            &verdict.reasoning,
+                            timestamp,
+                        )
+                        .map_err(VerificationError::Store)?;
+                    if reactivated {
+                        report.reactivated += 1;
+                        StaleClaimOutcome::Reactivated
+                    } else {
+                        StaleClaimOutcome::AlreadyChanged
+                    }
+                }
+                ReviewVerdict::Reject => {
+                    report.suggested_removals += 1;
+                    StaleClaimOutcome::SuggestedRemoval {
+                        reasoning: verdict.reasoning,
+                    }
+                }
+            };
+            results.push(ReviewedStaleClaim {
+                source: claim.source.identifier.clone(),
+                target: claim.target.identifier.clone(),
+                outcome,
+            });
+        }
+        Ok((report, results))
+    }
+}
+
+/// What one `ctx verify --stale` run did: how many currently stale claims
+/// an independent review agent looked at, how many it confirmed still hold
+/// (reactivated, a binding decision), and how many it judged no longer
+/// accurate (never applied automatically -- only ever a suggestion, see
+/// [`StaleClaimOutcome::SuggestedRemoval`]).
+#[derive(Clone, Copy, Debug, Default, Serialize)]
+pub struct StaleClaimReviewReport {
+    pub claims_reviewed: usize,
+    pub reactivated: usize,
+    pub suggested_removals: usize,
+}
+
+/// What a review agent's verdict on one [`StaleClaim`] actually resulted
+/// in, once persistence ran.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum StaleClaimOutcome {
+    Reactivated,
+    SuggestedRemoval {
+        reasoning: String,
+    },
+    /// The agent said "accept", but the claim was no longer stale by the
+    /// time reactivation ran (for example, a concurrent `ctx index`) --
+    /// reported honestly rather than silently dropped or double-applied.
+    AlreadyChanged,
+}
+
+/// One reviewed claim's subjects and its resulting [`StaleClaimOutcome`],
+/// in review order.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct ReviewedStaleClaim {
+    pub source: String,
+    pub target: String,
+    pub outcome: StaleClaimOutcome,
 }
 
 /// Human verification for AI-derived [`KnowledgeCandidate`]s
@@ -1374,5 +1511,377 @@ mod knowledge_tests {
                 existing_id: "REQ-SUB-001".to_owned(),
             },
         }));
+    }
+}
+
+#[cfg(test)]
+mod stale_claim_tests {
+    use std::cell::RefCell;
+
+    use ctx_core::{
+        artifact::ArtifactRef,
+        domain::{ClaimClass, ClaimStatus, Confidence, NodeKind, RelationKind, SourceKind},
+        graph::{GraphEdge, GraphNode, GraphSnapshot},
+        indexing::PlannedNodeAttributes,
+        knowledge::AcceptedKnowledgeRecord,
+        verification::StaleClaimVerdict,
+    };
+
+    use super::*;
+
+    #[derive(Default)]
+    struct FakeStore {
+        graph: GraphSnapshot,
+        reactivations: RefCell<Vec<String>>,
+        /// Fingerprints this store honestly reports as no longer stale --
+        /// simulates a concurrent `ctx index` racing the review.
+        already_changed: Vec<String>,
+    }
+
+    impl GraphStore for FakeStore {
+        fn load_graph(&self, _repository: &RepositoryId) -> Result<GraphSnapshot, PortError> {
+            Ok(self.graph.clone())
+        }
+    }
+
+    impl VerificationStore for FakeStore {
+        fn record_verification(
+            &mut self,
+            _repository: &RepositoryId,
+            _commit: &CommitMetadata,
+            _candidate: &SemanticCandidate,
+            _decision: VerificationDecision,
+            _author: &str,
+            _timestamp: &str,
+        ) -> Result<(), PortError> {
+            unreachable!("stale-claim review never records heuristic candidate decisions")
+        }
+    }
+
+    impl ArtifactLinkStore for FakeStore {
+        fn persist_links(
+            &mut self,
+            _repository: &RepositoryId,
+            _links: &[ctx_core::artifact::ArtifactLink],
+        ) -> Result<(), PortError> {
+            unreachable!("stale-claim review never persists artifact links")
+        }
+
+        fn list_links(
+            &self,
+            _repository: &RepositoryId,
+        ) -> Result<Vec<ctx_core::artifact::ArtifactLink>, PortError> {
+            unreachable!("stale-claim review never reads artifact links")
+        }
+    }
+
+    impl KnowledgeCandidateStore for FakeStore {
+        fn upsert_candidates(
+            &mut self,
+            _repository: &RepositoryId,
+            _candidates: &[KnowledgeCandidate],
+        ) -> Result<(), PortError> {
+            unreachable!("stale-claim review never upserts knowledge candidates")
+        }
+
+        fn pending_candidates(
+            &self,
+            _repository: &RepositoryId,
+        ) -> Result<Vec<KnowledgeCandidate>, PortError> {
+            unreachable!("stale-claim review never reads pending candidates")
+        }
+
+        fn record_decision(
+            &mut self,
+            _repository: &RepositoryId,
+            _fingerprint: &str,
+            _decision: &KnowledgeDecision,
+            _author: &str,
+            _timestamp: &str,
+        ) -> Result<(), PortError> {
+            unreachable!("stale-claim review never records knowledge decisions")
+        }
+
+        fn accepted_evidence(
+            &self,
+            _repository: &RepositoryId,
+        ) -> Result<std::collections::BTreeMap<String, Vec<ArtifactRef>>, PortError> {
+            unreachable!("stale-claim review never reads accepted evidence")
+        }
+
+        fn accepted_record_for_document(
+            &self,
+            _repository: &RepositoryId,
+            _document_id: &str,
+        ) -> Result<Option<AcceptedKnowledgeRecord>, PortError> {
+            unreachable!("stale-claim review never reads accepted candidate records")
+        }
+    }
+
+    impl StaleClaimStore for FakeStore {
+        fn reactivate_stale_claim(
+            &mut self,
+            _repository: &RepositoryId,
+            _commit: &CommitMetadata,
+            fingerprint: &str,
+            _reviewer: &str,
+            _reasoning: &str,
+            _timestamp: &str,
+        ) -> Result<bool, PortError> {
+            if self.already_changed.contains(&fingerprint.to_owned()) {
+                return Ok(false);
+            }
+            self.reactivations.borrow_mut().push(fingerprint.to_owned());
+            Ok(true)
+        }
+    }
+
+    struct FakeStaleClaimReviewAgent<F> {
+        review: F,
+    }
+
+    impl<F: Fn(&[StaleClaim]) -> Vec<StaleClaimVerdict>> StaleClaimReviewAgent
+        for FakeStaleClaimReviewAgent<F>
+    {
+        fn review_stale_claims(
+            &self,
+            claims: &[StaleClaim],
+        ) -> Result<Vec<StaleClaimVerdict>, PortError> {
+            Ok((self.review)(claims))
+        }
+    }
+
+    fn symbol_node(key: &str, canonical: &str) -> GraphNode {
+        GraphNode {
+            stable_key: ctx_core::domain::StableKey::new(key).expect("stable key"),
+            kind: NodeKind::CodeSymbol,
+            name: canonical.to_owned(),
+            content_hash: "hash".to_owned(),
+            attributes: PlannedNodeAttributes::Symbol {
+                file_path: "billing.py".to_owned(),
+                canonical_path: canonical.to_owned(),
+                symbol_kind: ctx_core::ir::SymbolKind::Function,
+                range: ctx_core::ir::SourceRange::default(),
+                signature: None,
+                structural_fingerprint: "shape".to_owned(),
+                calls: Vec::new(),
+                database_accesses: Vec::new(),
+                schema_tables: Vec::new(),
+                api_endpoints: Vec::new(),
+                external_calls: Vec::new(),
+            },
+        }
+    }
+
+    fn intent_node(key: &str, id: &str, body: &str) -> GraphNode {
+        GraphNode {
+            stable_key: ctx_core::domain::StableKey::new(key).expect("stable key"),
+            kind: NodeKind::Requirement,
+            name: id.to_owned(),
+            content_hash: "hash".to_owned(),
+            attributes: PlannedNodeAttributes::Business {
+                id: id.to_owned(),
+                status: "active".to_owned(),
+                visibility: ctx_core::business::Visibility::Private,
+                implementation_expected: true,
+                body: body.to_owned(),
+                feature: None,
+                source_uri: "requirement.yaml".to_owned(),
+            },
+        }
+    }
+
+    fn stale_edge(source: &GraphNode, target: &GraphNode, fingerprint: &str) -> GraphEdge {
+        GraphEdge {
+            source: source.stable_key.clone(),
+            target: target.stable_key.clone(),
+            kind: RelationKind::Implements,
+            claim_class: ClaimClass::Assertion,
+            source_kind: SourceKind::Documentation,
+            confidence: Confidence::CERTAIN,
+            status: ClaimStatus::Stale,
+            valid_from: "commit".to_owned(),
+            valid_to: None,
+            producer: "test".to_owned(),
+            fingerprint: fingerprint.to_owned(),
+            stale_reason: Some("implementation_changed".to_owned()),
+            evidence: Vec::new(),
+        }
+    }
+
+    fn one_stale_claim_graph() -> GraphSnapshot {
+        let symbol = symbol_node("sym:pay", "billing.cancel");
+        let intent = intent_node("intent:req", "REQ-SUB-014", "Keep access");
+        GraphSnapshot {
+            nodes: [symbol.clone(), intent.clone()]
+                .into_iter()
+                .map(|node| (node.stable_key.clone(), node))
+                .collect(),
+            edges: vec![stale_edge(&symbol, &intent, "fp1")],
+        }
+    }
+
+    fn repository() -> RepositoryId {
+        RepositoryId::new("repo:test").expect("repository ID")
+    }
+
+    fn commit() -> CommitMetadata {
+        CommitMetadata {
+            oid: ctx_core::domain::CommitOid::new("aaaaaaaa").expect("commit OID"),
+            parent_oid: None,
+            authored_at: "2026-08-27T00:00:00Z".to_owned(),
+        }
+    }
+
+    #[test]
+    fn stale_claims_lists_every_stale_semantic_edge_from_the_graph() {
+        let mut store = FakeStore {
+            graph: one_stale_claim_graph(),
+            ..FakeStore::default()
+        };
+
+        let claims = VerificationService::new(&mut store)
+            .stale_claims(&repository())
+            .expect("stale claims");
+
+        assert_eq!(claims.len(), 1);
+        assert_eq!(claims[0].fingerprint, "fp1");
+        assert_eq!(claims[0].source.identifier, "billing.cancel");
+        assert_eq!(claims[0].target.identifier, "REQ-SUB-014");
+    }
+
+    #[test]
+    fn an_accepted_verdict_reactivates_the_claim_bindingly() {
+        let mut store = FakeStore {
+            graph: one_stale_claim_graph(),
+            ..FakeStore::default()
+        };
+        let agent = FakeStaleClaimReviewAgent {
+            review: |claims: &[StaleClaim]| {
+                vec![StaleClaimVerdict {
+                    fingerprint: claims[0].fingerprint.clone(),
+                    verdict: ReviewVerdict::Accept,
+                    reasoning: "still holds".to_owned(),
+                }]
+            },
+        };
+        let claims = VerificationService::new(&mut store)
+            .stale_claims(&repository())
+            .expect("stale claims");
+
+        let (report, results) = VerificationService::new(&mut store)
+            .review_stale_claims(
+                &repository(),
+                &commit(),
+                &claims,
+                &agent,
+                "claude-code",
+                "2026-08-27T00:00:01Z",
+            )
+            .expect("review");
+
+        assert_eq!(report.claims_reviewed, 1);
+        assert_eq!(report.reactivated, 1);
+        assert_eq!(report.suggested_removals, 0);
+        assert_eq!(results[0].outcome, StaleClaimOutcome::Reactivated);
+        assert_eq!(store.reactivations.borrow().as_slice(), ["fp1"]);
+    }
+
+    #[test]
+    fn a_rejected_verdict_is_only_a_suggestion_never_applied() {
+        let mut store = FakeStore {
+            graph: one_stale_claim_graph(),
+            ..FakeStore::default()
+        };
+        let agent = FakeStaleClaimReviewAgent {
+            review: |claims: &[StaleClaim]| {
+                vec![StaleClaimVerdict {
+                    fingerprint: claims[0].fingerprint.clone(),
+                    verdict: ReviewVerdict::Reject,
+                    reasoning: "billing.cancel was removed".to_owned(),
+                }]
+            },
+        };
+        let claims = VerificationService::new(&mut store)
+            .stale_claims(&repository())
+            .expect("stale claims");
+
+        let (report, results) = VerificationService::new(&mut store)
+            .review_stale_claims(
+                &repository(),
+                &commit(),
+                &claims,
+                &agent,
+                "claude-code",
+                "2026-08-27T00:00:01Z",
+            )
+            .expect("review");
+
+        assert_eq!(report.reactivated, 0);
+        assert_eq!(report.suggested_removals, 1);
+        assert_eq!(
+            results[0].outcome,
+            StaleClaimOutcome::SuggestedRemoval {
+                reasoning: "billing.cancel was removed".to_owned()
+            }
+        );
+        assert!(store.reactivations.borrow().is_empty());
+    }
+
+    #[test]
+    fn an_accept_that_no_longer_applies_is_reported_honestly() {
+        let mut store = FakeStore {
+            graph: one_stale_claim_graph(),
+            already_changed: vec!["fp1".to_owned()],
+            ..FakeStore::default()
+        };
+        let agent = FakeStaleClaimReviewAgent {
+            review: |claims: &[StaleClaim]| {
+                vec![StaleClaimVerdict {
+                    fingerprint: claims[0].fingerprint.clone(),
+                    verdict: ReviewVerdict::Accept,
+                    reasoning: "still holds".to_owned(),
+                }]
+            },
+        };
+        let claims = VerificationService::new(&mut store)
+            .stale_claims(&repository())
+            .expect("stale claims");
+
+        let (report, results) = VerificationService::new(&mut store)
+            .review_stale_claims(
+                &repository(),
+                &commit(),
+                &claims,
+                &agent,
+                "claude-code",
+                "2026-08-27T00:00:01Z",
+            )
+            .expect("review");
+
+        assert_eq!(report.reactivated, 0);
+        assert_eq!(results[0].outcome, StaleClaimOutcome::AlreadyChanged);
+    }
+
+    #[test]
+    fn reviewing_no_claims_never_calls_the_agent() {
+        let mut store = FakeStore::default();
+        let agent = FakeStaleClaimReviewAgent {
+            review: |_claims: &[StaleClaim]| unreachable!("must not be called with no claims"),
+        };
+
+        let (report, results) = VerificationService::new(&mut store)
+            .review_stale_claims(
+                &repository(),
+                &commit(),
+                &[],
+                &agent,
+                "claude-code",
+                "2026-08-27T00:00:01Z",
+            )
+            .expect("review");
+
+        assert_eq!(report.claims_reviewed, 0);
+        assert!(results.is_empty());
     }
 }

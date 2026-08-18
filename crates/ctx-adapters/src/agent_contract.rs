@@ -22,6 +22,7 @@ use ctx_core::{
         ReviewVerdict,
     },
     neighborhood::{ArtifactNeighborhood, render_neighborhood},
+    verification::{StaleClaim, StaleClaimVerdict},
 };
 use serde::Deserialize;
 use thiserror::Error;
@@ -416,6 +417,118 @@ struct RawReviewDecision {
     verdict: ReviewVerdict,
 }
 
+const STALE_CLAIM_REVIEW_SYSTEM_PROMPT: &str = r#"You are re-verifying already-established product-knowledge mappings whose underlying code changed since they were last confirmed. Each claim below already asserts that a specific piece of code implements, enforces, satisfies, or is covered by a specific Feature/Requirement/Invariant/Decision, and includes the product intent's own statement plus the current source of the code side -- decide whether that mapping is still accurate given what's shown, not by re-deriving it from scratch.
+
+For each claim, decide "accept" (the current code shown still genuinely satisfies the stated product intent) or "reject" (the code changed in a way that no longer supports this mapping -- it looks like it moved elsewhere, was removed, or now does something materially different) based only on the text given below.
+
+Respond with exactly one JSON object and nothing else: no prose, no markdown fence, no explanation outside the JSON.
+
+{"decisions":[{"fingerprint":"<exact fingerprint from below>","verdict":"accept|reject","reasoning":"<one or two sentences citing what the shown code and product intent actually say>"}]}
+
+Rules:
+- decisions must include exactly one entry for every claim fingerprint listed below -- no more, no fewer, and never an invented fingerprint.
+- reasoning is required for every decision, accept or reject, and must cite the claim's own shown code/intent text -- never a generic statement.
+- A claim with no current code shown (the symbol could not be read) cannot be confirmed from its code -- prefer "reject" for it unless the product intent alone makes the mapping obviously still valid.
+- Prefer "reject" when you cannot actually confirm the mapping still holds, rather than accepting on uncertainty."#;
+
+/// Runs every currently stale semantic claim through an independent
+/// re-review (`ctx verify --stale`): the same [`AgentTransport`] boundary
+/// every vendor already implements, a different prompt and response
+/// contract from both extraction and knowledge-candidate review. Never
+/// trusts a fingerprint the agent didn't see, and never accepts a
+/// `decisions` list that doesn't cover the input claims exactly once each --
+/// the same discipline [`review`] already applies.
+///
+/// # Errors
+/// Returns [`AgentContractError`] when the transport fails, the response
+/// isn't valid JSON, or `decisions` names an unknown or duplicate
+/// fingerprint, or omits one of the input claims.
+pub fn review_stale_claims<T: AgentTransport>(
+    transport: &T,
+    claims: &[StaleClaim],
+) -> Result<Vec<StaleClaimVerdict>, AgentContractError> {
+    let prompt = format!(
+        "{STALE_CLAIM_REVIEW_SYSTEM_PROMPT}\n\n{}",
+        render_stale_claims(claims)
+    );
+    let raw = transport.run(&prompt)?;
+    let object = extract_json_object(&raw)
+        .ok_or_else(|| AgentContractError::InvalidJson("no JSON object found".to_owned()))?;
+    let parsed: RawStaleClaimReviewOutput = serde_json::from_str(object)
+        .map_err(|error| AgentContractError::InvalidJson(error.to_string()))?;
+
+    let known: BTreeSet<&str> = claims
+        .iter()
+        .map(|claim| claim.fingerprint.as_str())
+        .collect();
+    let mut seen: BTreeSet<String> = BTreeSet::new();
+    let mut decisions = Vec::with_capacity(parsed.decisions.len());
+    for raw_decision in parsed.decisions {
+        if !known.contains(raw_decision.fingerprint.as_str()) {
+            return Err(AgentContractError::InvalidJson(format!(
+                "stale-claim review decided an unknown fingerprint: {}",
+                raw_decision.fingerprint
+            )));
+        }
+        if !seen.insert(raw_decision.fingerprint.clone()) {
+            return Err(AgentContractError::InvalidJson(format!(
+                "stale-claim review decided the same fingerprint twice: {}",
+                raw_decision.fingerprint
+            )));
+        }
+        decisions.push(StaleClaimVerdict {
+            fingerprint: raw_decision.fingerprint,
+            verdict: raw_decision.verdict,
+            reasoning: raw_decision.reasoning,
+        });
+    }
+    if seen.len() != known.len() {
+        return Err(AgentContractError::InvalidJson(
+            "stale-claim review did not decide every claim".to_owned(),
+        ));
+    }
+
+    Ok(decisions)
+}
+
+fn render_stale_claims(claims: &[StaleClaim]) -> String {
+    use std::fmt::Write as _;
+
+    let mut text = String::new();
+    for claim in claims {
+        let _ = writeln!(
+            text,
+            "- fingerprint: {}\n  relation: {:?}\n  source: {} ({:?})\n  target: {} ({:?})",
+            claim.fingerprint,
+            claim.relation,
+            claim.source.identifier,
+            claim.source.kind,
+            claim.target.identifier,
+            claim.target.kind
+        );
+        for locator in &claim.evidence_locators {
+            let _ = writeln!(text, "  declared at: {locator}");
+        }
+        let _ = writeln!(text, "  product intent: {}", claim.intent_statement);
+        if let Some(excerpt) = &claim.symbol_excerpt {
+            let _ = writeln!(text, "  current code:\n{excerpt}");
+        }
+    }
+    text
+}
+
+#[derive(Deserialize)]
+struct RawStaleClaimReviewOutput {
+    decisions: Vec<RawStaleClaimDecision>,
+}
+
+#[derive(Deserialize)]
+struct RawStaleClaimDecision {
+    fingerprint: String,
+    verdict: ReviewVerdict,
+    reasoning: String,
+}
+
 #[cfg(test)]
 mod tests {
     use ctx_core::{
@@ -713,6 +826,88 @@ mod tests {
         };
 
         let result = review(&transport, &candidates);
+
+        assert!(result.is_err());
+    }
+
+    fn stale_claim(fingerprint: &str) -> StaleClaim {
+        use ctx_core::{domain::NodeKind, graph::NodeSummary};
+
+        StaleClaim {
+            fingerprint: fingerprint.to_owned(),
+            relation: ctx_core::domain::RelationKind::Implements,
+            source: NodeSummary {
+                stable_key: "symbol:python:billing.cancel:Function".to_owned(),
+                kind: NodeKind::CodeSymbol,
+                identifier: "billing.cancel".to_owned(),
+                name: "cancel".to_owned(),
+                visibility: None,
+            },
+            target: NodeSummary {
+                stable_key: "intent:REQ-SUB-014".to_owned(),
+                kind: NodeKind::Requirement,
+                identifier: "REQ-SUB-014".to_owned(),
+                name: "Keep access".to_owned(),
+                visibility: None,
+            },
+            evidence_locators: vec![
+                ".context/requirements/cancel.yaml#implementation[0]".to_owned(),
+            ],
+            intent_statement: "Keep access until paid_until".to_owned(),
+            symbol_excerpt: Some("def cancel():\n    ...".to_owned()),
+        }
+    }
+
+    #[test]
+    fn review_stale_claims_accepts_when_the_agent_confirms_the_mapping_still_holds() {
+        let claims = vec![stale_claim("fp1")];
+        let transport = FakeTransport {
+            response: r#"{"decisions":[{"fingerprint":"fp1","verdict":"accept","reasoning":"billing.cancel still preserves paid access in the current code."}]}"#.to_owned(),
+        };
+
+        let result = review_stale_claims(&transport, &claims).expect("parsed review");
+
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].fingerprint, "fp1");
+        assert_eq!(result[0].verdict, ReviewVerdict::Accept);
+        assert!(result[0].reasoning.contains("billing.cancel"));
+    }
+
+    #[test]
+    fn review_stale_claims_can_reject_a_mapping_that_no_longer_holds() {
+        let claims = vec![stale_claim("fp1")];
+        let transport = FakeTransport {
+            response: r#"{"decisions":[{"fingerprint":"fp1","verdict":"reject","reasoning":"billing.cancel was removed; the logic now lives in billing.terminate."}]}"#.to_owned(),
+        };
+
+        let result = review_stale_claims(&transport, &claims).expect("parsed review");
+
+        assert_eq!(result[0].verdict, ReviewVerdict::Reject);
+    }
+
+    #[test]
+    fn review_stale_claims_rejects_an_invented_fingerprint_not_trusted() {
+        let claims = vec![stale_claim("fp1")];
+        let transport = FakeTransport {
+            response: r#"{"decisions":[{"fingerprint":"fp-invented","verdict":"accept","reasoning":"..."}]}"#
+                .to_owned(),
+        };
+
+        let result = review_stale_claims(&transport, &claims);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn review_stale_claims_rejects_a_decision_list_missing_a_claim() {
+        let claims = vec![stale_claim("fp1"), stale_claim("fp2")];
+        let transport = FakeTransport {
+            response:
+                r#"{"decisions":[{"fingerprint":"fp1","verdict":"accept","reasoning":"..."}]}"#
+                    .to_owned(),
+        };
+
+        let result = review_stale_claims(&transport, &claims);
 
         assert!(result.is_err());
     }

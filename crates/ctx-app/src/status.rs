@@ -155,11 +155,11 @@ fn build_report(
         &knowledge,
         &schema_divergences,
         &unmapped_intents,
+        &stale_claims,
     );
     let (notices, suggested_actions) = diagnostics(
         index_state,
         health,
-        &knowledge,
         &uncommitted_index_inputs,
         &schema_divergences,
         &unmapped_intents,
@@ -186,11 +186,18 @@ fn classify_health(
     knowledge: &RepositoryStatus,
     schema_divergences: &[SchemaDivergence],
     unmapped_intents: &[String],
+    stale_claims: &[String],
 ) -> StatusHealth {
     if index_state != IndexState::Current {
         return StatusHealth::NeedsIndex;
     }
-    if knowledge.stale_semantic_edges > 0 || !schema_divergences.is_empty() {
+    // Gates on the same filtered list `diagnostics` displays, not the raw
+    // `stale_semantic_edges` row count: a stale edge whose source or target
+    // node has since been fully retired (for example, the symbol was
+    // renamed away rather than merely re-shaped) is filtered out of
+    // `stale_claims` -- nothing left to act on, so it must not report
+    // NeedsAttention with an empty, unactionable notice either.
+    if !stale_claims.is_empty() || !schema_divergences.is_empty() {
         return StatusHealth::NeedsAttention;
     }
     if product_document_count(knowledge) == 0 {
@@ -205,7 +212,6 @@ fn classify_health(
 fn diagnostics(
     index_state: IndexState,
     health: StatusHealth,
-    knowledge: &RepositoryStatus,
     dirty: &[String],
     schema_divergences: &[SchemaDivergence],
     unmapped_intents: &[String],
@@ -247,7 +253,7 @@ fn diagnostics(
             actions.push("Add exact `implementation` and `tests` symbol mappings.".to_owned());
         }
         StatusHealth::NeedsAttention => {
-            if knowledge.stale_semantic_edges > 0 {
+            if !stale_claims.is_empty() {
                 notices.push(format!(
                     "{} semantic relationship(s) are stale: {}.",
                     stale_claims.len(),
@@ -440,5 +446,36 @@ mod tests {
         assert!(status.suggested_actions.iter().any(|action| {
             action.contains("ctx explain \"subscription.cancel -> REQ-SUB-014\"")
         }));
+    }
+
+    #[test]
+    fn a_stale_edge_whose_node_was_retired_never_produces_an_empty_unactionable_notice() {
+        // The bug the test above's own fix introduced: `stale_semantic_edges`
+        // is a raw row count (every edge with status='stale'), while
+        // `stale_claims` filters out any edge whose source/target node has
+        // since been fully retired (found live: a symbol renamed away
+        // entirely, not just re-shaped). classify_health used to gate on the
+        // raw count while diagnostics displayed the filtered list, so this
+        // exact case reported "0 semantic relationship(s) are stale: ." with
+        // a placeholder `ctx explain "source -> target"` action -- nothing
+        // for a human or agent to actually act on.
+        let status = report_full(
+            RepositoryStatus {
+                last_indexed_commit: Some(oid("aaaaaaaa")),
+                features: 1,
+                requirements: 1,
+                invariants: 1,
+                active_assertions: 1,
+                stale_semantic_edges: 1,
+                ..RepositoryStatus::default()
+            },
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+        );
+
+        assert_eq!(status.health, StatusHealth::Ready);
+        assert!(status.notices.is_empty());
+        assert!(status.suggested_actions.is_empty());
     }
 }

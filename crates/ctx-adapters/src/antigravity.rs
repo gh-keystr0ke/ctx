@@ -13,10 +13,11 @@
 
 use std::process::Command;
 
-use ctx_app::ports::{KnowledgeReviewAgent, PortError, SemanticAgent};
+use ctx_app::ports::{KnowledgeReviewAgent, PortError, SemanticAgent, StaleClaimReviewAgent};
 use ctx_core::{
     knowledge::{AgentOutcome, ClusterReview, KnowledgeCandidate},
     neighborhood::ArtifactNeighborhood,
+    verification::{StaleClaim, StaleClaimVerdict},
 };
 
 use crate::agent_contract::{self, AgentContractError, AgentTransport};
@@ -111,6 +112,16 @@ impl<T: AgentTransport> SemanticAgent for AntigravityAgent<T> {
 impl<T: AgentTransport> KnowledgeReviewAgent for AntigravityAgent<T> {
     fn review(&self, candidates: &[KnowledgeCandidate]) -> Result<ClusterReview, PortError> {
         agent_contract::review(&self.transport, candidates)
+            .map_err(|error| PortError::new(error.to_string()))
+    }
+}
+
+impl<T: AgentTransport> StaleClaimReviewAgent for AntigravityAgent<T> {
+    fn review_stale_claims(
+        &self,
+        claims: &[StaleClaim],
+    ) -> Result<Vec<StaleClaimVerdict>, PortError> {
+        agent_contract::review_stale_claims(&self.transport, claims)
             .map_err(|error| PortError::new(error.to_string()))
     }
 }

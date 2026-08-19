@@ -7,6 +7,7 @@ pub mod business_context;
 mod candidate_queue;
 pub mod claude_code;
 pub mod codex;
+pub mod context_registry;
 mod database;
 pub mod federation;
 pub mod git;

@@ -57,7 +57,7 @@ impl<'a> McpServer<'a> {
         Ok(Self {
             git,
             analyzer: AnalyzerRegistry::builtins(git.root(), &git.source_scope().languages)?,
-            store: SqliteStore::open(&database, git.root())?,
+            store: SqliteStore::open(&database, git.context_root())?,
             repository,
         })
     }

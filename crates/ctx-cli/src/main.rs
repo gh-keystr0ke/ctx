@@ -14,13 +14,14 @@ use ctx_adapters::{
     business_context::YamlBusinessContextReader,
     claude_code::{ClaudeCodeAgent, SubprocessTransport as ClaudeSubprocessTransport},
     codex::{CodexAgent, SubprocessTransport as CodexSubprocessTransport},
+    context_registry,
     federation::{
         ExportManifest, ExportedDocument, ExportedEndpoint, ExternalCallContract,
         FEDERATION_SCHEMA_VERSION, FederatedRepositoryData, FederationError, FederationSyncState,
         NeighborRegistry, RegistryNeighbor, default_export_path, matching_resolutions,
         neighbor_head, path_template, require_service_name,
     },
-    git::GitRepo,
+    git::{GitRepo, ensure_repository},
     gitlab::{GitLabClient, GitLabConfig, UreqTransport},
     sqlite::SqliteStore,
 };
@@ -162,6 +163,13 @@ enum Command {
         #[command(subcommand)]
         command: RegistryCommand,
     },
+    /// Manage where .context/ and .ctx-candidates/ are stored (ADR-CTX-050):
+    /// redirected outside the checkout when it belongs to someone else, so
+    /// nothing is ever written into a repository you don't own.
+    ContextStore {
+        #[command(subcommand)]
+        command: ContextStoreCommand,
+    },
     /// Write this service's public product and HTTP contract manifest.
     Export {
         #[arg(long)]
@@ -248,6 +256,26 @@ enum RegistryCommand {
     List,
     /// Remove a neighbor by its service name.
     Remove { name: String },
+}
+
+#[derive(Debug, Subcommand)]
+enum ContextStoreCommand {
+    /// Redirect this repository's .context/ and .ctx-candidates/ to `path`.
+    /// By default `path` is a plain directory (created if missing) with no
+    /// commit-before-index guarantee for documents written there -- pass
+    /// `--git` to also turn it into a Git repository (or use one already
+    /// there) for the same protection this checkout's own .context/ would
+    /// have. Recorded only in this machine's local registry
+    /// (`~/.config/ctx/contexts.toml` by default) -- nothing is written into
+    /// the current checkout.
+    Set {
+        path: PathBuf,
+        /// Also turn `path` into a Git repository if it isn't one already.
+        #[arg(long)]
+        git: bool,
+    },
+    /// Show whether .context/ is currently redirected, and to where.
+    Show,
 }
 
 #[derive(Debug, Subcommand)]
@@ -383,6 +411,7 @@ fn run(cli: &Cli) -> Result<(), CliError> {
             token_budget,
         } => context(cli, &git, task, file, symbol, *token_budget),
         Command::Registry { command } => registry(cli, &git, command),
+        Command::ContextStore { command } => context_store(cli, &git, command),
         Command::Export { out } => export(cli, &git, out.as_deref()),
         Command::Sync => sync(cli, &git),
         Command::Federation { command } => federation(cli, &git, command),
@@ -431,6 +460,91 @@ fn run(cli: &Cli) -> Result<(), CliError> {
             } else {
                 Err(CliError::UnsupportedServe)
             }
+        }
+    }
+}
+
+#[derive(Serialize)]
+struct ContextStoreReport {
+    repository: PathBuf,
+    context_repository: PathBuf,
+    external: bool,
+    git_backed: bool,
+}
+
+fn context_store(cli: &Cli, git: &GitRepo, command: &ContextStoreCommand) -> Result<(), CliError> {
+    match command {
+        ContextStoreCommand::Set { path, git: use_git } => {
+            let absolute = if path.is_absolute() {
+                path.clone()
+            } else {
+                env::current_dir()?.join(path)
+            };
+            if *use_git {
+                ensure_repository(&absolute)?;
+            } else {
+                fs::create_dir_all(&absolute)?;
+            }
+            let registry_path = context_registry::set(git.root(), &absolute)?;
+            if cli.json {
+                println!(
+                    "{}",
+                    json!({
+                        "ok": true,
+                        "repository": git.root(),
+                        "context_repository": absolute,
+                        "git_backed": *use_git,
+                        "registry": registry_path,
+                    })
+                );
+            } else {
+                println!(
+                    "Context store for {} set to {} (recorded in {}).",
+                    git.root().display(),
+                    absolute.display(),
+                    registry_path.display()
+                );
+                if *use_git {
+                    println!(
+                        "It's a Git repository: documents there get the same \
+                         commit-before-index guarantee as this checkout."
+                    );
+                } else {
+                    println!(
+                        "It's a plain directory: documents there are read as-is, with no \
+                         commit-before-index guarantee (pass --git for that)."
+                    );
+                }
+                println!("Run 'ctx init' to scaffold .context/ there if it isn't already.");
+            }
+            Ok(())
+        }
+        ContextStoreCommand::Show => {
+            let report = ContextStoreReport {
+                repository: git.root().to_path_buf(),
+                context_repository: git.context_root().to_path_buf(),
+                external: git.has_external_context(),
+                git_backed: git.context_is_git_repository(),
+            };
+            if cli.json {
+                println!("{}", serde_json::to_string_pretty(&report)?);
+            } else if report.external {
+                println!(
+                    "Context store: {} (external, {})",
+                    report.context_repository.display(),
+                    if report.git_backed {
+                        "Git repository"
+                    } else {
+                        "plain directory"
+                    }
+                );
+            } else {
+                println!(
+                    "Context store: {} (inside the repository)",
+                    report.context_repository.display()
+                );
+            }
+            Ok(())
         }
     }
 }
@@ -540,7 +654,7 @@ fn export(cli: &Cli, git: &GitRepo, out: Option<&Path>) -> Result<(), CliError> 
 fn build_export_manifest(git: &GitRepo) -> Result<ExportManifest, CliError> {
     let service_name = require_service_name(git)?.to_owned();
     let database_path = database_path(git.root())?;
-    let store = SqliteStore::open(&database_path, git.root())?;
+    let store = SqliteStore::open(&database_path, git.context_root())?;
     let repository = git.descriptor()?;
     let head = git.head()?;
     let indexed = store.latest_commit(&repository.id)?;
@@ -642,7 +756,7 @@ fn sync(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
     require_service_name(git)?;
     let registry = NeighborRegistry::load(git.root())?;
     let database_path = database_path(git.root())?;
-    let mut store = SqliteStore::open(&database_path, git.root())?;
+    let mut store = SqliteStore::open(&database_path, git.context_root())?;
     let repository = git.descriptor()?;
     let graph = store.load_graph(&repository.id)?;
     let local_commit = git.head()?.oid.to_string();
@@ -865,7 +979,7 @@ struct FederationShowReport {
 fn federation(cli: &Cli, git: &GitRepo, command: &FederationCommand) -> Result<(), CliError> {
     let registry = NeighborRegistry::load(git.root())?;
     let database_path = database_path(git.root())?;
-    let store = SqliteStore::open(&database_path, git.root())?;
+    let store = SqliteStore::open(&database_path, git.context_root())?;
     match command {
         FederationCommand::List => federation_list(cli, &registry, &store),
         FederationCommand::Show { name } => federation_show(cli, git, &registry, &store, name),
@@ -1169,7 +1283,7 @@ fn trace(
     continuation: Option<&str>,
 ) -> Result<(), CliError> {
     let database_path = database_path(git.root())?;
-    let store = SqliteStore::open(&database_path, git.root())?;
+    let store = SqliteStore::open(&database_path, git.context_root())?;
     let repository = git.descriptor()?;
     let graph = store.load_graph(&repository.id)?;
     let local_commit = git.head()?.oid.to_string();
@@ -1385,7 +1499,7 @@ fn verify(
     author: &str,
 ) -> Result<(), CliError> {
     let database_path = database_path(git.root())?;
-    let mut store = SqliteStore::open(&database_path, git.root())?;
+    let mut store = SqliteStore::open(&database_path, git.context_root())?;
     let repository = git.descriptor()?;
     let head = git.head()?;
     let now = Utc::now().to_rfc3339();
@@ -1475,10 +1589,10 @@ fn verify_knowledge(
     force: bool,
 ) -> Result<(), CliError> {
     let database_path = database_path(git.root())?;
-    let mut store = SqliteStore::open(&database_path, git.root())?;
+    let mut store = SqliteStore::open(&database_path, git.context_root())?;
     let repository = git.descriptor()?;
     let now = Utc::now().to_rfc3339();
-    let writer = YamlBusinessContextReader::new(git.root().to_path_buf());
+    let writer = YamlBusinessContextReader::new(git.context_root().to_path_buf());
     let mut service = KnowledgeVerificationService::new(&mut store, &writer);
 
     if let Some(fingerprint) = accept {
@@ -1568,10 +1682,10 @@ fn verify_knowledge_auto(
     force: bool,
 ) -> Result<(), CliError> {
     let database_path = database_path(git.root())?;
-    let mut store = SqliteStore::open(&database_path, git.root())?;
+    let mut store = SqliteStore::open(&database_path, git.context_root())?;
     let repository = git.descriptor()?;
     let now = Utc::now().to_rfc3339();
-    let writer = YamlBusinessContextReader::new(git.root().to_path_buf());
+    let writer = YamlBusinessContextReader::new(git.context_root().to_path_buf());
 
     // Same reasoning as `enrich`'s own progress output: a real review call
     // per cluster can take tens of seconds, and with several clusters,
@@ -1746,7 +1860,7 @@ fn verify_stale(
     author: &str,
 ) -> Result<(), CliError> {
     let database_path = database_path(git.root())?;
-    let mut store = SqliteStore::open(&database_path, git.root())?;
+    let mut store = SqliteStore::open(&database_path, git.context_root())?;
     let repository = git.descriptor()?;
     let head = git.head()?;
     let now = Utc::now().to_rfc3339();
@@ -2005,7 +2119,7 @@ fn context(
     token_budget: usize,
 ) -> Result<(), CliError> {
     let database_path = database_path(git.root())?;
-    let store = SqliteStore::open(&database_path, git.root())?;
+    let store = SqliteStore::open(&database_path, git.context_root())?;
     let repository = git.descriptor()?;
     let request = ContextRequest {
         task: task.to_owned(),
@@ -2062,7 +2176,7 @@ fn context(
 
 fn review(cli: &Cli, git: &GitRepo, base: &str) -> Result<(), CliError> {
     let database_path = database_path(git.root())?;
-    let store = SqliteStore::open(&database_path, git.root())?;
+    let store = SqliteStore::open(&database_path, git.context_root())?;
     let analyzer = AnalyzerRegistry::builtins(git.root(), &git.source_scope().languages)?;
     let repository = git.descriptor()?;
     let report =
@@ -2229,7 +2343,7 @@ fn print_schema_findings(findings: &[ctx_core::review::SchemaFinding]) {
 
 fn impact(cli: &Cli, git: &GitRepo, target: &str) -> Result<(), CliError> {
     let database_path = database_path(git.root())?;
-    let store = SqliteStore::open(&database_path, git.root())?;
+    let store = SqliteStore::open(&database_path, git.context_root())?;
     let repository = git.descriptor()?;
     let reports = QueryService::new(&store).impact(&repository.id, target)?;
     if cli.json {
@@ -2279,7 +2393,7 @@ fn impact(cli: &Cli, git: &GitRepo, target: &str) -> Result<(), CliError> {
 
 fn explain(cli: &Cli, git: &GitRepo, target: &str, want_trace: bool) -> Result<(), CliError> {
     let database_path = database_path(git.root())?;
-    let store = SqliteStore::open(&database_path, git.root())?;
+    let store = SqliteStore::open(&database_path, git.context_root())?;
     let repository = git.descriptor()?;
     let explanations = QueryService::new(&store).explain(&repository.id, target)?;
     let traces = want_trace
@@ -2446,7 +2560,7 @@ fn traces_for_implementation(
 
 fn find(cli: &Cli, git: &GitRepo, target: &str) -> Result<(), CliError> {
     let database_path = database_path(git.root())?;
-    let store = SqliteStore::open(&database_path, git.root())?;
+    let store = SqliteStore::open(&database_path, git.context_root())?;
     let repository = git.descriptor()?;
     let matches = QueryService::new(&store).find(&repository.id, target)?;
     if cli.json {
@@ -2469,7 +2583,7 @@ fn find(cli: &Cli, git: &GitRepo, target: &str) -> Result<(), CliError> {
 
 fn ingest(cli: &Cli, git: &GitRepo, source: &str, since: Option<&str>) -> Result<(), CliError> {
     let database_path = database_path(git.root())?;
-    let mut store = SqliteStore::open(&database_path, git.root())?;
+    let mut store = SqliteStore::open(&database_path, git.context_root())?;
     let repository = git.descriptor()?;
     let now = Utc::now().to_rfc3339();
     // Ingestion is meant to work standalone, before or independent of
@@ -2519,7 +2633,7 @@ fn enrich(
     allow_ungrounded_symbols: bool,
 ) -> Result<(), CliError> {
     let database_path = database_path(git.root())?;
-    let mut store = SqliteStore::open(&database_path, git.root())?;
+    let mut store = SqliteStore::open(&database_path, git.context_root())?;
     let repository = git.descriptor()?;
     let now = Utc::now().to_rfc3339();
     store.ensure_repository(&repository, &now)?;
@@ -2611,14 +2725,20 @@ fn initialize(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
     if !config_path.exists() {
         fs::write(&config_path, DEFAULT_CONFIG)?;
     }
+    // The context store may be redirected via `ctx context-store set`
+    // (ADR-CTX-050) to a plain directory (the default) or to a Git
+    // repository (`--git`); either way it just needs to exist, which
+    // `create_dir_all` below already guarantees. Nothing here forces it to
+    // become a Git repository -- that choice was made, if at all, at
+    // `context-store set` time.
     for directory in ["features", "requirements", "invariants", "decisions"] {
-        fs::create_dir_all(git.root().join(".context").join(directory))?;
+        fs::create_dir_all(git.context_root().join(".context").join(directory))?;
     }
     // Git-tracked pending-candidate queue (ADR-EXT-004) -- unlike .ctx/,
     // meant to be committed once a real candidate file exists in it.
-    fs::create_dir_all(git.root().join(".ctx-candidates"))?;
+    fs::create_dir_all(git.context_root().join(".ctx-candidates"))?;
     let database_path = ctx_directory.join("ctx.db");
-    SqliteStore::open(&database_path, git.root())?;
+    SqliteStore::open(&database_path, git.context_root())?;
     git.ignore_local_state()?;
     let languages = GitRepo::discover(git.root())?.source_scope().languages;
 
@@ -2628,12 +2748,25 @@ fn initialize(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
             json!({
                 "ok": true,
                 "repository": git.root(),
+                "context_repository": git.context_root(),
+                "context_git_backed": git.context_is_git_repository(),
                 "database": database_path,
                 "languages": languages
             })
         );
     } else {
         println!("Initialized ctx in {}", ctx_directory.display());
+        if git.has_external_context() {
+            println!(
+                "Context store: {} ({})",
+                git.context_root().display(),
+                if git.context_is_git_repository() {
+                    "Git repository"
+                } else {
+                    "plain directory"
+                }
+            );
+        }
         println!(
             "Enabled analyzers: {}. Next: add source code to Git, then run 'ctx index'.",
             languages.join(", ")
@@ -2644,13 +2777,13 @@ fn initialize(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
 
 fn index(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
     let database_path = database_path(git.root())?;
-    let mut store = SqliteStore::open(&database_path, git.root())?;
+    let mut store = SqliteStore::open(&database_path, git.context_root())?;
     let analyzer = AnalyzerRegistry::builtins(git.root(), &git.source_scope().languages)?;
     let now = Utc::now().to_rfc3339();
     let code = IndexRunner::new(git, &analyzer, &mut store).run(&now)?;
     let repository = git.descriptor()?;
     let head = git.head()?;
-    let reader = YamlBusinessContextReader::new(git.root().to_path_buf());
+    let reader = YamlBusinessContextReader::new(git.context_root().to_path_buf());
     let business_context =
         ContextImporter::new(&reader, &mut store).run(&repository, &head, &now)?;
     let report = FullIndexReport {
@@ -2700,7 +2833,7 @@ fn index(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
 
 fn status(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
     let database_path = database_path(git.root())?;
-    let store = SqliteStore::open(&database_path, git.root())?;
+    let store = SqliteStore::open(&database_path, git.context_root())?;
     let status = StatusService::new(git, &store).inspect()?;
     if cli.json {
         println!("{}", serde_json::to_string_pretty(&status)?);

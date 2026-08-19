@@ -33,6 +33,16 @@ pub enum GitError {
 
 pub struct GitRepo {
     root: PathBuf,
+    /// Where `.context/` and `.ctx-candidates/` are read from and written
+    /// to. Equal to `root` unless a local, machine-only registry entry
+    /// redirects it elsewhere (`ADR-CTX-050`) -- in that default case every
+    /// method below behaves exactly as it did before that redirect existed.
+    context_root: PathBuf,
+    /// Whether `context_root` is itself inside a Git worktree. A redirected
+    /// context store is plain files by default (no Git required at all --
+    /// ADR-CTX-050); Git-tracked commit/staleness guarantees only apply when
+    /// this is true. Always `true` when `context_root == root`.
+    context_is_repository: bool,
     languages: Vec<SupportedLanguage>,
     path_filter: PathFilter,
     service_name: Option<String>,
@@ -125,8 +135,12 @@ impl GitRepo {
             .trim();
         let root = PathBuf::from(root);
         let configuration = load_configuration(&root)?;
+        let context_root = crate::context_registry::resolve(&root)?.unwrap_or_else(|| root.clone());
+        let context_is_repository = context_root == root || is_inside_work_tree(&context_root);
         Ok(Self {
             root,
+            context_root,
+            context_is_repository,
             languages: configuration.languages,
             path_filter: configuration.path_filter,
             service_name: configuration.service_name,
@@ -135,6 +149,27 @@ impl GitRepo {
 
     pub fn root(&self) -> &Path {
         &self.root
+    }
+
+    /// Where `.context/` and `.ctx-candidates/` currently live: `root`
+    /// unless a local registry entry (`ctx context-store set`, `ADR-CTX-050`)
+    /// redirects them to a separate location.
+    pub fn context_root(&self) -> &Path {
+        &self.context_root
+    }
+
+    /// Whether `.context/` and `.ctx-candidates/` have been redirected to a
+    /// separate location rather than living under `root`.
+    pub fn has_external_context(&self) -> bool {
+        self.context_root != self.root
+    }
+
+    /// Whether the current context location (redirected or not) is itself
+    /// inside a Git worktree. A redirected context store is plain files by
+    /// default -- this is only true when someone explicitly made it a Git
+    /// repository (`ctx context-store set --git`, or by hand).
+    pub fn context_is_git_repository(&self) -> bool {
+        self.context_is_repository
     }
 
     /// Returns the repository's explicit federation identity, when configured.
@@ -192,19 +227,24 @@ impl GitRepo {
     }
 
     fn output(&self, args: &[&str]) -> Result<Vec<u8>, GitError> {
-        let output = Command::new("git")
-            .arg("-C")
-            .arg(&self.root)
-            .args(args)
-            .output()?;
-        if output.status.success() {
-            Ok(output.stdout)
-        } else {
-            Err(GitError::Command {
-                command: args.join(" "),
-                stderr: String::from_utf8_lossy(&output.stderr).trim().to_owned(),
-            })
-        }
+        run_git(&self.root, args)
+    }
+
+    /// Runs a Git command against [`Self::context_root`] instead of `root`.
+    /// Identical to [`Self::output`] when no external context is configured,
+    /// since `context_root` then equals `root`.
+    fn context_output(&self, args: &[&str]) -> Result<Vec<u8>, GitError> {
+        run_git(&self.context_root, args)
+    }
+
+    /// Whether the context repository has any commits yet. A freshly
+    /// `git init`-ed context store (no commits) has no `HEAD` to diff
+    /// against -- callers must fall back to treating every present file as
+    /// not-yet-committed instead of running a `diff ... HEAD` that would
+    /// simply fail.
+    fn context_has_commits(&self) -> bool {
+        self.context_output(&["rev-parse", "--verify", "HEAD"])
+            .is_ok()
     }
 
     fn optional_text(&self, args: &[&str]) -> Result<Option<String>, GitError> {
@@ -223,12 +263,7 @@ impl GitRepo {
     }
 
     fn resolve_revision(&self, revision: &str) -> Result<String, GitError> {
-        let commit = format!("{revision}^{{commit}}");
-        let bytes = self.output(&["rev-parse", "--verify", "--end-of-options", &commit])?;
-        Ok(std::str::from_utf8(&bytes)
-            .map_err(|_| GitError::InvalidUtf8)?
-            .trim()
-            .to_owned())
+        resolve_revision_at(&self.root, revision)
     }
 
     fn source_allowed(&self, path: &str) -> bool {
@@ -244,6 +279,58 @@ impl GitRepo {
             .flatten()
             .unwrap_or_else(|| self.root.display().to_string())
     }
+}
+
+/// Ensures a Git repository exists at `path`, creating the directory and
+/// running `git init` there when neither already exists. A no-op when `path`
+/// is already inside a Git worktree.
+///
+/// # Errors
+///
+/// Returns [`GitError`] when the directory cannot be created or `git init`
+/// fails.
+pub fn ensure_repository(path: &Path) -> Result<(), GitError> {
+    std::fs::create_dir_all(path)?;
+    if is_inside_work_tree(path) {
+        return Ok(());
+    }
+    run_git(path, &["init", "-q"]).map(|_| ())
+}
+
+/// Whether `path` is inside a Git worktree (its own repository root, or a
+/// subdirectory of one). `false` when `path` doesn't exist yet.
+fn is_inside_work_tree(path: &Path) -> bool {
+    run_git(path, &["rev-parse", "--is-inside-work-tree"])
+        .ok()
+        .is_some_and(|bytes| std::str::from_utf8(&bytes).map(str::trim) == Ok("true"))
+}
+
+fn run_git(root: &Path, args: &[&str]) -> Result<Vec<u8>, GitError> {
+    let output = Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(args)
+        .output()?;
+    if output.status.success() {
+        Ok(output.stdout)
+    } else {
+        Err(GitError::Command {
+            command: args.join(" "),
+            stderr: String::from_utf8_lossy(&output.stderr).trim().to_owned(),
+        })
+    }
+}
+
+fn resolve_revision_at(root: &Path, revision: &str) -> Result<String, GitError> {
+    let commit = format!("{revision}^{{commit}}");
+    let bytes = run_git(
+        root,
+        &["rev-parse", "--verify", "--end-of-options", &commit],
+    )?;
+    Ok(std::str::from_utf8(&bytes)
+        .map_err(|_| GitError::InvalidUtf8)?
+        .trim()
+        .to_owned())
 }
 
 impl GitRepository for GitRepo {
@@ -324,34 +411,85 @@ impl GitRepository for GitRepo {
         let source_bytes = self
             .output(&["diff", "--name-status", "-z", "-M", "HEAD", "--"])
             .map_err(port_error)?;
-        let context_bytes = self
-            .output(&["diff", "--name-only", "-z", "HEAD", "--", ".context"])
-            .map_err(port_error)?;
         let untracked_bytes = self
             .output(&["ls-files", "-z", "--others", "--exclude-standard"])
-            .map_err(port_error)?;
-        let ignored_context_bytes = self
-            .output(&[
-                "ls-files",
-                "-z",
-                "--others",
-                "--ignored",
-                "--exclude-standard",
-                "--",
-                ".context",
-            ])
             .map_err(port_error)?;
         let mut paths = change_paths(&filter_changes(
             parse_name_status(&source_bytes, &self.languages)?,
             &self.path_filter,
         ));
-        paths.extend(parse_nul_strings(&context_bytes)?);
         paths.extend(
             parse_nul_strings(&untracked_bytes)?
                 .into_iter()
-                .filter(|path| self.source_allowed(path) || path.starts_with(".context/")),
+                .filter(|path| {
+                    self.source_allowed(path)
+                        || (!self.has_external_context() && path.starts_with(".context/"))
+                }),
         );
-        paths.extend(parse_nul_strings(&ignored_context_bytes)?);
+        if self.has_external_context() && self.context_is_repository {
+            // Only .context/ must be committed before indexing -- the same
+            // scope INV-COMMIT-001 has always had (ADR-EXT-004: the
+            // .ctx-candidates/ queue is deliberately readable uncommitted, so
+            // it must stay out of this check exactly as it always has been
+            // for a non-redirected repository). Scoped to ".context" rather
+            // than left unscoped, since context_root may be a subdirectory
+            // of a larger repository rather than its toplevel.
+            let mut context_paths = Vec::new();
+            if self.context_has_commits() {
+                let context_bytes = self
+                    .context_output(&["diff", "--name-only", "-z", "HEAD", "--", ".context"])
+                    .map_err(port_error)?;
+                context_paths.extend(parse_nul_strings(&context_bytes)?);
+            }
+            let context_untracked_bytes = self
+                .context_output(&[
+                    "ls-files",
+                    "-z",
+                    "--others",
+                    "--exclude-standard",
+                    "--",
+                    ".context",
+                ])
+                .map_err(port_error)?;
+            let context_ignored_bytes = self
+                .context_output(&[
+                    "ls-files",
+                    "-z",
+                    "--others",
+                    "--ignored",
+                    "--exclude-standard",
+                    "--",
+                    ".context",
+                ])
+                .map_err(port_error)?;
+            context_paths.extend(parse_nul_strings(&context_untracked_bytes)?);
+            context_paths.extend(parse_nul_strings(&context_ignored_bytes)?);
+            paths.extend(
+                context_paths
+                    .into_iter()
+                    .map(|path| format!("context:{path}")),
+            );
+        } else if !self.has_external_context() {
+            let context_bytes = self
+                .output(&["diff", "--name-only", "-z", "HEAD", "--", ".context"])
+                .map_err(port_error)?;
+            let ignored_context_bytes = self
+                .output(&[
+                    "ls-files",
+                    "-z",
+                    "--others",
+                    "--ignored",
+                    "--exclude-standard",
+                    "--",
+                    ".context",
+                ])
+                .map_err(port_error)?;
+            paths.extend(parse_nul_strings(&context_bytes)?);
+            paths.extend(parse_nul_strings(&ignored_context_bytes)?);
+        }
+        // else: an external context store that isn't a Git repository is
+        // plain files with no commit-before-index guarantee (ADR-CTX-050);
+        // there is nothing to check.
         paths.sort();
         paths.dedup();
         Ok(paths)
@@ -372,12 +510,9 @@ impl GitRepository for GitRepo {
 
 impl ReviewRepository for GitRepo {
     fn review_changes(&self, base: &str) -> Result<ReviewChangeSet, PortError> {
-        let base = self.resolve_revision(base).map_err(port_error)?;
+        let source_base = self.resolve_revision(base).map_err(port_error)?;
         let source_bytes = self
-            .output(&["diff", "--name-status", "-z", "-M", &base, "--"])
-            .map_err(port_error)?;
-        let context_bytes = self
-            .output(&["diff", "--name-only", "-z", &base, "--", ".context"])
+            .output(&["diff", "--name-status", "-z", "-M", &source_base, "--"])
             .map_err(port_error)?;
         let untracked_bytes = self
             .output(&["ls-files", "-z", "--others", "--exclude-standard"])
@@ -386,7 +521,46 @@ impl ReviewRepository for GitRepo {
             parse_name_status(&source_bytes, &self.languages)?,
             &self.path_filter,
         );
-        let mut changed_context_files = parse_nul_strings(&context_bytes)?;
+        // With an external context store there is no single commit shared by
+        // both repositories, so `base` is resolved a second time directly in
+        // the context repository rather than reusing `source_base` (ADR-CTX-050):
+        // it fails loudly (a plain Git error) when the context repository has
+        // no equivalently named revision, instead of silently pairing
+        // unrelated history. An external store that isn't a Git repository
+        // at all has no history to diff, so it honestly reports no changes
+        // rather than guessing; one that is a Git repository but has no
+        // commits yet is diffed against nothing (everything present is
+        // "new"), the same reasoning as `context_has_commits` elsewhere.
+        let mut changed_context_files = if self.has_external_context() && self.context_is_repository
+        {
+            let context_untracked_bytes = self
+                .context_output(&[
+                    "ls-files",
+                    "-z",
+                    "--others",
+                    "--exclude-standard",
+                    "--",
+                    ".context",
+                ])
+                .map_err(port_error)?;
+            let mut changed = parse_nul_strings(&context_untracked_bytes)?;
+            if self.context_has_commits() {
+                let context_base =
+                    resolve_revision_at(&self.context_root, base).map_err(port_error)?;
+                let context_bytes = self
+                    .context_output(&["diff", "--name-only", "-z", &context_base, "--", ".context"])
+                    .map_err(port_error)?;
+                changed.extend(parse_nul_strings(&context_bytes)?);
+            }
+            changed
+        } else if self.has_external_context() {
+            Vec::new()
+        } else {
+            let context_bytes = self
+                .output(&["diff", "--name-only", "-z", &source_base, "--", ".context"])
+                .map_err(port_error)?;
+            parse_nul_strings(&context_bytes)?
+        };
         for path in parse_nul_strings(&untracked_bytes)? {
             if self.source_allowed(&path)
                 && !source_changes
@@ -395,7 +569,7 @@ impl ReviewRepository for GitRepo {
             {
                 source_changes.push(FileChange::Added { path: path.clone() });
             }
-            if path.starts_with(".context/") {
+            if !self.has_external_context() && path.starts_with(".context/") {
                 changed_context_files.push(path);
             }
         }
@@ -938,6 +1112,195 @@ mod tests {
             vec![FileChange::Deleted {
                 path: "src/service.py".to_owned()
             }]
+        );
+    }
+
+    fn init_repository(root: &Path) {
+        run(root, &["init", "-q"]);
+        run(root, &["config", "user.name", "ctx tests"]);
+        run(root, &["config", "user.email", "ctx@example.invalid"]);
+    }
+
+    #[test]
+    fn uncommitted_index_inputs_flags_dirty_state_in_an_external_context_repository() {
+        let source_root = tempfile::tempdir().expect("temp dir");
+        init_repository(source_root.path());
+        std::fs::write(source_root.path().join("a.txt"), "a").expect("write file");
+        run(source_root.path(), &["add", "a.txt"]);
+        run(source_root.path(), &["commit", "-q", "-m", "seed source"]);
+
+        let context_root = tempfile::tempdir().expect("temp dir");
+        init_repository(context_root.path());
+        std::fs::create_dir_all(context_root.path().join(".context/requirements"))
+            .expect("context directory");
+        std::fs::write(
+            context_root.path().join(".context/requirements/req.yaml"),
+            "id: REQ-1\n",
+        )
+        .expect("write requirement");
+        run(context_root.path(), &["add", "."]);
+        run(context_root.path(), &["commit", "-q", "-m", "seed context"]);
+
+        let mut repository = GitRepo::discover(source_root.path()).expect("discover");
+        repository.context_root = context_root.path().to_path_buf();
+        assert!(repository.has_external_context());
+
+        let clean = repository
+            .uncommitted_index_inputs()
+            .expect("uncommitted check");
+        assert!(
+            clean.is_empty(),
+            "expected no uncommitted inputs while both repositories are clean, got {clean:?}"
+        );
+
+        std::fs::write(
+            context_root.path().join(".context/requirements/req.yaml"),
+            "id: REQ-1\nstatement: dirty\n",
+        )
+        .expect("dirty the context repository");
+
+        let dirty = repository
+            .uncommitted_index_inputs()
+            .expect("uncommitted check");
+        assert_eq!(
+            dirty,
+            vec!["context:.context/requirements/req.yaml".to_owned()]
+        );
+    }
+
+    #[test]
+    fn review_changes_diffs_an_external_context_repository_by_its_own_matching_revision() {
+        let source_root = tempfile::tempdir().expect("temp dir");
+        init_repository(source_root.path());
+        std::fs::write(source_root.path().join("a.txt"), "a").expect("write file");
+        run(source_root.path(), &["add", "a.txt"]);
+        run(source_root.path(), &["commit", "-q", "-m", "seed source"]);
+        run(source_root.path(), &["branch", "base"]);
+
+        let context_root = tempfile::tempdir().expect("temp dir");
+        init_repository(context_root.path());
+        std::fs::create_dir_all(context_root.path().join(".context/requirements"))
+            .expect("context directory");
+        std::fs::write(
+            context_root.path().join(".context/requirements/req.yaml"),
+            "id: REQ-1\n",
+        )
+        .expect("write requirement");
+        run(context_root.path(), &["add", "."]);
+        run(context_root.path(), &["commit", "-q", "-m", "seed context"]);
+        run(context_root.path(), &["branch", "base"]);
+        std::fs::write(
+            context_root.path().join(".context/requirements/req2.yaml"),
+            "id: REQ-2\n",
+        )
+        .expect("write second requirement");
+        run(context_root.path(), &["add", "."]);
+        run(
+            context_root.path(),
+            &["commit", "-q", "-m", "add second requirement"],
+        );
+
+        let mut repository = GitRepo::discover(source_root.path()).expect("discover");
+        repository.context_root = context_root.path().to_path_buf();
+
+        let review = repository.review_changes("base").expect("review changes");
+
+        assert_eq!(
+            review.changed_context_files,
+            vec![".context/requirements/req2.yaml".to_owned()]
+        );
+        assert!(review.source_changes.is_empty());
+    }
+
+    #[test]
+    fn is_inside_work_tree_distinguishes_a_git_repository_from_a_plain_directory() {
+        let repository = tempfile::tempdir().expect("temp dir");
+        init_repository(repository.path());
+        let plain = tempfile::tempdir().expect("temp dir");
+
+        assert!(is_inside_work_tree(repository.path()));
+        assert!(!is_inside_work_tree(plain.path()));
+    }
+
+    #[test]
+    fn uncommitted_index_inputs_ignores_a_plain_folder_context_store_entirely() {
+        let source_root = tempfile::tempdir().expect("temp dir");
+        init_repository(source_root.path());
+        std::fs::write(source_root.path().join("a.txt"), "a").expect("write file");
+        run(source_root.path(), &["add", "a.txt"]);
+        run(source_root.path(), &["commit", "-q", "-m", "seed source"]);
+
+        // Never `git init`-ed: a plain directory, ADR-CTX-050's default mode.
+        let context_root = tempfile::tempdir().expect("temp dir");
+        std::fs::create_dir_all(context_root.path().join(".context/requirements"))
+            .expect("context directory");
+        std::fs::write(
+            context_root.path().join(".context/requirements/req.yaml"),
+            "id: REQ-1\n",
+        )
+        .expect("write requirement");
+
+        let mut repository = GitRepo::discover(source_root.path()).expect("discover");
+        repository.context_root = context_root.path().to_path_buf();
+        repository.context_is_repository = is_inside_work_tree(context_root.path());
+        assert!(repository.has_external_context());
+        assert!(!repository.context_is_git_repository());
+
+        let inputs = repository
+            .uncommitted_index_inputs()
+            .expect("uncommitted check");
+        assert!(
+            inputs.is_empty(),
+            "a plain-folder context store has no commit gate: got {inputs:?}"
+        );
+    }
+
+    #[test]
+    fn uncommitted_index_inputs_and_review_handle_a_freshly_initialized_context_repository_with_no_commits_yet()
+     {
+        let source_root = tempfile::tempdir().expect("temp dir");
+        init_repository(source_root.path());
+        std::fs::write(source_root.path().join("a.txt"), "a").expect("write file");
+        run(source_root.path(), &["add", "a.txt"]);
+        run(source_root.path(), &["commit", "-q", "-m", "seed source"]);
+        run(source_root.path(), &["branch", "base"]);
+
+        let context_root = tempfile::tempdir().expect("temp dir");
+        run(context_root.path(), &["init", "-q"]); // git-inited, zero commits: unborn HEAD
+
+        let mut repository = GitRepo::discover(source_root.path()).expect("discover");
+        repository.context_root = context_root.path().to_path_buf();
+        repository.context_is_repository = is_inside_work_tree(context_root.path());
+        assert!(repository.context_is_git_repository());
+        assert!(!repository.context_has_commits());
+
+        let inputs = repository
+            .uncommitted_index_inputs()
+            .expect("uncommitted check on an empty unborn repository");
+        assert!(inputs.is_empty(), "nothing on disk yet: got {inputs:?}");
+
+        std::fs::create_dir_all(context_root.path().join(".context/requirements"))
+            .expect("context directory");
+        std::fs::write(
+            context_root.path().join(".context/requirements/req.yaml"),
+            "id: REQ-1\n",
+        )
+        .expect("write requirement");
+
+        let dirty = repository
+            .uncommitted_index_inputs()
+            .expect("uncommitted check");
+        assert_eq!(
+            dirty,
+            vec!["context:.context/requirements/req.yaml".to_owned()]
+        );
+
+        // `review_changes` must not crash trying to resolve `base` in a
+        // context repository that has no commits to resolve it against.
+        let review = repository.review_changes("base").expect("review changes");
+        assert_eq!(
+            review.changed_context_files,
+            vec![".context/requirements/req.yaml".to_owned()]
         );
     }
 }

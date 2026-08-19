@@ -1747,6 +1747,344 @@ fn verify_knowledge_auto_reviews_and_accepts_with_an_honest_agent_decision_metho
     assert!(written.contains("Commit history documents cancellation behavior."));
 }
 
+#[test]
+fn context_store_set_git_redirects_to_a_separate_repository_and_still_enforces_commits() {
+    // ADR-CTX-050: .context/ and .ctx-candidates/ may be redirected to a
+    // separate repository (e.g. because the checkout being documented isn't
+    // ours to commit into), resolved through a local-only registry that
+    // never writes into the checkout itself. `--git` opts into the same
+    // commit-before-index guarantee this checkout's own .context/ would have.
+    let source = tempfile::tempdir().expect("source repository");
+    fs::create_dir_all(source.path().join("src")).expect("src directory");
+    fs::write(
+        source.path().join("src/app.py"),
+        "def handler():\n    return 'ok'\n",
+    )
+    .expect("python source");
+    run_git(source.path(), &["init", "--quiet"]);
+    run_git(source.path(), &["config", "user.name", "ctx tests"]);
+    run_git(
+        source.path(),
+        &["config", "user.email", "ctx@example.invalid"],
+    );
+    run_git(source.path(), &["add", "."]);
+    run_git(source.path(), &["commit", "--quiet", "-m", "seed source"]);
+
+    let registry_directory = tempfile::tempdir().expect("registry directory");
+    let registry_file = registry_directory.path().join("contexts.toml");
+    let registry_file_str = registry_file
+        .to_str()
+        .expect("utf8 registry path")
+        .to_owned();
+    let context_store = tempfile::tempdir().expect("external context store");
+    let context_store_path = context_store
+        .path()
+        .to_str()
+        .expect("utf8 context path")
+        .to_owned();
+    let env: [(&str, &str); 1] = [("CTX_CONTEXTS_FILE", &registry_file_str)];
+    let ctx = |arguments: &[&str]| run_ctx(source.path(), &env, arguments);
+    let ctx_failure = |arguments: &[&str]| run_ctx_failure(source.path(), &env, arguments);
+
+    let set_report = ctx(&["context-store", "set", "--git", &context_store_path]);
+    assert_eq!(set_report["ok"], true);
+
+    let show_report = ctx(&["context-store", "show"]);
+    assert_eq!(show_report["external"], true);
+    assert_eq!(show_report["git_backed"], true);
+    assert_eq!(
+        show_report["context_repository"]
+            .as_str()
+            .expect("context_repository string"),
+        context_store_path
+    );
+
+    ctx(&["init"]);
+    assert!(
+        !source.path().join(".context").exists(),
+        ".context must never be created inside a redirected checkout"
+    );
+    assert!(
+        !source.path().join(".ctx-candidates").exists(),
+        ".ctx-candidates must never be created inside a redirected checkout"
+    );
+    assert!(context_store.path().join(".context/requirements").is_dir());
+    assert!(context_store.path().join(".git").exists());
+
+    fs::write(
+        context_store
+            .path()
+            .join(".context/requirements/req-handler.yaml"),
+        "id: REQ-HANDLER-001\ntype: requirement\nstatus: active\ntitle: Handler returns ok\n\
+         statement: The handler must return ok.\nimplementation:\n  - symbol: app.handler\n",
+    )
+    .expect("write requirement in the external store");
+    run_git(context_store.path(), &["add", "."]);
+    run_git(context_store.path(), &["config", "user.name", "ctx tests"]);
+    run_git(
+        context_store.path(),
+        &["config", "user.email", "ctx@example.invalid"],
+    );
+    run_git(
+        context_store.path(),
+        &["commit", "--quiet", "-m", "add handler requirement"],
+    );
+
+    let index_report = ctx(&["index"]);
+    assert_eq!(index_report["business_context"]["documents_created"], 1);
+
+    let explain = ctx(&["explain", "REQ-HANDLER-001"]);
+    assert!(
+        explain
+            .to_string()
+            .contains(".context/requirements/req-handler.yaml"),
+        "expected evidence to cite the external requirement file: {explain}"
+    );
+
+    fs::write(
+        context_store
+            .path()
+            .join(".context/requirements/req-handler.yaml"),
+        "id: REQ-HANDLER-001\ntype: requirement\nstatus: active\ntitle: Handler returns ok\n\
+         statement: dirty\nimplementation:\n  - symbol: app.handler\n",
+    )
+    .expect("dirty the external store");
+    let error = ctx_failure(&["index"]);
+    assert!(
+        error["error"].as_str().is_some_and(
+            |message| message.contains("context:.context/requirements/req-handler.yaml")
+        ),
+        "expected the uncommitted-inputs error to name the external file: {error}"
+    );
+}
+
+#[test]
+fn context_store_set_defaults_to_a_plain_directory_with_no_commit_gate() {
+    // ADR-CTX-050: without --git, the redirected context store is just a
+    // directory -- no Git repository is created or required, and .context/*
+    // documents there are read as-is with no commit-before-index guarantee.
+    let source = tempfile::tempdir().expect("source repository");
+    fs::create_dir_all(source.path().join("src")).expect("src directory");
+    fs::write(
+        source.path().join("src/app.py"),
+        "def handler():\n    return 'ok'\n",
+    )
+    .expect("python source");
+    run_git(source.path(), &["init", "--quiet"]);
+    run_git(source.path(), &["config", "user.name", "ctx tests"]);
+    run_git(
+        source.path(),
+        &["config", "user.email", "ctx@example.invalid"],
+    );
+    run_git(source.path(), &["add", "."]);
+    run_git(source.path(), &["commit", "--quiet", "-m", "seed source"]);
+
+    let registry_directory = tempfile::tempdir().expect("registry directory");
+    let registry_file = registry_directory.path().join("contexts.toml");
+    let registry_file_str = registry_file
+        .to_str()
+        .expect("utf8 registry path")
+        .to_owned();
+    let context_store = tempfile::tempdir().expect("external context store");
+    let context_store_path = context_store
+        .path()
+        .to_str()
+        .expect("utf8 context path")
+        .to_owned();
+    let env: [(&str, &str); 1] = [("CTX_CONTEXTS_FILE", &registry_file_str)];
+    let ctx = |arguments: &[&str]| run_ctx(source.path(), &env, arguments);
+
+    let set_report = ctx(&["context-store", "set", &context_store_path]);
+    assert_eq!(set_report["ok"], true);
+    assert_eq!(set_report["git_backed"], false);
+
+    let show_report = ctx(&["context-store", "show"]);
+    assert_eq!(show_report["external"], true);
+    assert_eq!(show_report["git_backed"], false);
+
+    ctx(&["init"]);
+    assert!(context_store.path().join(".context/requirements").is_dir());
+    assert!(
+        !context_store.path().join(".git").exists(),
+        "no Git repository should be created without --git"
+    );
+
+    fs::write(
+        context_store
+            .path()
+            .join(".context/requirements/req-handler.yaml"),
+        "id: REQ-HANDLER-001\ntype: requirement\nstatus: active\ntitle: Handler returns ok\n\
+         statement: The handler must return ok.\nimplementation:\n  - symbol: app.handler\n",
+    )
+    .expect("write requirement in the external store");
+
+    // No commit gate at all: indexing must succeed even though nothing was
+    // ever committed anywhere in the plain-folder context store.
+    let index_report = ctx(&["index"]);
+    assert_eq!(index_report["business_context"]["documents_created"], 1);
+
+    let explain = ctx(&["explain", "REQ-HANDLER-001"]);
+    assert!(
+        explain
+            .to_string()
+            .contains(".context/requirements/req-handler.yaml"),
+        "expected evidence to cite the external requirement file: {explain}"
+    );
+}
+
+#[test]
+fn enrich_and_verify_knowledge_accept_a_candidate_into_an_external_context_store() {
+    // ADR-CTX-050, .ctx-candidates/ half: the pending-candidate queue
+    // (ADR-EXT-004) and knowledge acceptance must both go through
+    // context_root exactly like .context/ itself -- this is the one
+    // end-to-end path that touches both.
+    let source = tempfile::tempdir().expect("source repository");
+    fs::create_dir_all(source.path().join("src")).expect("src directory");
+    fs::write(
+        source.path().join("src/app.py"),
+        "def handler():\n    return 'ok'\n",
+    )
+    .expect("python source");
+    run_git(source.path(), &["init", "--quiet"]);
+    run_git(source.path(), &["config", "user.name", "ctx tests"]);
+    run_git(
+        source.path(),
+        &["config", "user.email", "ctx@example.invalid"],
+    );
+    run_git(source.path(), &["add", "."]);
+    run_git(
+        source.path(),
+        &["commit", "--quiet", "-m", "PAY-1 add handler"],
+    );
+
+    let registry_directory = tempfile::tempdir().expect("registry directory");
+    let registry_file = registry_directory.path().join("contexts.toml");
+    let registry_file_str = registry_file
+        .to_str()
+        .expect("utf8 registry path")
+        .to_owned();
+    let context_store = tempfile::tempdir().expect("external context store");
+    let context_store_path = context_store
+        .path()
+        .to_str()
+        .expect("utf8 context path")
+        .to_owned();
+    let base_env: [(&str, &str); 1] = [("CTX_CONTEXTS_FILE", &registry_file_str)];
+    let ctx = |arguments: &[&str]| run_ctx(source.path(), &base_env, arguments);
+
+    ctx(&["context-store", "set", "--git", &context_store_path]);
+    ctx(&["init"]);
+    ctx(&["ingest", "git"]);
+
+    let script_path = source.path().join("fake-claude.sh");
+    write_executable_script(
+        &script_path,
+        "#!/bin/sh\n\
+         prompt=\"$2\"\n\
+         id=$(echo \"$prompt\" | grep -o 'Valid artifact ids for this neighborhood: [^ ,]*' | sed 's/.*: //')\n\
+         echo \"{\\\"outcome\\\":\\\"relevant\\\",\\\"candidates\\\":[{\\\"kind\\\":\\\"requirement\\\",\\\"statement\\\":\\\"Handler must return ok.\\\",\\\"evidence\\\":[{\\\"artifact_id\\\":\\\"$id\\\",\\\"locator\\\":\\\"body\\\",\\\"excerpt\\\":\\\"excerpt\\\"}]}]}\"\n",
+    );
+    let mut env: Vec<(&str, &str)> = base_env.to_vec();
+    let script_path_str = script_path.to_str().expect("utf8 path");
+    env.push(("CTX_CLAUDE_CLI_BINARY", script_path_str));
+    let ctx_with_agent = |arguments: &[&str]| run_ctx(source.path(), &env, arguments);
+
+    let enriched = ctx_with_agent(&["enrich", "--agent", "claude"]);
+    assert!(enriched["candidates_proposed"].as_u64().unwrap_or(0) > 0);
+    // The queue itself is a file under .ctx-candidates/ at context_root, not
+    // under the source checkout.
+    assert!(!source.path().join(".ctx-candidates").exists());
+    assert!(
+        fs::read_dir(context_store.path().join(".ctx-candidates"))
+            .expect("read external candidate queue")
+            .next()
+            .is_some(),
+        "expected a candidate file under the external .ctx-candidates/"
+    );
+
+    let pending = ctx(&["verify", "--knowledge"]);
+    let candidates = pending.as_array().expect("pending candidates");
+    assert_eq!(candidates.len(), 1);
+    let fingerprint = candidates[0]["fingerprint"]
+        .as_str()
+        .expect("fingerprint")
+        .to_owned();
+
+    let accepted = ctx(&[
+        "verify",
+        "--knowledge",
+        "--accept",
+        &fingerprint,
+        "--id",
+        "REQ-HANDLER-002",
+    ]);
+    assert_eq!(accepted["ok"], true);
+    let written_path = accepted["path"].as_str().expect("written path").to_owned();
+    assert!(
+        context_store.path().join(&written_path).exists(),
+        "accepted document should land under the external context store, not the source checkout"
+    );
+
+    run_git(context_store.path(), &["add", &written_path]);
+    run_git(
+        context_store.path(),
+        &["commit", "--quiet", "-m", "accept REQ-HANDLER-002"],
+    );
+    let indexed = ctx(&["index"]);
+    assert!(
+        indexed["business_context"]["documents_created"]
+            .as_u64()
+            .unwrap_or(0)
+            > 0,
+        "expected the accepted document to be absorbed on the next index: {indexed}"
+    );
+}
+
+fn write_executable_script(path: &Path, content: &str) {
+    fs::write(path, content).expect("write script");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut permissions = fs::metadata(path).expect("script metadata").permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(path, permissions).expect("chmod script");
+    }
+}
+
+fn run_ctx(root: &Path, env: &[(&str, &str)], arguments: &[&str]) -> Value {
+    let output = Command::new(env!("CARGO_BIN_EXE_ctx"))
+        .current_dir(root)
+        .envs(env.iter().copied())
+        .arg("--json")
+        .args(arguments)
+        .output()
+        .expect("execute ctx");
+    assert!(
+        output.status.success(),
+        "ctx {} failed\nstdout: {}\nstderr: {}",
+        arguments.join(" "),
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    serde_json::from_slice(&output.stdout).expect("ctx JSON response")
+}
+
+fn run_ctx_failure(root: &Path, env: &[(&str, &str)], arguments: &[&str]) -> Value {
+    let output = Command::new(env!("CARGO_BIN_EXE_ctx"))
+        .current_dir(root)
+        .envs(env.iter().copied())
+        .arg("--json")
+        .args(arguments)
+        .output()
+        .expect("execute ctx");
+    assert!(
+        !output.status.success(),
+        "ctx {} unexpectedly succeeded",
+        arguments.join(" ")
+    );
+    serde_json::from_slice(&output.stderr).expect("ctx JSON error")
+}
+
 fn run_git(root: &Path, arguments: &[&str]) {
     let output = Command::new("git")
         .arg("-C")

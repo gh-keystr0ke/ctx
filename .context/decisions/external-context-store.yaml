@@ -1,0 +1,93 @@
+id: ADR-CTX-050
+type: decision
+status: accepted
+title: .context and .ctx-candidates may live in a separate location (plain directory or Git repository), resolved by a local-only registry
+decision: >-
+  ctx's provenance model (INV-COMMIT-001) requires every input an index transition reasons about --
+  source bytes and .context/*.yaml bytes alike -- to be committed, so every fact traces back to a
+  real commit. Today that is enforced by treating both as one pathspec inside one GitRepo bound to
+  one root (git.rs's uncommitted_index_inputs/changes_since/review_changes all diff ".context" as a
+  subtree of the source repository), and by candidate_queue.rs writing .ctx-candidates/ as a git-tracked
+  sibling of .context/ for the same reason (ADR-EXT-004). This is the right default, but it assumes
+  the person running ctx can commit and push into the repository being documented. Dogfooding ctx
+  against a repository someone else owns (first attempted 2026-08-19 against a local Zed checkout)
+  breaks that assumption: writing .context/*.yaml into that checkout means either polluting a
+  repository not ours to change, or gitignoring the documents -- which uncommitted_index_inputs
+  already deliberately rejects (it runs `git ls-files --others --ignored -- .context` specifically to
+  catch and fail on this) rather than silently degrading provenance.
+
+  The fix: .context/ and .ctx-candidates/ may be redirected to a path outside the source checkout.
+  That path defaults to a plain directory -- no Git repository required or created -- because a
+  redirect exists precisely for checkouts we have no commit/push authority over, and forcing yet
+  another Git repository onto every user of this feature is real setup friction for no benefit to
+  someone who is fine trading away commit-time provenance for their private notes. `ctx context-store
+  set <path> --git` opts back into a Git-backed store (creating one via `git init` if `path` isn't
+  already a repository) for the same commit-before-index guarantee this checkout's own .context/ has.
+  GitRepo tracks whether the resolved context_root is actually inside a Git worktree
+  (context_is_git_repository, detected via `git rev-parse --is-inside-work-tree` so a context store
+  that is a *subdirectory* of a larger repository -- not necessarily its toplevel -- is still handled
+  correctly) and only runs Git-based checks when it is:
+  - Git-backed: `uncommitted_index_inputs` requires the context repository's working tree clean too,
+    the same INV-COMMIT-001 guarantee as the source repository, just checked against a second `-C`
+    root instead of a pathspec (reusing git.rs's existing `output()` invocation pattern -- a second
+    handle is cheap). A context repository with zero commits yet ("unborn HEAD") skips the `diff
+    ... HEAD` call, which would otherwise fail outright, and relies on `ls-files --others` alone,
+    which needs no HEAD -- everything present in a repository with no history is, correctly,
+    "not yet committed".
+  - Plain directory (the default): no Git command ever runs against it. Documents are read directly
+    off disk with no commit gate at all -- this is the accepted tradeoff for skipping Git entirely.
+  No index-schema change is needed either way: business documents are already read fresh from disk on
+  every `ctx index` and staleness-tracked by content_hash (ctx_app.ingest.ContextImporter), not by
+  which commit graph holds them (or whether one exists at all), so the persisted index generation still
+  records exactly one commit (the source HEAD, as today) -- the context store's state is a precondition
+  checked at index time, never a stored fact. `ctx review <base>` mirrors this: with a Git-backed
+  external store it resolves `base` a second time directly in the context repository (needing a
+  matching ref there; fails loudly instead of silently pairing unrelated history if it can't) rather
+  than reusing the source-resolved SHA, needing no correlation table; with a plain-directory store it
+  honestly reports no context changes, since there is no history to diff.
+
+  The redirect itself must never be discoverable by writing into the foreign checkout -- not even a
+  gitignored file, since a repository without a `.context` gitignore entry could still `git add -A`
+  it by accident. Resolution is a local-only registry at `~/.config/ctx/contexts.toml` (or
+  `$XDG_CONFIG_HOME/ctx/contexts.toml`), keyed by the source root's canonicalized absolute path,
+  mapping it to its external context path. GitRepo::discover consults this registry after locating the
+  source root and before loading .ctx/config.toml (which stays committed, shared team config -- never
+  the place for a machine-local absolute path). No file is written inside the source checkout to enable
+  this. `ctx context-store set <path> [--git]` registers the mapping; `ctx context-store show` reports
+  the resolved path, whether it's redirected, and whether it's Git-backed. `ctx init` scaffolds
+  `.context/{features,requirements,invariants,decisions}` and `.ctx-candidates/` under whichever root
+  is currently resolved and never itself forces Git onto it -- that choice, if any, is made at
+  `context-store set` time -- so a fresh redirect just needs `context-store set` run before `init`.
+
+  .ctx-candidates/ moves with .context/ to the same external repository, not left behind gitignored in
+  the source checkout: ADR-EXT-004's whole point was git-tracked, content-addressed convergence across
+  a team, which only works if the queue is actually committed somewhere.
+
+  Migrating an existing in-repo .context/ history to the external store (preserving git blame) is
+  explicitly out of scope for this cut -- `ctx context-store migrate` is a separate, later piece of
+  work. This cut only lets a fresh external store be initialized and used going forward.
+implementation:
+  - symbol: ctx_adapters.context_registry.resolve
+  - symbol: ctx_adapters.context_registry.set
+  - symbol: ctx_adapters.context_registry.resolve_at
+  - symbol: ctx_adapters.context_registry.set_at
+  - symbol: ctx_adapters.git.GitRepo.discover
+  - symbol: ctx_adapters.git.GitRepo.context_root
+  - symbol: ctx_adapters.git.GitRepo.has_external_context
+  - symbol: ctx_adapters.git.GitRepo.context_is_git_repository
+  - symbol: ctx_adapters.git.GitRepo.GitRepository.uncommitted_index_inputs
+  - symbol: ctx_adapters.git.GitRepo.ReviewRepository.review_changes
+  - symbol: ctx_adapters.git.is_inside_work_tree
+  - symbol: ctx_adapters.git.ensure_repository
+  - symbol: ctx_cli.main.initialize
+  - symbol: ctx_cli.main.context_store
+tests:
+  - symbol: ctx_adapters.context_registry.tests.a_registered_source_root_resolves_to_its_context_root
+  - symbol: ctx_adapters.context_registry.tests.setting_twice_for_the_same_source_root_overwrites_the_mapping
+  - symbol: ctx_adapters.git.tests.uncommitted_index_inputs_flags_dirty_state_in_an_external_context_repository
+  - symbol: ctx_adapters.git.tests.review_changes_diffs_an_external_context_repository_by_its_own_matching_revision
+  - symbol: ctx_adapters.git.tests.is_inside_work_tree_distinguishes_a_git_repository_from_a_plain_directory
+  - symbol: ctx_adapters.git.tests.uncommitted_index_inputs_ignores_a_plain_folder_context_store_entirely
+  - symbol: ctx_adapters.git.tests.uncommitted_index_inputs_and_review_handle_a_freshly_initialized_context_repository_with_no_commits_yet
+  - symbol: crates.ctx-cli.tests.e2e.context_store_set_git_redirects_to_a_separate_repository_and_still_enforces_commits
+  - symbol: crates.ctx-cli.tests.e2e.context_store_set_defaults_to_a_plain_directory_with_no_commit_gate

@@ -3,20 +3,30 @@ type: invariant
 feature: FEAT-INDEXING
 status: active
 statement: >
-  Uncommitted configured source or business-context bytes must never be stored
-  as though they were valid for HEAD; an index transition must either commit
-  all derived symbols, database entities, relationships, and evidence
-  atomically or leave the prior graph intact. A source file whose analyzer
-  fails is excluded from that transition's plan before this atomic commit is
-  attempted (REQ-INDEX-002) — it never partially lands and never blocks the
-  rest of the transition from committing.
+  Uncommitted configured source bytes must never be stored as though they
+  were valid for HEAD; an index transition must either commit all derived
+  symbols, database entities, relationships, and evidence atomically or leave
+  the prior graph intact. A source file whose analyzer fails is excluded from
+  that transition's plan before this atomic commit is attempted
+  (REQ-INDEX-002) — it never partially lands and never blocks the rest of the
+  transition from committing. Business-context bytes (.context/*.yaml) get
+  the identical commit-before-index guarantee only when their resolved
+  location -- this checkout's root by default, or wherever `ctx
+  context-store set` redirects it (ADR-CTX-050) -- is itself a Git
+  repository; a redirected plain-directory context store is read as-is with
+  no commit gate at all, an explicit, documented tradeoff a user opts into by
+  not passing `--git`, never a silent gap in the guarantee for the default,
+  non-redirected case.
 implementation:
   - symbol: ctx_app.index.IndexRunner.run
   - symbol: ctx_adapters.git.GitRepo.GitRepository.uncommitted_index_inputs
+  - symbol: ctx_adapters.git.GitRepo.context_is_git_repository
   - symbol: ctx_adapters.sqlite.index.SqliteStore.IndexStore.apply_index
 tests:
   - symbol: crates.ctx-cli.tests.e2e.complete_product_journey_is_deterministic_and_evidence_backed
   - symbol: ctx_adapters.sqlite.index.tests.same_commit_reanalysis_replaces_derived_node_version
   - symbol: ctx_adapters.sqlite.index.tests.database_facts_persist_with_static_evidence_and_status_counts
+  - symbol: ctx_adapters.git.tests.uncommitted_index_inputs_flags_dirty_state_in_an_external_context_repository
+  - symbol: ctx_adapters.git.tests.uncommitted_index_inputs_ignores_a_plain_folder_context_store_entirely
 
 

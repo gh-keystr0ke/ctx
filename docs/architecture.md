@@ -35,7 +35,7 @@ The core has no dependency on filesystem paths as handles, database row IDs, SQL
 
 ## Index transition
 
-1. Git resolves `HEAD`, verifies that configured source and `.context` inputs are committed, and reports changed paths.
+1. Git resolves `HEAD`, verifies that configured source is committed, and reports changed paths. `.context`/`.ctx-candidates` inputs get the same check only when their location (possibly redirected via `ctx context-store set`, [ADR-CTX-050](../.context/decisions/external-context-store.yaml)) is itself a Git repository; a plain-directory context store has no commit gate at all.
 2. The configured current source set is reconciled with the stored snapshot, covering config-only include/exclude changes.
 3. The analyzer registry dispatches each added, modified, or renamed source by extension; its Tree-sitter module emits a complete language-neutral `FileAnalysis`, including supported static database interactions.
 4. The pure incremental planner matches identities conservatively and emits node writes, retirements, structural/data-fact invalidation and rebuild, and semantic-staleness effects.

@@ -7,8 +7,9 @@ There are two ways to get from zero to a usable `.context/` baseline: hand-autho
 ## 0. Prerequisites
 
 - Rust 1.85+ and Git installed, and the `ctx` binary on `PATH` (or built via `cargo install --locked --path crates/ctx-cli` from the `ctx` source tree).
-- A Git repository with at least one commit. `ctx init` and `ctx index` only ever read committed content.
+- A Git repository with at least one commit. `ctx init` and `ctx index` only ever read committed source content.
 - Decide `languages` for `.ctx/config.toml` up front: `python`, `rust`, `go`, and `goose` (SQL migrations) are the built-in modules — anything else currently indexes as unrecognized source, not a hard failure, but won't produce symbols/calls/tests.
+- **Onboarding a repository you don't own or can't push into?** Run `ctx context-store set <path>` (add `--git` for the same commit-before-index guarantee this checkout's `.context/` normally has) *before* `ctx init`, so `.context/`/`.ctx-candidates/` are scaffolded at that redirected location instead of inside the checkout — nothing below writes into the repository itself. See `commands.md` and `configuration.md#redirecting-the-context-store-ctx-context-store` in the `ctx` source tree.
 
 ## 1. Initialize
 
@@ -26,7 +27,7 @@ Best when the repository is small, or when you want a handful of very deliberate
 
 1. Identify the 3–10 highest-value flows (the ones where "what does this affect" questions actually matter — payment, auth, data-destructive operations, public APIs).
 2. Author one Requirement or Invariant per flow under `.context/`, per `authoring-context.md`'s schema, with exact `implementation`/`tests` symbol links.
-3. `git add .ctx/config.toml .context && git commit`
+3. `git add .ctx/config.toml .context && git commit` — or, if `.context/` was redirected (see Prerequisites), commit inside that separate location instead; nothing to add in this checkout.
 4. `ctx index`
 5. `ctx status --json` — confirm `health` moved from `needs_context` and check `unmapped_intents` is empty. You don't need full coverage up front; `ctx status` tells you what's mapped and what isn't as you go.
 

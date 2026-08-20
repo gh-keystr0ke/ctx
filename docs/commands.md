@@ -6,8 +6,10 @@ Every command accepts two global flags: `--json` for stable machine-readable out
 
 | Command | Flags | Purpose |
 | --- | --- | --- |
-| `ctx init` | | Create `.ctx/config.toml`, `.context/{features,requirements,invariants,decisions}/`, and local SQLite storage. Adds `.ctx/ctx.db*`, `.ctx/registry.toml`, and `.ctx/export.json` to the repository-local Git exclude file (not the shared `.gitignore`). Safe to re-run. |
-| `ctx index` | | Incrementally index the current commit's configured source files and `.context` documents. Only committed content is read — see [configuration.md](configuration.md). Run again after every commit you want reflected in impact/explain/review/status. |
+| `ctx init` | | Create `.ctx/config.toml`, `.context/{features,requirements,invariants,decisions}/`, and local SQLite storage. Adds `.ctx/ctx.db*`, `.ctx/registry.toml`, and `.ctx/export.json` to the repository-local Git exclude file (not the shared `.gitignore`). Scaffolds `.context/`/`.ctx-candidates/` under a redirected location instead, if one is set (see `ctx context-store` below). Safe to re-run. |
+| `ctx context-store set <path>` | `--git` | Redirect `.context/`/`.ctx-candidates/` to `path` — a plain directory by default, or a Git repository with `--git` (created via `git init` if needed). Recorded only in a machine-local registry, never written into this checkout. See [configuration.md](configuration.md#redirecting-the-context-store-ctx-context-store). |
+| `ctx context-store show` | | Show whether `.context/`/`.ctx-candidates/` are currently redirected, to where, and whether that location is Git-backed. |
+| `ctx index` | | Incrementally index the current commit's configured source files and `.context` documents. Only committed source is read; `.context`/`.ctx-candidates` are only required to be committed when their (possibly redirected) location is a Git repository — see [configuration.md](configuration.md). Run again after every commit you want reflected in impact/explain/review/status. |
 | `ctx status` | | Health report: indexed commit vs. `HEAD`, effective source scope, node/claim counts, stale claims, `needs_mappings` (active Requirement/Invariant/Decision with no implementation link), best-effort schema `reconciliation` divergences, and a suggested next action. |
 
 ## Query

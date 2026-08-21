@@ -70,6 +70,22 @@ impl MixedLanguageRepository {
         );
         serde_json::from_slice(&output.stdout).expect("ctx JSON response")
     }
+
+    fn ctx_text(&self, arguments: &[&str]) -> String {
+        let output = Command::new(env!("CARGO_BIN_EXE_ctx"))
+            .current_dir(self.root())
+            .args(arguments)
+            .output()
+            .expect("execute ctx");
+        assert!(
+            output.status.success(),
+            "ctx {} failed\nstdout: {}\nstderr: {}",
+            arguments.join(" "),
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8(output.stdout).expect("ctx text output")
+    }
 }
 
 impl FixtureRepository {
@@ -428,6 +444,21 @@ fn mixed_python_rust_and_go_repository_indexes_and_reviews_through_one_registry(
 
     let find = repository.ctx(&["find", "helper"]);
     assert_eq!(find["matches"].as_array().expect("find matches").len(), 3);
+
+    // REQ-CTX-032: text output sections multiple matches as `[i/N]`, same as
+    // impact/explain.
+    let find_text = repository.ctx_text(&["find", "helper"]);
+    assert!(find_text.starts_with("3 symbols found\n"));
+    assert!(find_text.contains("[1/3]"));
+    assert!(find_text.contains("[2/3]"));
+    assert!(find_text.contains("[3/3]"));
+
+    let find_unique_text = repository.ctx_text(&["find", "Run"]);
+    assert!(
+        !find_unique_text.contains("symbols found"),
+        "a single unambiguous match should not need a header: {find_unique_text}"
+    );
+    assert!(!find_unique_text.contains("[1/1]"));
 }
 
 #[test]

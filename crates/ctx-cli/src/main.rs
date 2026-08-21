@@ -2570,8 +2570,16 @@ fn find(cli: &Cli, git: &GitRepo, target: &str) -> Result<(), CliError> {
         );
         return Ok(());
     }
-    println!("{} symbols found\n", matches.len());
-    for symbol_match in matches {
+    let total = matches.len();
+    if total > 1 {
+        println!("{total} symbols found\n");
+    } else if total == 0 {
+        println!("0 symbols found");
+    }
+    for (index, symbol_match) in matches.into_iter().enumerate() {
+        if total > 1 {
+            println!("[{}/{total}]", index + 1);
+        }
         let kind = symbol_match.symbol_kind.map_or_else(
             || format!("{:?}", symbol_match.node_kind),
             |kind| format!("{kind:?}"),

@@ -1,0 +1,58 @@
+id: ADR-EXT-005
+type: decision
+feature: FEAT-INDEXING
+title: Key a Jira issue artifact by its human-readable key, reuse the GitLab client's ureq/transport-trait shape, and scope to Jira Cloud only
+status: accepted
+decision: >
+  Jira ingestion (`ctx ingest jira`) reuses ADR-EXT-003's architecture
+  exactly: a synchronous `ureq` client behind an injectable `JiraTransport`
+  trait, so `JiraClient`'s own tests run against canned fixture responses,
+  never a live Jira instance or a real socket — the same reasoning applies
+  unchanged (every other part of `ctx` is synchronous; there is no
+  throughput case for an async runtime in a CLI tool making a handful of
+  sequential requests per run).
+
+  The one identity decision specific to Jira: an issue artifact's
+  `external_id` is set to Jira's human-readable issue key (`"PSI-1122"`),
+  never its internal numeric id. `ctx_core.linking`'s `ReferenceKind`
+  `TicketKey` already recognizes exactly this `PROJECT-123` shape in commit
+  messages, branch names, and MR bodies, and resolves it to an
+  `ArtifactKind::Issue` by `external_id` equality alone. Keying Jira issues
+  by their visible key means a team whose branches/commits already carry
+  ticket keys (the common case for Jira-based workflows) gets deterministic
+  linking for free, with zero changes to the linking module.
+
+  Two Jira-specific complications this decision also resolves: (1) Jira
+  Cloud's `description`/comment `body` fields are Atlassian Document Format
+  JSON, not plain text — `flatten_adf` walks the ADF tree and concatenates
+  its text nodes, since passing the raw JSON through as artifact `body`
+  would make it both unreadable and useless as `ctx enrich` evidence. (2)
+  Jira's JQL date literals have no timezone marker and are evaluated in the
+  instance's own configured timezone, not UTC; naively formatting a stored
+  UTC cursor as a bare JQL datetime could silently narrow the incremental
+  `updated >=` window and miss issues updated near the boundary, so the
+  cursor is always widened by a fixed 24h safety margin before use — a
+  small amount of harmless redundant re-fetch (idempotent upsert) in
+  exchange for never missing an update because of an unobservable timezone
+  offset.
+
+  Scope for this implementation is deliberately Jira Cloud only (Basic auth
+  via account email + API token, REST API v3) and issues + comments only.
+  Jira Server/Data Center (different auth and API version), changelog/
+  worklog/attachments ingestion, and retry-on-429 are out of scope — the
+  same "no retry logic" limitation ADR-EXT-003's GitLab client already
+  accepts, not a Jira-specific gap.
+implementation:
+  - symbol: ctx_adapters.jira.JiraTransport
+  - symbol: ctx_adapters.jira.UreqTransport
+  - symbol: ctx_adapters.jira.JiraClient.fetch_issue_artifacts
+  - symbol: ctx_adapters.jira.JiraClient.issue_identity
+  - symbol: ctx_adapters.jira.flatten_adf
+  - symbol: ctx_adapters.jira.jql_lower_bound
+  - symbol: ctx_adapters.jira.JiraConfig.load
+tests:
+  - symbol: ctx_adapters.jira.tests.fetches_issues_with_their_comments
+  - symbol: ctx_adapters.jira.tests.adf_description_is_flattened_to_plain_text
+  - symbol: ctx_adapters.jira.tests.a_sync_cursor_becomes_a_widened_jql_updated_filter
+  - symbol: ctx_adapters.jira.tests.pagination_follows_start_at_until_exhausted
+  - symbol: ctx_adapters.jira.tests.missing_email_or_token_env_var_is_a_config_error

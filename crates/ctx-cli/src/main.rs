@@ -22,14 +22,17 @@ use ctx_adapters::{
         neighbor_head, path_template, require_service_name,
     },
     git::{GitRepo, ensure_repository},
-    gitlab::{GitLabClient, GitLabConfig, UreqTransport},
+    gitlab::{GitLabClient, GitLabConfig, UreqTransport as GitLabUreqTransport},
+    jira::{JiraClient, JiraConfig, UreqTransport as JiraUreqTransport},
     sqlite::SqliteStore,
 };
 use ctx_app::{
     context::{ContextImportError, ContextImporter},
     enrich::{EnrichError, EnrichRunner},
     index::{IndexError, IndexReport, IndexRunner},
-    ingest::{CodeDocIngestRunner, GitIngestRunner, GitLabIngestRunner, IngestError},
+    ingest::{
+        CodeDocIngestRunner, GitIngestRunner, GitLabIngestRunner, IngestError, JiraIngestRunner,
+    },
     ports::{GitRepository, GraphStore, IndexStore, PortError},
     query::{QueryError, QueryService},
     review::{ReviewError, ReviewRunner},
@@ -118,7 +121,10 @@ enum Command {
         /// The source to ingest from ("git": commit messages and branch
         /// names; "code-comments": code comments and docstrings; "gitlab":
         /// issues, merge requests, and their comments — needs a [gitlab]
-        /// section in .ctx/config.toml and a `CTX_GITLAB_TOKEN` env var).
+        /// section in .ctx/config.toml and a `CTX_GITLAB_TOKEN` env var;
+        /// "jira": Jira Cloud issues and their comments — needs a [jira]
+        /// section in .ctx/config.toml and `CTX_JIRA_EMAIL`/`CTX_JIRA_TOKEN`
+        /// env vars).
         source: String,
         /// Only ingest commits after this OID (branches are always re-synced).
         #[arg(long)]
@@ -312,7 +318,7 @@ enum CliError {
     Enrich(#[from] EnrichError),
     #[error(transparent)]
     Federation(#[from] FederationError),
-    #[error("unsupported ingest source '{0}'; supported: git, code-comments, gitlab")]
+    #[error("unsupported ingest source '{0}'; supported: git, code-comments, gitlab, jira")]
     UnsupportedIngestSource(String),
     #[error("unsupported agent '{0}'; supported: claude, codex, antigravity")]
     UnsupportedAgent(String),
@@ -322,6 +328,8 @@ enum CliError {
     InvalidSinceOid(String),
     #[error("invalid GitLab configuration: {0}")]
     InvalidGitLabConfig(String),
+    #[error("invalid Jira configuration: {0}")]
+    InvalidJiraConfig(String),
     #[error("serve currently requires '--mcp'")]
     UnsupportedServe,
     #[error("filesystem operation failed: {0}")]
@@ -2615,10 +2623,20 @@ fn ingest(cli: &Cli, git: &GitRepo, source: &str, since: Option<&str>) -> Result
             let config = GitLabConfig::load(git.root())
                 .map_err(|error| CliError::InvalidGitLabConfig(error.to_string()))?;
             let client = GitLabClient::new(
-                UreqTransport::new(config.base_url, config.token),
+                GitLabUreqTransport::new(config.base_url, config.token),
                 config.project,
             );
             GitLabIngestRunner::new(&client, &mut store).run(&repository.id, &now)?
+        }
+        "jira" => {
+            let config = JiraConfig::load(git.root())
+                .map_err(|error| CliError::InvalidJiraConfig(error.to_string()))?;
+            let client = JiraClient::new(
+                JiraUreqTransport::new(config.base_url.clone(), &config.email, &config.token),
+                config.project,
+                config.base_url,
+            );
+            JiraIngestRunner::new(&client, &mut store).run(&repository.id, &now)?
         }
         other => return Err(CliError::UnsupportedIngestSource(other.to_owned())),
     };

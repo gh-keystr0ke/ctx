@@ -276,6 +276,28 @@ pub trait GitLabArtifactSource {
     ) -> Result<(Vec<Artifact>, Vec<ArtifactLink>), PortError>;
 }
 
+/// Reads Jira Cloud issues -- with their comments -- as normalized
+/// [`Artifact`]s. An issue's `external_id` is its human-readable key (e.g.
+/// `PAY-317`), not Jira's internal numeric id, so the deterministic
+/// `ReferenceKind::TicketKey` scanner already in `ctx-core` resolves a
+/// ticket key found in a commit message or branch name to this artifact
+/// with no changes to the linking module.
+pub trait JiraArtifactSource {
+    /// Fetches every issue, or (when `since` is given) only those Jira
+    /// reports as updated at or after that RFC3339 timestamp -- an
+    /// incremental sync, not a second idempotency mechanism: re-ingesting
+    /// an artifact this returns still upserts by identity exactly as a full
+    /// sync would.
+    ///
+    /// # Errors
+    /// Returns [`PortError`] when a Jira request fails or its response is
+    /// invalid.
+    fn issue_artifacts(
+        &self,
+        since: Option<&str>,
+    ) -> Result<(Vec<Artifact>, Vec<ArtifactLink>), PortError>;
+}
+
 /// Per-provider "last synced at" cursor (prompt3.md PR-INCR-001, T8.1):
 /// lets `ctx ingest <source>` ask a provider for only what changed since the
 /// previous run instead of re-fetching everything every time, mirroring

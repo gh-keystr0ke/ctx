@@ -511,11 +511,25 @@ fn ingest_gitlab_without_configuration_fails_clearly_before_any_network_call() {
 }
 
 #[test]
-fn ingest_rejects_an_unsupported_source() {
+fn ingest_jira_without_configuration_fails_clearly_before_any_network_call() {
     let repository = FixtureRepository::new();
     repository.ctx(&["init"]);
 
     let error = repository.ctx_failure(&["ingest", "jira"]);
+    assert!(
+        error["error"]
+            .as_str()
+            .is_some_and(|message| message.contains("invalid Jira configuration")
+                && message.contains("[jira]"))
+    );
+}
+
+#[test]
+fn ingest_rejects_an_unsupported_source() {
+    let repository = FixtureRepository::new();
+    repository.ctx(&["init"]);
+
+    let error = repository.ctx_failure(&["ingest", "bitbucket"]);
     assert!(
         error["error"]
             .as_str()

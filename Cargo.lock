@@ -240,7 +240,9 @@ dependencies = [
 name = "ctx-adapters"
 version = "0.5.0"
 dependencies = [
+ "base64",
  "blake3",
+ "chrono",
  "ctx-app",
  "ctx-core",
  "rusqlite",

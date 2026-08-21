@@ -15,6 +15,7 @@ edition = "2024"
 license = "Apache-2.0"
 
 [workspace.dependencies]
+base64 = "0.23"
 blake3 = "1.8.2"
 chrono = { version = "0.4.41", default-features = false, features = ["clock", "serde"] }
 clap = { version = "4.5.45", features = ["derive"] }

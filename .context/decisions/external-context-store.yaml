@@ -79,8 +79,8 @@ implementation:
   - symbol: ctx_adapters.git.GitRepo.ReviewRepository.review_changes
   - symbol: ctx_adapters.git.is_inside_work_tree
   - symbol: ctx_adapters.git.ensure_repository
-  - symbol: ctx_cli.main.initialize
-  - symbol: ctx_cli.main.context_store
+  - symbol: ctx_cli.initialize
+  - symbol: ctx_cli.context_store
 tests:
   - symbol: ctx_adapters.context_registry.tests.a_registered_source_root_resolves_to_its_context_root
   - symbol: ctx_adapters.context_registry.tests.setting_twice_for_the_same_source_root_overwrites_the_mapping

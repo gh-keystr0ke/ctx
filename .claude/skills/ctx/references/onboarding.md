@@ -40,6 +40,7 @@ Best when the repository has real history worth mining: meaningful commit messag
 ctx ingest git
 ctx ingest code-comments
 ctx ingest gitlab              # only if [gitlab] is configured in .ctx/config.toml and CTX_GITLAB_TOKEN is set
+ctx ingest jira                # only if [jira] is configured in .ctx/config.toml and CTX_JIRA_EMAIL/CTX_JIRA_TOKEN are set (Jira Cloud only)
 
 # 2. Have an AI agent propose typed candidates from that material
 ctx enrich --agent claude      # or --agent codex / --agent antigravity — needs that CLI authenticated on PATH
@@ -64,7 +65,7 @@ Notes:
 - `ctx enrich` shells out to a real, already-authenticated agent CLI and analyzes one bounded artifact neighborhood at a time — expect it to take real wall-clock time (and, for hosted models, real cost) proportional to the number of ingested artifacts. It's fine to run it in the background and check back.
 - `--auto`'s decisions are always recorded as agent-made — `ctx explain` renders them "Auto-verified", not human-reviewed. Report this honestly to the user; it is a strong starting baseline, not equivalent to a human having read every document. For a first-time onboarding of an unfamiliar codebase, spot-check a sample of the resulting `.context/*.yaml` documents (`ctx explain <id>`) before treating the baseline as trustworthy, and mention to the user that this is a good moment to skim.
 - A likely restatement of an already-active document is left pending unless `--force` — this is deduplication working as intended, not a bug to route around by default.
-- If GitLab isn't configured or the team doesn't use it, skip that ingest source — `git` and `code-comments` alone still produce a useful candidate set for most repositories.
+- If GitLab or Jira isn't configured or the team doesn't use it, skip that ingest source — `git` and `code-comments` alone still produce a useful candidate set for most repositories. When the team's branches/commits already carry ticket keys (e.g. `PSI-1122-fix`), `ctx ingest jira` alone is often the highest-value addition: the ticket key becomes an issue artifact's `external_id`, so `ctx-core`'s existing deterministic ticket-key linking resolves those branches/commits to the issue with no extra step.
 
 ## 3. Iterate to `ready`
 

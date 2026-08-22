@@ -1,0 +1,39 @@
+id: REQ-INCR-004
+type: requirement
+feature: FEAT-INDEXING
+status: active
+statement: >
+  `ctx ingest jira` must fetch only issues Jira itself reports as updated
+  since the previous successful run, not re-fetch the whole project's issue
+  history on every invocation, mirroring REQ-INCR-001's GitLab requirement.
+  A per-(repository, provider) sync cursor is stored (`ingest_cursors`,
+  reused unchanged from GitLab's own cursor storage — the store is
+  provider-agnostic) and turned into a JQL `updated >=` filter; a run with
+  no prior cursor fetches everything, exactly as before this requirement
+  existed. The cursor only advances once a run's artifacts and links are
+  fully persisted — a failed run leaves the previous cursor in place so the
+  same time window is retried on the next run rather than silently skipped.
+
+  Unlike GitLab's `updated_after`, Jira's JQL date literal carries no
+  timezone marker and is evaluated in the instance's own configured
+  timezone. Converting the stored UTC cursor to a bare JQL datetime without
+  accounting for this could silently narrow the query window and miss
+  issues updated near the boundary — a correctness risk, not just an
+  efficiency one, unlike GitLab's incremental sync. This requirement is
+  satisfied by always widening the cursor 24 hours earlier before it
+  becomes the JQL lower bound (ADR-EXT-005): re-ingesting an issue the
+  widened fetch happens to return again still versions the same stored row
+  rather than duplicating it (REQ-EXT-001's idempotent upsert), so the
+  margin only ever costs a little redundant re-fetching, never a missed or
+  duplicated artifact.
+implementation:
+  - symbol: ctx_app.ports.IngestCursorStore
+  - symbol: ctx_app.ingest.JiraIngestRunner.run
+  - symbol: ctx_adapters.jira.JiraClient.fetch_issue_artifacts
+  - symbol: ctx_adapters.jira.jql_lower_bound
+  - symbol: ctx_adapters.sqlite.artifacts.SqliteStore.IngestCursorStore.sync_cursor
+  - symbol: ctx_adapters.sqlite.artifacts.SqliteStore.IngestCursorStore.set_sync_cursor
+tests:
+  - symbol: ctx_app.ingest.tests.jira_ingest_advances_its_sync_cursor_and_passes_it_to_the_next_run
+  - symbol: ctx_adapters.jira.tests.a_sync_cursor_becomes_a_widened_jql_updated_filter
+  - symbol: ctx_adapters.sqlite.artifacts.tests.sync_cursor_round_trips_and_advances_in_place

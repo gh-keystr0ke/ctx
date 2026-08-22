@@ -33,6 +33,18 @@ Names this repository for federation (`ctx registry`/`ctx export`/`ctx sync`/`ct
 
 Required only to run `ctx ingest gitlab`. `project` is the GitLab project path; `base_url` defaults to `https://gitlab.com/api/v4` and only needs overriding for a self-managed instance. The access token comes only from the `CTX_GITLAB_TOKEN` environment variable — never from a committed file, so it can never end up in `.ctx/config.toml` by accident.
 
+## `[jira]`
+
+Required only to run `ctx ingest jira`. Jira Cloud only (Jira Server/Data Center isn't supported). Both `base_url` (e.g. `https://your-domain.atlassian.net`) and `project` (the project key, e.g. `PSI`) are required — unlike GitLab, Jira Cloud has no shared default host. Credentials come only from the `CTX_JIRA_EMAIL` (the account the API token was issued under) and `CTX_JIRA_TOKEN` environment variables — never from a committed file:
+
+```toml
+[jira]
+base_url = "https://your-domain.atlassian.net"
+project = "PSI"
+```
+
+An issue's stable identity is its human-readable key (`PSI-1122`), not Jira's internal numeric id — this is why a `PSI-1122` mention in a commit message or branch name already resolves to the ingested issue via `ctx-core`'s existing deterministic ticket-key linking, with no Jira-specific linking logic. Issues and comments only; changelog/worklog/attachments aren't ingested.
+
 ## Redirecting the context store (`ctx context-store`)
 
 `.context/` and `.ctx-candidates/` normally live inside this checkout, alongside `.ctx/config.toml` above. When the checkout isn't yours to commit into — documenting a third-party repository, for example — `ctx context-store set <path>` redirects both elsewhere, resolved through a machine-local registry (`~/.config/ctx/contexts.toml` by default, or `$XDG_CONFIG_HOME/ctx/contexts.toml`) rather than anything written into the checkout itself:

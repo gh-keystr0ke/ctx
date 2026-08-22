@@ -42,7 +42,18 @@ statement: >
   optimization layered on top of the idempotent upsert this document
   requires, not a substitute for it — a missing, reset, or wrong cursor
   still degrades to "fetches more than strictly necessary," never to a
-  duplicated or stale artifact.
+  duplicated or stale artifact. Jira Cloud issue ingestion (`ctx ingest
+  jira`, ADR-EXT-005) extends this same document the same way GitLab's did:
+  it fetches every issue for the configured project and its comments,
+  normalizing both into artifacts plus the deterministic `CommentsOn` link
+  between a comment and its issue, on top of which the same text-reference
+  scan still runs. It keys an issue artifact's identity by its
+  human-readable key (e.g. `PSI-1122`), not Jira's internal numeric id, so
+  a ticket key already recognized by `ctx_core.linking`'s deterministic
+  scanner resolves to the Jira issue artifact with no linking-side change
+  at all. Jira Server/Data Center, changelog/worklog/attachments, and
+  429-retry are explicitly out of scope for this requirement's current
+  implementation.
 implementation:
   - symbol: ctx_adapters.git.GitRepo.GitArtifactSource.commit_artifacts
   - symbol: ctx_adapters.git.GitRepo.GitArtifactSource.branch_artifacts
@@ -51,6 +62,8 @@ implementation:
   - symbol: ctx_app.ingest.CodeDocIngestRunner.run
   - symbol: ctx_adapters.gitlab.GitLabClient.fetch_issue_and_mr_artifacts
   - symbol: ctx_app.ingest.GitLabIngestRunner.run
+  - symbol: ctx_adapters.jira.JiraClient.fetch_issue_artifacts
+  - symbol: ctx_app.ingest.JiraIngestRunner.run
 tests:
   - symbol: ctx_adapters.git.tests.parses_commit_artifacts_from_real_git_log_record_output
   - symbol: ctx_adapters.git.tests.commit_and_branch_artifacts_round_trip_against_a_real_repository
@@ -64,3 +77,6 @@ tests:
   - symbol: ctx_adapters.gitlab.tests.fetches_issues_and_merge_requests_with_their_comments_and_commits
   - symbol: ctx_app.ingest.tests.gitlab_ingest_persists_provider_reported_links_and_stays_idempotent
   - symbol: crates.ctx-cli.tests.e2e.ingest_gitlab_without_configuration_fails_clearly_before_any_network_call
+  - symbol: ctx_adapters.jira.tests.fetches_issues_with_their_comments
+  - symbol: ctx_app.ingest.tests.jira_ingest_persists_provider_reported_links_and_stays_idempotent
+  - symbol: crates.ctx-cli.tests.e2e.ingest_jira_without_configuration_fails_clearly_before_any_network_call

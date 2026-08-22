@@ -1,6 +1,6 @@
 use std::fmt;
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use ctx_core::{
     artifact::{Artifact, ArtifactIdentity, ArtifactLink, ArtifactRef},
@@ -282,19 +282,26 @@ pub trait GitLabArtifactSource {
 /// `ReferenceKind::TicketKey` scanner already in `ctx-core` resolves a
 /// ticket key found in a commit message or branch name to this artifact
 /// with no changes to the linking module.
+///
+/// Unlike GitLab (one project per repository), a Jira project routinely
+/// spans many unrelated services, so this never fetches "the whole
+/// project": only issues named in `candidate_keys` (the caller passes every
+/// ticket-key-shaped reference found in artifacts already known for this
+/// repository), plus, one hop further, whatever the tracker's own reported
+/// issue-to-issue links add.
 pub trait JiraArtifactSource {
-    /// Fetches every issue, or (when `since` is given) only those Jira
-    /// reports as updated at or after that RFC3339 timestamp -- an
-    /// incremental sync, not a second idempotency mechanism: re-ingesting
-    /// an artifact this returns still upserts by identity exactly as a full
-    /// sync would.
+    /// Fetches the issues in `candidate_keys` that belong to this source's
+    /// configured project, plus one hop of Jira-reported related issues.
+    /// Always a full (re-)fetch of that bounded set, never a cursor-based
+    /// incremental sync -- the set itself is what keeps this cheap, not a
+    /// time filter.
     ///
     /// # Errors
     /// Returns [`PortError`] when a Jira request fails or its response is
     /// invalid.
-    fn issue_artifacts(
+    fn issue_artifacts_for_keys(
         &self,
-        since: Option<&str>,
+        candidate_keys: &BTreeSet<String>,
     ) -> Result<(Vec<Artifact>, Vec<ArtifactLink>), PortError>;
 }
 

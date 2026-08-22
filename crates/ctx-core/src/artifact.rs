@@ -95,6 +95,12 @@ pub enum ArtifactLinkKind {
     /// it was posted on — a structural fact reported directly by the
     /// provider's own API, not a text-derived reference.
     CommentsOn,
+    /// One issue is linked to another by the tracker's own reported
+    /// relationship (Jira `issuelinks`/`parent`: blocks, relates to,
+    /// subtask-of, epic-parent) — a structural fact from the provider's own
+    /// API, not a text-derived reference, used to justify ingesting an
+    /// issue that a repository's own artifacts never directly mention.
+    RelatedIssue,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]

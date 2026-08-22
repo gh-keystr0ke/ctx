@@ -5,7 +5,7 @@
 //! repository already knows about so a reference discovered in one ingest
 //! run can still resolve against artifacts stored by an earlier one.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use ctx_core::{
     artifact::{
@@ -14,7 +14,7 @@ use ctx_core::{
     },
     codedoc::{CodeDocKind, extract_code_docs},
     domain::{CommitOid, NodeKind, RepositoryId, StableKey},
-    linking::text_reference_links,
+    linking::{ReferenceKind, extract_references, text_reference_links},
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -182,24 +182,25 @@ where
     }
 }
 
-/// The provider tag `JiraIngestRunner`'s cursor is stored under (matches
-/// `ArtifactProvider::Jira`'s own serde tag).
-const JIRA_CURSOR_PROVIDER: &str = "jira";
-
 /// Bumped when the normalization this runner applies to Jira artifacts
 /// changes.
-const JIRA_INGEST_VERSION: &str = "jira-v1";
+const JIRA_INGEST_VERSION: &str = "jira-v2";
 
 /// Orchestrates Jira issue ingestion: reads artifacts through
 /// [`JiraArtifactSource`], persists them idempotently, then additionally
-/// runs [`text_reference_links`] the same way [`GitLabIngestRunner`] does,
-/// so a ticket key in a commit message or branch name can resolve against
-/// the matching Jira issue artifact. Incremental by default, mirroring
-/// [`GitLabIngestRunner`]: reads the repository's stored Jira sync cursor
-/// first and asks the source for only what changed since then, then
-/// advances the cursor to `ingested_at` once the run succeeds -- a failed
-/// run leaves the old cursor in place so the same window is retried next
-/// time rather than silently skipped.
+/// runs [`text_reference_links`] the same way [`GitLabIngestRunner`] does.
+///
+/// Unlike every other runner in this module, this one is not "fetch
+/// everything, or everything changed since a cursor" -- a Jira project
+/// routinely spans many repositories, so it never asks for the whole
+/// project. Instead it first scans every artifact this repository already
+/// knows about (commits, branches, GitLab issues/MRs, prior Jira issues)
+/// for ticket-key-shaped references, and passes that candidate set to
+/// [`JiraArtifactSource`], which fetches only the ones under its own
+/// configured project plus one hop of Jira-reported related issues. There
+/// is deliberately no sync cursor here: the candidate set is what keeps
+/// this bounded, not a time filter, so every run simply re-fetches the
+/// current candidate set in full (a cheap, idempotent upsert either way).
 pub struct JiraIngestRunner<'a, J, S> {
     source: &'a J,
     store: &'a mut S,
@@ -208,7 +209,7 @@ pub struct JiraIngestRunner<'a, J, S> {
 impl<'a, J, S> JiraIngestRunner<'a, J, S>
 where
     J: JiraArtifactSource,
-    S: ArtifactRepository + ArtifactLinkStore + IngestCursorStore,
+    S: ArtifactRepository + ArtifactLinkStore,
 {
     pub const fn new(source: &'a J, store: &'a mut S) -> Self {
         Self { source, store }
@@ -221,13 +222,21 @@ where
         repository: &RepositoryId,
         ingested_at: &str,
     ) -> Result<IngestReport, IngestError> {
-        let cursor = self
+        let known = self
             .store
-            .sync_cursor(repository, JIRA_CURSOR_PROVIDER)
+            .list_artifacts(repository)
             .map_err(IngestError::Store)?;
+        let candidate_keys: BTreeSet<String> = known
+            .iter()
+            .flat_map(|artifact| {
+                extract_references(&format!("{}\n{}", artifact.title, artifact.body))
+            })
+            .filter(|reference| reference.kind == ReferenceKind::TicketKey)
+            .map(|reference| reference.value)
+            .collect();
         let (artifacts, mut links) = self
             .source
-            .issue_artifacts(cursor.as_deref())
+            .issue_artifacts_for_keys(&candidate_keys)
             .map_err(IngestError::Source)?;
         for artifact in &artifacts {
             self.store
@@ -245,9 +254,6 @@ where
         );
         self.store
             .persist_links(repository, &links)
-            .map_err(IngestError::Store)?;
-        self.store
-            .set_sync_cursor(repository, JIRA_CURSOR_PROVIDER, ingested_at)
             .map_err(IngestError::Store)?;
         Ok(IngestReport {
             artifacts_ingested: artifacts.len(),
@@ -715,17 +721,17 @@ mod tests {
     struct FakeJiraSource {
         artifacts: Vec<Artifact>,
         links: Vec<ArtifactLink>,
-        received_since: RefCell<Vec<Option<String>>>,
+        received_candidate_keys: RefCell<Vec<BTreeSet<String>>>,
     }
 
     impl JiraArtifactSource for FakeJiraSource {
-        fn issue_artifacts(
+        fn issue_artifacts_for_keys(
             &self,
-            since: Option<&str>,
+            candidate_keys: &BTreeSet<String>,
         ) -> Result<(Vec<Artifact>, Vec<ArtifactLink>), PortError> {
-            self.received_since
+            self.received_candidate_keys
                 .borrow_mut()
-                .push(since.map(str::to_owned));
+                .push(candidate_keys.clone());
             Ok((self.artifacts.clone(), self.links.clone()))
         }
     }
@@ -794,29 +800,58 @@ mod tests {
     }
 
     #[test]
-    fn jira_ingest_advances_its_sync_cursor_and_passes_it_to_the_next_run() {
+    fn jira_ingest_derives_candidate_keys_from_already_known_artifact_text() {
+        let mut store = FakeStore::default();
+        let repository = RepositoryId::new("repo:test").expect("repository ID");
+        let commit = Artifact {
+            identity: ArtifactIdentity {
+                provider: ArtifactProvider::Git,
+                kind: ArtifactKind::Commit,
+                external_id: "abc123".to_owned(),
+            },
+            project: "repo".to_owned(),
+            title: "Fix PSI-1122 cancellation bug".to_owned(),
+            body: String::new(),
+            author: None,
+            external_created_at: None,
+            external_updated_at: None,
+            source_locator: String::new(),
+            content_hash: "hash".to_owned(),
+        };
+        store
+            .upsert_artifact(
+                &repository,
+                &commit,
+                "2026-08-21T00:00:00Z",
+                "git-native-v1",
+            )
+            .expect("seed a known commit");
+        let source = FakeJiraSource::default();
+
+        JiraIngestRunner::new(&source, &mut store)
+            .run(&repository, "2026-08-21T00:00:00Z")
+            .expect("run");
+
+        assert_eq!(
+            *source.received_candidate_keys.borrow(),
+            vec![BTreeSet::from(["PSI-1122".to_owned()])],
+            "the ticket key mentioned in the already-known commit becomes a candidate key"
+        );
+    }
+
+    #[test]
+    fn jira_ingest_with_no_known_ticket_key_references_requests_nothing() {
         let source = FakeJiraSource::default();
         let mut store = FakeStore::default();
         let repository = RepositoryId::new("repo:test").expect("repository ID");
 
         JiraIngestRunner::new(&source, &mut store)
             .run(&repository, "2026-08-21T00:00:00Z")
-            .expect("first run");
-        JiraIngestRunner::new(&source, &mut store)
-            .run(&repository, "2026-08-21T01:00:00Z")
-            .expect("second run");
+            .expect("run");
 
         assert_eq!(
-            *source.received_since.borrow(),
-            vec![None, Some("2026-08-21T00:00:00Z".to_owned())],
-            "the first run has no prior cursor, the second gets the first run's ingested_at"
-        );
-        assert_eq!(
-            store
-                .sync_cursor(&repository, "jira")
-                .expect("stored cursor"),
-            Some("2026-08-21T01:00:00Z".to_owned()),
-            "the cursor advances to the latest successful run's timestamp"
+            *source.received_candidate_keys.borrow(),
+            vec![BTreeSet::new()]
         );
     }
 }

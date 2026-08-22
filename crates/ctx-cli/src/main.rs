@@ -122,9 +122,12 @@ enum Command {
         /// names; "code-comments": code comments and docstrings; "gitlab":
         /// issues, merge requests, and their comments — needs a [gitlab]
         /// section in .ctx/config.toml and a `CTX_GITLAB_TOKEN` env var;
-        /// "jira": Jira Cloud issues and their comments — needs a [jira]
-        /// section in .ctx/config.toml and `CTX_JIRA_EMAIL`/`CTX_JIRA_TOKEN`
-        /// env vars).
+        /// "jira": only Jira Cloud issues already referenced by an
+        /// already-known artifact (commit, branch, GitLab issue/MR), plus
+        /// one hop of issues Jira itself reports as related — never the
+        /// whole project; needs a [jira] section in .ctx/config.toml and
+        /// `CTX_JIRA_EMAIL`/`CTX_JIRA_TOKEN` env vars; run `ctx ingest
+        /// git`/`gitlab` first so there is something to reference).
         source: String,
         /// Only ingest commits after this OID (branches are always re-synced).
         #[arg(long)]

@@ -1,27 +1,40 @@
 //! Jira Cloud issue ingestion (mirrors `crate::gitlab`'s architecture and
-//! rationale -- see `ADR-EXT-003`/its Jira counterpart): reads issues and
-//! their comments through Jira's REST API v3 and normalizes them into
-//! [`Artifact`]s.
+//! rationale -- see `ADR-EXT-003`/its Jira counterpart, `ADR-EXT-005`):
+//! reads issues and their comments through Jira's REST API v3 and
+//! normalizes them into [`Artifact`]s.
+//!
+//! Unlike GitLab (one project per repository, so "fetch the whole project"
+//! is the right scope), a single Jira project routinely spans many
+//! unrelated services/repositories. Fetching the whole project into every
+//! one of them would mean mostly-irrelevant noise and needless API load.
+//! Instead, this module fetches only two things: (1) issues whose key is
+//! actually mentioned somewhere in artifacts this repository already knows
+//! about (commits, branches, GitLab issues/MRs, prior Jira issues), and (2)
+//! one hop further out, whatever Jira's own `issuelinks`/`parent` fields
+//! report as directly related to one of those -- never recursing past that
+//! single hop, so one mention can never transitively drag in an unbounded
+//! slice of the project.
 //!
 //! An issue's [`ArtifactIdentity::external_id`] is its human-readable key
 //! (`"PSI-1122"`), never Jira's internal numeric id. This is deliberate,
 //! not cosmetic: `ctx_core::linking::ReferenceKind::TicketKey` already
 //! recognizes exactly this `PROJECT-123` shape in commit messages, branch
 //! names, and MR bodies and links it to an `ArtifactKind::Issue` by
-//! `external_id` equality alone. Keying Jira issues by their visible ticket
-//! key means that deterministic linking resolves branches like
-//! `psi-1122-fix` to their Jira issue for free, with no change to
-//! `ctx-core`'s linking module.
+//! `external_id` equality alone -- and it is also how this module decides
+//! which keys are even candidates to fetch in the first place.
 //!
 //! HTTP access goes through [`JiraTransport`] so the client can be tested
 //! against canned responses instead of a live Jira instance -- only Jira
 //! Cloud is supported (Basic auth via an account email + API token, REST
 //! API v3); Jira Server/Data Center is out of scope.
 
-use std::{fs, path::Path};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fs,
+    path::Path,
+};
 
 use base64::Engine as _;
-use chrono::{DateTime, Duration, Utc};
 use ctx_app::ports::{JiraArtifactSource, PortError};
 use ctx_core::artifact::{
     Artifact, ArtifactIdentity, ArtifactKind, ArtifactLink, ArtifactLinkKind, ArtifactLinkTarget,
@@ -174,16 +187,10 @@ struct RawJiraConfig {
     project: String,
 }
 
-/// How far before a stored sync cursor to widen an incremental JQL
-/// `updated >=` filter. Jira's JQL date literals have no timezone marker
-/// and are interpreted in the *instance's own configured timezone*, not
-/// UTC -- converting our UTC cursor naively could silently narrow the
-/// window and miss issues updated between the intended cutoff and the
-/// shifted one. A fixed margin comfortably wider than any real UTC offset
-/// (max +/-14h) trades a bit of redundant, harmless re-fetch (re-ingesting
-/// an unchanged issue is a no-op upsert) for the guarantee of never missing
-/// an update because of a timezone mismatch we cannot observe from here.
-const INCREMENTAL_SYNC_SAFETY_MARGIN_HOURS: i64 = 24;
+/// How many issue keys go into one `key in (...)` JQL request. Keeps the
+/// query string (and URL) bounded regardless of how many tickets a
+/// repository's history happens to mention.
+const KEY_BATCH_SIZE: usize = 50;
 
 pub struct JiraClient<T> {
     transport: T,
@@ -200,41 +207,126 @@ impl<T: JiraTransport> JiraClient<T> {
         }
     }
 
-    /// Fetches every issue for the configured project, or (when `since` is
-    /// given) only those Jira reports as updated at or after that RFC3339
-    /// timestamp, minus [`INCREMENTAL_SYNC_SAFETY_MARGIN_HOURS`] -- each
-    /// with its own comments. Returns the normalized artifacts and the
-    /// deterministic `CommentsOn` links between a comment and its issue.
+    /// Fetches exactly the issues in `candidate_keys` that belong to this
+    /// client's configured project -- others are silently ignored, since a
+    /// repository's own text can plausibly reference a ticket from a
+    /// different Jira project, or coincidentally match the ticket-key shape
+    /// (`"UTF-8"` fits `PROJECT-123`) without naming a real one; only this
+    /// client's own project is ever queried -- plus, one hop further out,
+    /// every issue Jira's own `issuelinks`/`parent` fields report as
+    /// directly related to one of those. Never recurses past that single
+    /// hop: a related issue's own further links are not followed.
     ///
     /// # Errors
     /// Returns [`JiraError`] when a request fails or its response is not
     /// valid JSON.
-    pub fn fetch_issue_artifacts(
+    pub fn fetch_issue_artifacts_for_keys(
         &self,
-        since: Option<&str>,
+        candidate_keys: &BTreeSet<String>,
     ) -> Result<(Vec<Artifact>, Vec<ArtifactLink>), JiraError> {
+        let project_prefix = format!("{}-", self.project);
+        let seed_keys: BTreeSet<String> = candidate_keys
+            .iter()
+            .filter(|key| key.starts_with(&project_prefix))
+            .cloned()
+            .collect();
+        if seed_keys.is_empty() {
+            return Ok((Vec::new(), Vec::new()));
+        }
+
         let mut artifacts = Vec::new();
         let mut links = Vec::new();
-        let jql = self.build_jql(since);
-        let mut start_at = 0u32;
-        loop {
-            let page: RawSearchResponse = self.get_json(&format!(
-                "/rest/api/3/search?jql={}&startAt={start_at}&maxResults=100&fields=summary,description,creator,created,updated",
-                encode_query_value(&jql)
-            ))?;
-            let fetched = page.issues.len();
-            for issue in page.issues {
-                let identity = Self::issue_identity(&issue.key);
-                artifacts.push(self.issue_artifact(&identity, issue));
-                let comments = self.fetch_comments(&identity.external_id)?;
-                self.push_comments(&identity, comments, &mut artifacts, &mut links);
-            }
-            start_at += u32::try_from(fetched).unwrap_or(u32::MAX);
-            if fetched == 0 || start_at >= page.total {
-                break;
+
+        let seed_issues = self.fetch_issues_by_keys(&seed_keys)?;
+        let seed_key_set: BTreeSet<String> =
+            seed_issues.iter().map(|issue| issue.key.clone()).collect();
+        // The first seed to mention a given related key wins as its
+        // recorded source; a related issue linked from several seeds still
+        // only needs one auditable `RelatedIssue` edge to justify why it's
+        // in the store at all.
+        let mut related_sources: BTreeMap<String, ArtifactIdentity> = BTreeMap::new();
+        for issue in &seed_issues {
+            let identity = Self::issue_identity(&issue.key);
+            for related_key in linked_keys(issue) {
+                if !seed_key_set.contains(&related_key) {
+                    related_sources
+                        .entry(related_key)
+                        .or_insert_with(|| identity.clone());
+                }
             }
         }
+
+        for issue in seed_issues {
+            self.ingest_one_issue(issue, &mut artifacts, &mut links)?;
+        }
+
+        if !related_sources.is_empty() {
+            let related_keys: BTreeSet<String> = related_sources.keys().cloned().collect();
+            for issue in self.fetch_issues_by_keys(&related_keys)? {
+                let source_identity = related_sources.get(&issue.key).cloned();
+                let identity = self.ingest_one_issue(issue, &mut artifacts, &mut links)?;
+                if let Some(source_identity) = source_identity {
+                    links.push(ArtifactLink {
+                        source: source_identity.clone(),
+                        target: ArtifactLinkTarget::Artifact(identity),
+                        kind: ArtifactLinkKind::RelatedIssue,
+                        evidence_locator: format!(
+                            "jira issuelinks/parent: {}",
+                            source_identity.external_id
+                        ),
+                    });
+                }
+            }
+        }
+
         Ok((artifacts, links))
+    }
+
+    /// Fetches every issue named in `keys`, batched into
+    /// [`KEY_BATCH_SIZE`]-sized `key in (...)` JQL queries. Issue keys are
+    /// always `[A-Z]{2,10}-[0-9]{1,6}` (either validated by
+    /// `ctx_core::linking::match_ticket_key` before reaching this module,
+    /// or reported by Jira's own API), so none can smuggle JQL syntax.
+    fn fetch_issues_by_keys(&self, keys: &BTreeSet<String>) -> Result<Vec<RawIssue>, JiraError> {
+        let ordered: Vec<&String> = keys.iter().collect();
+        let mut issues = Vec::new();
+        for chunk in ordered.chunks(KEY_BATCH_SIZE) {
+            let jql = format!(
+                "key in ({}) ORDER BY key ASC",
+                chunk
+                    .iter()
+                    .map(|key| key.as_str())
+                    .collect::<Vec<_>>()
+                    .join(",")
+            );
+            let mut start_at = 0u32;
+            loop {
+                let page: RawSearchResponse = self.get_json(&format!(
+                    "/rest/api/3/search?jql={}&startAt={start_at}&maxResults=100&fields=summary,description,creator,created,updated,issuelinks,parent",
+                    encode_query_value(&jql)
+                ))?;
+                let fetched = page.issues.len();
+                issues.extend(page.issues);
+                start_at += u32::try_from(fetched).unwrap_or(u32::MAX);
+                if fetched == 0 || start_at >= page.total {
+                    break;
+                }
+            }
+        }
+        Ok(issues)
+    }
+
+    fn ingest_one_issue(
+        &self,
+        issue: RawIssue,
+        artifacts: &mut Vec<Artifact>,
+        links: &mut Vec<ArtifactLink>,
+    ) -> Result<ArtifactIdentity, JiraError> {
+        let identity = Self::issue_identity(&issue.key);
+        artifacts.push(self.issue_artifact(&identity, issue));
+        let comments = self.fetch_comments(&identity.external_id)?;
+        self.push_comments(&identity, comments, artifacts, links);
+        Ok(identity)
     }
 
     fn fetch_comments(&self, issue_key: &str) -> Result<Vec<RawComment>, JiraError> {
@@ -319,16 +411,6 @@ impl<T: JiraTransport> JiraClient<T> {
         }
     }
 
-    fn build_jql(&self, since: Option<&str>) -> String {
-        let escaped_project = self.project.replace('"', "\\\"");
-        match since.and_then(jql_lower_bound) {
-            Some(lower_bound) => format!(
-                "project = \"{escaped_project}\" AND updated >= \"{lower_bound}\" ORDER BY key ASC"
-            ),
-            None => format!("project = \"{escaped_project}\" ORDER BY key ASC"),
-        }
-    }
-
     fn get_json<D: serde::de::DeserializeOwned>(&self, path: &str) -> Result<D, JiraError> {
         let body = self.transport.get(path)?;
         serde_json::from_str(&body).map_err(|error| JiraError::InvalidJson {
@@ -339,27 +421,36 @@ impl<T: JiraTransport> JiraClient<T> {
 }
 
 impl<T: JiraTransport> JiraArtifactSource for JiraClient<T> {
-    fn issue_artifacts(
+    fn issue_artifacts_for_keys(
         &self,
-        since: Option<&str>,
+        candidate_keys: &BTreeSet<String>,
     ) -> Result<(Vec<Artifact>, Vec<ArtifactLink>), PortError> {
-        self.fetch_issue_artifacts(since)
+        self.fetch_issue_artifacts_for_keys(candidate_keys)
             .map_err(|error| PortError::new(error.to_string()))
     }
 }
 
-/// Converts a stored RFC3339 sync cursor into Jira JQL's bare
-/// `"yyyy/MM/dd HH:mm"` date literal, widened earlier by
-/// [`INCREMENTAL_SYNC_SAFETY_MARGIN_HOURS`]. Returns `None` (falling back to
-/// an unfiltered JQL query) only when the stored cursor fails to parse as
-/// RFC3339 -- which never happens for a cursor this same module wrote,
-/// since [`crate::jira`]'s ingest runner always passes through the RFC3339
-/// `ingested_at` it was given.
-fn jql_lower_bound(since: &str) -> Option<String> {
-    let parsed = DateTime::parse_from_rfc3339(since).ok()?;
-    let widened =
-        parsed.with_timezone(&Utc) - Duration::hours(INCREMENTAL_SYNC_SAFETY_MARGIN_HOURS);
-    Some(widened.format("%Y/%m/%d %H:%M").to_string())
+/// Every issue key `issue`'s own `issuelinks` (`blocks`/`relates
+/// to`/`duplicates`, in either direction) and `parent` (subtask or,
+/// team-managed project, epic) fields report -- Jira's own structural
+/// relationship data, not a text-derived guess. Classic (company-managed)
+/// project epic links, which live behind an instance-specific custom field
+/// rather than `parent`, are not covered; that would require per-instance
+/// configuration this module deliberately doesn't ask for in v1.
+fn linked_keys(issue: &RawIssue) -> Vec<String> {
+    let mut keys = Vec::new();
+    for link in &issue.fields.issuelinks {
+        if let Some(reference) = &link.outward_issue {
+            keys.push(reference.key.clone());
+        }
+        if let Some(reference) = &link.inward_issue {
+            keys.push(reference.key.clone());
+        }
+    }
+    if let Some(parent) = &issue.fields.parent {
+        keys.push(parent.key.clone());
+    }
+    keys
 }
 
 /// Percent-encodes a full query-string value: unlike GitLab's ingest path
@@ -440,6 +531,23 @@ struct RawIssueFields {
     creator: Option<RawUser>,
     created: Option<String>,
     updated: Option<String>,
+    #[serde(default)]
+    issuelinks: Vec<RawIssueLink>,
+    #[serde(default)]
+    parent: Option<RawIssueRef>,
+}
+
+#[derive(Deserialize)]
+struct RawIssueLink {
+    #[serde(rename = "outwardIssue", default)]
+    outward_issue: Option<RawIssueRef>,
+    #[serde(rename = "inwardIssue", default)]
+    inward_issue: Option<RawIssueRef>,
+}
+
+#[derive(Deserialize)]
+struct RawIssueRef {
+    key: String,
 }
 
 #[derive(Deserialize)]
@@ -465,8 +573,6 @@ struct RawComment {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
-
     use super::*;
 
     struct FakeTransport {
@@ -491,14 +597,29 @@ mod tests {
         )
     }
 
+    fn keys(values: &[&str]) -> BTreeSet<String> {
+        values.iter().map(|value| (*value).to_owned()).collect()
+    }
+
+    fn empty_comment_page(issue_key: &str) -> (String, String) {
+        (
+            format!("/rest/api/3/issue/{issue_key}/comment?startAt=0&maxResults=100"),
+            r#"{"total":0,"comments":[]}"#.to_owned(),
+        )
+    }
+
+    fn search_path(jql: &str) -> String {
+        format!(
+            "/rest/api/3/search?jql={}&startAt=0&maxResults=100&fields=summary,description,creator,created,updated,issuelinks,parent",
+            encode_query_value(jql)
+        )
+    }
+
     #[test]
-    fn fetches_issues_with_their_comments() {
+    fn fetches_only_the_referenced_issues_not_the_whole_project() {
         let mut responses = BTreeMap::new();
         responses.insert(
-            format!(
-                "/rest/api/3/search?jql={}&startAt=0&maxResults=100&fields=summary,description,creator,created,updated",
-                encode_query_value("project = \"PSI\" ORDER BY key ASC")
-            ),
+            search_path("key in (PSI-1122) ORDER BY key ASC"),
             format!(
                 r#"{{"total":1,"issues":[{{"key":"PSI-1122","fields":{{"summary":"Cancellation removes prepaid access","description":{},"creator":{{"displayName":"alice"}},"created":"2026-08-01T00:00:00Z","updated":"2026-08-01T00:00:00Z"}}}}]}}"#,
                 adf_paragraph("A cancelled prepaid subscription must remain usable until paid_until.")
@@ -517,8 +638,11 @@ mod tests {
             "https://example.atlassian.net",
         );
 
+        // "UTF-8" matches the same PROJECT-123 shape but isn't a PSI ticket
+        // and must never trigger a request of its own -- the fixture above
+        // has no fixture for it, so an unwanted request would fail the test.
         let (artifacts, links) = client
-            .fetch_issue_artifacts(None)
+            .fetch_issue_artifacts_for_keys(&keys(&["PSI-1122", "UTF-8"]))
             .expect("issues and comments");
 
         assert_eq!(artifacts.len(), 2); // issue + 1 comment
@@ -556,6 +680,124 @@ mod tests {
     }
 
     #[test]
+    fn no_referenced_keys_means_no_request_at_all() {
+        let client = JiraClient::new(
+            FakeTransport {
+                responses: BTreeMap::new(),
+            },
+            "PSI",
+            "https://example.atlassian.net",
+        );
+
+        let (artifacts, links) = client
+            .fetch_issue_artifacts_for_keys(&BTreeSet::new())
+            .expect("no candidates is not an error");
+
+        assert!(artifacts.is_empty());
+        assert!(links.is_empty());
+    }
+
+    #[test]
+    fn expands_one_hop_through_jira_reported_issue_links_but_no_further() {
+        let mut responses = BTreeMap::new();
+        responses.insert(
+            search_path("key in (PSI-1) ORDER BY key ASC"),
+            r#"{"total":1,"issues":[{"key":"PSI-1","fields":{"summary":"Seed","description":null,"creator":null,"created":null,"updated":null,"issuelinks":[{"outwardIssue":{"key":"PSI-2"}}],"parent":{"key":"PSI-3"}}}]}"#
+                .to_owned(),
+        );
+        responses.extend([empty_comment_page("PSI-1")]);
+        responses.insert(
+            search_path("key in (PSI-2,PSI-3) ORDER BY key ASC"),
+            // PSI-2 itself links further to PSI-4 -- this must NOT be
+            // followed (one hop only), so no fixture exists for a PSI-4
+            // request; if the client tried, the test would fail on a
+            // missing-fixture error.
+            r#"{"total":2,"issues":[{"key":"PSI-2","fields":{"summary":"Related via issuelinks","description":null,"creator":null,"created":null,"updated":null,"issuelinks":[{"outwardIssue":{"key":"PSI-4"}}]}},{"key":"PSI-3","fields":{"summary":"Related via parent","description":null,"creator":null,"created":null,"updated":null}}]}"#
+                .to_owned(),
+        );
+        responses.extend([empty_comment_page("PSI-2"), empty_comment_page("PSI-3")]);
+        let client = JiraClient::new(
+            FakeTransport { responses },
+            "PSI",
+            "https://example.atlassian.net",
+        );
+
+        let (artifacts, links) = client
+            .fetch_issue_artifacts_for_keys(&keys(&["PSI-1"]))
+            .expect("seed plus one-hop expansion");
+
+        let mut issue_keys: Vec<_> = artifacts
+            .iter()
+            .filter(|artifact| artifact.identity.kind == ArtifactKind::Issue)
+            .map(|artifact| artifact.identity.external_id.clone())
+            .collect();
+        issue_keys.sort();
+        assert_eq!(
+            issue_keys,
+            vec!["PSI-1".to_owned(), "PSI-2".to_owned(), "PSI-3".to_owned()],
+            "PSI-4 (a link of a link) must not be pulled in"
+        );
+
+        let related_links: Vec<_> = links
+            .iter()
+            .filter(|link| link.kind == ArtifactLinkKind::RelatedIssue)
+            .collect();
+        assert_eq!(related_links.len(), 2);
+        assert!(related_links.iter().any(|link| {
+            link.source.external_id == "PSI-1"
+                && link.target
+                    == ArtifactLinkTarget::Artifact(ArtifactIdentity {
+                        provider: ArtifactProvider::Jira,
+                        kind: ArtifactKind::Issue,
+                        external_id: "PSI-2".to_owned(),
+                    })
+        }));
+        assert!(related_links.iter().any(|link| {
+            link.source.external_id == "PSI-1"
+                && link.target
+                    == ArtifactLinkTarget::Artifact(ArtifactIdentity {
+                        provider: ArtifactProvider::Jira,
+                        kind: ArtifactKind::Issue,
+                        external_id: "PSI-3".to_owned(),
+                    })
+        }));
+    }
+
+    #[test]
+    fn a_related_issue_already_among_the_seeds_gets_no_duplicate_related_link() {
+        let mut responses = BTreeMap::new();
+        responses.insert(
+            search_path("key in (PSI-1,PSI-2) ORDER BY key ASC"),
+            r#"{"total":2,"issues":[{"key":"PSI-1","fields":{"summary":"Seed one","description":null,"creator":null,"created":null,"updated":null,"issuelinks":[{"outwardIssue":{"key":"PSI-2"}}]}},{"key":"PSI-2","fields":{"summary":"Seed two","description":null,"creator":null,"created":null,"updated":null}}]}"#
+                .to_owned(),
+        );
+        responses.extend([empty_comment_page("PSI-1"), empty_comment_page("PSI-2")]);
+        let client = JiraClient::new(
+            FakeTransport { responses },
+            "PSI",
+            "https://example.atlassian.net",
+        );
+
+        let (artifacts, links) = client
+            .fetch_issue_artifacts_for_keys(&keys(&["PSI-1", "PSI-2"]))
+            .expect("both already seeds");
+
+        assert_eq!(
+            artifacts
+                .iter()
+                .filter(|artifact| artifact.identity.kind == ArtifactKind::Issue)
+                .count(),
+            2
+        );
+        assert!(
+            !links
+                .iter()
+                .any(|link| link.kind == ArtifactLinkKind::RelatedIssue),
+            "PSI-2 was already a seed, so it must not also appear as a RelatedIssue edge"
+        );
+    }
+
+    #[test]
     fn adf_description_is_flattened_to_plain_text() {
         let adf: JsonValue = serde_json::from_str(
             r#"{"type":"doc","version":1,"content":[
@@ -568,78 +810,6 @@ mod tests {
         let text = flatten_adf(&adf);
 
         assert_eq!(text, "First paragraph.\n\nSecond, with a hard\nbreak.");
-    }
-
-    #[test]
-    fn a_sync_cursor_becomes_a_widened_jql_updated_filter() {
-        let mut responses = BTreeMap::new();
-        let expected_jql = "project = \"PSI\" AND updated >= \"2026/08/20 00:00\" ORDER BY key ASC";
-        responses.insert(
-            format!(
-                "/rest/api/3/search?jql={}&startAt=0&maxResults=100&fields=summary,description,creator,created,updated",
-                encode_query_value(expected_jql)
-            ),
-            r#"{"total":0,"issues":[]}"#.to_owned(),
-        );
-        let client = JiraClient::new(
-            FakeTransport { responses },
-            "PSI",
-            "https://example.atlassian.net",
-        );
-
-        // The cursor is 2026-08-21T00:00:00Z; the 24h safety margin
-        // (INCREMENTAL_SYNC_SAFETY_MARGIN_HOURS) widens the JQL lower bound
-        // back to 2026-08-20T00:00.
-        let (artifacts, links) = client
-            .fetch_issue_artifacts(Some("2026-08-21T00:00:00Z"))
-            .expect("incremental fetch");
-
-        assert!(artifacts.is_empty());
-        assert!(links.is_empty());
-    }
-
-    #[test]
-    fn pagination_follows_start_at_until_exhausted() {
-        let mut responses = BTreeMap::new();
-        responses.insert(
-            format!(
-                "/rest/api/3/search?jql={}&startAt=0&maxResults=100&fields=summary,description,creator,created,updated",
-                encode_query_value("project = \"PSI\" ORDER BY key ASC")
-            ),
-            r#"{"total":2,"issues":[{"key":"PSI-1","fields":{"summary":"First","description":null,"creator":null,"created":null,"updated":null}}]}"#
-                .to_owned(),
-        );
-        responses.insert(
-            "/rest/api/3/issue/PSI-1/comment?startAt=0&maxResults=100".to_owned(),
-            r#"{"total":0,"comments":[]}"#.to_owned(),
-        );
-        responses.insert(
-            format!(
-                "/rest/api/3/search?jql={}&startAt=1&maxResults=100&fields=summary,description,creator,created,updated",
-                encode_query_value("project = \"PSI\" ORDER BY key ASC")
-            ),
-            r#"{"total":2,"issues":[{"key":"PSI-2","fields":{"summary":"Second","description":null,"creator":null,"created":null,"updated":null}}]}"#
-                .to_owned(),
-        );
-        responses.insert(
-            "/rest/api/3/issue/PSI-2/comment?startAt=0&maxResults=100".to_owned(),
-            r#"{"total":0,"comments":[]}"#.to_owned(),
-        );
-        let client = JiraClient::new(
-            FakeTransport { responses },
-            "PSI",
-            "https://example.atlassian.net",
-        );
-
-        let (artifacts, _links) = client.fetch_issue_artifacts(None).expect("paginated fetch");
-
-        let mut keys: Vec<_> = artifacts
-            .iter()
-            .filter(|artifact| artifact.identity.kind == ArtifactKind::Issue)
-            .map(|artifact| artifact.identity.external_id.clone())
-            .collect();
-        keys.sort();
-        assert_eq!(keys, vec!["PSI-1".to_owned(), "PSI-2".to_owned()]);
     }
 
     #[test]

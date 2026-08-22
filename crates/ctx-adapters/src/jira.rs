@@ -62,9 +62,8 @@ pub struct UreqTransport {
 impl UreqTransport {
     #[must_use]
     pub fn new(base_url: impl Into<String>, email: &str, token: &str) -> Self {
-        let credentials = base64::engine::general_purpose::STANDARD.encode(format!(
-            "{email}:{token}"
-        ));
+        let credentials =
+            base64::engine::general_purpose::STANDARD.encode(format!("{email}:{token}"));
         Self {
             base_url: base_url.into(),
             authorization: format!("Basic {credentials}"),
@@ -358,7 +357,8 @@ impl<T: JiraTransport> JiraArtifactSource for JiraClient<T> {
 /// `ingested_at` it was given.
 fn jql_lower_bound(since: &str) -> Option<String> {
     let parsed = DateTime::parse_from_rfc3339(since).ok()?;
-    let widened = parsed.with_timezone(&Utc) - Duration::hours(INCREMENTAL_SYNC_SAFETY_MARGIN_HOURS);
+    let widened =
+        parsed.with_timezone(&Utc) - Duration::hours(INCREMENTAL_SYNC_SAFETY_MARGIN_HOURS);
     Some(widened.format("%Y/%m/%d %H:%M").to_string())
 }
 
@@ -567,17 +567,13 @@ mod tests {
 
         let text = flatten_adf(&adf);
 
-        assert_eq!(
-            text,
-            "First paragraph.\n\nSecond, with a hard\nbreak."
-        );
+        assert_eq!(text, "First paragraph.\n\nSecond, with a hard\nbreak.");
     }
 
     #[test]
     fn a_sync_cursor_becomes_a_widened_jql_updated_filter() {
         let mut responses = BTreeMap::new();
-        let expected_jql =
-            "project = \"PSI\" AND updated >= \"2026/08/20 00:00\" ORDER BY key ASC";
+        let expected_jql = "project = \"PSI\" AND updated >= \"2026/08/20 00:00\" ORDER BY key ASC";
         responses.insert(
             format!(
                 "/rest/api/3/search?jql={}&startAt=0&maxResults=100&fields=summary,description,creator,created,updated",

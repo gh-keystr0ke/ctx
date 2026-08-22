@@ -516,12 +516,9 @@ fn ingest_jira_without_configuration_fails_clearly_before_any_network_call() {
     repository.ctx(&["init"]);
 
     let error = repository.ctx_failure(&["ingest", "jira"]);
-    assert!(
-        error["error"]
-            .as_str()
-            .is_some_and(|message| message.contains("invalid Jira configuration")
-                && message.contains("[jira]"))
-    );
+    assert!(error["error"].as_str().is_some_and(|message| {
+        message.contains("invalid Jira configuration") && message.contains("[jira]")
+    }));
 }
 
 #[test]

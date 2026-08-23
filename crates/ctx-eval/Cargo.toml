@@ -2,6 +2,7 @@
 name = "ctx-eval"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 
 [[bin]]
@@ -10,9 +11,9 @@ path = "src/main.rs"
 
 [dependencies]
 chrono.workspace = true
-ctx-adapters = { path = "../ctx-adapters" }
-ctx-app = { path = "../ctx-app" }
-ctx-core = { path = "../ctx-core" }
+ctx-adapters = { path = "../ctx-adapters", version = "0.5.0" }
+ctx-app = { path = "../ctx-app", version = "0.5.0" }
+ctx-core = { path = "../ctx-core", version = "0.5.0" }
 serde.workspace = true
 serde_json.workspace = true
 tempfile.workspace = true

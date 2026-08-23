@@ -127,7 +127,7 @@ pub trait LanguageAnalyzer {
     fn analyze_text(&self, relative_path: &str, source: &str) -> Result<FileAnalysis, PortError>;
 }
 
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct ReviewChangeSet {
     pub source_changes: Vec<FileChange>,
     pub changed_context_files: Vec<String>,
@@ -255,54 +255,36 @@ pub trait GitArtifactSource {
     fn branch_artifacts(&self) -> Result<Vec<Artifact>, PortError>;
 }
 
-/// Reads GitLab issues and merge requests — with their comments and, for
-/// merge requests, their associated commit SHAs — as normalized
-/// [`Artifact`]s plus the deterministic (provider-reported, never
-/// AI-derived) links GitLab's own API establishes between them
-/// (prompt3.md PR-EXT-001 MUST list: the chosen end-to-end provider).
-pub trait GitLabArtifactSource {
-    /// Fetches every issue and merge request, or (when `since` is given)
-    /// only those GitLab itself reports as updated at or after that RFC3339
-    /// timestamp (prompt3.md PR-INCR-001, T8.1) -- an incremental sync, not
-    /// a second idempotency mechanism: re-ingesting an artifact this returns
-    /// still upserts by identity exactly as a full sync would.
-    ///
-    /// # Errors
-    /// Returns [`PortError`] when a GitLab request fails or its response is
-    /// invalid.
-    fn issue_and_mr_artifacts(
-        &self,
-        since: Option<&str>,
-    ) -> Result<(Vec<Artifact>, Vec<ArtifactLink>), PortError>;
+/// Provider-independent input modes supported by external artifact sources.
+/// A connector declares its behavior by accepting the appropriate variant;
+/// adding another provider no longer requires adding another app-layer port.
+#[derive(Clone, Copy, Debug)]
+pub enum ExternalArtifactRequest<'a> {
+    /// Fetch everything updated at or after an optional RFC3339 cursor.
+    UpdatedSince(Option<&'a str>),
+    /// Fetch the explicitly referenced tracker keys and provider-linked
+    /// neighbors allowed by that connector's bounded traversal policy.
+    ReferencedKeys(&'a BTreeSet<String>),
 }
 
-/// Reads Jira Cloud issues -- with their comments -- as normalized
-/// [`Artifact`]s. An issue's `external_id` is its human-readable key (e.g.
-/// `PAY-317`), not Jira's internal numeric id, so the deterministic
-/// `ReferenceKind::TicketKey` scanner already in `ctx-core` resolves a
-/// ticket key found in a commit message or branch name to this artifact
-/// with no changes to the linking module.
-///
-/// Unlike GitLab (one project per repository), a Jira project routinely
-/// spans many unrelated services, so this never fetches "the whole
-/// project": only issues named in `candidate_keys` (the caller passes every
-/// ticket-key-shaped reference found in artifacts already known for this
-/// repository), plus, one hop further, whatever the tracker's own reported
-/// issue-to-issue links add.
-pub trait JiraArtifactSource {
-    /// Fetches the issues in `candidate_keys` that belong to this source's
-    /// configured project, plus one hop of Jira-reported related issues.
-    /// Always a full (re-)fetch of that bounded set, never a cursor-based
-    /// incremental sync -- the set itself is what keeps this cheap, not a
-    /// time filter.
-    ///
+/// Normalized output shared by every network artifact connector.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ExternalArtifactBatch {
+    pub artifacts: Vec<Artifact>,
+    pub links: Vec<ArtifactLink>,
+}
+
+/// Reads provider artifacts behind one normalized application port.
+/// Provider-specific authentication, pagination and response shapes remain
+/// adapter concerns; runners only select a request mode and persist a batch.
+pub trait ExternalArtifactSource {
     /// # Errors
-    /// Returns [`PortError`] when a Jira request fails or its response is
-    /// invalid.
-    fn issue_artifacts_for_keys(
+    /// Returns [`PortError`] when the request mode is unsupported, a provider
+    /// request fails, or its response is invalid.
+    fn fetch(
         &self,
-        candidate_keys: &BTreeSet<String>,
-    ) -> Result<(Vec<Artifact>, Vec<ArtifactLink>), PortError>;
+        request: ExternalArtifactRequest<'_>,
+    ) -> Result<ExternalArtifactBatch, PortError>;
 }
 
 /// Per-provider "last synced at" cursor (prompt3.md PR-INCR-001, T8.1):

@@ -20,8 +20,8 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::ports::{
-    ArtifactLinkStore, ArtifactRepository, GitArtifactSource, GitLabArtifactSource, GitRepository,
-    GraphStore, IngestCursorStore, JiraArtifactSource, LanguageAnalyzer, PortError,
+    ArtifactLinkStore, ArtifactRepository, ExternalArtifactRequest, ExternalArtifactSource,
+    GitArtifactSource, GitRepository, GraphStore, IngestCursorStore, LanguageAnalyzer, PortError,
     ReviewRepository,
 };
 
@@ -116,7 +116,7 @@ const GITLAB_CURSOR_PROVIDER: &str = "gitlab";
 
 /// Orchestrates GitLab issue/merge-request ingestion (prompt3.md PR-EXT-001
 /// MUST list, the chosen end-to-end provider): reads artifacts and their
-/// provider-reported deterministic links through [`GitLabArtifactSource`],
+/// provider-reported deterministic links through [`ExternalArtifactSource`],
 /// persists them idempotently, then additionally runs
 /// [`text_reference_links`] the same way [`GitIngestRunner`] does, so a
 /// ticket reference in an MR body can resolve against artifacts from any
@@ -133,7 +133,7 @@ pub struct GitLabIngestRunner<'a, G, S> {
 
 impl<'a, G, S> GitLabIngestRunner<'a, G, S>
 where
-    G: GitLabArtifactSource,
+    G: ExternalArtifactSource,
     S: ArtifactRepository + ArtifactLinkStore + IngestCursorStore,
 {
     pub const fn new(source: &'a G, store: &'a mut S) -> Self {
@@ -151,10 +151,12 @@ where
             .store
             .sync_cursor(repository, GITLAB_CURSOR_PROVIDER)
             .map_err(IngestError::Store)?;
-        let (artifacts, mut links) = self
+        let batch = self
             .source
-            .issue_and_mr_artifacts(cursor.as_deref())
+            .fetch(ExternalArtifactRequest::UpdatedSince(cursor.as_deref()))
             .map_err(IngestError::Source)?;
+        let artifacts = batch.artifacts;
+        let mut links = batch.links;
         for artifact in &artifacts {
             self.store
                 .upsert_artifact(repository, artifact, ingested_at, GITLAB_INGEST_VERSION)
@@ -187,7 +189,7 @@ where
 const JIRA_INGEST_VERSION: &str = "jira-v2";
 
 /// Orchestrates Jira issue ingestion: reads artifacts through
-/// [`JiraArtifactSource`], persists them idempotently, then additionally
+/// [`ExternalArtifactSource`], persists them idempotently, then additionally
 /// runs [`text_reference_links`] the same way [`GitLabIngestRunner`] does.
 ///
 /// Unlike every other runner in this module, this one is not "fetch
@@ -196,7 +198,7 @@ const JIRA_INGEST_VERSION: &str = "jira-v2";
 /// project. Instead it first scans every artifact this repository already
 /// knows about (commits, branches, GitLab issues/MRs, prior Jira issues)
 /// for ticket-key-shaped references, and passes that candidate set to
-/// [`JiraArtifactSource`], which fetches only the ones under its own
+/// [`ExternalArtifactSource`], which fetches only the ones under its own
 /// configured project plus one hop of Jira-reported related issues. There
 /// is deliberately no sync cursor here: the candidate set is what keeps
 /// this bounded, not a time filter, so every run simply re-fetches the
@@ -208,7 +210,7 @@ pub struct JiraIngestRunner<'a, J, S> {
 
 impl<'a, J, S> JiraIngestRunner<'a, J, S>
 where
-    J: JiraArtifactSource,
+    J: ExternalArtifactSource,
     S: ArtifactRepository + ArtifactLinkStore,
 {
     pub const fn new(source: &'a J, store: &'a mut S) -> Self {
@@ -234,10 +236,12 @@ where
             .filter(|reference| reference.kind == ReferenceKind::TicketKey)
             .map(|reference| reference.value)
             .collect();
-        let (artifacts, mut links) = self
+        let batch = self
             .source
-            .issue_artifacts_for_keys(&candidate_keys)
+            .fetch(ExternalArtifactRequest::ReferencedKeys(&candidate_keys))
             .map_err(IngestError::Source)?;
+        let artifacts = batch.artifacts;
+        let mut links = batch.links;
         for artifact in &artifacts {
             self.store
                 .upsert_artifact(repository, artifact, ingested_at, JIRA_INGEST_VERSION)
@@ -608,15 +612,21 @@ mod tests {
         received_since: RefCell<Vec<Option<String>>>,
     }
 
-    impl GitLabArtifactSource for FakeGitLabSource {
-        fn issue_and_mr_artifacts(
+    impl ExternalArtifactSource for FakeGitLabSource {
+        fn fetch(
             &self,
-            since: Option<&str>,
-        ) -> Result<(Vec<Artifact>, Vec<ArtifactLink>), PortError> {
+            request: ExternalArtifactRequest<'_>,
+        ) -> Result<crate::ports::ExternalArtifactBatch, PortError> {
+            let ExternalArtifactRequest::UpdatedSince(since) = request else {
+                return Err(PortError::new("unexpected request mode"));
+            };
             self.received_since
                 .borrow_mut()
                 .push(since.map(str::to_owned));
-            Ok((self.artifacts.clone(), self.links.clone()))
+            Ok(crate::ports::ExternalArtifactBatch {
+                artifacts: self.artifacts.clone(),
+                links: self.links.clone(),
+            })
         }
     }
 
@@ -724,15 +734,21 @@ mod tests {
         received_candidate_keys: RefCell<Vec<BTreeSet<String>>>,
     }
 
-    impl JiraArtifactSource for FakeJiraSource {
-        fn issue_artifacts_for_keys(
+    impl ExternalArtifactSource for FakeJiraSource {
+        fn fetch(
             &self,
-            candidate_keys: &BTreeSet<String>,
-        ) -> Result<(Vec<Artifact>, Vec<ArtifactLink>), PortError> {
+            request: ExternalArtifactRequest<'_>,
+        ) -> Result<crate::ports::ExternalArtifactBatch, PortError> {
+            let ExternalArtifactRequest::ReferencedKeys(candidate_keys) = request else {
+                return Err(PortError::new("unexpected request mode"));
+            };
             self.received_candidate_keys
                 .borrow_mut()
                 .push(candidate_keys.clone());
-            Ok((self.artifacts.clone(), self.links.clone()))
+            Ok(crate::ports::ExternalArtifactBatch {
+                artifacts: self.artifacts.clone(),
+                links: self.links.clone(),
+            })
         }
     }
 

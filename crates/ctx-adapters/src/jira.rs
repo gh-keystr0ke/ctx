@@ -35,7 +35,9 @@ use std::{
 };
 
 use base64::Engine as _;
-use ctx_app::ports::{JiraArtifactSource, PortError};
+use ctx_app::ports::{
+    ExternalArtifactBatch, ExternalArtifactRequest, ExternalArtifactSource, PortError,
+};
 use ctx_core::artifact::{
     Artifact, ArtifactIdentity, ArtifactKind, ArtifactLink, ArtifactLinkKind, ArtifactLinkTarget,
     ArtifactProvider,
@@ -43,6 +45,8 @@ use ctx_core::artifact::{
 use serde::Deserialize;
 use serde_json::Value as JsonValue;
 use thiserror::Error;
+
+use crate::http_retry::{self, Attempt, RetryError, RetryPolicy, ThreadSleeper};
 
 #[derive(Debug, Error)]
 pub enum JiraError {
@@ -70,6 +74,8 @@ pub trait JiraTransport {
 pub struct UreqTransport {
     base_url: String,
     authorization: String,
+    agent: ureq::Agent,
+    retry_policy: RetryPolicy,
 }
 
 impl UreqTransport {
@@ -77,31 +83,61 @@ impl UreqTransport {
     pub fn new(base_url: impl Into<String>, email: &str, token: &str) -> Self {
         let credentials =
             base64::engine::general_purpose::STANDARD.encode(format!("{email}:{token}"));
+        let agent = ureq::Agent::config_builder()
+            .http_status_as_error(false)
+            .build()
+            .new_agent();
         Self {
             base_url: base_url.into(),
             authorization: format!("Basic {credentials}"),
+            agent,
+            retry_policy: RetryPolicy::default(),
         }
+    }
+
+    #[must_use]
+    pub fn with_retry_policy(mut self, retry_policy: RetryPolicy) -> Self {
+        self.retry_policy = retry_policy;
+        self
     }
 }
 
 impl JiraTransport for UreqTransport {
     fn get(&self, path: &str) -> Result<String, JiraError> {
         let url = format!("{}{path}", self.base_url);
-        let mut response = ureq::get(&url)
-            .header("Authorization", &self.authorization)
-            .header("Accept", "application/json")
-            .call()
-            .map_err(|error| JiraError::Transport {
-                path: path.to_owned(),
-                message: error.to_string(),
-            })?;
-        response
-            .body_mut()
-            .read_to_string()
-            .map_err(|error| JiraError::Transport {
-                path: path.to_owned(),
-                message: error.to_string(),
+        http_retry::run(self.retry_policy, &ThreadSleeper, || {
+            let mut response = self
+                .agent
+                .get(&url)
+                .header("Authorization", &self.authorization)
+                .header("Accept", "application/json")
+                .call()
+                .map_err(|error| error.to_string())?;
+            let status = response.status().as_u16();
+            let retry_after = response
+                .headers()
+                .get("Retry-After")
+                .and_then(|value| value.to_str().ok())
+                .map(str::to_owned);
+            let body = response
+                .body_mut()
+                .read_to_string()
+                .map_err(|error| error.to_string())?;
+            Ok(Attempt {
+                status,
+                retry_after,
+                value: body,
             })
+        })
+        .map_err(|error| JiraError::Transport {
+            path: path.to_owned(),
+            message: match error {
+                RetryError::Request(message) => message,
+                RetryError::Status { status, attempts } => {
+                    format!("HTTP {status} after {attempts} attempt(s)")
+                }
+            },
+        })
     }
 }
 
@@ -420,13 +456,20 @@ impl<T: JiraTransport> JiraClient<T> {
     }
 }
 
-impl<T: JiraTransport> JiraArtifactSource for JiraClient<T> {
-    fn issue_artifacts_for_keys(
+impl<T: JiraTransport> ExternalArtifactSource for JiraClient<T> {
+    fn fetch(
         &self,
-        candidate_keys: &BTreeSet<String>,
-    ) -> Result<(Vec<Artifact>, Vec<ArtifactLink>), PortError> {
-        self.fetch_issue_artifacts_for_keys(candidate_keys)
-            .map_err(|error| PortError::new(error.to_string()))
+        request: ExternalArtifactRequest<'_>,
+    ) -> Result<ExternalArtifactBatch, PortError> {
+        let ExternalArtifactRequest::ReferencedKeys(candidate_keys) = request else {
+            return Err(PortError::new(
+                "Jira accepts only the referenced-keys artifact request mode",
+            ));
+        };
+        let (artifacts, links) = self
+            .fetch_issue_artifacts_for_keys(candidate_keys)
+            .map_err(|error| PortError::new(error.to_string()))?;
+        Ok(ExternalArtifactBatch { artifacts, links })
     }
 }
 
@@ -573,6 +616,8 @@ struct RawComment {
 
 #[cfg(test)]
 mod tests {
+    use serde_json::json;
+
     use super::*;
 
     struct FakeTransport {
@@ -609,10 +654,57 @@ mod tests {
     }
 
     fn search_path(jql: &str) -> String {
+        search_path_at(jql, 0)
+    }
+
+    fn search_path_at(jql: &str, start_at: u32) -> String {
         format!(
-            "/rest/api/3/search?jql={}&startAt=0&maxResults=100&fields=summary,description,creator,created,updated,issuelinks,parent",
+            "/rest/api/3/search?jql={}&startAt={start_at}&maxResults=100&fields=summary,description,creator,created,updated,issuelinks,parent",
             encode_query_value(jql)
         )
+    }
+
+    #[test]
+    fn jira_search_and_comments_read_every_page() {
+        let jql = "key in (PSI-1) ORDER BY key ASC";
+        let first_issues: Vec<_> = (1..=100)
+            .map(|id| json!({"key": format!("PSI-{id}"), "fields": {"summary": format!("issue {id}")}}))
+            .collect();
+        let last_issue = json!({"key": "PSI-101", "fields": {"summary": "issue 101"}});
+        let first_comments: Vec<_> = (1..=100)
+            .map(|id| json!({"id": id.to_string(), "body": {"type": "doc", "content": []}}))
+            .collect();
+        let last_comment = json!({"id": "101", "body": {"type": "doc", "content": []}});
+        let mut responses = BTreeMap::new();
+        responses.insert(
+            search_path_at(jql, 0),
+            json!({"total": 101, "issues": first_issues}).to_string(),
+        );
+        responses.insert(
+            search_path_at(jql, 100),
+            json!({"total": 101, "issues": [last_issue]}).to_string(),
+        );
+        responses.insert(
+            "/rest/api/3/issue/PSI-1/comment?startAt=0&maxResults=100".to_owned(),
+            json!({"total": 101, "comments": first_comments}).to_string(),
+        );
+        responses.insert(
+            "/rest/api/3/issue/PSI-1/comment?startAt=100&maxResults=100".to_owned(),
+            json!({"total": 101, "comments": [last_comment]}).to_string(),
+        );
+        let client = JiraClient::new(
+            FakeTransport { responses },
+            "PSI",
+            "https://example.atlassian.net",
+        );
+
+        let issues = client
+            .fetch_issues_by_keys(&keys(&["PSI-1"]))
+            .expect("all issue pages");
+        let comments = client.fetch_comments("PSI-1").expect("all comment pages");
+
+        assert_eq!(issues.len(), 101);
+        assert_eq!(comments.len(), 101);
     }
 
     #[test]

@@ -14,6 +14,7 @@ pub mod git;
 pub mod gitlab;
 pub mod go;
 pub mod goose;
+pub mod http_retry;
 pub mod jira;
 pub mod language;
 pub mod python;

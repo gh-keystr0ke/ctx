@@ -106,7 +106,7 @@ fn read_all(root: &Path) -> Result<Vec<StoredCandidate>, PortError> {
                 source,
             })
         })?;
-        let candidate: StoredCandidate = serde_yaml::from_str(&content).map_err(|error| {
+        let candidate: StoredCandidate = yaml_serde::from_str(&content).map_err(|error| {
             port_error(CandidateQueueError::Yaml {
                 path: path.display().to_string(),
                 message: error.to_string(),
@@ -127,7 +127,7 @@ fn write_stored(root: &Path, stored: &StoredCandidate) -> Result<(), PortError> 
         })
     })?;
     let path = directory.join(candidate_filename(&stored.candidate.fingerprint));
-    let yaml = serde_yaml::to_string(stored).map_err(|error| {
+    let yaml = yaml_serde::to_string(stored).map_err(|error| {
         port_error(CandidateQueueError::Yaml {
             path: path.display().to_string(),
             message: error.to_string(),
@@ -204,7 +204,7 @@ pub fn record_decision(
             source,
         })
     })?;
-    let mut stored: StoredCandidate = serde_yaml::from_str(&content).map_err(|error| {
+    let mut stored: StoredCandidate = yaml_serde::from_str(&content).map_err(|error| {
         port_error(CandidateQueueError::Yaml {
             path: path.display().to_string(),
             message: error.to_string(),

@@ -392,6 +392,11 @@ fn default_base() -> String {
 
 #[cfg(test)]
 mod tests {
+    use std::{fs, io::Cursor, path::Path, process::Command};
+
+    use ctx_adapters::business_context::YamlBusinessContextReader;
+    use ctx_app::{context::ContextImporter, index::IndexRunner, ports::GitRepository};
+
     use super::*;
 
     #[test]
@@ -426,5 +431,106 @@ mod tests {
         }));
         assert_eq!(initialize["protocolVersion"], "2025-06-18");
         assert_eq!(initialize["capabilities"]["tools"]["listChanged"], false);
+    }
+
+    fn run_git(root: &Path, arguments: &[&str]) {
+        let output = Command::new("git")
+            .current_dir(root)
+            .args(arguments)
+            .output()
+            .expect("run git");
+        assert!(
+            output.status.success(),
+            "git {} failed: {}",
+            arguments.join(" "),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    fn indexed_repository() -> (tempfile::TempDir, GitRepo) {
+        let directory = tempfile::tempdir().expect("temporary repository");
+        fs::create_dir_all(directory.path().join(".ctx")).expect("ctx directory");
+        fs::create_dir_all(directory.path().join(".context/requirements"))
+            .expect("requirements directory");
+        fs::create_dir_all(directory.path().join("src")).expect("source directory");
+        fs::write(
+            directory.path().join(".ctx/config.toml"),
+            "languages = [\"python\"]\n\n[paths]\ninclude = [\"src\"]\n",
+        )
+        .expect("configuration");
+        fs::write(
+            directory.path().join("src/app.py"),
+            "def cancel():\n    return 'access preserved'\n",
+        )
+        .expect("source");
+        fs::write(
+            directory
+                .path()
+                .join(".context/requirements/preserve-access.yaml"),
+            "id: REQ-TEST-001\ntype: requirement\nstatus: active\nstatement: Preserve paid access.\nimplementation:\n  - symbol: app.cancel\n",
+        )
+        .expect("requirement");
+        run_git(directory.path(), &["init", "--quiet"]);
+        run_git(directory.path(), &["config", "user.name", "ctx tests"]);
+        run_git(
+            directory.path(),
+            &["config", "user.email", "ctx@example.invalid"],
+        );
+        run_git(directory.path(), &["add", "."]);
+        run_git(directory.path(), &["commit", "--quiet", "-m", "baseline"]);
+
+        let git = GitRepo::discover(directory.path()).expect("discover repository");
+        let database = directory.path().join(".ctx/ctx.db");
+        let mut store = SqliteStore::open(&database, git.context_root()).expect("open store");
+        let analyzer =
+            AnalyzerRegistry::builtins(directory.path(), &["python".to_owned()]).expect("analyzer");
+        IndexRunner::new(&git, &analyzer, &mut store)
+            .run("2026-08-29T00:00:00Z")
+            .expect("index code");
+        let repository = git.descriptor().expect("repository descriptor");
+        let head = git.head().expect("head");
+        let reader = YamlBusinessContextReader::new(git.context_root().to_path_buf());
+        ContextImporter::new(&reader, &mut store)
+            .run(&repository, &head, "2026-08-29T00:00:00Z")
+            .expect("index context");
+        drop(store);
+        (directory, git)
+    }
+
+    #[test]
+    fn all_five_tools_execute_over_the_stdio_json_rpc_transport() {
+        let (_directory, git) = indexed_repository();
+        let mut server = McpServer::new(&git).expect("MCP server");
+        let requests = [
+            json!({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"get_context","arguments":{"task":"preserve access","token_budget":1000}}}),
+            json!({"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"get_impact","arguments":{"target":"app.cancel"}}}),
+            json!({"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"explain_relation","arguments":{"claim":"REQ-TEST-001"}}}),
+            json!({"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"find_requirements","arguments":{"query":"access"}}}),
+            json!({"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"review_change","arguments":{"base":"HEAD"}}}),
+        ];
+        let input = requests
+            .iter()
+            .map(Value::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+        let mut output = Vec::new();
+
+        serve(&mut server, Cursor::new(input), &mut output).expect("serve requests");
+
+        let responses: Vec<Value> = String::from_utf8(output)
+            .expect("UTF-8 output")
+            .lines()
+            .map(|line| serde_json::from_str(line).expect("JSON-RPC response"))
+            .collect();
+        assert_eq!(responses.len(), requests.len());
+        for response in responses {
+            assert!(response.get("error").is_none(), "{response}");
+            assert_eq!(response["result"]["isError"], false, "{response}");
+            assert!(
+                response["result"]["structuredContent"].is_object()
+                    || response["result"]["structuredContent"].is_array(),
+                "{response}"
+            );
+        }
     }
 }

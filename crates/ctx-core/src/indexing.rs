@@ -299,51 +299,8 @@ pub fn plan_incremental_index(
     // whitespace-stripped body ended up silently sharing one node identity.
     let mut used = BTreeSet::new();
 
-    // Reserve every unchanged symbol's own exact-canonical-path identity
-    // before any file's same-shape cross-file fallback (tier 3 in
-    // `match_symbols`) runs. Without this pre-pass, processing order alone
-    // decided outcomes: a new file whose helper happened to share another
-    // *unprocessed* file's name and whitespace-stripped shape could steal
-    // that file's still-unclaimed historical identity via the fallback: the
-    // rightful owner, matched later by its own unchanged canonical path,
-    // would then find its own key already `used` and fall through every
-    // tier back to the very same canonical-path-derived key, producing two
-    // writes for one stable key instead of one correct match plus one
-    // correctly distinct new identity. Reserving first makes the outcome
-    // independent of `changes`' order.
-    for change in changes {
-        let Some(path) = change.current_path() else {
-            continue;
-        };
-        if let Some(file_analysis) = analyses.get(path) {
-            reserve_exact_canonical_matches(
-                &file_analysis.language,
-                &file_analysis.symbols,
-                &historical_symbols,
-                &mut used,
-            );
-        }
-    }
-
-    // Tier 3 of `match_symbols` (the same-shape cross-file fallback) must
-    // only be allowed to claim a historical identity that this transition is
-    // actually vacating — i.e. a symbol belonging to a file being modified,
-    // renamed, or deleted here. Without this restriction, a brand-new file
-    // defining a symbol with the same name/kind/structural-fingerprint as
-    // some *unrelated, unchanged* symbol elsewhere in the codebase (e.g. two
-    // files independently declaring an identically-shaped private test
-    // helper) would "steal" that unrelated symbol's stable key: the fallback
-    // is meant to detect a genuine move, and there is no move when the old
-    // location isn't changing at all.
-    let changed_paths: BTreeSet<&str> = changes
-        .iter()
-        .filter_map(|change| replaced_path(snapshot, change))
-        .collect();
-    let same_shape_prior: Vec<IndexedSymbol> = historical_symbols
-        .iter()
-        .filter(|symbol| changed_paths.contains(symbol.file_path.as_str()))
-        .cloned()
-        .collect();
+    reserve_transition_identities(analyses, changes, &historical_symbols, &mut used);
+    let same_shape_prior = same_shape_candidates(snapshot, changes, &historical_symbols);
     let pools = SymbolMatchPools {
         historical_symbols: &historical_symbols,
         same_shape_prior: &same_shape_prior,
@@ -379,6 +336,48 @@ pub fn plan_incremental_index(
     add_http_facts(&mut plan, &historical_symbols, &current_symbols)?;
     normalize_plan(&mut plan)?;
     Ok(plan)
+}
+
+/// Reserves exact-path owners before cross-file move matching starts, making
+/// identity assignment independent of the order in `changes`.
+fn reserve_transition_identities(
+    analyses: &BTreeMap<String, FileAnalysis>,
+    changes: &[FileChange],
+    historical_symbols: &[IndexedSymbol],
+    used: &mut BTreeSet<StableKey>,
+) {
+    for change in changes {
+        let Some(path) = change.current_path() else {
+            continue;
+        };
+        let Some(file_analysis) = analyses.get(path) else {
+            continue;
+        };
+        reserve_exact_canonical_matches(
+            &file_analysis.language,
+            &file_analysis.symbols,
+            historical_symbols,
+            used,
+        );
+    }
+}
+
+/// Restricts same-shape move candidates to identities actually vacated by
+/// this transition. Unchanged files must never donate symbol identities.
+fn same_shape_candidates(
+    snapshot: &RepositorySnapshot,
+    changes: &[FileChange],
+    historical_symbols: &[IndexedSymbol],
+) -> Vec<IndexedSymbol> {
+    let changed_paths: BTreeSet<&str> = changes
+        .iter()
+        .filter_map(|change| replaced_path(snapshot, change))
+        .collect();
+    historical_symbols
+        .iter()
+        .filter(|symbol| changed_paths.contains(symbol.file_path.as_str()))
+        .cloned()
+        .collect()
 }
 
 /// The prior path whose structural identity `change` replaces, if any: the

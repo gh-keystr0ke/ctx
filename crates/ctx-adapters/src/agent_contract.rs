@@ -13,6 +13,7 @@
 //! validation logic, and never touching `ctx-core`/`ctx-app`.
 
 use std::collections::BTreeSet;
+use std::ops::Range;
 
 use ctx_core::{
     artifact::{ArtifactIdentity, ArtifactKind, ArtifactProvider},
@@ -67,6 +68,8 @@ pub enum AgentContractError {
     ExitFailure(String),
     #[error("agent CLI output was not a single valid JSON object: {0}")]
     InvalidJson(String),
+    #[error("agent prompt exceeds its configured byte budget: {0}")]
+    PromptBudget(String),
 }
 
 /// Minimal process boundary every vendor's `SubprocessTransport` implements:
@@ -431,6 +434,24 @@ Rules:
 - A claim with no current code shown (the symbol could not be read) cannot be confirmed from its code -- prefer "reject" for it unless the product intent alone makes the mapping obviously still valid.
 - Prefer "reject" when you cannot actually confirm the mapping still holds, rather than accepting on uncertainty."#;
 
+const DEFAULT_STALE_REVIEW_PROMPT_BYTES: usize = 64 * 1024;
+const DEFAULT_STALE_REVIEW_BATCH_CLAIMS: usize = 20;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct StaleClaimReviewBudget {
+    pub max_prompt_bytes: usize,
+    pub max_claims: usize,
+}
+
+impl Default for StaleClaimReviewBudget {
+    fn default() -> Self {
+        Self {
+            max_prompt_bytes: DEFAULT_STALE_REVIEW_PROMPT_BYTES,
+            max_claims: DEFAULT_STALE_REVIEW_BATCH_CLAIMS,
+        }
+    }
+}
+
 /// Runs every currently stale semantic claim through an independent
 /// re-review (`ctx verify --stale`): the same [`AgentTransport`] boundary
 /// every vendor already implements, a different prompt and response
@@ -444,6 +465,33 @@ Rules:
 /// isn't valid JSON, or `decisions` names an unknown or duplicate
 /// fingerprint, or omits one of the input claims.
 pub fn review_stale_claims<T: AgentTransport>(
+    transport: &T,
+    claims: &[StaleClaim],
+) -> Result<Vec<StaleClaimVerdict>, AgentContractError> {
+    review_stale_claims_with_budget(transport, claims, StaleClaimReviewBudget::default())
+}
+
+/// Reviews stale claims in independently validated, byte-bounded batches.
+/// Every claim is included exactly once; an individual claim that cannot fit
+/// the configured budget fails explicitly instead of producing an oversized
+/// CLI argument or silently truncating evidence.
+///
+/// # Errors
+/// Returns [`AgentContractError`] when a prompt cannot fit its budget, the
+/// transport fails, or any batch response violates the review contract.
+pub fn review_stale_claims_with_budget<T: AgentTransport>(
+    transport: &T,
+    claims: &[StaleClaim],
+    budget: StaleClaimReviewBudget,
+) -> Result<Vec<StaleClaimVerdict>, AgentContractError> {
+    let mut verdicts = Vec::with_capacity(claims.len());
+    for range in stale_claim_batches(claims, budget)? {
+        verdicts.extend(review_stale_claim_batch(transport, &claims[range])?);
+    }
+    Ok(verdicts)
+}
+
+fn review_stale_claim_batch<T: AgentTransport>(
     transport: &T,
     claims: &[StaleClaim],
 ) -> Result<Vec<StaleClaimVerdict>, AgentContractError> {
@@ -491,28 +539,73 @@ pub fn review_stale_claims<T: AgentTransport>(
     Ok(decisions)
 }
 
+fn stale_claim_batches(
+    claims: &[StaleClaim],
+    budget: StaleClaimReviewBudget,
+) -> Result<Vec<Range<usize>>, AgentContractError> {
+    if budget.max_prompt_bytes <= STALE_CLAIM_REVIEW_SYSTEM_PROMPT.len() + 2
+        || budget.max_claims == 0
+    {
+        return Err(AgentContractError::PromptBudget(
+            "budget must fit the system prompt and at least one claim".to_owned(),
+        ));
+    }
+    let base_bytes = STALE_CLAIM_REVIEW_SYSTEM_PROMPT.len() + 2;
+    let mut ranges = Vec::new();
+    let mut start = 0usize;
+    let mut bytes = base_bytes;
+    for (index, claim) in claims.iter().enumerate() {
+        let claim_bytes = render_stale_claim(claim).len();
+        if base_bytes + claim_bytes > budget.max_prompt_bytes {
+            return Err(AgentContractError::PromptBudget(format!(
+                "claim '{}' needs {} bytes but the limit is {}",
+                claim.fingerprint,
+                base_bytes + claim_bytes,
+                budget.max_prompt_bytes
+            )));
+        }
+        let count = index - start;
+        if count == budget.max_claims || bytes + claim_bytes > budget.max_prompt_bytes {
+            ranges.push(start..index);
+            start = index;
+            bytes = base_bytes;
+        }
+        bytes += claim_bytes;
+    }
+    if start < claims.len() {
+        ranges.push(start..claims.len());
+    }
+    Ok(ranges)
+}
+
 fn render_stale_claims(claims: &[StaleClaim]) -> String {
+    let mut text = String::new();
+    for claim in claims {
+        text.push_str(&render_stale_claim(claim));
+    }
+    text
+}
+
+fn render_stale_claim(claim: &StaleClaim) -> String {
     use std::fmt::Write as _;
 
     let mut text = String::new();
-    for claim in claims {
-        let _ = writeln!(
-            text,
-            "- fingerprint: {}\n  relation: {:?}\n  source: {} ({:?})\n  target: {} ({:?})",
-            claim.fingerprint,
-            claim.relation,
-            claim.source.identifier,
-            claim.source.kind,
-            claim.target.identifier,
-            claim.target.kind
-        );
-        for locator in &claim.evidence_locators {
-            let _ = writeln!(text, "  declared at: {locator}");
-        }
-        let _ = writeln!(text, "  product intent: {}", claim.intent_statement);
-        if let Some(excerpt) = &claim.symbol_excerpt {
-            let _ = writeln!(text, "  current code:\n{excerpt}");
-        }
+    let _ = writeln!(
+        text,
+        "- fingerprint: {}\n  relation: {:?}\n  source: {} ({:?})\n  target: {} ({:?})",
+        claim.fingerprint,
+        claim.relation,
+        claim.source.identifier,
+        claim.source.kind,
+        claim.target.identifier,
+        claim.target.kind
+    );
+    for locator in &claim.evidence_locators {
+        let _ = writeln!(text, "  declared at: {locator}");
+    }
+    let _ = writeln!(text, "  product intent: {}", claim.intent_statement);
+    if let Some(excerpt) = &claim.symbol_excerpt {
+        let _ = writeln!(text, "  current code:\n{excerpt}");
     }
     text
 }
@@ -531,6 +624,8 @@ struct RawStaleClaimDecision {
 
 #[cfg(test)]
 mod tests {
+    use std::cell::RefCell;
+
     use ctx_core::{
         artifact::{Artifact, ArtifactIdentity, ArtifactKind, ArtifactProvider},
         neighborhood::build_neighborhood,
@@ -856,6 +951,71 @@ mod tests {
             intent_statement: "Keep access until paid_until".to_owned(),
             symbol_excerpt: Some("def cancel():\n    ...".to_owned()),
         }
+    }
+
+    #[derive(Default)]
+    struct EchoStaleReviewTransport {
+        prompts: RefCell<Vec<String>>,
+    }
+
+    impl AgentTransport for EchoStaleReviewTransport {
+        fn run(&self, prompt: &str) -> Result<String, AgentContractError> {
+            self.prompts.borrow_mut().push(prompt.to_owned());
+            let decisions: Vec<_> = prompt
+                .lines()
+                .filter_map(|line| line.strip_prefix("- fingerprint: "))
+                .map(|fingerprint| {
+                    serde_json::json!({
+                        "fingerprint": fingerprint,
+                        "verdict": "accept",
+                        "reasoning": "the shown code still supports the shown intent"
+                    })
+                })
+                .collect();
+            Ok(serde_json::json!({"decisions": decisions}).to_string())
+        }
+    }
+
+    #[test]
+    fn stale_claim_review_batches_without_dropping_claims() {
+        let claims: Vec<_> = (1..=5)
+            .map(|index| stale_claim(&format!("fp{index}")))
+            .collect();
+        let transport = EchoStaleReviewTransport::default();
+        let budget = StaleClaimReviewBudget {
+            max_prompt_bytes: 64 * 1024,
+            max_claims: 2,
+        };
+
+        let result = review_stale_claims_with_budget(&transport, &claims, budget)
+            .expect("three bounded batches");
+
+        assert_eq!(result.len(), claims.len());
+        let prompts = transport.prompts.borrow();
+        assert_eq!(prompts.len(), 3);
+        assert!(
+            prompts
+                .iter()
+                .all(|prompt| prompt.len() <= budget.max_prompt_bytes)
+        );
+    }
+
+    #[test]
+    fn one_claim_larger_than_the_prompt_budget_fails_explicitly() {
+        let transport = EchoStaleReviewTransport::default();
+        let claims = vec![stale_claim("fp1")];
+        let error = review_stale_claims_with_budget(
+            &transport,
+            &claims,
+            StaleClaimReviewBudget {
+                max_prompt_bytes: STALE_CLAIM_REVIEW_SYSTEM_PROMPT.len() + 10,
+                max_claims: 1,
+            },
+        )
+        .expect_err("claim cannot be silently truncated");
+
+        assert!(matches!(error, AgentContractError::PromptBudget(_)));
+        assert!(transport.prompts.borrow().is_empty());
     }
 
     #[test]

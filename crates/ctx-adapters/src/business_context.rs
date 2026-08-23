@@ -152,7 +152,7 @@ fn read_document(root: &Path, path: &Path) -> Result<BusinessDocument, BusinessC
         content.as_str()
     };
     let raw: RawDocument =
-        serde_yaml::from_str(yaml).map_err(|error| BusinessContextError::Yaml {
+        yaml_serde::from_str(yaml).map_err(|error| BusinessContextError::Yaml {
             path: path.display().to_string(),
             message: error.to_string(),
         })?;
@@ -247,7 +247,7 @@ fn required<T>(
 impl BusinessContextWriter for YamlBusinessContextReader {
     /// Writes `document` as a brand-new `.context/{kind}s/{id}.yaml` file
     /// (never an update to an existing one -- an accepted candidate always
-    /// allocates a fresh ID) using exactly the field shape [`read_document`]
+    /// allocates a fresh ID) using exactly the field shape `read_document`
     /// parses back, so the very next `ctx index` picks it up like any
     /// hand-authored document. Returns the path written, relative to the
     /// repository root.
@@ -269,7 +269,7 @@ impl BusinessContextWriter for YamlBusinessContextReader {
                 source,
             })
         })?;
-        let yaml = serde_yaml::to_string(&written_document(document)).map_err(|error| {
+        let yaml = yaml_serde::to_string(&written_document(document)).map_err(|error| {
             port_error(BusinessContextError::Yaml {
                 path: path.display().to_string(),
                 message: error.to_string(),
@@ -441,7 +441,7 @@ mod tests {
 
     #[test]
     fn normalizes_explicit_requirement_links() {
-        let raw: RawDocument = serde_yaml::from_str(
+        let raw: RawDocument = yaml_serde::from_str(
             "id: REQ-SUB-014\nstatement: Keep access.\nimplementation:\n  - symbol: billing.cancel\n",
         )
         .expect("YAML");
@@ -518,7 +518,7 @@ mod tests {
                 Visibility::Private,
             ),
         ] {
-            let raw: RawDocument = serde_yaml::from_str(yaml).expect("YAML");
+            let raw: RawDocument = yaml_serde::from_str(yaml).expect("YAML");
             let document = normalize_document(
                 Path::new("/repo"),
                 Path::new("/repo/.context/requirements/access.yaml"),
@@ -533,7 +533,7 @@ mod tests {
     #[test]
     fn invalid_visibility_is_a_clear_parse_error() {
         let yaml = "id: REQ-INVALID\nvisibility: internal\nstatement: Keep access.\n";
-        let raw: RawDocument = serde_yaml::from_str(yaml).expect("YAML");
+        let raw: RawDocument = yaml_serde::from_str(yaml).expect("YAML");
         let error = normalize_document(
             Path::new("/repo"),
             Path::new("/repo/.context/requirements/access.yaml"),
@@ -564,7 +564,7 @@ mod tests {
                 true,
             ),
         ] {
-            let raw: RawDocument = serde_yaml::from_str(yaml).expect("YAML");
+            let raw: RawDocument = yaml_serde::from_str(yaml).expect("YAML");
             let document = normalize_document(
                 Path::new("/repo"),
                 Path::new("/repo/.context/decisions/adr.yaml"),

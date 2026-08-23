@@ -51,6 +51,15 @@ type ExistingSemanticPairs = BTreeMap<StableKey, BTreeMap<RelationKind, BTreeSet
 /// unchanged while avoiding repeated full-graph scans and tokenization.
 struct VerificationIndex {
     terms_by_node: BTreeMap<StableKey, BTreeSet<String>>,
+    graph: GraphIndexes,
+    intent: IntentIndexes,
+    artifact_symbols_by_intent: BTreeMap<String, NodeSet>,
+}
+
+/// Direct indexes derived from graph edges. Keeping this as one cohesive
+/// value prevents the verification root from becoming a bag of unrelated
+/// maps as new scoring signals are added.
+struct GraphIndexes {
     existing_semantic_pairs: ExistingSemanticPairs,
     verified_symbols_by_intent: BTreeMap<StableKey, NodeSet>,
     linked_tests_by_intent: BTreeMap<StableKey, NodeSet>,
@@ -58,10 +67,13 @@ struct VerificationIndex {
     all_call_neighbors: BTreeMap<StableKey, NodeSet>,
     interactions_by_symbol: BTreeMap<StableKey, Interactions>,
     interaction_targets_by_symbol: BTreeMap<StableKey, NodeSet>,
-    verified_interactions_by_intent: BTreeMap<StableKey, Interactions>,
-    verified_interaction_targets_by_intent: BTreeMap<StableKey, NodeSet>,
-    verified_files_by_intent: BTreeMap<StableKey, BTreeSet<String>>,
-    artifact_symbols_by_intent: BTreeMap<String, NodeSet>,
+}
+
+/// Context aggregated from already verified intent-to-symbol relationships.
+struct IntentIndexes {
+    interactions: BTreeMap<StableKey, Interactions>,
+    targets: BTreeMap<StableKey, NodeSet>,
+    files: BTreeMap<StableKey, BTreeSet<String>>,
 }
 
 impl VerificationIndex {
@@ -71,7 +83,32 @@ impl VerificationIndex {
             .values()
             .map(|node| (node.stable_key.clone(), node_terms(node)))
             .collect();
-        let existing_semantic_pairs = existing_semantic_pairs(graph);
+        let graph_indexes = GraphIndexes::new(graph);
+        let intent_indexes = IntentIndexes::new(graph, &graph_indexes);
+        Self {
+            terms_by_node,
+            graph: graph_indexes,
+            intent: intent_indexes,
+            artifact_symbols_by_intent: artifact_symbols_by_intent(artifact_context),
+        }
+    }
+
+    fn already_linked(
+        &self,
+        symbol: &StableKey,
+        intent: &StableKey,
+        relation: RelationKind,
+    ) -> bool {
+        self.graph
+            .existing_semantic_pairs
+            .get(symbol)
+            .and_then(|relations| relations.get(&relation))
+            .is_some_and(|targets| targets.contains(intent))
+    }
+}
+
+impl GraphIndexes {
+    fn new(graph: &GraphSnapshot) -> Self {
         let mut verified_symbols_by_intent: BTreeMap<StableKey, NodeSet> = BTreeMap::new();
         let mut linked_tests_by_intent: BTreeMap<StableKey, NodeSet> = BTreeMap::new();
         let mut active_call_neighbors: BTreeMap<StableKey, NodeSet> = BTreeMap::new();
@@ -129,19 +166,32 @@ impl VerificationIndex {
                     .insert(edge.target.clone());
             }
         }
+        Self {
+            existing_semantic_pairs: existing_semantic_pairs(graph),
+            verified_symbols_by_intent,
+            linked_tests_by_intent,
+            active_call_neighbors,
+            all_call_neighbors,
+            interactions_by_symbol,
+            interaction_targets_by_symbol,
+        }
+    }
+}
 
+impl IntentIndexes {
+    fn new(graph: &GraphSnapshot, indexes: &GraphIndexes) -> Self {
         let mut verified_interactions_by_intent = BTreeMap::new();
         let mut verified_interaction_targets_by_intent = BTreeMap::new();
         let mut verified_files_by_intent = BTreeMap::new();
-        for (intent, verified_symbols) in &verified_symbols_by_intent {
+        for (intent, verified_symbols) in &indexes.verified_symbols_by_intent {
             let mut interactions = Interactions::new();
             let mut interaction_targets = NodeSet::new();
             let mut files = BTreeSet::new();
             for symbol in verified_symbols {
-                if let Some(symbol_interactions) = interactions_by_symbol.get(symbol) {
+                if let Some(symbol_interactions) = indexes.interactions_by_symbol.get(symbol) {
                     interactions.extend(symbol_interactions.iter().cloned());
                 }
-                if let Some(symbol_targets) = interaction_targets_by_symbol.get(symbol) {
+                if let Some(symbol_targets) = indexes.interaction_targets_by_symbol.get(symbol) {
                     interaction_targets.extend(symbol_targets.iter().cloned());
                 }
                 if let Some(file) = graph.nodes.get(symbol).and_then(symbol_file) {
@@ -152,35 +202,11 @@ impl VerificationIndex {
             verified_interaction_targets_by_intent.insert(intent.clone(), interaction_targets);
             verified_files_by_intent.insert(intent.clone(), files);
         }
-
-        let artifact_symbols_by_intent = artifact_symbols_by_intent(artifact_context);
-
         Self {
-            terms_by_node,
-            existing_semantic_pairs,
-            verified_symbols_by_intent,
-            linked_tests_by_intent,
-            active_call_neighbors,
-            all_call_neighbors,
-            interactions_by_symbol,
-            interaction_targets_by_symbol,
-            verified_interactions_by_intent,
-            verified_interaction_targets_by_intent,
-            verified_files_by_intent,
-            artifact_symbols_by_intent,
+            interactions: verified_interactions_by_intent,
+            targets: verified_interaction_targets_by_intent,
+            files: verified_files_by_intent,
         }
-    }
-
-    fn already_linked(
-        &self,
-        symbol: &StableKey,
-        intent: &StableKey,
-        relation: RelationKind,
-    ) -> bool {
-        self.existing_semantic_pairs
-            .get(symbol)
-            .and_then(|relations| relations.get(&relation))
-            .is_some_and(|targets| targets.contains(intent))
     }
 }
 
@@ -358,10 +384,15 @@ fn artifact_evidence_signal(
 }
 
 fn structural_signal(index: &VerificationIndex, symbol: &GraphNode, intent: &GraphNode) -> f32 {
-    let Some(verified_symbols) = index.verified_symbols_by_intent.get(&intent.stable_key) else {
+    let Some(verified_symbols) = index
+        .graph
+        .verified_symbols_by_intent
+        .get(&intent.stable_key)
+    else {
         return 0.0;
     };
     if index
+        .graph
         .active_call_neighbors
         .get(&symbol.stable_key)
         .is_some_and(|neighbors| !neighbors.is_disjoint(verified_symbols))
@@ -370,7 +401,8 @@ fn structural_signal(index: &VerificationIndex, symbol: &GraphNode, intent: &Gra
     }
     let file_path = symbol_file(symbol);
     let same_file = index
-        .verified_files_by_intent
+        .intent
+        .files
         .get(&intent.stable_key)
         .zip(file_path)
         .is_some_and(|(files, candidate)| files.contains(candidate));
@@ -378,10 +410,11 @@ fn structural_signal(index: &VerificationIndex, symbol: &GraphNode, intent: &Gra
 }
 
 fn test_signal(index: &VerificationIndex, symbol: &GraphNode, intent: &GraphNode) -> f32 {
-    let Some(linked_tests) = index.linked_tests_by_intent.get(&intent.stable_key) else {
+    let Some(linked_tests) = index.graph.linked_tests_by_intent.get(&intent.stable_key) else {
         return 0.0;
     };
     if index
+        .graph
         .all_call_neighbors
         .get(&symbol.stable_key)
         .is_some_and(|neighbors| !neighbors.is_disjoint(linked_tests))
@@ -397,26 +430,21 @@ fn data_interaction_signal(
     symbol: &GraphNode,
     intent: &GraphNode,
 ) -> f32 {
-    let Some(candidate_interactions) = index.interactions_by_symbol.get(&symbol.stable_key) else {
+    let Some(candidate_interactions) = index.graph.interactions_by_symbol.get(&symbol.stable_key)
+    else {
         return 0.0;
     };
-    let Some(verified_interactions) = index
-        .verified_interactions_by_intent
-        .get(&intent.stable_key)
-    else {
+    let Some(verified_interactions) = index.intent.interactions.get(&intent.stable_key) else {
         return 0.0;
     };
     if !candidate_interactions.is_disjoint(verified_interactions) {
         return 1.0;
     }
     let shares_target = index
+        .graph
         .interaction_targets_by_symbol
         .get(&symbol.stable_key)
-        .zip(
-            index
-                .verified_interaction_targets_by_intent
-                .get(&intent.stable_key),
-        )
+        .zip(index.intent.targets.get(&intent.stable_key))
         .is_some_and(|(candidate, verified)| !candidate.is_disjoint(verified));
     if shares_target { 0.6 } else { 0.0 }
 }

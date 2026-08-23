@@ -291,6 +291,19 @@ pub struct KnowledgeVerificationService<'a, S, W> {
     writer: &'a W,
 }
 
+/// Mutable state shared while one automatic verification run processes its
+/// clusters. It gives the workflow a single explicit context instead of
+/// threading eight loosely related primitive arguments through every helper.
+struct AutoVerifyState<'a> {
+    repository: &'a RepositoryId,
+    allocator: &'a mut KnowledgeIdAllocator,
+    graph: &'a ctx_core::graph::GraphSnapshot,
+    author: &'a str,
+    timestamp: &'a str,
+    force: bool,
+    report: &'a mut AutoVerifyReport,
+}
+
 impl<'a, S, W> KnowledgeVerificationService<'a, S, W>
 where
     S: KnowledgeCandidateStore + GraphStore,
@@ -502,18 +515,16 @@ where
         let total = clusters.len();
         for (index, cluster) in clusters.into_iter().enumerate() {
             on_progress(index + 1, total, &cluster);
-            let outcomes = self.process_cluster(
+            let mut state = AutoVerifyState {
                 repository,
-                &cluster,
-                &pending,
-                &mut allocator,
-                &graph,
+                allocator: &mut allocator,
+                graph: &graph,
                 author,
                 timestamp,
                 force,
-                agent,
-                &mut report,
-            )?;
+                report: &mut report,
+            };
+            let outcomes = self.process_cluster(&cluster, &pending, agent, &mut state)?;
             on_result(index + 1, total, &outcomes);
         }
         Ok(report)
@@ -524,19 +535,12 @@ where
     /// returns one [`ReviewedCandidate`] per candidate the agent returned a
     /// verdict for, in review order -- split out of
     /// [`Self::auto_with_progress`] purely to keep that loop body readable.
-    #[allow(clippy::too_many_arguments)]
     fn process_cluster(
         &mut self,
-        repository: &RepositoryId,
         cluster: &CandidateCluster,
         pending: &[KnowledgeCandidate],
-        allocator: &mut KnowledgeIdAllocator,
-        graph: &ctx_core::graph::GraphSnapshot,
-        author: &str,
-        timestamp: &str,
-        force: bool,
         agent: &dyn KnowledgeReviewAgent,
-        report: &mut AutoVerifyReport,
+        state: &mut AutoVerifyState<'_>,
     ) -> Result<Vec<ReviewedCandidate>, VerificationError> {
         let members: Vec<KnowledgeCandidate> = cluster
             .fingerprints
@@ -548,7 +552,7 @@ where
                     .cloned()
             })
             .collect();
-        report.clusters_reviewed += 1;
+        state.report.clusters_reviewed += 1;
         let review = agent.review(&members).map_err(VerificationError::Store)?;
 
         let mut outcomes: Vec<ReviewedCandidate> = Vec::new();
@@ -558,16 +562,16 @@ where
                 ReviewVerdict::Reject => {
                     self.store
                         .record_decision(
-                            repository,
+                            state.repository,
                             &decision.fingerprint,
                             &KnowledgeDecision::Reject {
                                 method: DecisionMethod::Agent,
                             },
-                            author,
-                            timestamp,
+                            state.author,
+                            state.timestamp,
                         )
                         .map_err(VerificationError::Store)?;
-                    report.candidates_rejected += 1;
+                    state.report.candidates_rejected += 1;
                     if let Some(candidate) = members
                         .iter()
                         .find(|candidate| candidate.fingerprint == decision.fingerprint)
@@ -593,18 +597,8 @@ where
             if accepted.len() >= 2
                 && let Some(merged_statement) = &review.merged_statement
             {
-                let outcome = self.accept_merged(
-                    repository,
-                    cluster.kind,
-                    merged_statement,
-                    &accepted,
-                    allocator,
-                    graph,
-                    author,
-                    timestamp,
-                    force,
-                    report,
-                )?;
+                let outcome =
+                    self.accept_merged(cluster.kind, merged_statement, &accepted, state)?;
                 for candidate in &accepted {
                     outcomes.push(ReviewedCandidate {
                         statement: candidate.statement.clone(),
@@ -613,9 +607,7 @@ where
                 }
             } else {
                 for candidate in &accepted {
-                    let outcome = self.accept_one_auto(
-                        repository, candidate, allocator, graph, author, timestamp, force, report,
-                    )?;
+                    let outcome = self.accept_one_auto(candidate, state)?;
                     outcomes.push(ReviewedCandidate {
                         statement: candidate.statement.clone(),
                         outcome,
@@ -626,66 +618,52 @@ where
         Ok(outcomes)
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn accept_one_auto(
         &mut self,
-        repository: &RepositoryId,
         candidate: &KnowledgeCandidate,
-        allocator: &mut KnowledgeIdAllocator,
-        graph: &ctx_core::graph::GraphSnapshot,
-        author: &str,
-        timestamp: &str,
-        force: bool,
-        report: &mut AutoVerifyReport,
+        state: &mut AutoVerifyState<'_>,
     ) -> Result<CandidateOutcome, VerificationError> {
-        if let Some(existing_id) = (!force)
-            .then(|| possible_duplicate(graph, candidate.kind, &candidate.statement))
+        if let Some(existing_id) = (!state.force)
+            .then(|| possible_duplicate(state.graph, candidate.kind, &candidate.statement))
             .flatten()
         {
-            report.candidates_skipped_possible_duplicate += 1;
+            state.report.candidates_skipped_possible_duplicate += 1;
             return Ok(CandidateOutcome::SkippedPossibleDuplicate { existing_id });
         }
-        let document_id = allocator.allocate(candidate.kind);
+        let document_id = state.allocator.allocate(candidate.kind);
         let document = candidate_to_document(candidate, &document_id);
         self.writer
             .write_document(&document)
             .map_err(VerificationError::Store)?;
         self.store
             .record_decision(
-                repository,
+                state.repository,
                 &candidate.fingerprint,
                 &KnowledgeDecision::Accept {
                     document_id: document_id.clone(),
                     method: DecisionMethod::Agent,
                 },
-                author,
-                timestamp,
+                state.author,
+                state.timestamp,
             )
             .map_err(VerificationError::Store)?;
-        report.documents_written += 1;
-        report.candidates_accepted += 1;
+        state.report.documents_written += 1;
+        state.report.candidates_accepted += 1;
         Ok(CandidateOutcome::Accepted { document_id })
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn accept_merged(
         &mut self,
-        repository: &RepositoryId,
         kind: BusinessKind,
         merged_statement: &str,
         accepted: &[KnowledgeCandidate],
-        allocator: &mut KnowledgeIdAllocator,
-        graph: &ctx_core::graph::GraphSnapshot,
-        author: &str,
-        timestamp: &str,
-        force: bool,
-        report: &mut AutoVerifyReport,
+        state: &mut AutoVerifyState<'_>,
     ) -> Result<CandidateOutcome, VerificationError> {
-        if let Some(existing_id) = (!force)
-            .then(|| possible_duplicate(graph, kind, merged_statement))
+        if let Some(existing_id) = (!state.force)
+            .then(|| possible_duplicate(state.graph, kind, merged_statement))
             .flatten()
         {
-            report.candidates_skipped_possible_duplicate += accepted.len();
+            state.report.candidates_skipped_possible_duplicate += accepted.len();
             return Ok(CandidateOutcome::SkippedPossibleDuplicate { existing_id });
         }
         let merged = KnowledgeCandidate {
@@ -706,7 +684,7 @@ where
                 .collect(),
             provenance: accepted[0].provenance.clone(),
         };
-        let document_id = allocator.allocate(kind);
+        let document_id = state.allocator.allocate(kind);
         let document = candidate_to_document(&merged, &document_id);
         self.writer
             .write_document(&document)
@@ -714,19 +692,19 @@ where
         for candidate in accepted {
             self.store
                 .record_decision(
-                    repository,
+                    state.repository,
                     &candidate.fingerprint,
                     &KnowledgeDecision::Accept {
                         document_id: document_id.clone(),
                         method: DecisionMethod::Agent,
                     },
-                    author,
-                    timestamp,
+                    state.author,
+                    state.timestamp,
                 )
                 .map_err(VerificationError::Store)?;
-            report.candidates_accepted += 1;
+            state.report.candidates_accepted += 1;
         }
-        report.documents_written += 1;
+        state.report.documents_written += 1;
         Ok(CandidateOutcome::Accepted { document_id })
     }
 }

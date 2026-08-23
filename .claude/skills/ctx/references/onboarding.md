@@ -40,7 +40,7 @@ Best when the repository has real history worth mining: meaningful commit messag
 ctx ingest git
 ctx ingest code-comments
 ctx ingest gitlab              # only if [gitlab] is configured in .ctx/config.toml and CTX_GITLAB_TOKEN is set
-ctx ingest jira                # only if [jira] is configured in .ctx/config.toml and CTX_JIRA_EMAIL/CTX_JIRA_TOKEN are set (Jira Cloud only)
+ctx ingest jira                # run after git/gitlab above -- only fetches issues they already reference, plus one hop of related issues; needs [jira] + CTX_JIRA_EMAIL/CTX_JIRA_TOKEN (Jira Cloud only)
 
 # 2. Have an AI agent propose typed candidates from that material
 ctx enrich --agent claude      # or --agent codex / --agent antigravity — needs that CLI authenticated on PATH

@@ -6,7 +6,7 @@ If a team already has commit history, code comments, or a GitLab project full of
 ctx ingest git             # commit messages and branch names
 ctx ingest code-comments   # comments and docstrings, attributed to their nearest symbol
 ctx ingest gitlab          # issues, merge requests, and their comments — needs [gitlab] in .ctx/config.toml
-ctx ingest jira            # Jira Cloud issues and their comments — needs [jira] in .ctx/config.toml
+ctx ingest jira            # only issues already referenced by known artifacts, plus one hop of related issues — needs [jira] in .ctx/config.toml
 
 ctx enrich --agent claude  # or --agent codex / --agent antigravity
 
@@ -17,7 +17,9 @@ Ingested artifacts are never product knowledge on their own — they are source 
 
 ## Ingest
 
-`ctx ingest <git|code-comments|gitlab|jira>` normalizes artifacts into their own store, idempotently re-synced on every run. `--since <OID>` narrows `git` to commits after that point (branch names are always re-synced). `gitlab` and `jira` each store their own per-project sync cursor so a later run asks the provider for only what changed since the previous one — a missing or reset cursor only costs a fuller re-fetch, never a wrong result. `jira` widens its cursor by a fixed 24h safety margin before querying, since Jira's JQL date filter has no timezone marker; the cost is a little redundant (harmless, idempotent) re-fetching, never a missed update.
+`ctx ingest <git|code-comments|gitlab|jira>` normalizes artifacts into their own store, idempotently re-synced on every run. `--since <OID>` narrows `git` to commits after that point (branch names are always re-synced). `gitlab` stores a per-project sync cursor so a later run asks GitLab for only what changed since the previous one — a missing or reset cursor only costs a fuller re-fetch, never a wrong result.
+
+`jira` doesn't use a cursor at all: since a Jira project can span many repositories, it never fetches "the whole project, or everything changed since last time." Instead, on every run it scans this repository's already-known artifacts for ticket-key-shaped references (`PSI-1122`), fetches exactly those issues under the configured project plus one hop of Jira-reported related issues (`issuelinks`/`parent`), and re-does this in full each run — cheap and correct because the referenced-key set, not a time filter, is what keeps the fetch bounded.
 
 ## Enrich
 

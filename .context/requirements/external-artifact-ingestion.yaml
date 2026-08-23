@@ -43,17 +43,24 @@ statement: >
   requires, not a substitute for it — a missing, reset, or wrong cursor
   still degrades to "fetches more than strictly necessary," never to a
   duplicated or stale artifact. Jira Cloud issue ingestion (`ctx ingest
-  jira`, ADR-EXT-005) extends this same document the same way GitLab's did:
-  it fetches every issue for the configured project and its comments,
-  normalizing both into artifacts plus the deterministic `CommentsOn` link
-  between a comment and its issue, on top of which the same text-reference
-  scan still runs. It keys an issue artifact's identity by its
-  human-readable key (e.g. `PSI-1122`), not Jira's internal numeric id, so
-  a ticket key already recognized by `ctx_core.linking`'s deterministic
-  scanner resolves to the Jira issue artifact with no linking-side change
-  at all. Jira Server/Data Center, changelog/worklog/attachments, and
-  429-retry are explicitly out of scope for this requirement's current
-  implementation.
+  jira`, ADR-EXT-005) extends this same document but deliberately does not
+  mirror GitLab's "fetch everything for the configured project": a Jira
+  project routinely spans many unrelated repositories, so fetching the
+  whole project into each one would be mostly noise. Instead it scans every
+  artifact this repository already knows about for ticket-key-shaped
+  references, fetches only the ones under its own configured project, plus
+  one hop of whatever Jira's own `issuelinks`/`parent` fields report as
+  directly related to one of those (never recursing further), and
+  normalizes both into artifacts plus the deterministic `CommentsOn` link
+  between a comment and its issue and `RelatedIssue` link between two
+  issues — on top of which the same text-reference scan still runs. It
+  keys an issue artifact's identity by its human-readable key (e.g.
+  `PSI-1122`), not Jira's internal numeric id, so a ticket key already
+  recognized by `ctx_core.linking`'s deterministic scanner is also how this
+  requirement decides which issues are even candidates to fetch. Jira
+  Server/Data Center, changelog/worklog/attachments, classic-project
+  custom-field epic links, and 429-retry are explicitly out of scope for
+  this requirement's current implementation.
 implementation:
   - symbol: ctx_adapters.git.GitRepo.GitArtifactSource.commit_artifacts
   - symbol: ctx_adapters.git.GitRepo.GitArtifactSource.branch_artifacts
@@ -62,7 +69,7 @@ implementation:
   - symbol: ctx_app.ingest.CodeDocIngestRunner.run
   - symbol: ctx_adapters.gitlab.GitLabClient.fetch_issue_and_mr_artifacts
   - symbol: ctx_app.ingest.GitLabIngestRunner.run
-  - symbol: ctx_adapters.jira.JiraClient.fetch_issue_artifacts
+  - symbol: ctx_adapters.jira.JiraClient.fetch_issue_artifacts_for_keys
   - symbol: ctx_app.ingest.JiraIngestRunner.run
 tests:
   - symbol: ctx_adapters.git.tests.parses_commit_artifacts_from_real_git_log_record_output
@@ -77,6 +84,8 @@ tests:
   - symbol: ctx_adapters.gitlab.tests.fetches_issues_and_merge_requests_with_their_comments_and_commits
   - symbol: ctx_app.ingest.tests.gitlab_ingest_persists_provider_reported_links_and_stays_idempotent
   - symbol: crates.ctx-cli.tests.e2e.ingest_gitlab_without_configuration_fails_clearly_before_any_network_call
-  - symbol: ctx_adapters.jira.tests.fetches_issues_with_their_comments
+  - symbol: ctx_adapters.jira.tests.fetches_only_the_referenced_issues_not_the_whole_project
+  - symbol: ctx_adapters.jira.tests.expands_one_hop_through_jira_reported_issue_links_but_no_further
   - symbol: ctx_app.ingest.tests.jira_ingest_persists_provider_reported_links_and_stays_idempotent
+  - symbol: ctx_app.ingest.tests.jira_ingest_derives_candidate_keys_from_already_known_artifact_text
   - symbol: crates.ctx-cli.tests.e2e.ingest_jira_without_configuration_fails_clearly_before_any_network_call

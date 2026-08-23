@@ -45,6 +45,8 @@ project = "PSI"
 
 An issue's stable identity is its human-readable key (`PSI-1122`), not Jira's internal numeric id — this is why a `PSI-1122` mention in a commit message or branch name already resolves to the ingested issue via `ctx-core`'s existing deterministic ticket-key linking, with no Jira-specific linking logic. Issues and comments only; changelog/worklog/attachments aren't ingested.
 
+`ctx ingest jira` never fetches an entire project — a Jira project routinely spans several unrelated services/repositories, so pulling all of it into each one would be mostly noise. It only fetches issues whose key is already mentioned in an artifact this repository knows about (a commit, a branch, a GitLab issue/MR), plus, one hop further, whatever Jira's own `issuelinks`/`parent` fields report as directly related to one of those — never recursing past that one hop. Run `ctx ingest git`/`gitlab` first so there is something to reference; re-running `ctx ingest jira` later picks up newly referenced tickets.
+
 ## Redirecting the context store (`ctx context-store`)
 
 `.context/` and `.ctx-candidates/` normally live inside this checkout, alongside `.ctx/config.toml` above. When the checkout isn't yours to commit into — documenting a third-party repository, for example — `ctx context-store set <path>` redirects both elsewhere, resolved through a machine-local registry (`~/.config/ctx/contexts.toml` by default, or `$XDG_CONFIG_HOME/ctx/contexts.toml`) rather than anything written into the checkout itself:

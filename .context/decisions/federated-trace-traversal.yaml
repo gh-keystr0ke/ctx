@@ -42,10 +42,10 @@ implementation:
   - symbol: ctx_core.trace.resolve_endpoint_seeds
   - symbol: ctx_core.trace.FederationResolver
   - symbol: ctx_core.trace.ProductContext
-  - symbol: ctx_cli.CliFederationResolver
-  - symbol: ctx_cli.trace
-  - symbol: ctx_cli.hint_not_found
-  - symbol: ctx_cli.attach_product_context
+  - symbol: ctx_cli.federation_command.CliFederationResolver
+  - symbol: ctx_cli.federation_command.trace
+  - symbol: ctx_cli.federation_command.hint_not_found
+  - symbol: ctx_cli.federation_command.attach_product_context
   - symbol: ctx_cli.explain
   - symbol: ctx_cli.traces_for_implementation
 tests:

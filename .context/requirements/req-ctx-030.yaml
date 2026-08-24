@@ -3,7 +3,6 @@ type: requirement
 status: active
 statement: Accepting a knowledge candidate through `--knowledge --accept` requires an explicit human-provided ID; the system must not infer one from candidate content.
 implementation:
-  - symbol: ctx_cli.verify_knowledge
+  - symbol: ctx_cli.verify_command.verify_knowledge
 tests:
   - symbol: crates.ctx-cli.tests.e2e.accepting_a_knowledge_candidate_writes_a_context_document_ctx_index_then_absorbs
-

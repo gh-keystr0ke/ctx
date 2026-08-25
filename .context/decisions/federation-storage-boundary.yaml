@@ -14,7 +14,7 @@ decision: >-
 implementation:
   - symbol: ctx_adapters.sqlite.federation.SqliteStore.replace_federated_repository
   - symbol: ctx_adapters.federation.FederatedResolution
-  - symbol: ctx_cli.sync_neighbor
+  - symbol: ctx_cli.federation_command.sync_neighbor
 tests:
   - symbol: ctx_adapters.sqlite.federation.tests.federated_snapshots_round_trip_without_entering_local_graph_tables
   - symbol: crates.ctx-cli.tests.e2e.repositories_export_sync_resolve_and_report_federated_contracts

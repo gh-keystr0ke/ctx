@@ -47,7 +47,10 @@ decision: >
   AgentTransport and JSON-extraction helpers. Each vendor's `XAgent<T>` now
   implements three traits by delegating to the same one `transport` field --
   adding this third capability again cost every vendor module exactly one
-  more trait impl and zero new process-invocation code.
+  more trait impl and zero new process-invocation code. The CLI composition
+  root selects the vendor once through ctx_cli.agent_dispatch.ConfiguredAgent,
+  which implements all three ports by delegation; enrich, auto-verify, and
+  stale-verify no longer carry three separate vendor match trees.
 implementation:
   - symbol: ctx_app.ports.SemanticAgent
   - symbol: ctx_app.ports.KnowledgeReviewAgent
@@ -59,6 +62,7 @@ implementation:
   - symbol: ctx_adapters.claude_code.ClaudeCodeAgent
   - symbol: ctx_adapters.codex.CodexAgent
   - symbol: ctx_adapters.antigravity.AntigravityAgent
+  - symbol: ctx_cli.agent_dispatch.ConfiguredAgent
 tests:
   - symbol: ctx_adapters.claude_code.tests.subprocess_transport_invokes_claude_p_and_returns_stdout
   - symbol: ctx_adapters.codex.tests.subprocess_transport_invokes_codex_exec_and_returns_stdout
@@ -68,5 +72,5 @@ tests:
   - symbol: crates.ctx-cli.tests.e2e.enrich_dispatches_antigravity_to_agy_p_with_its_own_binary_override
   - symbol: ctx_adapters.agent_contract.tests.review_can_reject_a_candidate_extraction_already_called_relevant
   - symbol: ctx_adapters.agent_contract.tests.review_stale_claims_can_reject_a_mapping_that_no_longer_holds
+  - symbol: ctx_cli.agent_dispatch.tests.only_the_three_documented_agents_are_supported
  
-

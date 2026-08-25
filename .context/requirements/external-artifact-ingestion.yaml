@@ -59,9 +59,15 @@ statement: >
   recognized by `ctx_core.linking`'s deterministic scanner is also how this
   requirement decides which issues are even candidates to fetch. Jira
   Server/Data Center, changelog/worklog/attachments, classic-project
-  custom-field epic links, and 429-retry are explicitly out of scope for
-  this requirement's current implementation.
+  custom-field epic links are explicitly out of scope for this requirement's
+  current implementation. Every GitLab list (issues, merge requests, notes,
+  and MR commits) and both Jira lists (search results and comments) must be
+  fully paginated. Both HTTP transports must honor both standard forms of
+  `Retry-After` (delay-seconds and HTTP-date) on 429 responses and apply a
+  finite retry budget to rate limits and transient
+  gateway/service failures; exhausting that budget is an explicit error.
 implementation:
+  - symbol: ctx_app.ports.ExternalArtifactSource.fetch
   - symbol: ctx_adapters.git.GitRepo.GitArtifactSource.commit_artifacts
   - symbol: ctx_adapters.git.GitRepo.GitArtifactSource.branch_artifacts
   - symbol: ctx_app.ingest.GitIngestRunner.run
@@ -71,6 +77,7 @@ implementation:
   - symbol: ctx_app.ingest.GitLabIngestRunner.run
   - symbol: ctx_adapters.jira.JiraClient.fetch_issue_artifacts_for_keys
   - symbol: ctx_app.ingest.JiraIngestRunner.run
+  - symbol: ctx_adapters.http_retry.run
 tests:
   - symbol: ctx_adapters.git.tests.parses_commit_artifacts_from_real_git_log_record_output
   - symbol: ctx_adapters.git.tests.commit_and_branch_artifacts_round_trip_against_a_real_repository
@@ -82,10 +89,15 @@ tests:
   - symbol: ctx_core.codedoc.tests.nearest_symbol_prefers_the_smaller_enclosing_scope_over_a_larger_one
   - symbol: crates.ctx-cli.tests.e2e.ingest_code_comments_attaches_a_doc_comment_to_its_nearest_symbol
   - symbol: ctx_adapters.gitlab.tests.fetches_issues_and_merge_requests_with_their_comments_and_commits
+  - symbol: ctx_adapters.gitlab.tests.every_gitlab_collection_reads_more_than_one_page
   - symbol: ctx_app.ingest.tests.gitlab_ingest_persists_provider_reported_links_and_stays_idempotent
   - symbol: crates.ctx-cli.tests.e2e.ingest_gitlab_without_configuration_fails_clearly_before_any_network_call
   - symbol: ctx_adapters.jira.tests.fetches_only_the_referenced_issues_not_the_whole_project
   - symbol: ctx_adapters.jira.tests.expands_one_hop_through_jira_reported_issue_links_but_no_further
+  - symbol: ctx_adapters.jira.tests.jira_search_and_comments_read_every_page
+  - symbol: ctx_adapters.http_retry.tests.retry_after_is_respected_and_retries_are_bounded
+  - symbol: ctx_adapters.http_retry.tests.an_http_date_retry_after_is_understood_and_bounded
+  - symbol: ctx_adapters.http_retry.tests.a_rate_limit_after_the_retry_budget_is_an_explicit_error
   - symbol: ctx_app.ingest.tests.jira_ingest_persists_provider_reported_links_and_stays_idempotent
   - symbol: ctx_app.ingest.tests.jira_ingest_derives_candidate_keys_from_already_known_artifact_text
   - symbol: crates.ctx-cli.tests.e2e.ingest_jira_without_configuration_fails_clearly_before_any_network_call

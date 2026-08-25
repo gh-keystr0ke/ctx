@@ -1,0 +1,23 @@
+id: ADR-CTX-051
+type: decision
+feature: FEAT-INDEXING
+title: Use the maintained YAML Organization Serde implementation
+status: accepted
+decision: >
+  Product-context documents and the Git-synced candidate queue keep their
+  existing Serde-based YAML wire format, but use `yaml_serde` rather than the
+  archived/deprecated `serde_yaml` crate. `yaml_serde` is the maintained YAML
+  Organization continuation with the same `from_str`/`to_string` contract and
+  an MSRV below this workspace's pinned Rust version. Existing parser,
+  visibility, writer, and candidate round-trip tests are the compatibility
+  gate: changing the dependency must not change document semantics or queue
+  status/provenance behavior.
+implementation:
+  - symbol: ctx_adapters.business_context.YamlBusinessContextReader
+  - symbol: ctx_adapters.candidate_queue.upsert
+  - symbol: ctx_adapters.candidate_queue.record_decision
+tests:
+  - symbol: ctx_adapters.business_context.tests.a_written_requirement_reads_back_with_the_same_statement_and_links
+  - symbol: ctx_adapters.business_context.tests.visibility_defaults_private_and_accepts_both_explicit_values
+  - symbol: ctx_adapters.candidate_queue.tests.pending_lists_only_pending_status_in_deterministic_order
+  - symbol: ctx_adapters.candidate_queue.tests.deciding_a_pending_candidate_rewrites_its_file_in_place

@@ -62,9 +62,11 @@ decision: >
   Scope for this implementation is deliberately Jira Cloud only (Basic
   auth via account email + API token, REST API v3) and issues + comments
   only. Jira Server/Data Center (different auth and API version),
-  changelog/worklog/attachments ingestion, and retry-on-429 are out of
-  scope — the same "no retry logic" limitation ADR-EXT-003's GitLab client
-  already accepts, not a Jira-specific gap.
+  changelog/worklog/attachments ingestion are out of scope. HTTP 429 and
+  transient 502/503/504 responses use the shared bounded retry policy:
+  numeric `Retry-After` takes precedence over capped exponential backoff,
+  and exhausting the finite budget fails explicitly. Jira search results
+  and comments are both paginated until the provider-reported total is read.
 implementation:
   - symbol: ctx_adapters.jira.JiraTransport
   - symbol: ctx_adapters.jira.UreqTransport
@@ -75,6 +77,7 @@ implementation:
   - symbol: ctx_adapters.jira.flatten_adf
   - symbol: ctx_adapters.jira.JiraConfig.load
   - symbol: ctx_app.ingest.JiraIngestRunner.run
+  - symbol: ctx_adapters.http_retry.run
 tests:
   - symbol: ctx_adapters.jira.tests.fetches_only_the_referenced_issues_not_the_whole_project
   - symbol: ctx_adapters.jira.tests.expands_one_hop_through_jira_reported_issue_links_but_no_further
@@ -82,4 +85,6 @@ tests:
   - symbol: ctx_adapters.jira.tests.no_referenced_keys_means_no_request_at_all
   - symbol: ctx_adapters.jira.tests.adf_description_is_flattened_to_plain_text
   - symbol: ctx_adapters.jira.tests.missing_email_or_token_env_var_is_a_config_error
+  - symbol: ctx_adapters.jira.tests.jira_search_and_comments_read_every_page
+  - symbol: ctx_adapters.http_retry.tests.retry_after_is_respected_and_retries_are_bounded
   - symbol: ctx_app.ingest.tests.jira_ingest_derives_candidate_keys_from_already_known_artifact_text

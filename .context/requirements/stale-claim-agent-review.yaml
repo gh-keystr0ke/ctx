@@ -46,6 +46,13 @@ statement: >
   duplicate fingerprint, or a response that doesn't cover every input claim exactly once, is rejected
   outright rather than guessed at.
 
+  A repository may have enough stale claims to exceed both a model context window and the operating
+  system's command-line argument limit. `review_stale_claims` must therefore partition the complete
+  claim list into independently validated batches bounded by both serialized prompt bytes and claim
+  count. Every claim appears in exactly one batch; no claim is truncated or dropped. If one complete
+  claim cannot fit the configured byte budget, the command fails with an explicit prompt-budget error
+  before invoking an agent, rather than passing an unbounded argument or accepting partial JSON.
+
   `ctx status`'s own stale-relationship notice must name every currently stale claim as a runnable
   `ctx explain "source -> target"` query (REQ-STATUS-001) using the same
   stale_semantic_claims/stale_semantic_claim_details list `ctx verify --stale` reviews -- the two
@@ -69,11 +76,12 @@ implementation:
   - symbol: ctx_app.status.classify_health
   - symbol: ctx_adapters.sqlite.verification.SqliteStore.StaleClaimStore.reactivate_stale_claim
   - symbol: ctx_adapters.agent_contract.review_stale_claims
+  - symbol: ctx_adapters.agent_contract.review_stale_claims_with_budget
   - symbol: ctx_adapters.claude_code.ClaudeCodeAgent
   - symbol: ctx_adapters.codex.CodexAgent
   - symbol: ctx_adapters.antigravity.AntigravityAgent
-  - symbol: ctx_cli.verify_stale
-  - symbol: ctx_cli.enrich_stale_claims_with_current_code
+  - symbol: ctx_cli.verify_command.verify_stale
+  - symbol: ctx_cli.verify_command.enrich_stale_claims_with_current_code
 tests:
   - symbol: ctx_core.verification.tests.stale_semantic_claim_details_carries_the_fingerprint_and_evidence_a_reviewer_needs
   - symbol: ctx_adapters.sqlite.verification.stale_claim_tests.reactivates_the_specific_stale_edge_and_records_an_audit_annotation
@@ -82,6 +90,8 @@ tests:
   - symbol: ctx_adapters.agent_contract.tests.review_stale_claims_can_reject_a_mapping_that_no_longer_holds
   - symbol: ctx_adapters.agent_contract.tests.review_stale_claims_rejects_an_invented_fingerprint_not_trusted
   - symbol: ctx_adapters.agent_contract.tests.review_stale_claims_rejects_a_decision_list_missing_a_claim
+  - symbol: ctx_adapters.agent_contract.tests.stale_claim_review_batches_without_dropping_claims
+  - symbol: ctx_adapters.agent_contract.tests.one_claim_larger_than_the_prompt_budget_fails_explicitly
   - symbol: ctx_app.verification.stale_claim_tests.stale_claims_lists_every_stale_semantic_edge_from_the_graph
   - symbol: ctx_app.verification.stale_claim_tests.an_accepted_verdict_reactivates_the_claim_bindingly
   - symbol: ctx_app.verification.stale_claim_tests.a_rejected_verdict_is_only_a_suggestion_never_applied

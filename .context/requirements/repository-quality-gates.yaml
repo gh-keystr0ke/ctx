@@ -1,0 +1,17 @@
+id: REQ-QUALITY-001
+type: requirement
+feature: FEAT-INDEXING
+status: active
+implementation_expected: false
+statement: >
+  Every pushed change and pull request must run formatting, strict workspace
+  clippy, all workspace tests, the deterministic evaluation corpus, and
+  rustdoc with warnings denied on the pinned toolchain; the workspace must
+  also compile at its declared Rust 1.88 MSRV. Dependency advisories,
+  licenses, registries, and wildcard requirements are checked automatically.
+  Line coverage may not fall below 65 percent, and a sharded full-workspace
+  mutation run executes weekly and on demand. External GitLab/Jira and agent
+  CLI compatibility smokes remain opt-in because they require third-party
+  credentials/installations, but they must compile in ordinary CI.
+implementation:
+  - symbol: crates.ctx-adapters.tests.architecture_gates.production_functions_and_cli_roots_stay_bounded

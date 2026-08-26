@@ -15,8 +15,8 @@ implementation:
   - symbol: ctx_adapters.federation.ExportManifest
   - symbol: ctx_adapters.federation.matching_resolutions
   - symbol: ctx_adapters.sqlite.federation.SqliteStore.replace_federated_repository
-  - symbol: ctx_cli.sync
-  - symbol: ctx_cli.federation_show
+  - symbol: ctx_cli.federation_command.sync
+  - symbol: ctx_cli.federation_command.federation_show
 tests:
   - symbol: ctx_adapters.federation.tests.manifests_are_sorted_and_end_with_one_newline
   - symbol: ctx_adapters.sqlite.federation.tests.federated_snapshots_round_trip_without_entering_local_graph_tables

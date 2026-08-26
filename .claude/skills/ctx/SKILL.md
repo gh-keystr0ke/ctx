@@ -5,7 +5,7 @@ description: Use ctx, a local-first tool that links product intent (Features, Re
 
 # ctx: product-context-aware coding
 
-`ctx` connects product intent (Feature / Requirement / Invariant / Decision, stored in Git under `.context/`) to code, with provenance, confidence, and staleness on every claim. It answers questions plain code search cannot: *why does this code exist, and what product contract might this change break?* It is local-first — the only two operations that ever touch a network or another CLI are `ctx ingest gitlab` and `ctx enrich`/`ctx verify --auto`/`ctx verify --stale`, and only when explicitly run. Every claim is either a deterministic `FACT`, a human/documentation `ASSERTION`, or a machine `INFERENCE` — never invent certainty ctx did not report.
+`ctx` connects product intent (Feature / Requirement / Invariant / Decision, stored in Git under `.context/`) to code, with provenance, confidence, and staleness on every claim. It answers questions plain code search cannot: *why does this code exist, and what product contract might this change break?* It is local-first — network or agent access happens only for explicitly invoked `ctx ingest gitlab`, `ctx ingest jira`, `ctx enrich`, `ctx verify --auto`, or `ctx verify --stale`; Jira/GitLab credentials and agent authentication stay outside the repository. Every claim is either a deterministic `FACT`, a human/documentation `ASSERTION`, or a machine `INFERENCE` — never invent certainty ctx did not report.
 
 This file is the entry point. Deeper material lives alongside it and is loaded on demand:
 

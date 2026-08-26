@@ -2,7 +2,7 @@
 
 `ctx` is a local-first product-context engine for Python, Rust, and Go repositories. It connects a small, explicit set of features, requirements, invariants, and decisions to code and tests, then uses those claims to answer impact questions, review diffs, and compile bounded context for coding agents.
 
-The core — indexing, impact, explain, review, Context Packs — is deterministic and works without an LLM or network service. External knowledge ingestion and AI-assisted candidate extraction are optional, additive layers on top: `ctx ingest`/`ctx enrich` reach out to GitLab or a locally installed agent CLI only when explicitly run, and an agent's output is never more than a `pending` inference until a human (or an explicitly configured `--auto` review agent) accepts it. Every semantic finding — deterministic or AI-derived — carries its origin, evidence, confidence, validity, and staleness instead of being silently promoted to a fact.
+The core — indexing, impact, explain, review, Context Packs — is deterministic and works without an LLM or network service. External knowledge ingestion and AI-assisted candidate extraction are optional, additive layers on top: `ctx ingest gitlab`/`ctx ingest jira` and the locally installed agent CLIs only reach a network when explicitly run, and an agent's output is never more than a `pending` inference until a human (or an explicitly configured `--auto` review agent) accepts it. Every semantic finding — deterministic or AI-derived — carries its origin, evidence, confidence, validity, and staleness instead of being silently promoted to a fact.
 
 ## What ctx does
 
@@ -12,14 +12,14 @@ The core — indexing, impact, explain, review, Context Packs — is determinist
 | **Impact & explain** | Bounded, evidence-backed traversal from a file, symbol, stable ID, or `table.column` to the product intent, code, and tests around it. |
 | **Review** | High-precision diff review across three independent streams — product-requirement impact, database schema changes, and HTTP contract changes — each with linked evidence and a reviewer action. See [docs/architecture.md](docs/architecture.md). |
 | **Context Packs** | Token-budgeted, evidence-backed context for a coding task, from the CLI or over MCP. |
-| **Mine existing knowledge** | Propose product-context documents from Git history, code comments, or GitLab instead of writing everything by hand. See [docs/mining-knowledge.md](docs/mining-knowledge.md). |
+| **Mine existing knowledge** | Propose product-context documents from Git history, code comments, GitLab, or referenced Jira Cloud issues instead of writing everything by hand. See [docs/mining-knowledge.md](docs/mining-knowledge.md). |
 | **Federation** | Share public product docs and HTTP contracts with sibling repositories checked out locally. See [docs/federation.md](docs/federation.md). |
 
-Full extraction scope and honest boundaries: [docs/limits.md](docs/limits.md). Local SQLite storage; source code is never sent elsewhere — see [docs/architecture.md](docs/architecture.md) for exactly which two commands ever touch a network, and only when run explicitly.
+Full extraction scope and honest boundaries: [docs/limits.md](docs/limits.md). Local SQLite storage; source code is never sent elsewhere — see [docs/architecture.md](docs/architecture.md) for the explicitly invoked commands that can use network-backed adapters.
 
 ## Install
 
-Rust 1.85 or newer and Git are required. The container build pins Rust 1.97.1.
+Rust 1.88 or newer and Git are required. The container build pins Rust 1.97.1.
 
 ```bash
 cargo install --locked --path crates/ctx-cli
@@ -70,7 +70,7 @@ Add `-v` for lower-confidence diagnostics and suppressed-change counts. See [doc
 
 **Don't want to hand-author `.context/` from scratch?** Mine it from what already exists:
 ```bash
-ctx ingest git && ctx ingest code-comments   # ctx ingest gitlab too, if configured
+ctx ingest git && ctx ingest code-comments   # gitlab/jira too, if configured
 ctx enrich --agent claude                    # or codex / antigravity
 ctx verify --knowledge                       # accept/reject each proposed candidate
 ```

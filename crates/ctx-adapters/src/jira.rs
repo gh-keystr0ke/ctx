@@ -401,13 +401,13 @@ impl<T: JiraTransport> JiraClient<T> {
                 content_hash: blake3::hash(body.as_bytes()).to_hex().to_string(),
                 body,
                 author: comment.author.and_then(|user| user.display_name),
-                external_created_at: comment.created,
-                external_updated_at: comment.updated,
-                source_locator: format!(
+                external_created_at: comment.created.map(ctx_core::domain::Timestamp),
+                external_updated_at: comment.updated.map(ctx_core::domain::Timestamp),
+                source_locator: ctx_core::domain::Url(format!(
                     "{}/browse/{}?focusedCommentId={}",
                     self.base_url, parent.external_id, comment.id
-                ),
-                project: self.project.clone(),
+                )),
+                project: ctx_core::domain::Project(self.project.clone()),
                 identity: identity.clone(),
             });
             links.push(ArtifactLink {
@@ -439,10 +439,10 @@ impl<T: JiraTransport> JiraClient<T> {
             content_hash: blake3::hash(body.as_bytes()).to_hex().to_string(),
             body,
             author: issue.fields.creator.and_then(|user| user.display_name),
-            external_created_at: issue.fields.created,
-            external_updated_at: issue.fields.updated,
-            source_locator: format!("{}/browse/{}", self.base_url, identity.external_id),
-            project: self.project.clone(),
+            external_created_at: issue.fields.created.map(ctx_core::domain::Timestamp),
+            external_updated_at: issue.fields.updated.map(ctx_core::domain::Timestamp),
+            source_locator: ctx_core::domain::Url(format!("{}/browse/{}", self.base_url, identity.external_id)),
+            project: ctx_core::domain::Project(self.project.clone()),
             identity: identity.clone(),
         }
     }
@@ -753,7 +753,7 @@ mod tests {
             "A cancelled prepaid subscription must remain usable until paid_until."
         );
         assert_eq!(
-            issue.source_locator,
+            issue.source_locator.as_str(),
             "https://example.atlassian.net/browse/PSI-1122"
         );
 

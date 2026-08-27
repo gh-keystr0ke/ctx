@@ -268,6 +268,29 @@ pub struct Evidence {
     pub strength: Confidence,
 }
 
+/// Provider-assigned project identifier (e.g. namespace/project for GitLab).
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct Project(pub String);
+impl Project {
+    pub fn as_str(&self) -> &str { &self.0 }
+}
+
+/// Provider-assigned timestamp.
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct Timestamp(pub String);
+impl Timestamp {
+    pub fn as_str(&self) -> &str { &self.0 }
+}
+
+/// A fully qualified URL or local source locator.
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct Url(pub String);
+impl Url {
+    pub fn as_str(&self) -> &str { &self.0 }
+}
 #[cfg(test)]
 mod tests {
     use super::*;

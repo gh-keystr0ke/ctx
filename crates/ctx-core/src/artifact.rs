@@ -54,15 +54,15 @@ pub struct Artifact {
     pub identity: ArtifactIdentity,
     /// The repository/project the artifact belongs to, as the provider
     /// names it (a GitLab `namespace/project` path, a Jira project key).
-    pub project: String,
+    pub project: crate::domain::Project,
     pub title: String,
     pub body: String,
     pub author: Option<String>,
-    pub external_created_at: Option<String>,
-    pub external_updated_at: Option<String>,
+    pub external_created_at: Option<crate::domain::Timestamp>,
+    pub external_updated_at: Option<crate::domain::Timestamp>,
     /// Where a human could go look at the original (a URL, a `path#Lstart-Lend`
     /// locator for a code comment).
-    pub source_locator: String,
+    pub source_locator: crate::domain::Url,
     pub content_hash: String,
 }
 

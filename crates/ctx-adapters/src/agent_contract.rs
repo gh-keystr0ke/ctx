@@ -650,14 +650,14 @@ mod tests {
                 kind: ArtifactKind::Issue,
                 external_id: "317".to_owned(),
             },
-            project: "billing/subscriptions".to_owned(),
+            project: ctx_core::domain::Project("billing/subscriptions".to_owned()),
             title: "Cancellation removes prepaid access".to_owned(),
             body: "A cancelled prepaid subscription must remain usable until paid_until."
                 .to_owned(),
             author: None,
             external_created_at: None,
             external_updated_at: None,
-            source_locator: "gitlab:317".to_owned(),
+            source_locator: ctx_core::domain::Url("gitlab:317".to_owned()),
             content_hash: "hash".to_owned(),
         }
     }

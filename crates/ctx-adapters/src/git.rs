@@ -900,13 +900,13 @@ fn commit_artifact_from_record(record: &[u8], project: &str) -> Result<Artifact,
             kind: ArtifactKind::Commit,
             external_id: oid.to_owned(),
         },
-        project: project.to_owned(),
+        project: ctx_core::domain::Project(project.to_owned()),
         title,
         body: body.to_owned(),
         author: (!author.is_empty()).then(|| author.to_owned()),
-        external_created_at: (!authored_at.is_empty()).then(|| authored_at.to_owned()),
+        external_created_at: (!authored_at.is_empty()).then(|| ctx_core::domain::Timestamp(authored_at.to_owned())),
         external_updated_at: None,
-        source_locator: format!("git:commit:{oid}"),
+        source_locator: ctx_core::domain::Url(format!("git:commit:{oid}")),
         content_hash: blake3::hash(body.as_bytes()).to_hex().to_string(),
     })
 }
@@ -918,13 +918,13 @@ fn branch_artifact(name: &str, project: &str) -> Artifact {
             kind: ArtifactKind::Branch,
             external_id: name.to_owned(),
         },
-        project: project.to_owned(),
+        project: ctx_core::domain::Project(project.to_owned()),
         title: name.to_owned(),
         body: String::new(),
         author: None,
         external_created_at: None,
         external_updated_at: None,
-        source_locator: format!("git:branch:{name}"),
+        source_locator: ctx_core::domain::Url(format!("git:branch:{name}")),
         content_hash: blake3::hash(name.as_bytes()).to_hex().to_string(),
     }
 }
@@ -1028,7 +1028,7 @@ mod tests {
         );
         assert_eq!(artifacts[1].author.as_deref(), Some("test"));
         assert_eq!(
-            artifacts[1].external_created_at.as_deref(),
+            artifacts[1].external_created_at.as_ref().map(ctx_core::domain::Timestamp::as_str),
             Some("2026-08-21T17:10:12+03:00")
         );
     }

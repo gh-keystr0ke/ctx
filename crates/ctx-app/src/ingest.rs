@@ -346,9 +346,9 @@ where
                     author: None,
                     external_created_at: None,
                     external_updated_at: None,
-                    source_locator: identity.external_id.clone(),
+                    source_locator: ctx_core::domain::Url(identity.external_id.clone()),
                     content_hash,
-                    project: project.clone(),
+                    project: ctx_core::domain::Project(project.clone()),
                     identity: identity.clone(),
                 };
                 if let Some(stable_key) = candidate.nearest_symbol.and_then(|canonical_path| {
@@ -533,13 +533,13 @@ mod tests {
                 kind,
                 external_id: external_id.to_owned(),
             },
-            project: "/repo".to_owned(),
+            project: ctx_core::domain::Project("/repo".to_owned()),
             title: title.to_owned(),
             body: body.to_owned(),
             author: None,
             external_created_at: None,
             external_updated_at: None,
-            source_locator: format!("git:{external_id}"),
+            source_locator: ctx_core::domain::Url(format!("git:{external_id}")),
             content_hash: "hash".to_owned(),
         }
     }
@@ -638,13 +638,13 @@ mod tests {
                 kind: ArtifactKind::Issue,
                 external_id: "317".to_owned(),
             },
-            project: "billing/subscriptions".to_owned(),
+            project: ctx_core::domain::Project("billing/subscriptions".to_owned()),
             title: "Cancellation removes prepaid access".to_owned(),
             body: String::new(),
             author: None,
             external_created_at: None,
             external_updated_at: None,
-            source_locator: "https://gitlab.example/-/issues/317".to_owned(),
+            source_locator: ctx_core::domain::Url("https://gitlab.example/-/issues/317".to_owned()),
             content_hash: "hash".to_owned(),
         };
         let merge_request = Artifact {
@@ -653,13 +653,13 @@ mod tests {
                 kind: ArtifactKind::MergeRequest,
                 external_id: "842".to_owned(),
             },
-            project: "billing/subscriptions".to_owned(),
+            project: ctx_core::domain::Project("billing/subscriptions".to_owned()),
             title: "Fix cancellation semantics".to_owned(),
             body: "Fixes #317.".to_owned(),
             author: None,
             external_created_at: None,
             external_updated_at: None,
-            source_locator: "https://gitlab.example/-/merge_requests/842".to_owned(),
+            source_locator: ctx_core::domain::Url("https://gitlab.example/-/merge_requests/842".to_owned()),
             content_hash: "hash".to_owned(),
         };
         let comments_on = ArtifactLink {
@@ -760,13 +760,13 @@ mod tests {
                 kind: ArtifactKind::Issue,
                 external_id: "PSI-1122".to_owned(),
             },
-            project: "PSI".to_owned(),
+            project: ctx_core::domain::Project("PSI".to_owned()),
             title: "Cancellation removes prepaid access".to_owned(),
             body: String::new(),
             author: None,
             external_created_at: None,
             external_updated_at: None,
-            source_locator: "https://example.atlassian.net/browse/PSI-1122".to_owned(),
+            source_locator: ctx_core::domain::Url("https://example.atlassian.net/browse/PSI-1122".to_owned()),
             content_hash: "hash".to_owned(),
         };
         let comment = Artifact {
@@ -775,14 +775,14 @@ mod tests {
                 kind: ArtifactKind::Comment,
                 external_id: "PSI-1122-comment-1".to_owned(),
             },
-            project: "PSI".to_owned(),
+            project: ctx_core::domain::Project("PSI".to_owned()),
             title: "Do not revoke an already paid entitlement immediately.".to_owned(),
             body: "Do not revoke an already paid entitlement immediately.".to_owned(),
             author: None,
             external_created_at: None,
             external_updated_at: None,
-            source_locator: "https://example.atlassian.net/browse/PSI-1122?focusedCommentId=1"
-                .to_owned(),
+            source_locator: ctx_core::domain::Url("https://example.atlassian.net/browse/PSI-1122?focusedCommentId=1"
+                .to_owned()),
             content_hash: "hash".to_owned(),
         };
         let comments_on = ArtifactLink {
@@ -825,13 +825,13 @@ mod tests {
                 kind: ArtifactKind::Commit,
                 external_id: "abc123".to_owned(),
             },
-            project: "repo".to_owned(),
+            project: ctx_core::domain::Project("repo".to_owned()),
             title: "Fix PSI-1122 cancellation bug".to_owned(),
             body: String::new(),
             author: None,
             external_created_at: None,
             external_updated_at: None,
-            source_locator: String::new(),
+            source_locator: ctx_core::domain::Url(String::new()),
             content_hash: "hash".to_owned(),
         };
         store

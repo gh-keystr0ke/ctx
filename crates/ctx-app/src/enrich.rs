@@ -309,13 +309,13 @@ mod tests {
                 kind: ArtifactKind::Issue,
                 external_id: external_id.to_owned(),
             },
-            project: "billing/subscriptions".to_owned(),
+            project: ctx_core::domain::Project("billing/subscriptions".to_owned()),
             title: "title".to_owned(),
             body: "body".to_owned(),
             author: None,
             external_created_at: None,
             external_updated_at: None,
-            source_locator: format!("gitlab:{external_id}"),
+            source_locator: ctx_core::domain::Url(format!("gitlab:{external_id}")),
             content_hash: "hash".to_owned(),
         }
     }

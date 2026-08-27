@@ -281,10 +281,10 @@ impl<T: GitLabTransport> GitLabClient<T> {
                 content_hash: blake3::hash(body.as_bytes()).to_hex().to_string(),
                 body,
                 author: note.author.map(|user| user.username),
-                external_created_at: note.created_at,
-                external_updated_at: note.updated_at,
-                source_locator: format!("gitlab:note:{}", identity.external_id),
-                project: self.project.clone(),
+                external_created_at: note.created_at.map(ctx_core::domain::Timestamp),
+                external_updated_at: note.updated_at.map(ctx_core::domain::Timestamp),
+                source_locator: ctx_core::domain::Url(format!("gitlab:note:{}", identity.external_id)),
+                project: ctx_core::domain::Project(self.project.clone()),
                 identity: identity.clone(),
             });
             links.push(ArtifactLink {
@@ -319,10 +319,10 @@ impl<T: GitLabTransport> GitLabClient<T> {
             content_hash: blake3::hash(body.as_bytes()).to_hex().to_string(),
             body,
             author: issue.author.map(|user| user.username),
-            external_created_at: issue.created_at,
-            external_updated_at: issue.updated_at,
-            source_locator: issue.web_url.unwrap_or_default(),
-            project: self.project.clone(),
+            external_created_at: issue.created_at.map(ctx_core::domain::Timestamp),
+            external_updated_at: issue.updated_at.map(ctx_core::domain::Timestamp),
+            source_locator: ctx_core::domain::Url(issue.web_url.unwrap_or_default()),
+            project: ctx_core::domain::Project(self.project.clone()),
             identity: identity.clone(),
         }
     }
@@ -338,10 +338,10 @@ impl<T: GitLabTransport> GitLabClient<T> {
             content_hash: blake3::hash(body.as_bytes()).to_hex().to_string(),
             body,
             author: merge_request.author.map(|user| user.username),
-            external_created_at: merge_request.created_at,
-            external_updated_at: merge_request.updated_at,
-            source_locator: merge_request.web_url.unwrap_or_default(),
-            project: self.project.clone(),
+            external_created_at: merge_request.created_at.map(ctx_core::domain::Timestamp),
+            external_updated_at: merge_request.updated_at.map(ctx_core::domain::Timestamp),
+            source_locator: ctx_core::domain::Url(merge_request.web_url.unwrap_or_default()),
+            project: ctx_core::domain::Project(self.project.clone()),
             identity: identity.clone(),
         }
     }

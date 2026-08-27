@@ -268,7 +268,7 @@ pub fn text_reference_links(source: &Artifact, known_artifacts: &[Artifact]) -> 
                 }
                 let matches_identity = reference_matches(&reference, &candidate.identity);
                 let matches_url = reference.kind == ReferenceKind::Url
-                    && candidate.source_locator == reference.value;
+                    && candidate.source_locator.as_str() == reference.value;
                 if matches_identity || matches_url {
                     links.push(ArtifactLink {
                         source: source.identity.clone(),
@@ -468,13 +468,13 @@ mod tests {
                 kind,
                 external_id: external_id.to_owned(),
             },
-            project: "billing/subscriptions".to_owned(),
+            project: crate::domain::Project("billing/subscriptions".to_owned()),
             title: title.to_owned(),
             body: body.to_owned(),
             author: None,
             external_created_at: None,
             external_updated_at: None,
-            source_locator: format!("https://gitlab.example/-/issues/{external_id}"),
+            source_locator: crate::domain::Url(format!("https://gitlab.example/-/issues/{external_id}")),
             content_hash: "hash".to_owned(),
         }
     }

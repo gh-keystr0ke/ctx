@@ -47,13 +47,13 @@ impl ArtifactRepository for SqliteStore {
                     provider_str(artifact.identity.provider),
                     artifact_kind_str(artifact.identity.kind),
                     artifact.identity.external_id,
-                    artifact.project,
+                    artifact.project.as_str(),
                     artifact.title,
                     artifact.body,
                     artifact.author,
-                    artifact.external_created_at,
-                    artifact.external_updated_at,
-                    artifact.source_locator,
+                    artifact.external_created_at.as_ref().map(ctx_core::domain::Timestamp::as_str),
+                    artifact.external_updated_at.as_ref().map(ctx_core::domain::Timestamp::as_str),
+                    artifact.source_locator.as_str(),
                     artifact.content_hash,
                     ingested_at,
                     ingest_version,
@@ -453,15 +453,16 @@ fn artifact_from_columns(columns: ArtifactColumns) -> Result<Artifact, PortError
             kind: parse_artifact_kind(&kind)?,
             external_id,
         },
-        project,
+        project: ctx_core::domain::Project(project),
         title,
         body,
         author,
-        external_created_at,
-        external_updated_at,
-        source_locator,
+        external_created_at: external_created_at.map(ctx_core::domain::Timestamp),
+        external_updated_at: external_updated_at.map(ctx_core::domain::Timestamp),
+        source_locator: ctx_core::domain::Url(source_locator),
         content_hash,
     })
+
 }
 
 fn repository_row(
@@ -630,14 +631,14 @@ mod tests {
                 kind: ArtifactKind::MergeRequest,
                 external_id: external_id.to_owned(),
             },
-            project: "billing/subscriptions".to_owned(),
+            project: ctx_core::domain::Project("billing/subscriptions".to_owned()),
             title: "Fix cancellation semantics".to_owned(),
             body: body.to_owned(),
             author: Some("alice".to_owned()),
-            external_created_at: Some("2026-08-01T00:00:00Z".to_owned()),
-            external_updated_at: Some("2026-08-02T00:00:00Z".to_owned()),
-            source_locator: "https://gitlab.example/billing/subscriptions/-/merge_requests/842"
-                .to_owned(),
+            external_created_at: Some(ctx_core::domain::Timestamp("2026-08-01T00:00:00Z".to_owned())),
+            external_updated_at: Some(ctx_core::domain::Timestamp("2026-08-02T00:00:00Z".to_owned())),
+            source_locator: ctx_core::domain::Url("https://gitlab.example/billing/subscriptions/-/merge_requests/842"
+                .to_owned()),
             content_hash: blake3::hash(body.as_bytes()).to_hex().to_string(),
         }
     }

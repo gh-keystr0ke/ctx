@@ -21,7 +21,7 @@ See [docs/api-contracts.md](api-contracts.md#current-limits) for the full list: 
 
 ## Federation
 
-See [docs/federation.md](federation.md#current-limits): local sibling checkouts on one machine only, no remote/URL registry, versioned manifest schema with no compatibility guessing, and no cross-repository trace command yet (a documented future direction, not implemented).
+See [docs/federation.md](federation.md#current-limits): local sibling checkouts on one machine only, no remote/URL registry, a versioned manifest schema with no compatibility guessing, bounded cross-repository HTTP tracing, and no field-level data-flow tracing.
 
 ## Heuristics and AI
 
@@ -32,5 +32,7 @@ See [docs/federation.md](federation.md#current-limits): local sibling checkouts 
 ## Integrations and scope
 
 - Endpoint identity and outbound-call resolution are structural facts, not a runtime trace: there is no web UI, cloud backend, runtime tracing, or multi-repository graph beyond the local federation snapshot described above.
-- GitLab is the only ticket/review-system integration; GitHub and Jira are not implemented. GitLab sync is incremental for issues/merge requests via a stored per-project cursor, but each returned issue/MR's comments are always fetched in full, not incrementally.
+- GitLab ingests issues, merge requests, comments, and MR commits; its top-level and nested collections are fully paginated. Sync is incremental for issues/merge requests via a stored per-project cursor, while each returned issue/MR's comments and commits are fetched in full. `CTX_GITLAB_TOKEN` is optional for public projects and required when the configured GitLab instance/project requires authentication.
+- Jira Cloud ingests only issue keys already referenced by known artifacts, plus one provider-reported relationship hop and all comments. Jira Server/Data Center, changelog, worklog, attachments, and classic-project custom-field epic links are not implemented.
+- GitLab and Jira honor `Retry-After` on HTTP 429 and use bounded retries for rate limits and transient gateway/service failures. GitHub remains unimplemented; the reserved artifact provider/kinds do not constitute a connector.
 - Review is a conservative aid, not a proof that behavior is correct.

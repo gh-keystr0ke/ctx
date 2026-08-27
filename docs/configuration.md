@@ -31,7 +31,7 @@ Names this repository for federation (`ctx registry`/`ctx export`/`ctx sync`/`ct
 
 ## `[gitlab]`
 
-Required only to run `ctx ingest gitlab`. `project` is the GitLab project path; `base_url` defaults to `https://gitlab.com/api/v4` and only needs overriding for a self-managed instance. The access token comes only from the `CTX_GITLAB_TOKEN` environment variable — never from a committed file, so it can never end up in `.ctx/config.toml` by accident.
+Required only to run `ctx ingest gitlab`. `project` is the GitLab project path; `base_url` defaults to `https://gitlab.com/api/v4` and only needs overriding for a self-managed instance. For private projects, the access token comes only from the `CTX_GITLAB_TOKEN` environment variable — never from a committed file, so it can never end up in `.ctx/config.toml` by accident. The variable may be omitted for a public project that allows anonymous API reads.
 
 ## `[jira]`
 
@@ -63,7 +63,7 @@ Without `--git` the redirected location is just files on disk — `ctx index` re
 
 | Variable | Used by | Purpose |
 | --- | --- | --- |
-| `CTX_GITLAB_TOKEN` | `ctx ingest gitlab` | GitLab API access token. Required; never read from a file. |
+| `CTX_GITLAB_TOKEN` | `ctx ingest gitlab` | Optional GitLab API access token (needed for private/authenticated projects); never read from a file. |
 | `CTX_CLAUDE_CLI_BINARY` | `ctx enrich`/`ctx verify --auto` with `--agent claude` | Override the `claude` binary path (testing, alternate install location). |
 | `CTX_CODEX_CLI_BINARY` | ... with `--agent codex` | Override the `codex` binary path. |
 | `CTX_ANTIGRAVITY_CLI_BINARY` | ... with `--agent antigravity` | Override the `agy` binary path. |

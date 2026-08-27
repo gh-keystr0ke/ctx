@@ -42,7 +42,7 @@ The command prints machine-readable JSON and exits non-zero when a case, harness
 
 ## Recorded baseline
 
-Version 0.4.0 passes all 25 cases and all 102 checks:
+Version 0.5.0 passes all 26 cases and all 113 checks:
 
 - recall-shaped checks: 35/35;
 - precision/noise checks: 40/40;

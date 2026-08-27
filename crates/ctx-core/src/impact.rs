@@ -349,6 +349,76 @@ fn touches(edge: &GraphEdge, key: &StableKey) -> bool {
     edge.source == *key || edge.target == *key
 }
 
+/// Broad, best-effort test discovery for `ctx review --related-tests`:
+/// starting from `seeds`, walks only structural edges (calls, containment,
+/// data/API/event interactions) with no semantic gating and no confidence
+/// threshold, collecting every test reached. This is the opposite tradeoff
+/// from [`analyze_impact`]'s bounded product-intent traversal, which
+/// deliberately keeps a widely shared test from bridging into unrelated
+/// coverage — here, recall is the whole point: the caller wants every test
+/// that might exercise the changed code, not just the ones a documented
+/// requirement links to.
+///
+/// `max_depth` bounds the number of hops from `seeds`; `None` means walk
+/// until the reachable structural neighborhood is exhausted (the visited set
+/// guarantees termination regardless).
+#[must_use]
+pub fn related_tests_broad(
+    graph: &GraphSnapshot,
+    seeds: &BTreeSet<StableKey>,
+    max_depth: Option<usize>,
+) -> Vec<NodeSummary> {
+    let mut visited = seeds.clone();
+    let mut queue = seeds
+        .iter()
+        .cloned()
+        .map(|key| (key, 0_usize))
+        .collect::<VecDeque<_>>();
+    let mut tests = Vec::new();
+    while let Some((key, distance)) = queue.pop_front() {
+        if max_depth.is_some_and(|max| distance >= max) {
+            continue;
+        }
+        for edge in graph.edges.iter().filter(|edge| {
+            edge.status == ClaimStatus::Active && touches(edge, &key) && is_structural(edge.kind)
+        }) {
+            let candidate = if edge.source == key {
+                edge.target.clone()
+            } else {
+                edge.source.clone()
+            };
+            if !visited.insert(candidate.clone()) {
+                continue;
+            }
+            if let Some(node) = graph.nodes.get(&candidate)
+                && node.is_test()
+            {
+                tests.push(NodeSummary::from(node));
+            }
+            queue.push_back((candidate, distance + 1));
+        }
+    }
+    tests.sort_by(|left, right| left.identifier.cmp(&right.identifier));
+    tests.dedup_by(|left, right| left.stable_key == right.stable_key);
+    tests
+}
+
+const fn is_structural(kind: RelationKind) -> bool {
+    matches!(
+        kind,
+        RelationKind::Contains
+            | RelationKind::Calls
+            | RelationKind::References
+            | RelationKind::ReadsFrom
+            | RelationKind::WritesTo
+            | RelationKind::DefinesSchema
+            | RelationKind::Exposes
+            | RelationKind::CallsExternal
+            | RelationKind::Emits
+            | RelationKind::Handles
+    )
+}
+
 fn uncertainty(edge: &GraphEdge, reason: &str) -> ImpactUncertainty {
     ImpactUncertainty {
         relationship: format!("{} -> {}", edge.source, edge.target),
@@ -1060,5 +1130,103 @@ mod tests {
                 .then(|| "implementation_changed".to_owned()),
             evidence: Vec::new(),
         }
+    }
+
+    #[test]
+    fn related_tests_broad_walks_the_call_graph_past_one_hop_with_no_depth_cap() {
+        let code = symbol_node("code", "billing.cancel", SymbolKind::Method);
+        let caller = symbol_node(
+            "caller",
+            "billing.api.cancel_endpoint",
+            SymbolKind::Function,
+        );
+        let near_test = symbol_node("near_test", "tests.test_cancel_direct", SymbolKind::Test);
+        let far_test = symbol_node("far_test", "tests.test_cancel_via_api", SymbolKind::Test);
+        let nodes = [
+            code.clone(),
+            caller.clone(),
+            near_test.clone(),
+            far_test.clone(),
+        ]
+        .into_iter()
+        .map(|node| (node.stable_key.clone(), node))
+        .collect();
+        let edges = vec![
+            classified_edge(
+                &caller,
+                &code,
+                RelationKind::Calls,
+                ClaimClass::Fact,
+                ClaimStatus::Active,
+            ),
+            classified_edge(
+                &near_test,
+                &code,
+                RelationKind::Calls,
+                ClaimClass::Fact,
+                ClaimStatus::Active,
+            ),
+            classified_edge(
+                &far_test,
+                &caller,
+                RelationKind::Calls,
+                ClaimClass::Fact,
+                ClaimStatus::Active,
+            ),
+        ];
+        let graph = GraphSnapshot { nodes, edges };
+        let seeds = [code.stable_key.clone()].into_iter().collect();
+
+        let unbounded = related_tests_broad(&graph, &seeds, None);
+        assert_eq!(
+            unbounded
+                .iter()
+                .map(|test| test.identifier.as_str())
+                .collect::<Vec<_>>(),
+            vec!["tests.test_cancel_direct", "tests.test_cancel_via_api"]
+        );
+
+        let capped = related_tests_broad(&graph, &seeds, Some(1));
+        assert_eq!(
+            capped
+                .iter()
+                .map(|test| test.identifier.as_str())
+                .collect::<Vec<_>>(),
+            vec!["tests.test_cancel_direct"]
+        );
+    }
+
+    /// `related_tests_broad` follows only structural (call-graph) edges, not
+    /// the semantic `CoveredBy` links `analyze_impact` uses — a test wired
+    /// only through documentation, with no call path to the seed, is exactly
+    /// the case a reviewer running the changed code cannot actually exercise
+    /// through this test, so it must not appear here.
+    #[test]
+    fn related_tests_broad_ignores_semantic_only_coverage_links() {
+        let code = symbol_node("code", "billing.cancel", SymbolKind::Method);
+        let requirement = intent_node("req", NodeKind::Requirement, "REQ-SUB-014");
+        let documented_test = symbol_node("doc_test", "tests.test_documented", SymbolKind::Test);
+        let nodes = [code.clone(), requirement.clone(), documented_test.clone()]
+            .into_iter()
+            .map(|node| (node.stable_key.clone(), node))
+            .collect();
+        let edges = vec![
+            edge(
+                &code,
+                &requirement,
+                RelationKind::Implements,
+                ClaimStatus::Active,
+            ),
+            edge(
+                &requirement,
+                &documented_test,
+                RelationKind::CoveredBy,
+                ClaimStatus::Active,
+            ),
+        ];
+        let graph = GraphSnapshot { nodes, edges };
+        let seeds = [code.stable_key.clone()].into_iter().collect();
+
+        assert!(related_tests_broad(&graph, &seeds, None).is_empty());
     }
 }

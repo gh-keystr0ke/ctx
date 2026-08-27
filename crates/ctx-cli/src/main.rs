@@ -163,6 +163,16 @@ enum Command {
     Review {
         #[arg(long, default_value = "HEAD")]
         base: String,
+        /// List every test structurally reachable from the changed code
+        /// (calls, containment, data/API/event interactions) — no
+        /// product-intent gating, no confidence threshold, maximally broad.
+        /// Answers "what should I run to check this diff", as opposed to the
+        /// narrower `related_tests` already shown per finding. Pass a number
+        /// to cap the walk to that many call-graph hops; bare `--related-tests`
+        /// (or `--related-tests=deep`) walks until the reachable
+        /// neighborhood is exhausted.
+        #[arg(long, num_args = 0..=1, default_missing_value = "deep")]
+        related_tests: Option<String>,
     },
     /// Compile bounded context for a coding task.
     Context {
@@ -342,6 +352,8 @@ enum CliError {
     InvalidJiraConfig(String),
     #[error("serve currently requires '--mcp'")]
     UnsupportedServe,
+    #[error("invalid --related-tests value '{0}'; expected a hop count or 'deep'")]
+    InvalidRelatedTestsDepth(String),
     #[error("filesystem operation failed: {0}")]
     Io(#[from] std::io::Error),
     #[error("repository operation failed: {0}")]
@@ -421,7 +433,10 @@ fn run(cli: &Cli) -> Result<(), CliError> {
             model,
             allow_ungrounded_symbols,
         } => enrich(cli, &git, agent, model.clone(), *allow_ungrounded_symbols),
-        Command::Review { base } => review(cli, &git, base),
+        Command::Review {
+            base,
+            related_tests,
+        } => review(cli, &git, base, related_tests.as_deref()),
         Command::Context {
             task,
             file,
@@ -810,13 +825,39 @@ fn context(
     Ok(())
 }
 
-fn review(cli: &Cli, git: &GitRepo, base: &str) -> Result<(), CliError> {
+fn parse_related_tests_mode(
+    value: Option<&str>,
+) -> Result<ctx_core::review::RelatedTestsMode, CliError> {
+    use ctx_core::review::RelatedTestsMode;
+    match value {
+        None => Ok(RelatedTestsMode::Off),
+        Some("deep") => Ok(RelatedTestsMode::Broad { max_depth: None }),
+        Some(depth) => depth
+            .parse::<usize>()
+            .map(|max_depth| RelatedTestsMode::Broad {
+                max_depth: Some(max_depth),
+            })
+            .map_err(|_| CliError::InvalidRelatedTestsDepth(depth.to_owned())),
+    }
+}
+
+fn review(
+    cli: &Cli,
+    git: &GitRepo,
+    base: &str,
+    related_tests: Option<&str>,
+) -> Result<(), CliError> {
+    let related_tests_mode = parse_related_tests_mode(related_tests)?;
     let database_path = database_path(git.root())?;
     let store = SqliteStore::open(&database_path, git.context_root())?;
     let analyzer = AnalyzerRegistry::builtins(git.root(), &git.source_scope().languages)?;
     let repository = git.descriptor()?;
-    let report =
-        ReviewRunner::new(git, &analyzer, &store).run(&repository.id, base, cli.verbose > 0)?;
+    let report = ReviewRunner::new(git, &analyzer, &store).run(
+        &repository.id,
+        base,
+        cli.verbose > 0,
+        related_tests_mode,
+    )?;
     if cli.json {
         println!("{}", serde_json::to_string_pretty(&report)?);
         return Ok(());
@@ -866,6 +907,16 @@ fn review(cli: &Cli, git: &GitRepo, base: &str) -> Result<(), CliError> {
         println!("Stale semantic relationships touching changed code:");
         for relationship in report.stale_relationships {
             println!("  - {relationship}");
+        }
+    }
+    if related_tests_mode != ctx_core::review::RelatedTestsMode::Off {
+        if report.tests_to_run.is_empty() {
+            println!("Tests to run: none reachable from the changed code.");
+        } else {
+            println!("Tests to run (broad, no product-intent gating):");
+            for test in &report.tests_to_run {
+                println!("  - {}", test.identifier);
+            }
         }
     }
     if cli.verbose > 0 {

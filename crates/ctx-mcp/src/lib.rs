@@ -139,7 +139,12 @@ impl<'a> McpServer<'a> {
             "review_change" => {
                 let arguments: ReviewArguments = decode(arguments)?;
                 let result = ReviewRunner::new(self.git, &self.analyzer, &self.store)
-                    .run(&self.repository, &arguments.base, arguments.verbose)
+                    .run(
+                        &self.repository,
+                        &arguments.base,
+                        arguments.verbose,
+                        ctx_core::review::RelatedTestsMode::Off,
+                    )
                     .map_err(|error| error.to_string())?;
                 serde_json::to_value(result).map_err(|error| error.to_string())
             }

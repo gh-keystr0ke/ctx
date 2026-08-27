@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use ctx_core::{
     domain::RepositoryId,
     indexing::FileChange,
-    review::{ReviewInput, ReviewReport, build_review_findings},
+    review::{RelatedTestsMode, ReviewInput, ReviewReport, build_review_findings},
 };
 use thiserror::Error;
 
@@ -50,6 +50,7 @@ where
         repository: &RepositoryId,
         base: &str,
         verbose: bool,
+        related_tests_mode: RelatedTestsMode,
     ) -> Result<ReviewReport, ReviewError> {
         let changes = self.git.review_changes(base).map_err(ReviewError::Git)?;
         let mut before = BTreeMap::new();
@@ -81,6 +82,7 @@ where
             after,
             changed_context_files: changes.changed_context_files.into_iter().collect(),
             verbose,
+            related_tests_mode,
         };
         Ok(build_review_findings(&graph, &input))
     }

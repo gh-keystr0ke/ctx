@@ -132,6 +132,27 @@ pub struct ReviewReport {
     pub api_findings: Vec<ApiFinding>,
     pub stale_relationships: Vec<String>,
     pub suppressed_non_behavioral_changes: usize,
+    /// Populated only when [`ReviewInput::related_tests_mode`] is
+    /// [`RelatedTestsMode::Broad`]: every test structurally reachable from a
+    /// changed symbol, with no product-intent gating or confidence
+    /// threshold. Recall-first by design — see
+    /// [`crate::impact::related_tests_broad`].
+    pub tests_to_run: Vec<NodeSummary>,
+}
+
+/// Controls whether [`build_review_findings`] also computes
+/// [`ReviewReport::tests_to_run`]. Off by default because the underlying
+/// structural walk ([`crate::impact::related_tests_broad`]) is a broader,
+/// more expensive traversal than review's own per-finding `related_tests`
+/// and most callers don't need it.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum RelatedTestsMode {
+    #[default]
+    Off,
+    /// `max_depth` bounds the traversal in hops from each changed symbol;
+    /// `None` means unbounded (walk the whole reachable structural
+    /// neighborhood).
+    Broad { max_depth: Option<usize> },
 }
 
 /// Shared, cheaply-copyable context threaded through finding construction so
@@ -151,6 +172,7 @@ pub struct ReviewInput {
     pub after: BTreeMap<String, FileAnalysis>,
     pub changed_context_files: BTreeSet<String>,
     pub verbose: bool,
+    pub related_tests_mode: RelatedTestsMode,
 }
 
 /// Builds conservative, evidence-backed review findings for a source diff.
@@ -227,6 +249,16 @@ pub fn build_review_findings(graph: &GraphSnapshot, input: &ReviewInput) -> Revi
     });
     stale_relationships.sort();
     stale_relationships.dedup();
+    let tests_to_run = match input.related_tests_mode {
+        RelatedTestsMode::Off => Vec::new(),
+        RelatedTestsMode::Broad { max_depth } => {
+            let seeds = changed_entities
+                .iter()
+                .filter_map(|entity| entity.stable_key.clone())
+                .collect::<BTreeSet<_>>();
+            crate::impact::related_tests_broad(graph, &seeds, max_depth)
+        }
+    };
     ReviewReport {
         base: input.base.clone(),
         changed_entities,
@@ -235,6 +267,7 @@ pub fn build_review_findings(graph: &GraphSnapshot, input: &ReviewInput) -> Revi
         api_findings: api_change_findings(graph, input),
         stale_relationships,
         suppressed_non_behavioral_changes: suppressed,
+        tests_to_run,
     }
 }
 
@@ -1383,6 +1416,7 @@ mod tests {
             )]),
             changed_context_files: BTreeSet::new(),
             verbose: false,
+            related_tests_mode: RelatedTestsMode::Off,
         };
 
         let report = build_review_findings(&GraphSnapshot { nodes, edges }, &input);
@@ -1465,6 +1499,7 @@ mod tests {
             ]),
             changed_context_files: BTreeSet::new(),
             verbose: false,
+            related_tests_mode: RelatedTestsMode::Off,
         };
 
         let report = build_review_findings(&GraphSnapshot { nodes, edges }, &input);
@@ -1548,6 +1583,7 @@ mod tests {
             )]),
             changed_context_files: BTreeSet::new(),
             verbose: false,
+            related_tests_mode: RelatedTestsMode::Off,
         };
 
         let report = build_review_findings(&GraphSnapshot { nodes, edges }, &input);
@@ -1675,6 +1711,7 @@ mod tests {
             )]),
             changed_context_files: BTreeSet::new(),
             verbose: false,
+            related_tests_mode: RelatedTestsMode::Off,
         };
 
         let report = build_review_findings(&GraphSnapshot { nodes, edges }, &input);

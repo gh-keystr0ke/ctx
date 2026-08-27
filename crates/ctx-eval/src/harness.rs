@@ -165,7 +165,12 @@ fn run_review(
 ) -> Result<ctx_core::review::ReviewReport, HarnessError> {
     let repository = git.descriptor().map_err(HarnessError::Port)?;
     ReviewRunner::new(git, analyzer, store)
-        .run(&repository.id, base, false)
+        .run(
+            &repository.id,
+            base,
+            false,
+            ctx_core::review::RelatedTestsMode::Off,
+        )
         .map_err(HarnessError::from)
 }
 

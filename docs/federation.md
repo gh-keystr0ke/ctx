@@ -1,6 +1,6 @@
 # Federation
 
-`ctx` can share a bounded slice of one repository's product knowledge with a sibling repository checked out locally on the same machine — the shape of a multi-service codebase where each service lives in its own Git repository. This is entirely local: there is no server, no remote fetch, and no network call. `ctx sync` reads a neighbor's exported manifest straight off disk by the filesystem path it was registered with. The only two things `ctx` ever contacts over a network are `ctx ingest gitlab` and `ctx enrich`/`ctx verify --auto` — federation is not one of them (see [docs/architecture.md](architecture.md)).
+`ctx` can share a bounded slice of one repository's product knowledge with a sibling repository checked out locally on the same machine — the shape of a multi-service codebase where each service lives in its own Git repository. This is entirely local: there is no server, no remote fetch, and no network call. `ctx sync` reads a neighbor's exported manifest straight off disk by the filesystem path it was registered with. Network-backed tracker ingestion and agent CLIs are separate, explicitly invoked adapters; federation is not one of them (see [docs/architecture.md](architecture.md)).
 
 ## What crosses the boundary
 

@@ -2,8 +2,10 @@
 
 ```bash
 cargo fmt --all -- --check
-cargo clippy --all-targets --all-features -- -D warnings
-cargo test --workspace
+cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+cargo test --workspace --locked
+RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
+cargo +1.88.0 check --workspace --all-targets --locked
 ```
 
 The end-to-end tests build temporary real Git repositories. They cover the complete subscriptions product journey and a mixed Python/Rust/Go repository through initialization, indexing, language-scoped call resolution, status, and Rust/Go diff review.
@@ -14,7 +16,9 @@ Run the deterministic product-quality corpus separately:
 cargo run --locked -p ctx-eval
 ```
 
-It currently covers 25 Git-history cases and 102 typed checks across recall, precision/noise, classification, and Context Pack budgets, including changed DB writes and the full schema-aware review/reconciliation/impact scenario set. This is a reproducible regression baseline, not a statistically significant product study. See [docs/evaluation.md](evaluation.md) for the case matrix, current result, and the human/agent experiments that still require real participants or historical PR ground truth.
+It currently covers 26 Git-history cases and 113 typed checks across recall, precision/noise, classification, and Context Pack budgets, including changed DB writes and the full schema-aware review/reconciliation/impact scenario set. This is a reproducible regression baseline, not a statistically significant product study. See [docs/evaluation.md](evaluation.md) for the case matrix, current result, and the human/agent experiments that still require real participants or historical PR ground truth.
+
+The workspace tests also enforce structural regression bounds: production functions may not exceed 100 lines, the CLI composition root may not grow beyond 1,800 lines, and the audited `too_many_arguments` exception count may not increase. New code should normally stay around 40–50 lines per function; the 100-line ceiling is a migration guard for the existing codebase, not a target. GitHub Actions additionally runs line coverage (65% floor), RustSec/cargo-deny checks, and a scheduled sharded mutation job. Credentialed GitLab/Jira and locally installed agent-CLI compatibility tests are opt-in with `cargo test -p ctx-adapters --test live_contracts -- --ignored`.
 
 ## Add another language module
 

@@ -64,6 +64,8 @@ ctx review --base main
 ```
 Add `-v` for lower-confidence diagnostics and suppressed-change counts. See [docs/commands.md](docs/commands.md#review) for what the three finding streams mean.
 
+**What should I actually run before merging this?** `ctx review --related-tests` (or `--related-tests=<N>` to cap it to `N` call-graph hops). Deliberately broader than each finding's own `related_tests`: no product-intent gating, no confidence threshold — every test structurally reachable from a changed symbol, for recall over precision.
+
 **Check blast radius before touching a symbol.** `ctx impact <target>` where `<target>` is a file path, canonical symbol, stable ID, or `table.column`. Not sure of the exact symbol name? `ctx find <name>` first. `ctx explain <id-or-relation>` shows the full evidence behind any one claim.
 
 **Hand a coding agent bounded context.** Either `ctx context "<task>" --symbol ... --file ... --token-budget <N>` from the CLI, or point an MCP-capable client at `ctx serve --mcp` so it can call the same thing itself — see [docs/mcp.md](docs/mcp.md).

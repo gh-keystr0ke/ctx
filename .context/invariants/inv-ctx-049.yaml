@@ -5,7 +5,6 @@ statement: Each Check contributes evidence for one product-quality dimension, en
 implementation:
   - symbol: ctx_eval.report.Check
 tests:
-  - symbol: ctx_eval.report.tests.change_kind_check_matches_before_or_after_canonical_path
   - symbol: ctx_eval.report.tests.context_within_budget_checks_estimate_against_requested_budget
   - symbol: ctx_eval.report.tests.forbidden_intent_present_fails_the_precision_check
   - symbol: ctx_eval.report.tests.required_intent_missing_from_findings_fails_the_check

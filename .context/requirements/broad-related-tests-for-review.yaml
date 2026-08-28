@@ -1,0 +1,26 @@
+id: REQ-REVIEW-002
+type: requirement
+feature: FEAT-REVIEW
+status: active
+statement: >
+  `ctx review --related-tests[=DEPTH]` must offer a second, deliberately
+  opposite-tradeoff test-discovery mode alongside each finding's narrow,
+  product-intent-gated `related_tests`: a recall-first list, reported as
+  `ReviewReport.tests_to_run`, of every test structurally reachable from any
+  changed symbol by walking only structural edges (calls, containment,
+  data/API/event interactions) — no semantic/product-intent gating and no
+  confidence threshold, because the goal here is "what could this diff have
+  broken", not "what does documented intent say is covered". The walk is
+  breadth-first from every changed entity's stable key, deduplicated by
+  visited node, and bounded only by an optional hop cap (`DEPTH`, or
+  `deep`/omitted for unbounded — the visited set still guarantees
+  termination). Off by default (`RelatedTestsMode::Off`): existing callers
+  (the `review_change` MCP tool, `ctx-eval`'s harness) are unaffected and pay
+  none of this traversal's extra cost unless they opt in.
+implementation:
+  - symbol: ctx_core.impact.related_tests_broad
+  - symbol: ctx_core.review.RelatedTestsMode
+  - symbol: ctx_app.review.ReviewRunner.run
+tests:
+  - symbol: ctx_core.impact.tests.related_tests_broad_walks_the_call_graph_past_one_hop_with_no_depth_cap
+  - symbol: ctx_core.impact.tests.related_tests_broad_ignores_semantic_only_coverage_links

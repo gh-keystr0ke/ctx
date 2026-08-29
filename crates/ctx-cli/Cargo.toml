@@ -4,6 +4,11 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
+description.workspace = true
+repository.workspace = true
+readme.workspace = true
+keywords = ["cli", "code-context", "static-analysis", "requirements"]
+categories = ["command-line-utilities", "development-tools"]
 
 [[bin]]
 name = "ctx"

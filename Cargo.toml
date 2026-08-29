@@ -14,6 +14,9 @@ version = "0.5.0"
 edition = "2024"
 rust-version = "1.88"
 license = "Apache-2.0"
+description = "A local-first product-context engine that links product intent (Features, Requirements, Invariants, Decisions) to code, with provenance and confidence."
+repository = "https://github.com/TODO-org/ctx" # TODO: replace with the real GitHub repository URL before the first `cargo publish`
+readme = "README.md"
 
 [workspace.dependencies]
 base64 = "0.23"

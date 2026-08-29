@@ -8,7 +8,7 @@ permissions:
   contents: read
 
 jobs:
-  quality:
+  lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,9 +17,19 @@ jobs:
           components: rustfmt,clippy
       - run: cargo fmt --all -- --check
       - run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+      - run: RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
+
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.97.1
       - run: cargo test --workspace --locked
       - run: cargo run --locked -p ctx-eval
-      - run: RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
 
   msrv:
     runs-on: ubuntu-latest

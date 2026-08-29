@@ -106,6 +106,7 @@ If you're not sure whether a change is "product-observable" enough to warrant th
 | Starting a coding task | `ctx context "<task>" --symbol ... --json` |
 | About to edit a symbol you didn't write | `ctx impact <target> --json` (use `ctx find <name>` first if unsure of the exact symbol) |
 | Finishing a task / before a commit or PR | `ctx review --base <branch point> --json` (see above — always) |
+| What tests should I actually run before merging this? | `ctx review --related-tests --json` (or `--related-tests=<N>` to cap it to `N` call-graph hops) — deliberately broader than any finding's own `related_tests`: every test structurally reachable from a changed symbol, no product-intent gating, for recall over precision |
 | User asks "why does ctx think X affects Y" | `ctx explain "<source> -> <target>" --json`, or `ctx explain <id> --json` for one node's claims |
 | User asks what endpoints a Feature/Requirement touches | `ctx explain <id> --trace` |
 | Tracing one HTTP request's full path, possibly across services | `ctx trace "METHOD /path"` (`--verbose` to attach product context per hop) — see `references/federation.md` |
@@ -137,7 +138,7 @@ A `stale` relationship means the code changed enough that a previously-confirmed
 - Do not treat ctx as a gate: if it is unavailable, absent, or `ctx status` is `needs_context` (structural graph only, no product documents indexed yet), proceed with the task using normal code-reading judgment and say so.
 - Do not upgrade an `INFERENCE` to a stated fact in your own summary to the user, even implicitly.
 - Do not let a low-confidence, `--verbose`-only finding dominate your report the way a high-confidence one would; ctx's own design principle is "surface fewer findings with stronger evidence."
-- Do not run `ctx ingest gitlab`, `ctx enrich`, `ctx verify --auto`, or `ctx verify --stale` unprompted — they shell out to a real agent CLI (`claude`/`codex`/`agy`) or GitLab's network API, which costs time and, for the agent CLIs, money. Run them when the user asks to bootstrap/mine context, per `references/onboarding.md`.
+- Do not run `ctx ingest gitlab`, `ctx ingest jira`, `ctx enrich`, `ctx verify --auto`, or `ctx verify --stale` unprompted — they shell out to a real agent CLI (`claude`/`codex`/`agy`) or GitLab's/Jira's network API, which costs time and, for the agent CLIs, money. Run them when the user asks to bootstrap/mine context, per `references/onboarding.md`.
 - Do not treat `ctx verify --knowledge --auto`'s "Auto-verified" documents as equivalent to human review when reporting to the user — say plainly that they were agent-decided.
 - Do not set up `ctx registry`/federation for a single-repository project — it exists for multi-service teams with sibling local checkouts; see `references/federation.md` for when it actually applies.
 - Do not skip the pre-commit `ctx review` or the `.context/` documentation update because a change "seems obviously fine" — those are exactly the two non-negotiable steps above.

@@ -13,5 +13,4 @@ decision: >
 implementation:
   - symbol: ctx_app.ingest.GitLabIngestRunner.run
 tests:
-  - symbol: ctx_app.ingest.tests.gitlab_ingest_persists_provider_reported_links_and_stays_idempotent
   - symbol: ctx_app.ingest.tests.gitlab_ingest_advances_its_sync_cursor_and_passes_it_to_the_next_run

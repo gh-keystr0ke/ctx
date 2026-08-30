@@ -659,7 +659,9 @@ mod tests {
             author: None,
             external_created_at: None,
             external_updated_at: None,
-            source_locator: ctx_core::domain::Url("https://gitlab.example/-/merge_requests/842".to_owned()),
+            source_locator: ctx_core::domain::Url(
+                "https://gitlab.example/-/merge_requests/842".to_owned(),
+            ),
             content_hash: "hash".to_owned(),
         };
         let comments_on = ArtifactLink {
@@ -766,7 +768,9 @@ mod tests {
             author: None,
             external_created_at: None,
             external_updated_at: None,
-            source_locator: ctx_core::domain::Url("https://example.atlassian.net/browse/PSI-1122".to_owned()),
+            source_locator: ctx_core::domain::Url(
+                "https://example.atlassian.net/browse/PSI-1122".to_owned(),
+            ),
             content_hash: "hash".to_owned(),
         };
         let comment = Artifact {
@@ -781,8 +785,9 @@ mod tests {
             author: None,
             external_created_at: None,
             external_updated_at: None,
-            source_locator: ctx_core::domain::Url("https://example.atlassian.net/browse/PSI-1122?focusedCommentId=1"
-                .to_owned()),
+            source_locator: ctx_core::domain::Url(
+                "https://example.atlassian.net/browse/PSI-1122?focusedCommentId=1".to_owned(),
+            ),
             content_hash: "hash".to_owned(),
         };
         let comments_on = ArtifactLink {

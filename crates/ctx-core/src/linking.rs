@@ -474,7 +474,9 @@ mod tests {
             author: None,
             external_created_at: None,
             external_updated_at: None,
-            source_locator: crate::domain::Url(format!("https://gitlab.example/-/issues/{external_id}")),
+            source_locator: crate::domain::Url(format!(
+                "https://gitlab.example/-/issues/{external_id}"
+            )),
             content_hash: "hash".to_owned(),
         }
     }

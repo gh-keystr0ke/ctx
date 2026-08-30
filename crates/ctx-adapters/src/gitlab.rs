@@ -283,7 +283,10 @@ impl<T: GitLabTransport> GitLabClient<T> {
                 author: note.author.map(|user| user.username),
                 external_created_at: note.created_at.map(ctx_core::domain::Timestamp),
                 external_updated_at: note.updated_at.map(ctx_core::domain::Timestamp),
-                source_locator: ctx_core::domain::Url(format!("gitlab:note:{}", identity.external_id)),
+                source_locator: ctx_core::domain::Url(format!(
+                    "gitlab:note:{}",
+                    identity.external_id
+                )),
                 project: ctx_core::domain::Project(self.project.clone()),
                 identity: identity.clone(),
             });

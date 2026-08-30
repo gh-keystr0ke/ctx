@@ -273,7 +273,9 @@ pub struct Evidence {
 #[serde(transparent)]
 pub struct Project(pub String);
 impl Project {
-    pub fn as_str(&self) -> &str { &self.0 }
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
 }
 
 /// Provider-assigned timestamp.
@@ -281,7 +283,9 @@ impl Project {
 #[serde(transparent)]
 pub struct Timestamp(pub String);
 impl Timestamp {
-    pub fn as_str(&self) -> &str { &self.0 }
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
 }
 
 /// A fully qualified URL or local source locator.
@@ -289,7 +293,9 @@ impl Timestamp {
 #[serde(transparent)]
 pub struct Url(pub String);
 impl Url {
-    pub fn as_str(&self) -> &str { &self.0 }
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
 }
 #[cfg(test)]
 mod tests {

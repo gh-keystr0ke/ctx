@@ -51,8 +51,14 @@ impl ArtifactRepository for SqliteStore {
                     artifact.title,
                     artifact.body,
                     artifact.author,
-                    artifact.external_created_at.as_ref().map(ctx_core::domain::Timestamp::as_str),
-                    artifact.external_updated_at.as_ref().map(ctx_core::domain::Timestamp::as_str),
+                    artifact
+                        .external_created_at
+                        .as_ref()
+                        .map(ctx_core::domain::Timestamp::as_str),
+                    artifact
+                        .external_updated_at
+                        .as_ref()
+                        .map(ctx_core::domain::Timestamp::as_str),
                     artifact.source_locator.as_str(),
                     artifact.content_hash,
                     ingested_at,
@@ -462,7 +468,6 @@ fn artifact_from_columns(columns: ArtifactColumns) -> Result<Artifact, PortError
         source_locator: ctx_core::domain::Url(source_locator),
         content_hash,
     })
-
 }
 
 fn repository_row(
@@ -635,10 +640,15 @@ mod tests {
             title: "Fix cancellation semantics".to_owned(),
             body: body.to_owned(),
             author: Some("alice".to_owned()),
-            external_created_at: Some(ctx_core::domain::Timestamp("2026-08-01T00:00:00Z".to_owned())),
-            external_updated_at: Some(ctx_core::domain::Timestamp("2026-08-02T00:00:00Z".to_owned())),
-            source_locator: ctx_core::domain::Url("https://gitlab.example/billing/subscriptions/-/merge_requests/842"
-                .to_owned()),
+            external_created_at: Some(ctx_core::domain::Timestamp(
+                "2026-08-01T00:00:00Z".to_owned(),
+            )),
+            external_updated_at: Some(ctx_core::domain::Timestamp(
+                "2026-08-02T00:00:00Z".to_owned(),
+            )),
+            source_locator: ctx_core::domain::Url(
+                "https://gitlab.example/billing/subscriptions/-/merge_requests/842".to_owned(),
+            ),
             content_hash: blake3::hash(body.as_bytes()).to_hex().to_string(),
         }
     }

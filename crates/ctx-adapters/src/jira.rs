@@ -441,7 +441,10 @@ impl<T: JiraTransport> JiraClient<T> {
             author: issue.fields.creator.and_then(|user| user.display_name),
             external_created_at: issue.fields.created.map(ctx_core::domain::Timestamp),
             external_updated_at: issue.fields.updated.map(ctx_core::domain::Timestamp),
-            source_locator: ctx_core::domain::Url(format!("{}/browse/{}", self.base_url, identity.external_id)),
+            source_locator: ctx_core::domain::Url(format!(
+                "{}/browse/{}",
+                self.base_url, identity.external_id
+            )),
             project: ctx_core::domain::Project(self.project.clone()),
             identity: identity.clone(),
         }

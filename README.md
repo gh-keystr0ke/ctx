@@ -132,7 +132,7 @@ exclude = ["generated", "vendor", "build", "dist", "target", ".venv"]
 | `ctx find <name>` | Discover indexed symbols/nodes by short or exact name |
 | `ctx review [--base REV]` | Review a branch or working diff against product, schema, and API contracts |
 | `ctx context <task>` | Compile a bounded Context Pack; accepts repeated `--file`/`--symbol` seeds |
-| `ctx ingest <source>` | Ingest external artifacts (`git`, `code-comments`, `gitlab`) as separately stored source material |
+| `ctx ingest <source>` | Ingest external artifacts (`git`, `code-comments`, `gitlab`, `jira`) as separately stored source material |
 | `ctx enrich [--agent NAME]` | Propose typed knowledge candidates from ingested artifacts via an AI agent |
 | `ctx verify [--knowledge] [--auto]` | Decide heuristic or AI-derived candidates, by hand or via a review agent |
 | `ctx registry` / `ctx export` / `ctx sync` / `ctx federation` | Share and inspect federated knowledge with sibling repositories |

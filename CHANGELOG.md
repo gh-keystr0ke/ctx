@@ -2,6 +2,25 @@
 
 All notable changes to `ctx` are documented here. The project follows semantic versioning.
 
+## Unreleased
+
+### Added
+
+- `ctx ingest jira` for Jira Cloud issues and comments, mirroring the existing GitLab connector's architecture (synchronous `ureq` behind an injectable transport trait, token from an env var never committed). Deliberately scoped to referenced issues, not the whole project: `JiraIngestRunner` scans every artifact this repository already knows about (commits, branches, GitLab issues/MRs, prior Jira issues) for ticket-key-shaped references, fetches exactly those under the configured project, plus one hop of expansion through Jira's own `issuelinks`/`parent` fields — never a project-wide query, and never recursing past that one hop. An issue's stable identity is its human-readable key (e.g. `PSI-1122`), so an existing commit/branch mention resolves to it via the existing deterministic ticket-key linker with no `ctx-core` changes. Jira Cloud only; Server/Data Center, changelog/worklog/attachments, and retry-on-429 are out of scope for v1.
+- `ctx review --related-tests[=<DEPTH>]`, an opt-in, recall-first companion to review's existing conservative, product-intent-gated `related_tests`: a breadth-first walk of purely structural graph edges (calls, containment, data/API/event interactions) from every changed symbol, with no semantic gating and no confidence threshold, reported as `tests_to_run`. Answers "what should I run to check this diff," not "what does documented intent say is covered." Off by default; MCP and the eval harness are unaffected.
+- CI (`.github/workflows/ci.yml`, `mutation.yml`, `dependabot.yml`): `cargo fmt`/`clippy --all-features -D warnings`/`cargo test --workspace`/the `ctx-eval` corpus/`cargo doc -D warnings` on every push and PR, an MSRV check pinned separately from the CI toolchain, `cargo-llvm-cov` with a 65%-line floor, `rustsec/audit-check`, and `cargo-deny` license/source gating, plus a weekly sharded `cargo-mutants` run.
+
+### Changed
+
+- MSRV raised from 1.85 to 1.88.
+- `ctx verify --stale`'s agent re-review (`ctx_adapters::agent_contract::review_stale_claims`) now batches claims into independently validated, byte-bounded prompts (`StaleClaimReviewBudget`, default 64 KiB / 20 claims per batch) instead of one unbounded prompt — an individual claim that can't fit the budget now fails explicitly instead of producing an oversized CLI argument or silently truncated evidence.
+- Artifact-adapter code (`ctx-adapters::{git,gitlab,jira}`, `sqlite::artifacts`) refactored onto new `Project`/`Timestamp`/`Url` value objects shared across all three ingest sources, replacing ad hoc string/i64 fields.
+- Broader architecture-audit hardening across the adapters layer (agent-response validation, business-context reading, candidate-queue handling) — see `git log 787c6e7` for the full file list.
+
+### Fixed
+
+- 6 stale test/implementation mappings in this repository's own `.context/` surfaced by `ctx verify --stale` after unrelated code changes and confirmed against an independent agent review: `INV-CTX-070` was retargeted from a whole test module to its actual guarded logic (`classify_behavior_change`) with a real covering test added; `ADR-CTX-004`'s two listed tests were removed as not actually exercising the decision's claim; `ADR-PRECISION-001`, `INV-CTX-049`, and `INV-CTX-066` each had one mismatched test entry removed.
+
 ## 0.5.0 — 2026-08-22
 
 ### Added

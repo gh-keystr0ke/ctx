@@ -38,7 +38,7 @@ See [docs/mining-knowledge.md](mining-knowledge.md) for the full workflow.
 
 | Command | Flags | Purpose |
 | --- | --- | --- |
-| `ctx ingest <source>` | `--since <OID>` | Normalize external artifacts into their own store. `source` is `git`, `code-comments`, or `gitlab`. |
+| `ctx ingest <source>` | `--since <OID>` | Normalize external artifacts into their own store. `source` is `git`, `code-comments`, `gitlab`, or `jira`. |
 | `ctx enrich` | `--agent <claude\|codex\|antigravity>` (default `claude`), `--model <NAME>`, `--allow-ungrounded-symbols` | Ask an AI agent to propose typed knowledge candidates from ingested artifacts, one bounded neighborhood at a time. Always produces `pending` candidates, never asserted facts. |
 | `ctx verify` | `--accept <FINGERPRINT>` \| `--reject <FINGERPRINT>`, `--author <NAME>` (default `local-user`) | List or decide heuristic implementation-link candidates (the deterministic relation suggestions from indexing, not AI-derived). |
 | `ctx verify --knowledge` | `--accept <FINGERPRINT> --id <STABLE-ID>` \| `--reject <FINGERPRINT>`, `--force`, `--author <NAME>` | List or decide pending AI-derived knowledge candidates from `ctx enrich`. Accepting writes an ordinary `.context/*.yaml` document. |

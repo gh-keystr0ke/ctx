@@ -52,8 +52,9 @@ if [ -n "${CTX_INSTALL_VERSION:-}" ]; then
   tag="v${CTX_INSTALL_VERSION#v}"
 else
   say "resolving latest release..."
-  tag="$(curl -fsSL "https://api.github.com/repos/$repo/releases/latest" \
-    | grep -m1 '"tag_name"' | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/')"
+  latest_json="$(curl -fsSL "https://api.github.com/repos/$repo/releases/latest")" \
+    || die "could not reach the GitHub releases API"
+  tag="$(printf '%s' "$latest_json" | grep -m1 '"tag_name"' | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/')"
   [ -n "$tag" ] || die "could not resolve the latest release tag (GitHub API rate-limited? try CTX_INSTALL_VERSION=x.y.z)"
 fi
 version="${tag#v}"

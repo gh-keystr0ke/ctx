@@ -4,6 +4,13 @@ All notable changes to `ctx` are documented here. The project follows semantic v
 
 ## Unreleased
 
+## 0.6.2 — 2026-09-01
+
+### Fixed
+
+- `ctx ingest gitlab` always failed with `HTTP 400`: the GitLab issues/merge-requests list request sent `order_by=iid`, a value GitLab's REST API has never accepted. Dropped it (`sort=asc` alone is enough for stable-ish paging; pagination itself only relies on page size, not ordering).
+- `ctx ingest jira` always failed with `HTTP 410 Gone`: Atlassian has fully sunset the legacy `GET /rest/api/3/search` endpoint it called. Migrated to the enhanced `POST /rest/api/3/search/jql` endpoint, including its `nextPageToken`-based pagination (replacing the removed `startAt`/`total` offset model). Added a bounded page cap as a backstop against a pagination bug Atlassian Community has reported against this endpoint (a response can keep reissuing a fresh `nextPageToken`, and its `isLast` flag has been reported stuck at `false` through the same failure) — exceeding the cap is now a reported error instead of `ctx ingest jira` hanging indefinitely.
+
 ## 0.6.1 — 2026-08-31
 
 ### Added

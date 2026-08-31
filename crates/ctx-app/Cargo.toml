@@ -10,7 +10,7 @@ readme.workspace = true
 
 [dependencies]
 blake3.workspace = true
-ctx-core = { path = "../ctx-core", version = "0.6.1" }
+ctx-core = { path = "../ctx-core", version = "0.6.2" }
 serde.workspace = true
 thiserror.workspace = true
 

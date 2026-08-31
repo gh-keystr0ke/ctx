@@ -65,8 +65,25 @@ decision: >
   changelog/worklog/attachments ingestion are out of scope. HTTP 429 and
   transient 502/503/504 responses use the shared bounded retry policy:
   numeric `Retry-After` takes precedence over capped exponential backoff,
-  and exhausting the finite budget fails explicitly. Jira search results
-  and comments are both paginated until the provider-reported total is read.
+  and exhausting the finite budget fails explicitly. Comment pages are
+  read until the provider-reported total is reached. Issue search uses
+  `POST /rest/api/3/search/jql` (the enhanced JQL search endpoint), not the
+  legacy `GET /rest/api/3/search` -- Atlassian has sunset the latter (it
+  now answers HTTP 410 Gone), and the replacement also drops
+  `startAt`/`total` offset pagination for an opaque `nextPageToken`
+  cursor: search pages are read until a response carries no
+  `nextPageToken`. `JiraTransport` therefore exposes both `get` (comments)
+  and `post` (search), unlike GitLab's transport trait, which never needs
+  more than `get`. `fetch_issues_by_keys` also caps pagination at
+  `MAX_SEARCH_PAGES` (1000): Atlassian Community has reported this
+  endpoint occasionally reissuing a fresh `nextPageToken` without ever
+  terminating, and the endpoint's own `isLast` response flag has been
+  reported stuck the same way, so neither is a safe sole stop condition
+  -- exceeding the cap is a reported `JiraError::Transport`, not a hang.
+  In practice this is a backstop, not a path expected to trigger: each
+  `key in (...)` query is already bounded to `KEY_BATCH_SIZE` (50) keys,
+  well under the endpoint's `maxResults` (100), so a well-behaved response
+  always fits on one page.
 implementation:
   - symbol: ctx_adapters.jira.JiraTransport
   - symbol: ctx_adapters.jira.UreqTransport
@@ -85,6 +102,7 @@ tests:
   - symbol: ctx_adapters.jira.tests.no_referenced_keys_means_no_request_at_all
   - symbol: ctx_adapters.jira.tests.adf_description_is_flattened_to_plain_text
   - symbol: ctx_adapters.jira.tests.missing_email_or_token_env_var_is_a_config_error
+  - symbol: ctx_adapters.jira.tests.a_search_that_never_stops_paginating_fails_loudly_instead_of_hanging
   - symbol: ctx_adapters.jira.tests.jira_search_and_comments_read_every_page
   - symbol: ctx_adapters.http_retry.tests.retry_after_is_respected_and_retries_are_bounded
   - symbol: ctx_app.ingest.tests.jira_ingest_derives_candidate_keys_from_already_known_artifact_text

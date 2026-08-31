@@ -2,14 +2,14 @@
 
 Run this only when the user has asked to add ctx to a repository, or explicitly asked for product-context onboarding/mining. Never run `ctx init` unprompted.
 
-There are two ways to get from zero to a usable `.context/` baseline: hand-author a handful of high-value documents, or mine what already exists (Git history, code comments, GitLab) and have an agent propose candidates for human (or agent) review. They compose — most real onboardings do a little of both.
+There are two ways to get from zero to a usable `.context/` baseline: hand-author a handful of high-value documents, or mine what already exists (Git history, code comments, GitLab, or referenced Jira issues) and have an agent propose candidates for human (or agent) review. They compose — most real onboardings do a little of both.
 
 ## 0. Prerequisites
 
 - Rust 1.88+ and Git installed, and the `ctx` binary on `PATH` (or built via `cargo install --locked --path crates/ctx-cli` from the `ctx` source tree).
-- A Git repository with at least one commit. `ctx init` and `ctx index` only ever read committed source content.
-- Decide `languages` for `.ctx/config.toml` up front: `python`, `rust`, `go`, and `goose` (SQL migrations) are the built-in modules — anything else currently indexes as unrecognized source, not a hard failure, but won't produce symbols/calls/tests.
-- **Onboarding a repository you don't own or can't push into?** Run `ctx context-store set <path>` (add `--git` for the same commit-before-index guarantee this checkout's `.context/` normally has) *before* `ctx init`, so `.context/`/`.ctx-candidates/` are scaffolded at that redirected location instead of inside the checkout — nothing below writes into the repository itself. See `commands.md` and `configuration.md#redirecting-the-context-store-ctx-context-store` in the `ctx` source tree.
+- A Git repository with at least one commit. `ctx index` always requires configured source to be committed; `.context/`/`.ctx-candidates/` require commits too unless they are redirected to a plain, non-Git context store.
+- Decide `languages` for `.ctx/config.toml` up front: `python`, `rust`, `go`, and `goose` (SQL migrations) are the built-in modules. Unsupported or empty language sets fail during repository discovery.
+- **Onboarding a repository you don't own or can't push into?** Run `ctx context-store set <path>` (add `--git` for the same commit-before-index guarantee this checkout's `.context/` normally has) *before* `ctx init`, so `.context/`/`.ctx-candidates/` are scaffolded at that redirected location instead of inside the checkout — nothing below writes into the repository itself. See `commands.md` for behavior and `authoring-context.md` for committed-versus-local paths.
 
 ## 1. Initialize
 
@@ -33,27 +33,36 @@ Best when the repository is small, or when you want a handful of very deliberate
 
 ## 2b. Fully automated onboarding (mine existing knowledge)
 
-Best when the repository has real history worth mining: meaningful commit messages, doc comments/docstrings, or an active GitLab project. This gets you from zero to a populated, evidence-backed `.context/` baseline without hand-authoring anything — at the cost of it being agent-judgment, not human-authored, until spot-checked.
+Best when the repository has real history worth mining: meaningful commit messages, doc comments/docstrings, an active GitLab project, or referenced Jira issues. This gets you from zero to a populated, evidence-backed `.context/` baseline without hand-authoring anything — at the cost of it being agent-judgment, not human-authored, until spot-checked.
 
 ```bash
-# 1. Ingest source material (idempotent, safe to re-run; --since narrows `git` to newer commits)
+# 1. Commit configuration and build the initial structural index
+git add .ctx/config.toml
+git commit -m "chore: configure ctx"
+ctx index
+
+# 2. Ingest source material (idempotent, safe to re-run; --since narrows `git` to newer commits)
 ctx ingest git
 ctx ingest code-comments
 ctx ingest gitlab              # only if [gitlab] is configured; CTX_GITLAB_TOKEN is optional for public projects
 ctx ingest jira                # run after git/gitlab above -- only fetches issues they already reference, plus one hop of related issues; needs [jira] + CTX_JIRA_EMAIL/CTX_JIRA_TOKEN (Jira Cloud only)
 
-# 2. Have an AI agent propose typed candidates from that material
+# 3. Have an AI agent propose typed candidates from that material
 ctx enrich --agent claude      # or --agent codex / --agent antigravity — needs that CLI authenticated on PATH
 
-# 3a. Human review, one candidate at a time
+# 4a. Human review, one candidate at a time
 ctx verify --knowledge
 ctx verify --knowledge --accept <FINGERPRINT> --id REQ-SUB-014 --author <name>
 ctx verify --knowledge --reject <FINGERPRINT> --author <name>
 
-# 3b. OR: bulk-review via a second independent agent instead of a human
+# 4b. OR: bulk-review via a second independent agent instead of a human
 ctx verify --knowledge --auto --agent claude --id-prefix SUB
 
-# 4. Index and check health
+# 5. Commit accepted documents and candidate-queue updates before indexing
+git add .context .ctx-candidates
+git commit -m "docs: add mined product context"
+
+# 6. Index and check health
 ctx index
 ctx status --json
 ```
@@ -75,7 +84,7 @@ After either path, `ctx status --json`'s `health` field tells you what's left:
 | --- | --- | --- |
 | `needs_index` | `index_state` isn't `current` | `ctx index` (working tree clean) |
 | `needs_context` | No product documents indexed yet | Author or mine some (2a/2b above) |
-| `needs_mappings` | An active document has no implementation/test link | Add exact `implementation`/`tests` symbols to the documents in `unmapped_intents` |
+| `needs_mappings` | An active Requirement/Invariant/Decision has no implementation/test link | Add exact `implementation`/`tests` symbols to the documents in `unmapped_intents` |
 | `needs_attention` | Stale claims or schema divergences exist | Investigate the named items in `stale_claims`/`schema_divergences` |
 | `ready` | Fully current and mapped | Onboarding is done; ongoing work follows `SKILL.md`'s per-task pipeline |
 

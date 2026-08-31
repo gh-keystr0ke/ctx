@@ -81,7 +81,7 @@ languages = ["python", "rust", "go"]
 include = ["src", "tests"]
 exclude = ["generated", "vendor", "build", "dist", "target", ".venv"]
 
-# Required only for ctx export/sync/registry — see federation.md
+# Required only for federation workflows — see federation.md
 [service]
 name = "billing"
 
@@ -89,17 +89,24 @@ name = "billing"
 [gitlab]
 project = "billing/subscriptions"
 # base_url = "https://gitlab.example.com/api/v4"  # self-managed instances
+
+# Required only for ctx ingest jira (Jira Cloud)
+[jira]
+base_url = "https://your-domain.atlassian.net"
+project = "PSI"
 ```
 
-`languages` enables any subset of the built-in `python`, `rust`, `go`, and `goose` (SQL migrations, not a language — pair it with a `migrations`-style directory in `paths.include`) modules. Include/exclude entries are repository-relative directory prefixes; exclusions win. Changing languages or path boundaries is reconciled against the stored snapshot on the next `ctx index`.
+`languages` enables any non-empty subset of the built-in `python`, `rust`, `go`, and `goose` modules. `goose` reads SQL migrations rather than a programming language, so pair it with a `migrations`-style directory in `paths.include`. The legacy singular `language = "python"` form remains accepted; do not set both forms. Unsupported or empty language sets fail during repository discovery. Include/exclude entries are repository-relative directory prefixes; exclusions win. Changing languages or path boundaries is reconciled against the stored snapshot on the next `ctx index`.
+
+`[gitlab].project` is required for `ctx ingest gitlab`; its `base_url` defaults to GitLab.com, and `CTX_GITLAB_TOKEN` is optional for public projects. Jira has no default host: both `[jira].base_url` and `[jira].project` are required, Jira Server/Data Center is unsupported, and credentials come only from `CTX_JIRA_EMAIL`/`CTX_JIRA_TOKEN`.
 
 ## What's committed vs. local-only
 
 | Path | Committed? | Contents |
 | --- | --- | --- |
-| `.ctx/config.toml` | Yes (if the team shares config) | Language/path/service/GitLab settings. |
-| `.context/**/*.yaml`\|`.md` | Yes | Hand-authored or accepted product-context documents. |
-| `.ctx-candidates/*.yaml` | Yes | Pending AI-derived knowledge candidates from `ctx enrich`, one file per candidate — the one exception to `.ctx/`'s local-only rule, so a teammate sees the same pending queue without re-running `ctx enrich`. |
+| `.ctx/config.toml` | Yes (if the team shares config) | Language/path/service/GitLab/Jira settings. |
+| `.context/**/*.yaml`\|`.md` | Yes, unless redirected | Hand-authored or accepted product-context documents. |
+| `.ctx-candidates/*.yaml` | Yes, unless redirected | Pending AI-derived knowledge candidates from `ctx enrich`, one file per candidate — the one exception to `.ctx/`'s local-only rule, so a teammate sees the same pending queue without re-running `ctx enrich`. |
 | `.ctx/ctx.db`, `.ctx/ctx.db-wal`, `.ctx/ctx.db-shm` | No | The local SQLite index. |
 | `.ctx/registry.toml` | No | Local machine's list of neighboring repository checkouts, by absolute path. |
 | `.ctx/export.json` | No | This repository's last exported public manifest. |

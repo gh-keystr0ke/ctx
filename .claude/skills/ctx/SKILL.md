@@ -1,6 +1,6 @@
 ---
 name: ctx
-description: Use ctx, a local-first tool that links product intent (Features, Requirements, Invariants, Decisions) to code with provenance and confidence, whenever the working repository has a .ctx/ or .context/ directory, the user asks about product/business impact, requirements, invariants, blast radius, or "what does this change affect", the user wants to onboard a repository onto ctx (including fully automated onboarding by mining git history/comments/GitLab), or the work spans multiple related repositories (federation, cross-service request tracing). Compiles bounded task context before editing, checks blast radius before touching a symbol, reviews every diff for product-contract impact before a commit or PR, and keeps `.context/` documentation and the local index in sync with the code.
+description: Use ctx, a local-first tool that links product intent (Features, Requirements, Invariants, Decisions) to code with provenance and confidence, whenever the working repository has a .ctx/ or .context/ directory, the user asks about product/business impact, requirements, invariants, blast radius, or "what does this change affect", the user wants to onboard a repository onto ctx (including fully automated onboarding by mining git history, comments, GitLab, or Jira), or the work spans multiple related repositories (federation, cross-service request tracing). Compiles bounded task context before editing, checks blast radius before touching a symbol, reviews every diff for product-contract impact before a commit or PR, and keeps `.context/` documentation and the local index in sync with the code.
 ---
 
 # ctx: product-context-aware coding
@@ -111,7 +111,7 @@ If you're not sure whether a change is "product-observable" enough to warrant th
 | User asks what endpoints a Feature/Requirement touches | `ctx explain <id> --trace` |
 | Tracing one HTTP request's full path, possibly across services | `ctx trace "METHOD /path"` (`--verbose` to attach product context per hop) — see `references/federation.md` |
 | Repo has no `.context/` yet, or `ctx status` says `needs_context` | `references/onboarding.md` |
-| Repo has real Git history / code comments / a GitLab project worth mining | `references/onboarding.md` § mining |
+| Repo has real Git history / code comments / a GitLab or Jira project worth mining | `references/onboarding.md` § mining |
 | Periodic health check, or after a big merge | `ctx status --json` — read `health`, `notices`, `suggested_actions` and act on them |
 | Working across multiple related repositories | `references/federation.md` |
 | A stale claim needs re-checking after code moved on | `ctx verify --stale --agent <name>` (accept is binding; reject is only ever a suggestion for a human) |
@@ -120,7 +120,7 @@ If you're not sure whether a change is "product-observable" enough to warrant th
 
 `ctx index` only accepts **committed** configured sources — every indexed version has an honest Git validity boundary. `.context`/`.ctx-candidates` inputs get the same commit requirement only when their (possibly redirected, `ctx context-store show`) location is itself a Git repository; a plain-directory context store has no commit gate and is read as-is. If `ctx status --json` reports `index_state: "behind"` or `"not_indexed"` (surfaced as `health: "needs_index"`), run `ctx index` — but only when the working tree is clean for the configured source/context paths that do require a commit (`git status --short`). `ctx index` deliberately refuses to run over uncommitted changes to indexed inputs that require one; do not work around that — commit first, or just skip indexing and rely on `ctx review`, which works fine over an uncommitted diff regardless of index freshness.
 
-`ctx status --json` also reports, and you should act on: `schema_divergences` (ORM vs. migration-history mismatches), `unmapped_intents` (active documents with no implementation/test link — `health: "needs_mappings"`), and `stale_claims` (semantic relationships whose code changed since last confirmed). Its own `suggested_actions` array names the exact next command — prefer that over guessing.
+`ctx status --json` also reports, and you should act on: `schema_divergences` (ORM vs. migration-history mismatches), `unmapped_intents` (active Requirements/Invariants/Decisions with no implementation/test link — `health: "needs_mappings"`; Features are organizing parents and are excluded), and `stale_claims` (semantic relationships whose code changed since last confirmed). Its own `suggested_actions` array names the exact next command — prefer that over guessing.
 
 ## Epistemic discipline
 

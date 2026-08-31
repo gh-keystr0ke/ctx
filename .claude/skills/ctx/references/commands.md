@@ -1,6 +1,6 @@
 # Full CLI reference
 
-Every command accepts two global flags: `--json` for stable machine-readable output, and `-v`/`-vv` (repeatable) for more verbose diagnostics. Both must appear **before** the subcommand (`ctx --json impact ...`).
+Every command accepts two global flags: `--json` for stable machine-readable output, and `-v`/`-vv` (repeatable) for more verbose diagnostics. Because they are global, both forms are valid: `ctx --json impact ...` and `ctx impact ... --json`.
 
 ## Setup and indexing
 
@@ -17,12 +17,12 @@ Every command accepts two global flags: `--json` for stable machine-readable out
 `ctx status --json` returns:
 
 - `index_state`: `"not_indexed"` | `"behind"` | `"current"`.
-- `health`: `"ready"` | `"needs_index"` (index_state isn't current) | `"needs_context"` (no product documents indexed yet) | `"needs_mappings"` (an active document has no implementation/test link) | `"needs_attention"` (stale claims or schema divergences exist).
+- `health`: `"ready"` | `"needs_index"` (index_state isn't current) | `"needs_context"` (no product documents indexed yet) | `"needs_mappings"` (an active Requirement/Invariant/Decision has no implementation/test link) | `"needs_attention"` (stale claims or schema divergences exist).
 - `source_scope`: effective configured languages/include/exclude.
 - `uncommitted_index_inputs`: files that differ from HEAD among configured index inputs — a nonzero list means the stored graph still describes the last committed state, not your working tree.
 - `knowledge`: node/edge counts — files, symbols, db_entities, features, requirements, invariants, decisions, public_documents, active_edges, structural_facts, active_assertions, active_inferences, stale_semantic_edges, rejected_semantic_edges.
 - `schema_divergences`: best-effort ORM-vs-migration-history mismatches.
-- `unmapped_intents`: active Feature/Requirement/Invariant/Decision IDs with no implementation/test mapping.
+- `unmapped_intents`: active Requirement/Invariant/Decision IDs with no implementation/test mapping. Features are organizing parents and are excluded.
 - `stale_claims`: every stale semantic relationship as a `"source -> target"` string, directly usable with `ctx explain`.
 - `notices` / `suggested_actions`: human-readable diagnosis and the exact next command to run — prefer these over guessing what's wrong.
 
@@ -52,7 +52,7 @@ Full workflow and philosophy: `onboarding.md` § mining.
 
 | Command | Flags | Purpose |
 | --- | --- | --- |
-| `ctx ingest <source>` | `--since <OID>` | Normalize external artifacts into their own store. `source` is `git` (commit messages/branch names), `code-comments` (comments/docstrings attributed to nearest symbol), `gitlab` (issues/MRs/comments — needs `[gitlab]` in `.ctx/config.toml` and `CTX_GITLAB_TOKEN`), or `jira` (Jira Cloud issues/comments already referenced by known artifacts, plus one hop of related issues — needs `[jira]` in `.ctx/config.toml` and `CTX_JIRA_EMAIL`/`CTX_JIRA_TOKEN`; run after `git`/`gitlab` so there's something to reference). |
+| `ctx ingest <source>` | `--since <OID>` | Normalize external artifacts into their own store. `source` is `git` (commit messages/branch names; `--since` applies only here), `code-comments` (comments/docstrings attributed to nearest symbol), `gitlab` (issues/MRs/comments — needs `[gitlab]` in `.ctx/config.toml`; `CTX_GITLAB_TOKEN` is optional for public projects and required for private/authenticated access), or `jira` (Jira Cloud issues/comments already referenced by known artifacts, plus one hop of related issues — needs `[jira]` in `.ctx/config.toml` and `CTX_JIRA_EMAIL`/`CTX_JIRA_TOKEN`; run after `git`/`gitlab` so there's something to reference). |
 | `ctx enrich` | `--agent <claude\|codex\|antigravity>` (default `claude`), `--model <NAME>`, `--allow-ungrounded-symbols` | Ask an AI agent CLI already on `PATH` to propose typed knowledge candidates from ingested artifacts, one bounded neighborhood at a time. Always produces `pending` candidates, never asserted facts. |
 | `ctx verify` | `--accept <FINGERPRINT>` \| `--reject <FINGERPRINT>`, `--author <NAME>` (default `local-user`) | List or decide heuristic implementation-link candidates (deterministic relation suggestions from indexing — not AI-derived). |
 | `ctx verify --knowledge` | `--accept <FINGERPRINT> --id <STABLE-ID>` \| `--reject <FINGERPRINT>`, `--force`, `--author <NAME>` | List or decide pending AI-derived knowledge candidates from `ctx enrich`. Accepting writes an ordinary `.context/*.yaml` document. `--force` overrides the "looks like a restatement of an already-active document" refusal. |
@@ -85,4 +85,4 @@ Full workflow: `federation.md`.
 - `impact`/`context` JSON separates `data_contracts` (database entities and HTTP endpoints) from `implementation` and `tests`.
 - `ctx review` reports three independent streams: `findings` (proven product-requirement impact), `schema_findings` (deterministic database schema changes), and `api_findings` (deterministic HTTP contract changes). None is a subset of another.
 - Review deliberately favors precision over recall: formatting-only changes, renames, and likely refactors are suppressed by default. Pass `-v` to see suppressed-change counts and lower-confidence diagnostics.
-- Environment variables: `CTX_GITLAB_TOKEN` (GitLab API access, `ctx ingest gitlab` only), `CTX_JIRA_EMAIL`/`CTX_JIRA_TOKEN` (Jira Cloud API access, `ctx ingest jira` only), `CTX_CLAUDE_CLI_BINARY`/`CTX_CODEX_CLI_BINARY`/`CTX_ANTIGRAVITY_CLI_BINARY` (override the agent CLI path for `enrich`/`verify --auto`/`verify --stale`), `CTX_FEDERATION_BINARY` (override which `ctx` executable `ctx sync` invokes against a neighbor), `CTX_CONTEXTS_FILE` (override the context-store registry file path, default `~/.config/ctx/contexts.toml`). No token or API key for `claude`/`codex`/`antigravity` is read by `ctx` itself — each agent CLI handles its own authentication.
+- Environment variables: `CTX_GITLAB_TOKEN` (optional GitLab API access token, needed for private/authenticated projects; `ctx ingest gitlab` only), `CTX_JIRA_EMAIL`/`CTX_JIRA_TOKEN` (Jira Cloud API access, `ctx ingest jira` only), `CTX_CLAUDE_CLI_BINARY`/`CTX_CODEX_CLI_BINARY`/`CTX_ANTIGRAVITY_CLI_BINARY` (override the agent CLI path for `enrich`/`verify --auto`/`verify --stale`), `CTX_FEDERATION_BINARY` (override which `ctx` executable `ctx sync` invokes against a neighbor), `CTX_CONTEXTS_FILE` (override the context-store registry file path, default `$XDG_CONFIG_HOME/ctx/contexts.toml` when `XDG_CONFIG_HOME` is set, otherwise `~/.config/ctx/contexts.toml`). No token or API key for `claude`/`codex`/`antigravity` is read by `ctx` itself — each agent CLI handles its own authentication.

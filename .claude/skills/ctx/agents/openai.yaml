@@ -1,0 +1,4 @@
+interface:
+  display_name: "ctx"
+  short_description: "Product-context-aware coding with ctx"
+  default_prompt: "Use $ctx to compile product context, assess impact, and review this code change."

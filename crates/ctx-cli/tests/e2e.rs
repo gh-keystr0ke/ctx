@@ -2068,6 +2068,11 @@ fn enrich_and_verify_knowledge_accept_a_candidate_into_an_external_context_store
     );
 
     run_git(context_store.path(), &["add", &written_path]);
+    run_git(context_store.path(), &["config", "user.name", "ctx tests"]);
+    run_git(
+        context_store.path(),
+        &["config", "user.email", "ctx@example.invalid"],
+    );
     run_git(
         context_store.path(),
         &["commit", "--quiet", "-m", "accept REQ-HANDLER-002"],

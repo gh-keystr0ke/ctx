@@ -19,13 +19,21 @@ Full extraction scope and honest boundaries: [docs/limits.md](docs/limits.md). L
 
 ## Install
 
-Rust 1.88 or newer and Git are required. The container build pins Rust 1.97.1.
+macOS (Apple Silicon or Intel) or Linux x86_64: download the latest release, verify its checksum, and install to `~/.local/bin`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/gh-keystr0ke/ctx/main/install.sh | sh
+```
+
+The Linux binary is a statically linked `x86_64-unknown-linux-musl` build, so it runs unmodified on Arch, Ubuntu, Fedora, Gentoo, or any other x86_64 distribution. See [install.sh](install.sh) for the `CTX_INSTALL_VERSION`/`CTX_INSTALL_DIR` overrides.
+
+Building from source instead requires Rust 1.88 or newer and Git (the container build pins Rust 1.97.1):
 
 ```bash
 cargo install --locked --path crates/ctx-cli
 ```
 
-This installs `ctx`. The workspace also contains a standalone `ctx-mcp` binary, although `ctx serve --mcp` is sufficient for normal use.
+Either way this installs `ctx`. The workspace also contains a standalone `ctx-mcp` binary, although `ctx serve --mcp` is sufficient for normal use.
 
 ## Quick start
 

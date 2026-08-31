@@ -4,6 +4,17 @@ All notable changes to `ctx` are documented here. The project follows semantic v
 
 ## Unreleased
 
+## 0.6.1 — 2026-08-31
+
+### Added
+
+- `install.sh`, a POSIX `sh` installer (`curl -fsSL .../install.sh | sh`) that detects the current OS/architecture, downloads the matching release archive, verifies its published SHA-256 checksum, and installs `ctx` to `~/.local/bin` by default.
+
+### Changed
+
+- The Linux release target changed from `x86_64-unknown-linux-gnu` to `x86_64-unknown-linux-musl`: a statically linked binary that runs on any x86_64 Linux distribution regardless of the host's glibc version (Arch, Ubuntu, Fedora, Gentoo, ...), rather than only distributions with a glibc at least as new as the build runner's.
+- Release archives are now published alongside a `.sha256` checksum file for each target.
+
 ## 0.6.0 — 2026-08-31
 
 ### Added

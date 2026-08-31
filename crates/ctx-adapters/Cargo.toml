@@ -12,8 +12,8 @@ readme.workspace = true
 base64.workspace = true
 blake3.workspace = true
 chrono.workspace = true
-ctx-app = { path = "../ctx-app", version = "0.5.0" }
-ctx-core = { path = "../ctx-core", version = "0.5.0" }
+ctx-app = { path = "../ctx-app", version = "0.6.0" }
+ctx-core = { path = "../ctx-core", version = "0.6.0" }
 rusqlite.workspace = true
 serde.workspace = true
 serde_json.workspace = true

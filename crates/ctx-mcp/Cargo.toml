@@ -13,9 +13,9 @@ name = "ctx-mcp"
 path = "src/main.rs"
 
 [dependencies]
-ctx-adapters = { path = "../ctx-adapters", version = "0.5.0" }
-ctx-app = { path = "../ctx-app", version = "0.5.0" }
-ctx-core = { path = "../ctx-core", version = "0.5.0" }
+ctx-adapters = { path = "../ctx-adapters", version = "0.6.0" }
+ctx-app = { path = "../ctx-app", version = "0.6.0" }
+ctx-core = { path = "../ctx-core", version = "0.6.0" }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true

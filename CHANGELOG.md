@@ -4,6 +4,8 @@ All notable changes to `ctx` are documented here. The project follows semantic v
 
 ## Unreleased
 
+## 0.6.0 — 2026-08-31
+
 ### Added
 
 - `ctx ingest jira` for Jira Cloud issues and comments, mirroring the existing GitLab connector's architecture (synchronous `ureq` behind an injectable transport trait, token from an env var never committed). Deliberately scoped to referenced issues, not the whole project: `JiraIngestRunner` scans every artifact this repository already knows about (commits, branches, GitLab issues/MRs, prior Jira issues) for ticket-key-shaped references, fetches exactly those under the configured project, plus one hop of expansion through Jira's own `issuelinks`/`parent` fields — never a project-wide query, and never recursing past that one hop. An issue's stable identity is its human-readable key (e.g. `PSI-1122`), so an existing commit/branch mention resolves to it via the existing deterministic ticket-key linker with no `ctx-core` changes. Jira Cloud only; Server/Data Center, changelog/worklog/attachments, and retry-on-429 are out of scope for v1.

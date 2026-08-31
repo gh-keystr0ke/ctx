@@ -95,6 +95,7 @@ tests:
   - symbol: ctx_adapters.jira.tests.fetches_only_the_referenced_issues_not_the_whole_project
   - symbol: ctx_adapters.jira.tests.expands_one_hop_through_jira_reported_issue_links_but_no_further
   - symbol: ctx_adapters.jira.tests.jira_search_and_comments_read_every_page
+  - symbol: ctx_adapters.jira.tests.a_search_that_never_stops_paginating_fails_loudly_instead_of_hanging
   - symbol: ctx_adapters.http_retry.tests.retry_after_is_respected_and_retries_are_bounded
   - symbol: ctx_adapters.http_retry.tests.an_http_date_retry_after_is_understood_and_bounded
   - symbol: ctx_adapters.http_retry.tests.a_rate_limit_after_the_retry_budget_is_an_explicit_error

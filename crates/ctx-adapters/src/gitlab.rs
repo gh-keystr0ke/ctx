@@ -204,7 +204,7 @@ impl<T: GitLabTransport> GitLabClient<T> {
             .unwrap_or_default();
 
         for issue in self.get_all_pages::<RawIssue>(&format!(
-            "/projects/{}/issues?per_page={PAGE_SIZE}&order_by=iid&sort=asc{updated_after}",
+            "/projects/{}/issues?per_page={PAGE_SIZE}&sort=asc{updated_after}",
             encoded_project(&self.project)
         ))? {
             let identity = Self::issue_identity(issue.iid);
@@ -218,7 +218,7 @@ impl<T: GitLabTransport> GitLabClient<T> {
         }
 
         for merge_request in self.get_all_pages::<RawMergeRequest>(&format!(
-            "/projects/{}/merge_requests?per_page={PAGE_SIZE}&order_by=iid&sort=asc{updated_after}",
+            "/projects/{}/merge_requests?per_page={PAGE_SIZE}&sort=asc{updated_after}",
             encoded_project(&self.project)
         ))? {
             let identity = Self::merge_request_identity(merge_request.iid);
@@ -565,7 +565,7 @@ mod tests {
     fn fetches_issues_and_merge_requests_with_their_comments_and_commits() {
         let mut responses = BTreeMap::new();
         responses.insert(
-            "/projects/billing%2Fsubscriptions/issues?per_page=100&order_by=iid&sort=asc&page=1"
+            "/projects/billing%2Fsubscriptions/issues?per_page=100&sort=asc&page=1"
                 .to_owned(),
             r#"[{"iid":317,"title":"Cancellation removes prepaid access","description":"A cancelled prepaid subscription must remain usable until paid_until.","author":{"username":"alice"},"created_at":"2026-08-01T00:00:00Z","updated_at":"2026-08-01T00:00:00Z","web_url":"https://gitlab.example/billing/subscriptions/-/issues/317"}]"#
                 .to_owned(),
@@ -576,7 +576,7 @@ mod tests {
                 .to_owned(),
         );
         responses.insert(
-            "/projects/billing%2Fsubscriptions/merge_requests?per_page=100&order_by=iid&sort=asc&page=1"
+            "/projects/billing%2Fsubscriptions/merge_requests?per_page=100&sort=asc&page=1"
                 .to_owned(),
             r#"[{"iid":842,"title":"Fix cancellation semantics","description":"Fixes #317.","author":{"username":"alice"},"created_at":"2026-08-02T00:00:00Z","updated_at":"2026-08-02T00:00:00Z","web_url":"https://gitlab.example/billing/subscriptions/-/merge_requests/842"}]"#
                 .to_owned(),
@@ -640,12 +640,12 @@ mod tests {
     fn a_sync_cursor_becomes_an_updated_after_query_parameter() {
         let mut responses = BTreeMap::new();
         responses.insert(
-            "/projects/billing%2Fsubscriptions/issues?per_page=100&order_by=iid&sort=asc&updated_after=2026-08-21T00%3A00%3A00Z&page=1"
+            "/projects/billing%2Fsubscriptions/issues?per_page=100&sort=asc&updated_after=2026-08-21T00%3A00%3A00Z&page=1"
                 .to_owned(),
             "[]".to_owned(),
         );
         responses.insert(
-            "/projects/billing%2Fsubscriptions/merge_requests?per_page=100&order_by=iid&sort=asc&updated_after=2026-08-21T00%3A00%3A00Z&page=1"
+            "/projects/billing%2Fsubscriptions/merge_requests?per_page=100&sort=asc&updated_after=2026-08-21T00%3A00%3A00Z&page=1"
                 .to_owned(),
             "[]".to_owned(),
         );

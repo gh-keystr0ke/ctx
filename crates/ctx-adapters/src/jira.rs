@@ -69,6 +69,11 @@ pub trait JiraTransport {
     /// Returns [`JiraError::Transport`] when the request fails or returns a
     /// non-success status.
     fn get(&self, path: &str) -> Result<String, JiraError>;
+
+    /// # Errors
+    /// Returns [`JiraError::Transport`] when the request fails or returns a
+    /// non-success status.
+    fn post(&self, path: &str, body: &str) -> Result<String, JiraError>;
 }
 
 pub struct UreqTransport {
@@ -127,6 +132,44 @@ impl JiraTransport for UreqTransport {
                 status,
                 retry_after,
                 value: body,
+            })
+        })
+        .map_err(|error| JiraError::Transport {
+            path: path.to_owned(),
+            message: match error {
+                RetryError::Request(message) => message,
+                RetryError::Status { status, attempts } => {
+                    format!("HTTP {status} after {attempts} attempt(s)")
+                }
+            },
+        })
+    }
+
+    fn post(&self, path: &str, body: &str) -> Result<String, JiraError> {
+        let url = format!("{}{path}", self.base_url);
+        http_retry::run(self.retry_policy, &ThreadSleeper, || {
+            let mut response = self
+                .agent
+                .post(&url)
+                .header("Authorization", &self.authorization)
+                .header("Accept", "application/json")
+                .content_type("application/json")
+                .send(body)
+                .map_err(|error| error.to_string())?;
+            let status = response.status().as_u16();
+            let retry_after = response
+                .headers()
+                .get("Retry-After")
+                .and_then(|value| value.to_str().ok())
+                .map(str::to_owned);
+            let response_body = response
+                .body_mut()
+                .read_to_string()
+                .map_err(|error| error.to_string())?;
+            Ok(Attempt {
+                status,
+                retry_after,
+                value: response_body,
             })
         })
         .map_err(|error| JiraError::Transport {
@@ -225,8 +268,21 @@ struct RawJiraConfig {
 
 /// How many issue keys go into one `key in (...)` JQL request. Keeps the
 /// query string (and URL) bounded regardless of how many tickets a
-/// repository's history happens to mention.
+/// repository's history happens to mention. Also means a single
+/// `/rest/api/3/search/jql` page (`maxResults` 100) always holds every
+/// match, since `key in (...)` can never return more issues than keys
+/// named -- so [`MAX_SEARCH_PAGES`]'s loop below is a defensive backstop,
+/// not a path this batch size is expected to exercise.
 const KEY_BATCH_SIZE: usize = 50;
+
+/// Hard cap on pages read per `key in (...)` batch. Atlassian Community
+/// has reported the enhanced JQL search endpoint occasionally reissuing a
+/// fresh `nextPageToken` without ever terminating pagination (the
+/// documented `isLast` response flag has been reported stuck at `false`
+/// through the same failure, so it isn't a trustworthy alternative signal
+/// either); this cap turns that into a loud, bounded error instead of
+/// `ctx ingest jira` hanging indefinitely.
+const MAX_SEARCH_PAGES: usize = 1000;
 
 pub struct JiraClient<T> {
     transport: T,
@@ -323,6 +379,12 @@ impl<T: JiraTransport> JiraClient<T> {
     /// always `[A-Z]{2,10}-[0-9]{1,6}` (either validated by
     /// `ctx_core::linking::match_ticket_key` before reaching this module,
     /// or reported by Jira's own API), so none can smuggle JQL syntax.
+    ///
+    /// Uses the enhanced JQL search endpoint (`POST
+    /// /rest/api/3/search/jql`), not the legacy `GET /rest/api/3/search`:
+    /// Atlassian has sunset the latter (it now answers with HTTP 410) in
+    /// favor of this one, which also drops the `startAt`/`total`
+    /// offset-pagination model for an opaque `nextPageToken` cursor.
     fn fetch_issues_by_keys(&self, keys: &BTreeSet<String>) -> Result<Vec<RawIssue>, JiraError> {
         let ordered: Vec<&String> = keys.iter().collect();
         let mut issues = Vec::new();
@@ -335,17 +397,30 @@ impl<T: JiraTransport> JiraClient<T> {
                     .collect::<Vec<_>>()
                     .join(",")
             );
-            let mut start_at = 0u32;
-            loop {
-                let page: RawSearchResponse = self.get_json(&format!(
-                    "/rest/api/3/search?jql={}&startAt={start_at}&maxResults=100&fields=summary,description,creator,created,updated,issuelinks,parent",
-                    encode_query_value(&jql)
-                ))?;
+            let mut next_page_token: Option<String> = None;
+            for page_number in 1..=MAX_SEARCH_PAGES {
+                let request_body = serde_json::to_string(&RawSearchRequest {
+                    jql: &jql,
+                    max_results: 100,
+                    fields: SEARCH_FIELDS,
+                    next_page_token: next_page_token.as_deref(),
+                })
+                .expect("search request body is always representable as JSON");
+                let page: RawSearchResponse =
+                    self.post_json("/rest/api/3/search/jql", &request_body)?;
                 let fetched = page.issues.len();
                 issues.extend(page.issues);
-                start_at += u32::try_from(fetched).unwrap_or(u32::MAX);
-                if fetched == 0 || start_at >= page.total {
+                next_page_token = page.next_page_token;
+                if fetched == 0 || next_page_token.is_none() {
                     break;
+                }
+                if page_number == MAX_SEARCH_PAGES {
+                    return Err(JiraError::Transport {
+                        path: "/rest/api/3/search/jql".to_owned(),
+                        message: format!(
+                            "did not terminate after {MAX_SEARCH_PAGES} pages (still returning a nextPageToken) -- likely the reported Jira Cloud pagination bug"
+                        ),
+                    });
                 }
             }
         }
@@ -457,6 +532,18 @@ impl<T: JiraTransport> JiraClient<T> {
             source: error,
         })
     }
+
+    fn post_json<D: serde::de::DeserializeOwned>(
+        &self,
+        path: &str,
+        request_body: &str,
+    ) -> Result<D, JiraError> {
+        let body = self.transport.post(path, request_body)?;
+        serde_json::from_str(&body).map_err(|error| JiraError::InvalidJson {
+            path: path.to_owned(),
+            source: error,
+        })
+    }
 }
 
 impl<T: JiraTransport> ExternalArtifactSource for JiraClient<T> {
@@ -499,25 +586,6 @@ fn linked_keys(issue: &RawIssue) -> Vec<String> {
     keys
 }
 
-/// Percent-encodes a full query-string value: unlike GitLab's ingest path
-/// (`crate::gitlab::encode_query_value`), which only ever escapes an
-/// RFC3339 timestamp, a JQL expression can contain spaces, quotes, and
-/// comparison operators, so every byte outside the unreserved set
-/// (`A-Za-z0-9-_.~`) is escaped.
-fn encode_query_value(value: &str) -> String {
-    use std::fmt::Write as _;
-
-    let mut encoded = String::with_capacity(value.len());
-    for byte in value.bytes() {
-        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b'~') {
-            encoded.push(byte as char);
-        } else {
-            let _ = write!(encoded, "%{byte:02X}");
-        }
-    }
-    encoded
-}
-
 /// Flattens an Atlassian Document Format value (Jira Cloud v3's
 /// `description`/comment `body` shape) to plain text: every field this
 /// module treats as evidence text is ADF JSON, not a string, and passing
@@ -557,10 +625,35 @@ fn flatten_adf_into(node: &JsonValue, buffer: &mut String) {
     }
 }
 
+/// The fixed field selection every `/rest/api/3/search/jql` request asks
+/// for -- exactly what [`JiraClient::issue_artifact`]/[`linked_keys`]
+/// consume, kept as one constant so the request-builder and the
+/// human-readable rationale for the selection live in one place.
+const SEARCH_FIELDS: &[&str] = &[
+    "summary",
+    "description",
+    "creator",
+    "created",
+    "updated",
+    "issuelinks",
+    "parent",
+];
+
+#[derive(serde::Serialize)]
+struct RawSearchRequest<'a> {
+    jql: &'a str,
+    #[serde(rename = "maxResults")]
+    max_results: u32,
+    fields: &'a [&'a str],
+    #[serde(rename = "nextPageToken", skip_serializing_if = "Option::is_none")]
+    next_page_token: Option<&'a str>,
+}
+
 #[derive(Deserialize)]
 struct RawSearchResponse {
     issues: Vec<RawIssue>,
-    total: u32,
+    #[serde(rename = "nextPageToken")]
+    next_page_token: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -637,6 +730,17 @@ mod tests {
                     message: "no fixture response for this path".to_owned(),
                 })
         }
+
+        fn post(&self, path: &str, body: &str) -> Result<String, JiraError> {
+            let key = format!("POST {path}\n{body}");
+            self.responses
+                .get(&key)
+                .cloned()
+                .ok_or_else(|| JiraError::Transport {
+                    path: path.to_owned(),
+                    message: "no fixture response for this request body".to_owned(),
+                })
+        }
     }
 
     fn adf_paragraph(text: &str) -> String {
@@ -656,15 +760,19 @@ mod tests {
         )
     }
 
-    fn search_path(jql: &str) -> String {
-        search_path_at(jql, 0)
-    }
-
-    fn search_path_at(jql: &str, start_at: u32) -> String {
-        format!(
-            "/rest/api/3/search?jql={}&startAt={start_at}&maxResults=100&fields=summary,description,creator,created,updated,issuelinks,parent",
-            encode_query_value(jql)
-        )
+    /// Builds the fixture key for a `POST /rest/api/3/search/jql` request:
+    /// the exact serialized request body [`JiraClient::fetch_issues_by_keys`]
+    /// sends for this `jql`/`next_page_token` pair, so a fixture only
+    /// matches the one request it was written for.
+    fn search_key(jql: &str, next_page_token: Option<&str>) -> String {
+        let body = serde_json::to_string(&RawSearchRequest {
+            jql,
+            max_results: 100,
+            fields: SEARCH_FIELDS,
+            next_page_token,
+        })
+        .expect("search request body always serializes");
+        format!("POST /rest/api/3/search/jql\n{body}")
     }
 
     #[test]
@@ -680,12 +788,12 @@ mod tests {
         let last_comment = json!({"id": "101", "body": {"type": "doc", "content": []}});
         let mut responses = BTreeMap::new();
         responses.insert(
-            search_path_at(jql, 0),
-            json!({"total": 101, "issues": first_issues}).to_string(),
+            search_key(jql, None),
+            json!({"issues": first_issues, "nextPageToken": "page-2"}).to_string(),
         );
         responses.insert(
-            search_path_at(jql, 100),
-            json!({"total": 101, "issues": [last_issue]}).to_string(),
+            search_key(jql, Some("page-2")),
+            json!({"issues": [last_issue]}).to_string(),
         );
         responses.insert(
             "/rest/api/3/issue/PSI-1/comment?startAt=0&maxResults=100".to_owned(),
@@ -711,12 +819,45 @@ mod tests {
     }
 
     #[test]
+    fn a_search_that_never_stops_paginating_fails_loudly_instead_of_hanging() {
+        // Reproduces the pagination bug Atlassian Community has reported
+        // against this endpoint: every page keeps handing back the same
+        // `nextPageToken`, so a client that only stops on an absent token
+        // would loop forever.
+        let jql = "key in (PSI-1) ORDER BY key ASC";
+        let mut responses = BTreeMap::new();
+        responses.insert(
+            search_key(jql, None),
+            json!({"issues": [{"key": "PSI-1", "fields": {"summary": "Seed"}}], "nextPageToken": "stuck"})
+                .to_string(),
+        );
+        responses.insert(
+            search_key(jql, Some("stuck")),
+            json!({"issues": [{"key": "PSI-1", "fields": {"summary": "Seed"}}], "nextPageToken": "stuck"})
+                .to_string(),
+        );
+        let client = JiraClient::new(
+            FakeTransport { responses },
+            "PSI",
+            "https://example.atlassian.net",
+        );
+
+        match client.fetch_issues_by_keys(&keys(&["PSI-1"])) {
+            Err(JiraError::Transport { .. }) => {}
+            other => panic!(
+                "pagination that never terminates must be a reported transport error, not a hang: {}",
+                other.is_ok()
+            ),
+        }
+    }
+
+    #[test]
     fn fetches_only_the_referenced_issues_not_the_whole_project() {
         let mut responses = BTreeMap::new();
         responses.insert(
-            search_path("key in (PSI-1122) ORDER BY key ASC"),
+            search_key("key in (PSI-1122) ORDER BY key ASC", None),
             format!(
-                r#"{{"total":1,"issues":[{{"key":"PSI-1122","fields":{{"summary":"Cancellation removes prepaid access","description":{},"creator":{{"displayName":"alice"}},"created":"2026-08-01T00:00:00Z","updated":"2026-08-01T00:00:00Z"}}}}]}}"#,
+                r#"{{"issues":[{{"key":"PSI-1122","fields":{{"summary":"Cancellation removes prepaid access","description":{},"creator":{{"displayName":"alice"}},"created":"2026-08-01T00:00:00Z","updated":"2026-08-01T00:00:00Z"}}}}]}}"#,
                 adf_paragraph("A cancelled prepaid subscription must remain usable until paid_until.")
             ),
         );
@@ -796,18 +937,18 @@ mod tests {
     fn expands_one_hop_through_jira_reported_issue_links_but_no_further() {
         let mut responses = BTreeMap::new();
         responses.insert(
-            search_path("key in (PSI-1) ORDER BY key ASC"),
-            r#"{"total":1,"issues":[{"key":"PSI-1","fields":{"summary":"Seed","description":null,"creator":null,"created":null,"updated":null,"issuelinks":[{"outwardIssue":{"key":"PSI-2"}}],"parent":{"key":"PSI-3"}}}]}"#
+            search_key("key in (PSI-1) ORDER BY key ASC", None),
+            r#"{"issues":[{"key":"PSI-1","fields":{"summary":"Seed","description":null,"creator":null,"created":null,"updated":null,"issuelinks":[{"outwardIssue":{"key":"PSI-2"}}],"parent":{"key":"PSI-3"}}}]}"#
                 .to_owned(),
         );
         responses.extend([empty_comment_page("PSI-1")]);
         responses.insert(
-            search_path("key in (PSI-2,PSI-3) ORDER BY key ASC"),
+            search_key("key in (PSI-2,PSI-3) ORDER BY key ASC", None),
             // PSI-2 itself links further to PSI-4 -- this must NOT be
             // followed (one hop only), so no fixture exists for a PSI-4
             // request; if the client tried, the test would fail on a
             // missing-fixture error.
-            r#"{"total":2,"issues":[{"key":"PSI-2","fields":{"summary":"Related via issuelinks","description":null,"creator":null,"created":null,"updated":null,"issuelinks":[{"outwardIssue":{"key":"PSI-4"}}]}},{"key":"PSI-3","fields":{"summary":"Related via parent","description":null,"creator":null,"created":null,"updated":null}}]}"#
+            r#"{"issues":[{"key":"PSI-2","fields":{"summary":"Related via issuelinks","description":null,"creator":null,"created":null,"updated":null,"issuelinks":[{"outwardIssue":{"key":"PSI-4"}}]}},{"key":"PSI-3","fields":{"summary":"Related via parent","description":null,"creator":null,"created":null,"updated":null}}]}"#
                 .to_owned(),
         );
         responses.extend([empty_comment_page("PSI-2"), empty_comment_page("PSI-3")]);
@@ -862,8 +1003,8 @@ mod tests {
     fn a_related_issue_already_among_the_seeds_gets_no_duplicate_related_link() {
         let mut responses = BTreeMap::new();
         responses.insert(
-            search_path("key in (PSI-1,PSI-2) ORDER BY key ASC"),
-            r#"{"total":2,"issues":[{"key":"PSI-1","fields":{"summary":"Seed one","description":null,"creator":null,"created":null,"updated":null,"issuelinks":[{"outwardIssue":{"key":"PSI-2"}}]}},{"key":"PSI-2","fields":{"summary":"Seed two","description":null,"creator":null,"created":null,"updated":null}}]}"#
+            search_key("key in (PSI-1,PSI-2) ORDER BY key ASC", None),
+            r#"{"issues":[{"key":"PSI-1","fields":{"summary":"Seed one","description":null,"creator":null,"created":null,"updated":null,"issuelinks":[{"outwardIssue":{"key":"PSI-2"}}]}},{"key":"PSI-2","fields":{"summary":"Seed two","description":null,"creator":null,"created":null,"updated":null}}]}"#
                 .to_owned(),
         );
         responses.extend([empty_comment_page("PSI-1"), empty_comment_page("PSI-2")]);

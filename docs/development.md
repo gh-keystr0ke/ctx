@@ -31,4 +31,4 @@ Language support is isolated behind `AnalyzerModule` and the normalized `FileAna
 
 The registry rejects duplicate language names and extension ownership. Indexing, review, CLI, MCP, persistence, and graph algorithms require no language-specific branch.
 
-See [docs/architecture.md](architecture.md) for boundaries and persistence semantics. The detailed product and engineering source specifications are in [product_conclu.md](../product_conclu.md) and [eng_conclu.md](../eng_conclu.md).
+See [docs/architecture.md](architecture.md) for boundaries and persistence semantics, distilled from the original product and engineering specs.

@@ -3,4 +3,10 @@
 **/.ctx/ctx.db-shm
 **/.ctx/ctx.db-wal
 /docs/historical-eval-results/
+/worklog.md
+/prompt.md
+/prompt2.md
+/prompt3.md
+/eng_conclu.md
+/product_conclu.md
 

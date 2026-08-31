@@ -174,7 +174,7 @@ cargo test --workspace
 cargo run --locked -p ctx-eval   # deterministic product-quality corpus
 ```
 
-Adding a new language module and the full test/eval breakdown: **[docs/development.md](docs/development.md)**. Architecture and persistence boundaries: **[docs/architecture.md](docs/architecture.md)**. Detailed product and engineering source specifications: [product_conclu.md](product_conclu.md) and [eng_conclu.md](eng_conclu.md).
+Adding a new language module and the full test/eval breakdown: **[docs/development.md](docs/development.md)**. Architecture and persistence boundaries, distilled from the original product and engineering specs: **[docs/architecture.md](docs/architecture.md)**.
 
 ## Current limits
 

@@ -290,6 +290,23 @@ pub enum ExternalArtifactRequest<'a> {
     /// Fetch the explicitly referenced tracker keys and provider-linked
     /// neighbors allowed by that connector's bounded traversal policy.
     ReferencedKeys(&'a BTreeSet<String>),
+    /// Fetch only merge requests deterministically connected to the current
+    /// repository's Git evidence. Connectors must select summaries before
+    /// fetching expensive comments/commit details.
+    RepositoryLinked(&'a RepositoryArtifactRefs),
+    /// Fetch exactly the repository-backed Jira keys with an explicitly
+    /// bounded tracker-reported relationship expansion.
+    BusinessLinkedKeys {
+        keys: &'a BTreeSet<String>,
+        related_depth: usize,
+    },
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct RepositoryArtifactRefs {
+    pub branch_names: BTreeSet<String>,
+    pub commit_shas: BTreeSet<String>,
+    pub merge_request_iids: BTreeSet<String>,
 }
 
 /// Normalized output shared by every network artifact connector.

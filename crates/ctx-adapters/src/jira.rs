@@ -332,6 +332,14 @@ impl<T: JiraTransport> JiraClient<T> {
         &self,
         candidate_keys: &BTreeSet<String>,
     ) -> Result<(Vec<Artifact>, Vec<ArtifactLink>), JiraError> {
+        self.fetch_issue_artifacts_for_keys_with_depth(candidate_keys, 1)
+    }
+
+    fn fetch_issue_artifacts_for_keys_with_depth(
+        &self,
+        candidate_keys: &BTreeSet<String>,
+        related_depth: usize,
+    ) -> Result<(Vec<Artifact>, Vec<ArtifactLink>), JiraError> {
         let project_prefix = format!("{}-", self.project);
         let seed_keys: BTreeSet<String> = candidate_keys
             .iter()
@@ -345,33 +353,26 @@ impl<T: JiraTransport> JiraClient<T> {
         let mut artifacts = Vec::new();
         let mut links = Vec::new();
 
-        let seed_issues = self.fetch_issues_by_keys(&seed_keys)?;
-        let seed_key_set: BTreeSet<String> =
-            seed_issues.iter().map(|issue| issue.key.clone()).collect();
-        // The first seed to mention a given related key wins as its
-        // recorded source; a related issue linked from several seeds still
-        // only needs one auditable `RelatedIssue` edge to justify why it's
-        // in the store at all.
-        let mut related_sources: BTreeMap<String, ArtifactIdentity> = BTreeMap::new();
-        for issue in &seed_issues {
-            let identity = Self::issue_identity(&issue.key);
-            for related_key in linked_keys(issue) {
-                if !seed_key_set.contains(&related_key) {
-                    related_sources
-                        .entry(related_key)
-                        .or_insert_with(|| identity.clone());
+        let mut frontier = self.fetch_issues_by_keys(&seed_keys)?;
+        let mut visited_keys: BTreeSet<String> =
+            frontier.iter().map(|issue| issue.key.clone()).collect();
+        let mut frontier_sources: BTreeMap<String, ArtifactIdentity> = BTreeMap::new();
+        for depth in 0..=related_depth {
+            let mut related_sources = BTreeMap::new();
+            if depth < related_depth {
+                for issue in &frontier {
+                    let identity = Self::issue_identity(&issue.key);
+                    for related_key in linked_keys(issue) {
+                        if !visited_keys.contains(&related_key) {
+                            related_sources
+                                .entry(related_key)
+                                .or_insert_with(|| identity.clone());
+                        }
+                    }
                 }
             }
-        }
-
-        for issue in seed_issues {
-            self.ingest_one_issue(issue, &mut artifacts, &mut links)?;
-        }
-
-        if !related_sources.is_empty() {
-            let related_keys: BTreeSet<String> = related_sources.keys().cloned().collect();
-            for issue in self.fetch_issues_by_keys(&related_keys)? {
-                let source_identity = related_sources.get(&issue.key).cloned();
+            for issue in frontier {
+                let source_identity = frontier_sources.get(&issue.key).cloned();
                 let identity = self.ingest_one_issue(issue, &mut artifacts, &mut links)?;
                 if let Some(source_identity) = source_identity {
                     links.push(ArtifactLink {
@@ -385,6 +386,15 @@ impl<T: JiraTransport> JiraClient<T> {
                     });
                 }
             }
+            if related_sources.is_empty() {
+                break;
+            }
+            let related_keys: BTreeSet<String> = related_sources.keys().cloned().collect();
+            frontier = self.fetch_issues_by_keys(&related_keys)?;
+            for issue in &frontier {
+                visited_keys.insert(issue.key.clone());
+            }
+            frontier_sources = related_sources;
         }
 
         Ok((artifacts, links))
@@ -567,14 +577,21 @@ impl<T: JiraTransport> ExternalArtifactSource for JiraClient<T> {
         &self,
         request: ExternalArtifactRequest<'_>,
     ) -> Result<ExternalArtifactBatch, PortError> {
-        let ExternalArtifactRequest::ReferencedKeys(candidate_keys) = request else {
-            return Err(PortError::new(
-                "Jira accepts only the referenced-keys artifact request mode",
-            ));
+        let result = match request {
+            ExternalArtifactRequest::ReferencedKeys(candidate_keys) => {
+                self.fetch_issue_artifacts_for_keys(candidate_keys)
+            }
+            ExternalArtifactRequest::BusinessLinkedKeys {
+                keys,
+                related_depth,
+            } => self.fetch_issue_artifacts_for_keys_with_depth(keys, related_depth),
+            _ => {
+                return Err(PortError::new(
+                    "Jira accepts only referenced-key artifact requests",
+                ));
+            }
         };
-        let (artifacts, links) = self
-            .fetch_issue_artifacts_for_keys(candidate_keys)
-            .map_err(|error| PortError::new(error.to_string()))?;
+        let (artifacts, links) = result.map_err(|error| PortError::new(error.to_string()))?;
         Ok(ExternalArtifactBatch { artifacts, links })
     }
 }
@@ -1013,6 +1030,39 @@ mod tests {
                         external_id: "PSI-3".to_owned(),
                     })
         }));
+    }
+
+    #[test]
+    fn zero_related_depth_fetches_only_direct_repository_backed_keys() {
+        let mut responses = BTreeMap::new();
+        responses.insert(
+            search_key("key in (PSI-1) ORDER BY key ASC", None),
+            r#"{"issues":[{"key":"PSI-1","fields":{"summary":"Seed","description":null,"creator":null,"created":null,"updated":null,"issuelinks":[{"outwardIssue":{"key":"PSI-2"}}]}}]}"#
+                .to_owned(),
+        );
+        responses.extend([empty_comment_page("PSI-1")]);
+        let client = JiraClient::new(
+            FakeTransport { responses },
+            "PSI",
+            "https://example.atlassian.net",
+        );
+
+        let (artifacts, links) = client
+            .fetch_issue_artifacts_for_keys_with_depth(&keys(&["PSI-1"]), 0)
+            .expect("direct keys only");
+
+        assert_eq!(
+            artifacts
+                .iter()
+                .filter(|artifact| artifact.identity.kind == ArtifactKind::Issue)
+                .count(),
+            1
+        );
+        assert!(
+            links
+                .iter()
+                .all(|link| link.kind != ArtifactLinkKind::RelatedIssue)
+        );
     }
 
     #[test]

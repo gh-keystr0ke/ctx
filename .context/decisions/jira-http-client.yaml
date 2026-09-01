@@ -28,6 +28,13 @@ decision: >
   ticket key already recognized by the linker double as the fetch-scoping
   key with no second parsing pass.
 
+  The opt-in business-linked runner narrows candidate sources further to
+  current Git and repository-linked merge requests plus their comments. It
+  explicitly excludes prior Jira artifacts and unrelated GitLab issues, so
+  tracker data cannot seed itself. Its related-issue depth is caller-bounded
+  and defaults to zero; the legacy default mode retains the historical
+  referenced-plus-one-hop behavior.
+
   On top of the referenced set, one hop of expansion: Jira's own
   `issuelinks` (blocks/relates-to/duplicates, either direction) and
   `parent` (subtask, or team-managed-project epic) fields name issues
@@ -94,6 +101,7 @@ implementation:
   - symbol: ctx_adapters.jira.flatten_adf
   - symbol: ctx_adapters.jira.JiraConfig.load
   - symbol: ctx_app.ingest.JiraIngestRunner.run
+  - symbol: ctx_app.ingest.JiraIngestRunner.run_scoped
   - symbol: ctx_adapters.http_retry.run
 tests:
   - symbol: ctx_adapters.jira.tests.fetches_only_the_referenced_issues_not_the_whole_project
@@ -106,3 +114,4 @@ tests:
   - symbol: ctx_adapters.jira.tests.jira_search_and_comments_read_every_page
   - symbol: ctx_adapters.http_retry.tests.retry_after_is_respected_and_retries_are_bounded
   - symbol: ctx_app.ingest.tests.jira_ingest_derives_candidate_keys_from_already_known_artifact_text
+  - symbol: ctx_app.ingest.tests.business_linked_jira_scope_cannot_be_seeded_by_old_jira_or_gitlab_issues

@@ -12,6 +12,7 @@ use std::{fs, path::Path};
 
 use ctx_app::ports::{
     ExternalArtifactBatch, ExternalArtifactRequest, ExternalArtifactSource, PortError,
+    RepositoryArtifactRefs,
 };
 use ctx_core::artifact::{
     Artifact, ArtifactIdentity, ArtifactKind, ArtifactLink, ArtifactLinkKind, ArtifactLinkTarget,
@@ -227,51 +228,84 @@ impl<T: GitLabTransport> GitLabClient<T> {
             self.push_notes(&identity, notes, &mut artifacts, &mut links);
         }
 
-        for merge_request in self.get_all_pages::<RawMergeRequest>(&format!(
+        let merge_requests = self.get_all_pages::<RawMergeRequest>(&format!(
             "/projects/{}/merge_requests?per_page={PAGE_SIZE}&sort=asc{updated_after}",
             encoded_project(&self.project)
-        ))? {
-            let identity = Self::merge_request_identity(merge_request.iid);
-            if let Some(source_branch) = merge_request.source_branch.clone() {
-                links.push(ArtifactLink {
-                    source: identity.clone(),
-                    target: ArtifactLinkTarget::Artifact(ArtifactIdentity {
-                        provider: ArtifactProvider::Git,
-                        kind: ArtifactKind::Branch,
-                        external_id: source_branch,
-                    }),
-                    kind: ArtifactLinkKind::References,
-                    evidence_locator: "merge_request.source_branch".to_owned(),
-                });
-            }
-            artifacts.push(self.merge_request_artifact(&identity, merge_request));
-            let notes = self.get_all_pages::<RawNote>(&format!(
-                "/projects/{}/merge_requests/{}/notes?per_page={PAGE_SIZE}",
-                encoded_project(&self.project),
-                identity.external_id
-            ))?;
-            self.push_notes(&identity, notes, &mut artifacts, &mut links);
-
-            let commits = self.get_all_pages::<RawCommitRef>(&format!(
-                "/projects/{}/merge_requests/{}/commits?per_page={PAGE_SIZE}",
-                encoded_project(&self.project),
-                identity.external_id
-            ))?;
-            for commit in commits {
-                links.push(ArtifactLink {
-                    source: identity.clone(),
-                    target: ArtifactLinkTarget::Artifact(ArtifactIdentity {
-                        provider: ArtifactProvider::Git,
-                        kind: ArtifactKind::Commit,
-                        external_id: commit.id,
-                    }),
-                    kind: ArtifactLinkKind::ContainsCommit,
-                    evidence_locator: format!("merge_request:{}", identity.external_id),
-                });
-            }
+        ))?;
+        for merge_request in merge_requests {
+            self.push_merge_request(merge_request, &mut artifacts, &mut links)?;
         }
 
         Ok((artifacts, links))
+    }
+
+    /// Lists merge-request summaries for the configured project, selects
+    /// only those grounded in current repository Git evidence, and only then
+    /// fetches their notes and commits. GitLab issues are deliberately not
+    /// fetched in this mode because they are not repository business roots.
+    fn fetch_repository_linked_merge_requests(
+        &self,
+        repository_refs: &RepositoryArtifactRefs,
+    ) -> Result<(Vec<Artifact>, Vec<ArtifactLink>), GitLabError> {
+        let merge_requests = self.get_all_pages::<RawMergeRequest>(&format!(
+            "/projects/{}/merge_requests?per_page={PAGE_SIZE}&sort=asc",
+            encoded_project(&self.project)
+        ))?;
+        let mut artifacts = Vec::new();
+        let mut links = Vec::new();
+        for merge_request in merge_requests
+            .into_iter()
+            .filter(|merge_request| merge_request_matches(merge_request, repository_refs))
+        {
+            self.push_merge_request(merge_request, &mut artifacts, &mut links)?;
+        }
+        Ok((artifacts, links))
+    }
+
+    fn push_merge_request(
+        &self,
+        merge_request: RawMergeRequest,
+        artifacts: &mut Vec<Artifact>,
+        links: &mut Vec<ArtifactLink>,
+    ) -> Result<(), GitLabError> {
+        let identity = Self::merge_request_identity(merge_request.iid);
+        if let Some(source_branch) = merge_request.source_branch.clone() {
+            links.push(ArtifactLink {
+                source: identity.clone(),
+                target: ArtifactLinkTarget::Artifact(ArtifactIdentity {
+                    provider: ArtifactProvider::Git,
+                    kind: ArtifactKind::Branch,
+                    external_id: source_branch,
+                }),
+                kind: ArtifactLinkKind::References,
+                evidence_locator: "merge_request.source_branch".to_owned(),
+            });
+        }
+        artifacts.push(self.merge_request_artifact(&identity, merge_request));
+        let notes = self.get_all_pages::<RawNote>(&format!(
+            "/projects/{}/merge_requests/{}/notes?per_page={PAGE_SIZE}",
+            encoded_project(&self.project),
+            identity.external_id
+        ))?;
+        self.push_notes(&identity, notes, artifacts, links);
+        let commits = self.get_all_pages::<RawCommitRef>(&format!(
+            "/projects/{}/merge_requests/{}/commits?per_page={PAGE_SIZE}",
+            encoded_project(&self.project),
+            identity.external_id
+        ))?;
+        for commit in commits {
+            links.push(ArtifactLink {
+                source: identity.clone(),
+                target: ArtifactLinkTarget::Artifact(ArtifactIdentity {
+                    provider: ArtifactProvider::Git,
+                    kind: ArtifactKind::Commit,
+                    external_id: commit.id,
+                }),
+                kind: ArtifactLinkKind::ContainsCommit,
+                evidence_locator: format!("merge_request:{}", identity.external_id),
+            });
+        }
+        Ok(())
     }
 
     fn push_notes(
@@ -402,14 +436,20 @@ impl<T: GitLabTransport> ExternalArtifactSource for GitLabClient<T> {
         &self,
         request: ExternalArtifactRequest<'_>,
     ) -> Result<ExternalArtifactBatch, PortError> {
-        let ExternalArtifactRequest::UpdatedSince(since) = request else {
-            return Err(PortError::new(
-                "GitLab accepts only the updated-since artifact request mode",
-            ));
+        let result = match request {
+            ExternalArtifactRequest::UpdatedSince(since) => {
+                self.fetch_issue_and_mr_artifacts(since)
+            }
+            ExternalArtifactRequest::RepositoryLinked(repository_refs) => {
+                self.fetch_repository_linked_merge_requests(repository_refs)
+            }
+            _ => {
+                return Err(PortError::new(
+                    "GitLab accepts only updated-since or repository-linked artifact requests",
+                ));
+            }
         };
-        let (artifacts, links) = self
-            .fetch_issue_and_mr_artifacts(since)
-            .map_err(|error| PortError::new(error.to_string()))?;
+        let (artifacts, links) = result.map_err(|error| PortError::new(error.to_string()))?;
         Ok(ExternalArtifactBatch { artifacts, links })
     }
 }
@@ -434,6 +474,27 @@ fn encode_query_value(value: &str) -> String {
             other => other.to_string(),
         })
         .collect()
+}
+
+fn merge_request_matches(
+    merge_request: &RawMergeRequest,
+    repository_refs: &RepositoryArtifactRefs,
+) -> bool {
+    repository_refs
+        .merge_request_iids
+        .contains(&merge_request.iid.to_string())
+        || merge_request
+            .source_branch
+            .as_ref()
+            .is_some_and(|branch| repository_refs.branch_names.contains(branch))
+        || [
+            merge_request.sha.as_ref(),
+            merge_request.merge_commit_sha.as_ref(),
+            merge_request.squash_commit_sha.as_ref(),
+        ]
+        .into_iter()
+        .flatten()
+        .any(|sha| repository_refs.commit_shas.contains(sha))
 }
 
 #[derive(Deserialize)]
@@ -465,6 +526,12 @@ struct RawMergeRequest {
     web_url: Option<String>,
     #[serde(default)]
     source_branch: Option<String>,
+    #[serde(default)]
+    sha: Option<String>,
+    #[serde(default)]
+    merge_commit_sha: Option<String>,
+    #[serde(default)]
+    squash_commit_sha: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -728,5 +795,67 @@ mod tests {
 
         assert!(artifacts.is_empty());
         assert!(links.is_empty());
+    }
+
+    #[test]
+    fn repository_linked_mode_fetches_details_only_for_selected_merge_requests() {
+        let mut responses = BTreeMap::new();
+        responses.insert(
+            "/projects/billing%2Fsubscriptions/merge_requests?per_page=100&sort=asc&page=1"
+                .to_owned(),
+            r#"[{"iid":842,"title":"Selected","source_branch":"feature/cancellation"},{"iid":843,"title":"Unrelated","source_branch":"feature/other"}]"#
+                .to_owned(),
+        );
+        responses.insert(
+            "/projects/billing%2Fsubscriptions/merge_requests/842/notes?per_page=100&page=1"
+                .to_owned(),
+            "[]".to_owned(),
+        );
+        responses.insert(
+            "/projects/billing%2Fsubscriptions/merge_requests/842/commits?per_page=100&page=1"
+                .to_owned(),
+            "[]".to_owned(),
+        );
+        let client = GitLabClient::new(FakeTransport { responses }, "billing/subscriptions");
+        let repository_refs = RepositoryArtifactRefs {
+            branch_names: std::collections::BTreeSet::from(["feature/cancellation".to_owned()]),
+            ..RepositoryArtifactRefs::default()
+        };
+
+        let batch = client
+            .fetch(ExternalArtifactRequest::RepositoryLinked(&repository_refs))
+            .expect("repository-linked fetch");
+
+        assert_eq!(batch.artifacts.len(), 1);
+        assert_eq!(batch.artifacts[0].identity.external_id, "842");
+        assert!(
+            batch
+                .artifacts
+                .iter()
+                .all(|artifact| artifact.identity.kind == ArtifactKind::MergeRequest)
+        );
+    }
+
+    #[test]
+    fn repository_linked_selection_accepts_explicit_iid_and_commit_sha() {
+        let by_iid: RawMergeRequest = serde_json::from_value(json!({
+            "iid": 842,
+            "title": "Explicit"
+        }))
+        .expect("MR");
+        let by_sha: RawMergeRequest = serde_json::from_value(json!({
+            "iid": 843,
+            "title": "Commit",
+            "merge_commit_sha": "abc123"
+        }))
+        .expect("MR");
+        let refs = RepositoryArtifactRefs {
+            commit_shas: std::collections::BTreeSet::from(["abc123".to_owned()]),
+            merge_request_iids: std::collections::BTreeSet::from(["842".to_owned()]),
+            ..RepositoryArtifactRefs::default()
+        };
+
+        assert!(merge_request_matches(&by_iid, &refs));
+        assert!(merge_request_matches(&by_sha, &refs));
     }
 }

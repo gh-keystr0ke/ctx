@@ -18,15 +18,20 @@ decision: >
   transport unchanged — a cursor only changes the query string a `GET`
   carries, never the client architecture. Every collection is fetched page
   by page rather than assuming GitLab's maximum `per_page=100` is complete.
+  Business-linked ingestion uses the same transport in two phases: list and
+  select merge-request summaries against repository Git first, then fetch
+  notes and commits only for selected MRs; it never fetches GitLab issues.
   The live transport shares Jira's finite retry policy for 429/502/503/504,
   honoring numeric `Retry-After` before capped exponential backoff.
 implementation:
   - symbol: ctx_adapters.gitlab.UreqTransport
   - symbol: ctx_adapters.gitlab.GitLabTransport
   - symbol: ctx_adapters.gitlab.GitLabClient
+  - symbol: ctx_adapters.gitlab.GitLabClient.fetch_repository_linked_merge_requests
   - symbol: ctx_adapters.http_retry.run
 tests:
   - symbol: ctx_adapters.gitlab.tests.fetches_issues_and_merge_requests_with_their_comments_and_commits
   - symbol: ctx_adapters.gitlab.tests.a_sync_cursor_becomes_an_updated_after_query_parameter
   - symbol: ctx_adapters.gitlab.tests.every_gitlab_collection_reads_more_than_one_page
+  - symbol: ctx_adapters.gitlab.tests.repository_linked_mode_fetches_details_only_for_selected_merge_requests
   - symbol: ctx_adapters.http_retry.tests.retry_after_is_respected_and_retries_are_bounded

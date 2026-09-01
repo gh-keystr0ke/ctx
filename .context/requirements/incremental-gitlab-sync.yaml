@@ -3,7 +3,7 @@ type: requirement
 feature: FEAT-INDEXING
 status: active
 statement: >
-  `ctx ingest gitlab` must fetch only issues and merge requests GitLab
+  `ctx ingest gitlab` in its default `--scope all` mode must fetch only issues and merge requests GitLab
   itself reports as updated since the previous successful run (prompt3.md
   §18 SHOULD, T8.1/PR-INCR-001), not re-fetch the whole project's history on
   every invocation. A per-(repository, provider) sync cursor is stored
@@ -18,13 +18,20 @@ statement: >
   (REQ-EXT-001): re-ingesting an artifact the incremental fetch happens to
   return again still versions the same stored row rather than duplicating
   it, so a wrong or reset cursor degrades to "slower," never "wrong."
+  Business-linked mode deliberately does not read or advance this cursor:
+  repository relevance can change because local Git changed even when a
+  merge request's GitLab updated_at did not. It re-lists lightweight MR
+  summaries for selection while still fetching expensive detail only for
+  repository-linked MRs.
 implementation:
   - symbol: ctx_app.ports.IngestCursorStore
   - symbol: ctx_app.ingest.GitLabIngestRunner.run
+  - symbol: ctx_app.ingest.GitLabIngestRunner.run_scoped
   - symbol: ctx_adapters.gitlab.GitLabClient.fetch_issue_and_mr_artifacts
   - symbol: ctx_adapters.sqlite.artifacts.SqliteStore.IngestCursorStore.sync_cursor
   - symbol: ctx_adapters.sqlite.artifacts.SqliteStore.IngestCursorStore.set_sync_cursor
 tests:
   - symbol: ctx_app.ingest.tests.gitlab_ingest_advances_its_sync_cursor_and_passes_it_to_the_next_run
+  - symbol: ctx_app.ingest.tests.business_linked_gitlab_scope_builds_refs_only_from_current_git
   - symbol: ctx_adapters.gitlab.tests.a_sync_cursor_becomes_an_updated_after_query_parameter
   - symbol: ctx_adapters.sqlite.artifacts.tests.sync_cursor_round_trips_and_advances_in_place

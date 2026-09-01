@@ -14,9 +14,23 @@ statement: >
   business scope. Jira RelatedIssue expansion is explicitly bounded and
   defaults to zero hops. Every keep/prune decision carries a deterministic
   reason suitable for logs and dry-run reports, and planning is linear in
-  the number of artifacts and links.
+  the number of artifacts and links. `ctx ingest gitlab --scope
+  business-linked` lists merge-request summaries but fetches comments and
+  commits only for MRs selected by a literal !IID in Git, a matching source
+  branch, or a matching head/merge/squash commit SHA; GitLab issues are not
+  fetched in this mode. `ctx ingest jira --scope business-linked` derives
+  keys only from current Git plus those repository-linked MRs and their
+  comments, never from old Jira artifacts or unrelated GitLab issues, and
+  `--related-depth` controls the bounded Jira expansion. `ctx ingest
+  code-comments --reconcile` treats HEAD as a complete snapshot and removes
+  comments/docstrings no longer present only after the new snapshot was read
+  successfully. The legacy all-artifacts ingest behavior remains the default.
 implementation:
   - symbol: ctx_core.artifact_scope.plan_business_scope
+  - symbol: ctx_app.ingest.GitLabIngestRunner.run_scoped
+  - symbol: ctx_app.ingest.JiraIngestRunner.run_scoped
+  - symbol: ctx_app.ingest.CodeDocIngestRunner.run_with_reconcile
+  - symbol: ctx_adapters.gitlab.GitLabClient.fetch_repository_linked_merge_requests
   - symbol: ctx_app.ports.ArtifactMaintenanceStore
   - symbol: ctx_adapters.sqlite.artifacts.SqliteStore.ArtifactMaintenanceStore.delete_artifacts
 tests:
@@ -24,4 +38,9 @@ tests:
   - symbol: ctx_core.artifact_scope.tests.jira_artifacts_cannot_seed_each_other_without_repository_evidence
   - symbol: ctx_core.artifact_scope.tests.repository_linked_mr_without_jira_is_not_business_context
   - symbol: ctx_core.artifact_scope.tests.jira_related_issue_expansion_is_bounded_by_depth
+  - symbol: ctx_adapters.gitlab.tests.repository_linked_mode_fetches_details_only_for_selected_merge_requests
+  - symbol: ctx_app.ingest.tests.business_linked_gitlab_scope_builds_refs_only_from_current_git
+  - symbol: ctx_app.ingest.tests.business_linked_jira_scope_cannot_be_seeded_by_old_jira_or_gitlab_issues
+  - symbol: ctx_app.ingest.tests.business_linked_jira_scope_accepts_a_repository_linked_mr_as_evidence
+  - symbol: crates.ctx-cli.tests.e2e.ingest_code_comments_attaches_a_doc_comment_to_its_nearest_symbol
   - symbol: ctx_adapters.sqlite.artifacts.tests.reconciling_a_snapshot_removes_absent_artifacts_and_all_dependencies

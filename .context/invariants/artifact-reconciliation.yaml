@@ -9,10 +9,15 @@ statement: >
   remove relationships absent from the new complete snapshot, so stale
   evidence cannot survive a successful reconciliation. Repeating the same
   reconcile or delete operation is idempotent.
+  Code-comment reconciliation must finish reading and analyzing the complete
+  HEAD snapshot before it performs any deletion, so a source or analyzer
+  failure cannot erase the last successful snapshot.
 implementation:
   - symbol: ctx_adapters.sqlite.artifacts.SqliteStore.ArtifactMaintenanceStore.replace_outgoing_links
   - symbol: ctx_adapters.sqlite.artifacts.SqliteStore.ArtifactMaintenanceStore.reconcile_snapshot
   - symbol: ctx_adapters.sqlite.artifacts.SqliteStore.ArtifactMaintenanceStore.delete_artifacts
+  - symbol: ctx_app.ingest.CodeDocIngestRunner.run_with_reconcile
 tests:
   - symbol: ctx_adapters.sqlite.artifacts.tests.replacing_outgoing_links_removes_relationships_missing_from_the_new_snapshot
   - symbol: ctx_adapters.sqlite.artifacts.tests.reconciling_a_snapshot_removes_absent_artifacts_and_all_dependencies
+  - symbol: crates.ctx-cli.tests.e2e.ingest_code_comments_attaches_a_doc_comment_to_its_nearest_symbol

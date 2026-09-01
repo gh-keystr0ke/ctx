@@ -629,7 +629,7 @@ fn ingest_gitlab_without_configuration_fails_clearly_before_any_network_call() {
     let repository = FixtureRepository::new();
     repository.ctx(&["init"]);
 
-    let error = repository.ctx_failure(&["ingest", "gitlab"]);
+    let error = repository.ctx_failure(&["ingest", "gitlab", "--scope", "business-linked"]);
     assert!(
         error["error"]
             .as_str()
@@ -643,7 +643,14 @@ fn ingest_jira_without_configuration_fails_clearly_before_any_network_call() {
     let repository = FixtureRepository::new();
     repository.ctx(&["init"]);
 
-    let error = repository.ctx_failure(&["ingest", "jira"]);
+    let error = repository.ctx_failure(&[
+        "ingest",
+        "jira",
+        "--scope",
+        "business-linked",
+        "--related-depth",
+        "0",
+    ]);
     assert!(error["error"].as_str().is_some_and(|message| {
         message.contains("invalid Jira configuration") && message.contains("[jira]")
     }));
@@ -1304,6 +1311,24 @@ fn ingest_code_comments_attaches_a_doc_comment_to_its_nearest_symbol() {
     let second_report = repository.ctx(&["ingest", "code-comments"]);
     assert_eq!(second_report["artifacts_ingested"], 1);
     assert_eq!(second_report["links_created"], 1);
+
+    fs::write(
+        repository.root().join("src/billing.py"),
+        "def cancel():\n    pass\n",
+    )
+    .expect("remove stale comment");
+    run_git(repository.root(), &["add", "src/billing.py"]);
+    run_git(
+        repository.root(),
+        &["commit", "--quiet", "-m", "remove stale comment"],
+    );
+    repository.ctx(&["index"]);
+
+    let reconciled = repository.ctx(&["ingest", "code-comments", "--reconcile"]);
+    assert_eq!(reconciled["artifacts_ingested"], 0);
+    assert_eq!(reconciled["artifacts_removed"], 1);
+    let repeated = repository.ctx(&["ingest", "code-comments", "--reconcile"]);
+    assert_eq!(repeated["artifacts_removed"], 0);
 }
 
 struct PartiallyBrokenRustRepository {

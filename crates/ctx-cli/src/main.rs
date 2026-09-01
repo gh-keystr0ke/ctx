@@ -19,17 +19,13 @@ use ctx_adapters::{
         neighbor_head, path_template, require_service_name,
     },
     git::{GitRepo, ensure_repository},
-    gitlab::{GitLabClient, GitLabConfig, UreqTransport as GitLabUreqTransport},
-    jira::{JiraClient, JiraConfig, UreqTransport as JiraUreqTransport},
     sqlite::SqliteStore,
 };
 use ctx_app::{
     context::{ContextImportError, ContextImporter},
     enrich::{EnrichError, EnrichRunner},
     index::{IndexError, IndexReport, IndexRunner},
-    ingest::{
-        CodeDocIngestRunner, GitIngestRunner, GitLabIngestRunner, IngestError, JiraIngestRunner,
-    },
+    ingest::IngestError,
     ports::{GitRepository, GraphStore, IndexStore, PortError},
     query::{QueryError, QueryService},
     review::{ReviewError, ReviewRunner},
@@ -41,7 +37,7 @@ use ctx_app::{
 };
 use ctx_core::business::{BusinessKind, ContextImportStats, Visibility};
 use ctx_core::context_pack::ContextRequest;
-use ctx_core::domain::{ClaimStatus, CommitOid, NodeKind, RelationKind};
+use ctx_core::domain::{ClaimStatus, NodeKind, RelationKind};
 use ctx_core::graph::{GraphEvidence, GraphSnapshot};
 use ctx_core::indexing::PlannedNodeAttributes;
 use ctx_core::ir::{ApiEndpoint, ApiParam, ParamSource};
@@ -58,6 +54,7 @@ mod agent_dispatch;
 mod agent_pacing;
 mod diagnostics;
 mod federation_command;
+mod ingest_command;
 mod tab_title;
 mod verify_command;
 
@@ -66,6 +63,7 @@ use federation_command::{
     CliFederationResolver, attach_product_context, federation, federation_binary,
     print_endpoint_trace, sync, trace,
 };
+use ingest_command::{IngestOptions, IngestScopeArg, ingest};
 use verify_command::{verify, verify_knowledge, verify_knowledge_auto, verify_stale};
 
 const DEFAULT_CONFIG: &str = r#"languages = ["python", "rust", "go"]
@@ -148,6 +146,17 @@ enum Command {
         /// Only ingest commits after this OID (branches are always re-synced).
         #[arg(long)]
         since: Option<String>,
+        /// Limit network ingestion to artifacts deterministically connected
+        /// to this repository's Git and Jira business context.
+        #[arg(long, value_enum, default_value = "all")]
+        scope: IngestScopeArg,
+        /// Jira `RelatedIssue` hops allowed in business-linked scope.
+        #[arg(long, default_value_t = 0)]
+        related_depth: usize,
+        /// Treat code comments/docstrings at HEAD as a complete snapshot and
+        /// remove stored entries no longer present.
+        #[arg(long)]
+        reconcile: bool,
     },
     /// Analyze ingested artifacts with an AI agent for candidate product
     /// knowledge, queued for human verification via `ctx verify`.
@@ -463,7 +472,23 @@ fn run(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
             federation_continuation,
         } => trace(cli, git, target, federation_continuation.as_deref()),
         Command::Find { target } => find(cli, git, target),
-        Command::Ingest { source, since } => ingest(cli, git, source, since.as_deref()),
+        Command::Ingest {
+            source,
+            since,
+            scope,
+            related_depth,
+            reconcile,
+        } => ingest(
+            cli,
+            git,
+            source,
+            IngestOptions {
+                since: since.as_deref(),
+                scope: *scope,
+                related_depth: *related_depth,
+                reconcile: *reconcile,
+            },
+        ),
         Command::Enrich {
             agent,
             model,
@@ -1374,67 +1399,6 @@ fn find(cli: &Cli, git: &GitRepo, target: &str) -> Result<(), CliError> {
             |kind| format!("{kind:?}"),
         );
         println!("{kind:<12}  {}", symbol_match.identifier);
-    }
-    Ok(())
-}
-
-fn ingest(cli: &Cli, git: &GitRepo, source: &str, since: Option<&str>) -> Result<(), CliError> {
-    tracing::info!(source, since, "ingest started");
-    let database_path = database_path(git.root())?;
-    let mut store = SqliteStore::open(&database_path, git.context_root())?;
-    let repository = git.descriptor()?;
-    let now = Utc::now().to_rfc3339();
-    // Ingestion is meant to work standalone, before or independent of
-    // `ctx index` (prompt3.md's own end-to-end scenario starts from a
-    // project with no prior `.context`), so it registers the repository row
-    // itself rather than assuming `ctx index` already ran.
-    store.ensure_repository(&repository, &now)?;
-    let report = match source {
-        "git" => {
-            let since_oid = since
-                .map(CommitOid::new)
-                .transpose()
-                .map_err(|error| CliError::InvalidSinceOid(error.to_string()))?;
-            GitIngestRunner::new(git, &mut store).run(&repository.id, since_oid.as_ref(), &now)?
-        }
-        "code-comments" => {
-            let analyzer = AnalyzerRegistry::builtins(git.root(), &git.source_scope().languages)?;
-            CodeDocIngestRunner::new(git, &analyzer, &mut store).run(&repository.id, &now)?
-        }
-        "gitlab" => {
-            let config = GitLabConfig::load(git.root())
-                .map_err(|error| CliError::InvalidGitLabConfig(error.to_string()))?;
-            let client = GitLabClient::new(
-                GitLabUreqTransport::new(config.base_url, config.token),
-                config.project,
-            );
-            GitLabIngestRunner::new(&client, &mut store).run(&repository.id, &now)?
-        }
-        "jira" => {
-            let config = JiraConfig::load(git.root())
-                .map_err(|error| CliError::InvalidJiraConfig(error.to_string()))?;
-            let client = JiraClient::new(
-                JiraUreqTransport::new(config.base_url.clone(), &config.email, &config.token),
-                config.project,
-                config.base_url,
-            );
-            JiraIngestRunner::new(&client, &mut store).run(&repository.id, &now)?
-        }
-        other => return Err(CliError::UnsupportedIngestSource(other.to_owned())),
-    };
-    tracing::info!(
-        source,
-        artifacts = report.artifacts_ingested,
-        links = report.links_created,
-        "ingest completed"
-    );
-    if cli.json {
-        println!("{}", serde_json::to_string_pretty(&report)?);
-    } else {
-        println!(
-            "Ingested {} artifact(s), {} link(s) created",
-            report.artifacts_ingested, report.links_created
-        );
     }
     Ok(())
 }

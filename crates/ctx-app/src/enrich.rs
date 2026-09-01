@@ -28,7 +28,7 @@
 use std::collections::HashSet;
 
 use ctx_core::{
-    artifact::{Artifact, ArtifactKind, ArtifactLink, ArtifactLinkKind, ArtifactLinkTarget},
+    artifact::{Artifact, ArtifactIdentity, ArtifactKind, ArtifactLink, ArtifactLinkKind, ArtifactLinkTarget},
     domain::RepositoryId,
     knowledge::AgentOutcome,
     neighborhood::build_neighborhood,
@@ -137,12 +137,14 @@ where
 
         let total = known_artifacts.len();
         let mut report = EnrichReport::default();
+        let known_artifact_identities: HashSet<_> =
+            known_artifacts.iter().map(|a| a.identity.clone()).collect();
         for (index, subject) in known_artifacts.iter().enumerate() {
             if already_pending.contains(&subject.identity) {
                 report.artifacts_skipped_already_pending += 1;
                 continue;
             }
-            if is_covered_by_a_known_parent(subject, &links, &known_artifacts) {
+            if is_covered_by_a_known_parent(subject, &links, &known_artifact_identities) {
                 report.artifacts_skipped_covered_by_parent += 1;
                 continue;
             }
@@ -186,10 +188,10 @@ where
 fn is_covered_by_a_known_parent(
     subject: &Artifact,
     links: &[ArtifactLink],
-    known_artifacts: &[Artifact],
+    known_artifact_identities: &HashSet<ArtifactIdentity>,
 ) -> bool {
     let has_known_counterpart =
-        |identity| known_artifacts.iter().any(|artifact| &artifact.identity == identity);
+        |identity: &ArtifactIdentity| known_artifact_identities.contains(identity);
     match subject.identity.kind {
         ArtifactKind::Comment | ArtifactKind::ReviewComment => links.iter().any(|link| {
             link.source == subject.identity

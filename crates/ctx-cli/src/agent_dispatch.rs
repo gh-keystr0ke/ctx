@@ -14,10 +14,17 @@ use ctx_core::{
     verification::{StaleClaim, StaleClaimVerdict},
 };
 
-pub(crate) enum ConfiguredAgent {
+use crate::agent_pacing::AgentPacer;
+
+enum AgentKind {
     Claude(ClaudeCodeAgent<ClaudeTransport>),
     Codex(CodexAgent<CodexTransport>),
     Antigravity(AntigravityAgent<AntigravityTransport>),
+}
+
+pub(crate) struct ConfiguredAgent {
+    inner: AgentKind,
+    pacer: Option<AgentPacer>,
 }
 
 impl ConfiguredAgent {
@@ -25,33 +32,44 @@ impl ConfiguredAgent {
         name: &str,
         model: Option<String>,
         verbose: bool,
+        siga_siga: bool,
     ) -> Result<Self, String> {
-        match name {
-            "claude" => Ok(Self::Claude(ClaudeCodeAgent::new(
+        let inner = match name {
+            "claude" => AgentKind::Claude(ClaudeCodeAgent::new(
                 ClaudeTransport::new(
                     binary("CTX_CLAUDE_CLI_BINARY", "claude"),
                     verbose,
                     model.clone(),
                 ),
                 model,
-            ))),
-            "codex" => Ok(Self::Codex(CodexAgent::new(
+            )),
+            "codex" => AgentKind::Codex(CodexAgent::new(
                 CodexTransport::new(
                     binary("CTX_CODEX_CLI_BINARY", "codex"),
                     verbose,
                     model.clone(),
                 ),
                 model,
-            ))),
-            "antigravity" => Ok(Self::Antigravity(AntigravityAgent::new(
+            )),
+            "antigravity" => AgentKind::Antigravity(AntigravityAgent::new(
                 AntigravityTransport::new(
                     binary("CTX_ANTIGRAVITY_CLI_BINARY", "agy"),
                     verbose,
                     model.clone(),
                 ),
                 model,
-            ))),
-            other => Err(other.to_owned()),
+            )),
+            other => return Err(other.to_owned()),
+        };
+        Ok(Self {
+            inner,
+            pacer: siga_siga.then(AgentPacer::night_mode),
+        })
+    }
+
+    fn pace(&self) {
+        if let Some(pacer) = &self.pacer {
+            pacer.pace();
         }
     }
 }
@@ -67,14 +85,15 @@ impl SemanticAgent for ConfiguredAgent {
         produced_at: &str,
         allow_ungrounded_symbols: bool,
     ) -> Result<AgentOutcome, PortError> {
-        match self {
-            Self::Claude(agent) => {
+        self.pace();
+        match &self.inner {
+            AgentKind::Claude(agent) => {
                 agent.analyze(neighborhood, produced_at, allow_ungrounded_symbols)
             }
-            Self::Codex(agent) => {
+            AgentKind::Codex(agent) => {
                 agent.analyze(neighborhood, produced_at, allow_ungrounded_symbols)
             }
-            Self::Antigravity(agent) => {
+            AgentKind::Antigravity(agent) => {
                 agent.analyze(neighborhood, produced_at, allow_ungrounded_symbols)
             }
         }
@@ -83,10 +102,11 @@ impl SemanticAgent for ConfiguredAgent {
 
 impl KnowledgeReviewAgent for ConfiguredAgent {
     fn review(&self, candidates: &[KnowledgeCandidate]) -> Result<ClusterReview, PortError> {
-        match self {
-            Self::Claude(agent) => agent.review(candidates),
-            Self::Codex(agent) => agent.review(candidates),
-            Self::Antigravity(agent) => agent.review(candidates),
+        self.pace();
+        match &self.inner {
+            AgentKind::Claude(agent) => agent.review(candidates),
+            AgentKind::Codex(agent) => agent.review(candidates),
+            AgentKind::Antigravity(agent) => agent.review(candidates),
         }
     }
 }
@@ -96,10 +116,11 @@ impl StaleClaimReviewAgent for ConfiguredAgent {
         &self,
         claims: &[StaleClaim],
     ) -> Result<Vec<StaleClaimVerdict>, PortError> {
-        match self {
-            Self::Claude(agent) => agent.review_stale_claims(claims),
-            Self::Codex(agent) => agent.review_stale_claims(claims),
-            Self::Antigravity(agent) => agent.review_stale_claims(claims),
+        self.pace();
+        match &self.inner {
+            AgentKind::Claude(agent) => agent.review_stale_claims(claims),
+            AgentKind::Codex(agent) => agent.review_stale_claims(claims),
+            AgentKind::Antigravity(agent) => agent.review_stale_claims(claims),
         }
     }
 }
@@ -110,11 +131,11 @@ mod tests {
 
     #[test]
     fn only_the_three_documented_agents_are_supported() {
-        assert!(ConfiguredAgent::from_name("claude", None, false).is_ok());
-        assert!(ConfiguredAgent::from_name("codex", None, false).is_ok());
-        assert!(ConfiguredAgent::from_name("antigravity", None, false).is_ok());
+        assert!(ConfiguredAgent::from_name("claude", None, false, false).is_ok());
+        assert!(ConfiguredAgent::from_name("codex", None, false, false).is_ok());
+        assert!(ConfiguredAgent::from_name("antigravity", None, false, false).is_ok());
         assert_eq!(
-            ConfiguredAgent::from_name("unknown", None, false)
+            ConfiguredAgent::from_name("unknown", None, false, false)
                 .err()
                 .as_deref(),
             Some("unknown")

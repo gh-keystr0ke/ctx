@@ -1,0 +1,22 @@
+id: REQ-CTX-039
+type: requirement
+status: active
+visibility: private
+statement: >
+  The global `--siga-siga` night mode must pace every AI-agent operation,
+  including enrich, automatic candidate verification, and stale-claim
+  review. The first request is immediate, subsequent request starts are at
+  least 30 seconds apart, and a request due after each 30-minute work window
+  waits through a 15-minute rest window first. Enabling the mode and every
+  wait must be explained explicitly on stderr so a paced command never looks
+  hung. The clock and sleeper must be replaceable in tests; tests must not
+  perform real waits.
+implementation:
+  - symbol: ctx_cli.agent_pacing.AgentPacer.before_request
+  - symbol: ctx_cli.agent_dispatch.ConfiguredAgent.SemanticAgent.analyze
+  - symbol: ctx_cli.agent_dispatch.ConfiguredAgent.KnowledgeReviewAgent.review
+  - symbol: ctx_cli.agent_dispatch.ConfiguredAgent.StaleClaimReviewAgent.review_stale_claims
+tests:
+  - symbol: ctx_cli.agent_pacing.tests.first_request_is_immediate_and_the_next_waits_thirty_seconds
+  - symbol: ctx_cli.agent_pacing.tests.a_request_after_the_work_window_waits_for_the_full_rest_window
+  - symbol: ctx_cli.agent_pacing.tests.crossing_the_work_window_during_rate_wait_still_takes_the_break

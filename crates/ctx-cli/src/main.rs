@@ -54,6 +54,7 @@ use serde_json::json;
 use thiserror::Error;
 
 mod agent_dispatch;
+mod agent_pacing;
 mod diagnostics;
 mod federation_command;
 mod tab_title;
@@ -87,6 +88,9 @@ struct Cli {
     /// Write full trace diagnostics to a timestamped file under `.ctx/logs`.
     #[arg(long, global = true)]
     debug: bool,
+    /// Pace AI-agent calls: one per 30s, with a 15m break every 30m.
+    #[arg(long, global = true)]
+    siga_siga: bool,
     #[command(subcommand)]
     command: Command,
 }
@@ -1414,7 +1418,7 @@ fn enrich(
                 subject.identity.kind, subject.identity.external_id
             );
         };
-    let configured_agent = ConfiguredAgent::from_name(agent, model, cli.verbose > 0)
+    let configured_agent = ConfiguredAgent::from_name(agent, model, cli.verbose > 0, cli.siga_siga)
         .map_err(CliError::UnsupportedAgent)?;
     let report = EnrichRunner::new(&configured_agent, &mut store).run_with_progress(
         &repository.id,

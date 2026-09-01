@@ -7,14 +7,14 @@ use std::{
 use ctx_core::{
     business::{BusinessDocument, BusinessKind, Visibility},
     graph::GraphEvidence,
-    ir::{ApiEndpoint, ApiParam, HttpMethod},
+    ir::{ApiEndpoint, ApiParam, HttpMethod, OpenApiOperation},
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::git::{GitError, GitRepo};
 
-pub const FEDERATION_SCHEMA_VERSION: u32 = 1;
+pub const FEDERATION_SCHEMA_VERSION: u32 = 2;
 
 #[derive(Debug, Error)]
 pub enum FederationError {
@@ -256,6 +256,8 @@ pub struct ExportedEndpoint {
     pub params: Vec<ApiParam>,
     pub return_type: Option<String>,
     pub framework: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub openapi: Option<OpenApiOperation>,
     pub evidence: Vec<ExportedEvidence>,
 }
 
@@ -282,6 +284,7 @@ impl ExportedEndpoint {
             params: endpoint.params.clone(),
             return_type: endpoint.return_type.clone(),
             framework: endpoint.framework.clone(),
+            openapi: endpoint.openapi.clone(),
             evidence,
         }
     }

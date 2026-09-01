@@ -336,6 +336,7 @@ mod tests {
                 params: Vec::new(),
                 return_type: None,
                 framework: "python_http_framework".to_owned(),
+                openapi: None,
                 evidence: Vec::new(),
             },
         };

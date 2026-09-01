@@ -1093,6 +1093,7 @@ mod tests {
                     return_type: None,
                     framework: "python_http_framework".to_owned(),
                     range: SourceRange::default(),
+                    openapi: None,
                 },
             },
         }

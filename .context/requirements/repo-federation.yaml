@@ -9,7 +9,8 @@ statement: >-
   without blocking healthy neighbors when one fails, keep imported knowledge provenance separate
   from local facts, resolve local outbound calls by HTTP method and normalized path template as
   FEDERATED_MATCH records carrying both commits, report every unresolved call honestly, and show
-  whether synchronized neighbor data has become stale.
+  whether synchronized neighbor data has become stale. Export schema version 2 carries retained
+  OpenAPI operation metadata with each endpoint so public contracts are not reduced to method/path.
 implementation:
   - symbol: ctx_adapters.federation.NeighborRegistry
   - symbol: ctx_adapters.federation.ExportManifest

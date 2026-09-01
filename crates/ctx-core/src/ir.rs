@@ -42,6 +42,9 @@ pub enum HttpMethod {
     Put,
     Delete,
     Patch,
+    Head,
+    Options,
+    Trace,
 }
 
 impl HttpMethod {
@@ -53,6 +56,9 @@ impl HttpMethod {
             Self::Put => "PUT",
             Self::Delete => "DELETE",
             Self::Patch => "PATCH",
+            Self::Head => "HEAD",
+            Self::Options => "OPTIONS",
+            Self::Trace => "TRACE",
         }
     }
 }
@@ -62,6 +68,8 @@ impl HttpMethod {
 pub enum ParamSource {
     Path,
     Query,
+    Header,
+    Cookie,
     Body,
 }
 
@@ -71,6 +79,34 @@ pub struct ApiParam {
     pub type_hint: Option<String>,
     pub source: ParamSource,
     pub required: bool,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct OpenApiResponse {
+    pub status: String,
+    pub description: Option<String>,
+    #[serde(default)]
+    pub content_types: Vec<String>,
+    pub type_hint: Option<String>,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct OpenApiOperation {
+    pub operation_id: Option<String>,
+    pub summary: Option<String>,
+    pub description: Option<String>,
+    #[serde(default)]
+    pub deprecated: bool,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    #[serde(default)]
+    pub security: Vec<String>,
+    #[serde(default)]
+    pub servers: Vec<String>,
+    #[serde(default)]
+    pub request_content_types: Vec<String>,
+    #[serde(default)]
+    pub responses: Vec<OpenApiResponse>,
 }
 
 /// One HTTP endpoint deterministically declared by source syntax. Framework
@@ -84,6 +120,8 @@ pub struct ApiEndpoint {
     pub return_type: Option<String>,
     pub framework: String,
     pub range: SourceRange,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub openapi: Option<OpenApiOperation>,
 }
 
 /// One statically recognizable outbound HTTP request. `url` may be a full

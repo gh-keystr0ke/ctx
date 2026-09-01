@@ -428,6 +428,39 @@ fn changed_api_contract(before: &ApiEndpoint, after: &ApiEndpoint) -> (Vec<Strin
             before.framework, after.framework
         ));
     }
+    match (&before.openapi, &after.openapi) {
+        (Some(previous), Some(current)) => {
+            if previous.operation_id != current.operation_id {
+                details.push("OpenAPI operationId changed".to_owned());
+            }
+            if previous.summary != current.summary
+                || previous.description != current.description
+                || previous.tags != current.tags
+                || previous.deprecated != current.deprecated
+                || previous.servers != current.servers
+            {
+                details.push("OpenAPI operation metadata changed".to_owned());
+            }
+            if previous.security != current.security {
+                details.push("OpenAPI security changed".to_owned());
+                destructive = true;
+            }
+            if previous.request_content_types != current.request_content_types {
+                details.push("OpenAPI request content types changed".to_owned());
+                destructive |= !previous.request_content_types.is_empty();
+            }
+            if previous.responses != current.responses {
+                details.push("OpenAPI responses changed".to_owned());
+                destructive |= !previous.responses.is_empty();
+            }
+        }
+        (Some(_), None) => {
+            details.push("OpenAPI contract metadata removed".to_owned());
+            destructive = true;
+        }
+        (None, Some(_)) => details.push("OpenAPI contract metadata added".to_owned()),
+        (None, None) => {}
+    }
     (details, destructive)
 }
 
@@ -1267,6 +1300,7 @@ mod tests {
             return_type: Some("Subscription".to_owned()),
             framework: "python_http_framework".to_owned(),
             range: source_range(),
+            openapi: None,
         }
     }
 
@@ -1308,6 +1342,40 @@ mod tests {
                 && !change.destructive
                 && change.details == vec!["added optional parameter expand"]
         }));
+    }
+
+    #[test]
+    fn openapi_security_and_response_changes_are_destructive() {
+        let mut before = endpoint(HttpMethod::Get, "/subscriptions", Vec::new());
+        before.openapi = Some(crate::ir::OpenApiOperation {
+            security: vec!["oauth:[subscriptions:read]".to_owned()],
+            responses: vec![crate::ir::OpenApiResponse {
+                status: "200".to_owned(),
+                description: Some("Success".to_owned()),
+                content_types: vec!["application/json".to_owned()],
+                type_hint: Some("SubscriptionList".to_owned()),
+            }],
+            ..crate::ir::OpenApiOperation::default()
+        });
+        let mut after = before.clone();
+        after.openapi.as_mut().expect("OpenAPI metadata").security = Vec::new();
+        after.openapi.as_mut().expect("OpenAPI metadata").responses[0].type_hint =
+            Some("object".to_owned());
+
+        let changes = diff_api_endpoints(&[before], &[after]);
+
+        assert_eq!(changes.len(), 1);
+        assert!(changes[0].destructive);
+        assert!(
+            changes[0]
+                .details
+                .contains(&"OpenAPI security changed".to_owned())
+        );
+        assert!(
+            changes[0]
+                .details
+                .contains(&"OpenAPI responses changed".to_owned())
+        );
     }
 
     #[test]

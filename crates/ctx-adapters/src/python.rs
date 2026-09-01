@@ -235,6 +235,7 @@ fn collect_api_endpoints(
             return_type: return_type.clone(),
             framework: framework.to_owned(),
             range: source_range(decorator),
+            openapi: None,
         }));
     }
     endpoints.sort_by(|left, right| {

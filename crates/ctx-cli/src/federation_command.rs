@@ -430,6 +430,8 @@ fn format_params(params: &[ApiParam]) -> String {
             let source = match param.source {
                 ParamSource::Path => "path",
                 ParamSource::Query => "query",
+                ParamSource::Header => "header",
+                ParamSource::Cookie => "cookie",
                 ParamSource::Body => "body",
             };
             let optional = if param.required { "" } else { "?" };

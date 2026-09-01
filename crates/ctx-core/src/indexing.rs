@@ -1424,6 +1424,7 @@ mod tests {
             return_type: Some("Subscription".to_owned()),
             framework: "python_http_framework".to_owned(),
             range: range(),
+            openapi: None,
         });
         handler.external_calls.push(ExternalCall {
             method: crate::ir::HttpMethod::Post,

@@ -264,6 +264,9 @@ pub fn parse_method_path(query: &str) -> Option<(HttpMethod, String)> {
         "PUT" => HttpMethod::Put,
         "DELETE" => HttpMethod::Delete,
         "PATCH" => HttpMethod::Patch,
+        "HEAD" => HttpMethod::Head,
+        "OPTIONS" => HttpMethod::Options,
+        "TRACE" => HttpMethod::Trace,
         _ => return None,
     };
     let path = path.trim();
@@ -543,7 +546,7 @@ mod tests {
     use super::{
         CallResolution, FederationResolver, LocalCall, MAX_BRANCHES, MAX_NODES,
         MAX_SERVICE_TRANSITIONS, NoFederation, TerminalReason, TraceBudget, VisitedKey,
-        resolve_endpoint_seeds, trace_endpoint,
+        parse_method_path, resolve_endpoint_seeds, trace_endpoint,
     };
     use crate::{
         domain::{
@@ -602,6 +605,7 @@ mod tests {
                     return_type: None,
                     framework: "python_http_framework".to_owned(),
                     range: SourceRange::default(),
+                    openapi: None,
                 },
             },
         }
@@ -653,6 +657,23 @@ mod tests {
                 .map(|node| (node.stable_key.clone(), node))
                 .collect::<BTreeMap<_, _>>(),
             edges,
+        }
+    }
+
+    #[test]
+    fn endpoint_selectors_cover_every_openapi_http_method() {
+        for (literal, expected) in [
+            ("HEAD /health", HttpMethod::Head),
+            ("OPTIONS /items", HttpMethod::Options),
+            ("TRACE /debug", HttpMethod::Trace),
+        ] {
+            assert_eq!(
+                parse_method_path(literal),
+                Some((
+                    expected,
+                    literal.split_once(' ').expect("method path").1.to_owned()
+                ))
+            );
         }
     }
 

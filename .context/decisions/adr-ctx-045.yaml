@@ -10,6 +10,6 @@ implementation:
   - symbol: ctx_adapters.codex.CodexAgent.analyze_neighborhood
   - symbol: ctx_adapters.antigravity.AntigravityAgent.analyze_neighborhood
 tests:
-  - symbol: ctx_adapters.claude_code.tests.subprocess_transport_invokes_claude_p_and_returns_stdout
+  - symbol: ctx_adapters.claude_code.tests.subprocess_transport_invokes_claude_p_safe_mode_and_returns_stdout
   - symbol: ctx_adapters.codex.tests.subprocess_transport_invokes_codex_exec_and_returns_stdout
   - symbol: ctx_adapters.antigravity.tests.subprocess_transport_invokes_agy_p_and_returns_stdout

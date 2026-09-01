@@ -81,7 +81,7 @@ tests:
   - symbol: ctx_adapters.agent_contract.tests.allow_ungrounded_symbols_keeps_an_implementation_candidate_outside_the_neighborhood
   - symbol: ctx_adapters.agent_contract.tests.not_relevant_and_insufficient_evidence_pass_through_unchanged
   - symbol: ctx_adapters.agent_contract.tests.malformed_output_is_rejected_not_guessed_at
-  - symbol: ctx_adapters.claude_code.tests.subprocess_transport_invokes_claude_p_and_returns_stdout
+  - symbol: ctx_adapters.claude_code.tests.subprocess_transport_invokes_claude_p_safe_mode_and_returns_stdout
   - symbol: ctx_adapters.codex.tests.subprocess_transport_invokes_codex_exec_and_returns_stdout
   - symbol: ctx_adapters.antigravity.tests.subprocess_transport_invokes_agy_p_and_returns_stdout
   - symbol: ctx_app.enrich.tests.analyzes_every_artifact_and_persists_only_relevant_candidates

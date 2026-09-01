@@ -64,7 +64,7 @@ implementation:
   - symbol: ctx_adapters.antigravity.AntigravityAgent
   - symbol: ctx_cli.agent_dispatch.ConfiguredAgent
 tests:
-  - symbol: ctx_adapters.claude_code.tests.subprocess_transport_invokes_claude_p_and_returns_stdout
+  - symbol: ctx_adapters.claude_code.tests.subprocess_transport_invokes_claude_p_safe_mode_and_returns_stdout
   - symbol: ctx_adapters.codex.tests.subprocess_transport_invokes_codex_exec_and_returns_stdout
   - symbol: ctx_adapters.antigravity.tests.subprocess_transport_invokes_agy_p_and_returns_stdout
   - symbol: ctx_app.enrich.tests.analyzes_every_artifact_and_persists_only_relevant_candidates

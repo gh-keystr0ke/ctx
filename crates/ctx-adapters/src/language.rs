@@ -54,7 +54,7 @@ impl SupportedLanguage {
 }
 
 pub(crate) fn is_indexable_source(path: &str, languages: &[SupportedLanguage]) -> bool {
-    SupportedLanguage::for_path(path, languages).is_some()
+    (SupportedLanguage::for_path(path, languages).is_some() || is_openapi_spec(path))
         && !path.split('/').any(|component| {
             matches!(
                 component,
@@ -69,6 +69,17 @@ pub(crate) fn is_indexable_source(path: &str, languages: &[SupportedLanguage]) -
                     | "target"
                     | "__pycache__"
             )
+        })
+}
+
+pub(crate) fn is_openapi_spec(path: &str) -> bool {
+    Path::new(path)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| {
+            ["openapi.yaml", "openapi.yml", "openapi.json"]
+                .iter()
+                .any(|candidate| name.eq_ignore_ascii_case(candidate))
         })
 }
 
@@ -96,6 +107,18 @@ mod tests {
         assert!(!is_indexable_source(
             "src/server.go",
             &[SupportedLanguage::Rust]
+        ));
+        assert!(is_indexable_source(
+            "openapi.yaml",
+            &[SupportedLanguage::Rust]
+        ));
+        assert!(is_indexable_source(
+            "contracts/openapi.json",
+            &[SupportedLanguage::Python]
+        ));
+        assert!(!is_indexable_source(
+            "contracts/schema.yaml",
+            &[SupportedLanguage::Python]
         ));
     }
 }

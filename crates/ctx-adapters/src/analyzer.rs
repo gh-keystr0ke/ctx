@@ -4,8 +4,8 @@ use ctx_app::ports::{LanguageAnalyzer, PortError};
 use ctx_core::ir::FileAnalysis;
 
 use crate::{
-    go::GoAnalyzer, goose::GooseAnalyzer, language::SupportedLanguage, python::PythonAnalyzer,
-    rust::RustAnalyzer,
+    go::GoAnalyzer, goose::GooseAnalyzer, language::SupportedLanguage, openapi::OpenApiAnalyzer,
+    python::PythonAnalyzer, rust::RustAnalyzer,
 };
 
 /// A self-describing language adapter that can be installed in the registry.
@@ -35,6 +35,7 @@ impl AnalyzerRegistry {
             modules: BTreeMap::new(),
             extensions: BTreeMap::new(),
         };
+        registry.register(Box::new(OpenApiAnalyzer::new(root.to_path_buf())))?;
         for language in languages {
             match SupportedLanguage::from_name(language) {
                 Some(SupportedLanguage::Python) => {

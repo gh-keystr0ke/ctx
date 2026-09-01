@@ -15,7 +15,7 @@ use ctx_core::{
 use serde::Deserialize;
 use thiserror::Error;
 
-use crate::language::{SupportedLanguage, is_indexable_source};
+use crate::language::{SupportedLanguage, is_indexable_source, is_openapi_spec};
 
 #[derive(Debug, Error)]
 pub enum GitError {
@@ -855,7 +855,8 @@ fn add_rename(
 
 impl PathFilter {
     fn allows(&self, path: &str) -> bool {
-        let included = self.include.is_empty()
+        let included = is_openapi_spec(path)
+            || self.include.is_empty()
             || self
                 .include
                 .iter()
@@ -1098,6 +1099,16 @@ mod tests {
             change,
             FileChange::Added { path } if path == "src/lib.rs"
         )));
+    }
+
+    #[test]
+    fn conventional_openapi_specs_bypass_source_includes_but_not_excludes() {
+        let filter = PathFilter::default();
+
+        assert!(filter.allows("openapi.yaml"));
+        assert!(filter.allows("contracts/openapi.yml"));
+        assert!(!filter.allows("vendor/openapi.json"));
+        assert!(!filter.allows("schema.yaml"));
     }
 
     #[test]

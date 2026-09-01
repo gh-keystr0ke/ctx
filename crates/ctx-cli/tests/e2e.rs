@@ -2017,6 +2017,84 @@ fn verify_knowledge_auto_reviews_and_accepts_with_an_honest_agent_decision_metho
 }
 
 #[test]
+fn openapi_specs_are_discovered_reviewed_and_exported_as_public_contracts() {
+    let repository = tempfile::tempdir().expect("OpenAPI repository");
+    fs::create_dir_all(repository.path().join(".ctx")).expect("ctx directory");
+    fs::write(
+        repository.path().join(".ctx/config.toml"),
+        "languages = [\"rust\"]\n\n[paths]\ninclude = [\"src\"]\n\n[service]\nname = \"openapi-service\"\n",
+    )
+    .expect("configuration");
+    let specification = r"
+openapi: 3.1.0
+security:
+  - oauth: [items:read]
+paths:
+  /items/{id}:
+    get:
+      operationId: getItem
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      responses:
+        '200':
+          description: Found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Item'}
+    head:
+      operationId: itemExists
+      responses:
+        '204': {description: Exists}
+components:
+  schemas:
+    Item: {type: object}
+";
+    fs::write(repository.path().join("openapi.yaml"), specification)
+        .expect("OpenAPI specification");
+    initialize_git_repository(repository.path());
+
+    ctx_json_at(repository.path(), &["init"]);
+    let indexed = ctx_json_at(repository.path(), &["index"]);
+    assert!(indexed["failed_files"].as_array().is_some_and(Vec::is_empty));
+    assert!(indexed["stats"]["nodes_created"].as_u64().unwrap_or(0) > 0);
+
+    let impact = ctx_json_at(repository.path(), &["impact", "HEAD /items/{id}"]);
+    assert!(impact.to_string().contains("itemExists"));
+    assert!(impact.to_string().contains("openapi"));
+
+    let exported = ctx_json_at(repository.path(), &["export"]);
+    assert_eq!(exported["endpoints"], 2);
+    assert_eq!(exported["documents"], 0);
+    let manifest: Value = serde_json::from_slice(
+        &fs::read(repository.path().join(".ctx/export.json")).expect("export manifest"),
+    )
+    .expect("manifest JSON");
+    assert_eq!(manifest["schema_version"], 2);
+    assert_eq!(manifest["endpoints"].as_array().map(Vec::len), Some(2));
+    assert!(manifest["endpoints"].as_array().is_some_and(|endpoints| {
+        endpoints.iter().all(|endpoint| endpoint["openapi"].is_object())
+    }));
+
+    fs::write(
+        repository.path().join("openapi.yaml"),
+        specification.replace("security:\n  - oauth: [items:read]", "security: []"),
+    )
+    .expect("change OpenAPI security");
+    let review = ctx_json_at(repository.path(), &["review", "--base", "HEAD"]);
+    let api_findings = review["api_findings"].as_array().expect("API findings");
+    assert_eq!(api_findings.len(), 2);
+    assert!(api_findings.iter().all(|finding| finding["destructive"] == true));
+    assert!(
+        api_findings
+            .iter()
+            .all(|finding| finding.to_string().contains("OpenAPI security changed"))
+    );
+}
+
+#[test]
 fn context_store_set_git_redirects_to_a_separate_repository_and_still_enforces_commits() {
     // ADR-CTX-050: .context/ and .ctx-candidates/ may be redirected to a
     // separate repository (e.g. because the checkout being documented isn't

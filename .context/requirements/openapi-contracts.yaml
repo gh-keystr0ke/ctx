@@ -1,0 +1,33 @@
+id: REQ-OPENAPI-001
+type: requirement
+feature: FEAT-INDEXING
+visibility: public
+status: active
+statement: >-
+  Conventional `openapi.yaml`, `openapi.yml`, and `openapi.json` files must
+  be discovered automatically regardless of configured source languages and
+  source include prefixes, while normal excludes still apply. Every OpenAPI
+  3.0/3.1 path operation for GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS, or
+  TRACE must become a deterministic language-neutral API endpoint and must be
+  exported as a public service contract even when no public product document
+  exists. Parsing must retain operationId, summary/description, deprecation,
+  tags, effective security and servers, path/query/header/cookie parameters,
+  request-body content and schema, and response content/schema metadata;
+  local component references must be followed. Changes must flow through the
+  ordinary commit-bounded index and structural API review. Invalid or
+  unsupported specifications must be reported as failed files with an
+  explicit reason, never partially guessed.
+implementation:
+  - symbol: ctx_adapters.language.is_openapi_spec
+  - symbol: ctx_adapters.analyzer.AnalyzerRegistry.builtins
+  - symbol: ctx_adapters.openapi.OpenApiAnalyzer.analyze_source
+  - symbol: ctx_adapters.openapi.operation_contract
+  - symbol: ctx_core.review.diff_api_endpoints
+  - symbol: ctx_cli.build_export_manifest
+tests:
+  - symbol: ctx_adapters.language.tests.recognizes_enabled_extensions_and_excludes_generated_trees
+  - symbol: ctx_adapters.git.tests.conventional_openapi_specs_bypass_source_includes_but_not_excludes
+  - symbol: ctx_adapters.openapi.tests.parses_every_operation_and_retains_openapi_contract_metadata
+  - symbol: ctx_adapters.openapi.tests.operation_security_overrides_global_security_and_request_body_is_typed
+  - symbol: ctx_adapters.openapi.tests.rejects_non_openapi_and_unsupported_swagger_documents_explicitly
+  - symbol: crates.ctx-cli.tests.e2e.openapi_specs_are_discovered_reviewed_and_exported_as_public_contracts

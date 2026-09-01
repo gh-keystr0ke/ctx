@@ -4,6 +4,7 @@
 //! network code. Callers provide observations; the core returns decisions.
 
 pub mod artifact;
+pub mod artifact_scope;
 pub mod business;
 pub mod codedoc;
 pub mod context_pack;

@@ -1,0 +1,14 @@
+id: INV-CTX-118
+type: invariant
+feature: FEAT-INDEXING
+status: active
+statement: >
+  A branch name or commit message alone is never sufficient input for final
+  business-context enrichment. Repository Git is discovery evidence, but a
+  retained Git artifact must resolve deterministically to a Jira issue,
+  directly or through a repository-linked merge request; otherwise it is
+  discarded from business-linked scope and must not consume an agent call.
+implementation:
+  - symbol: ctx_core.artifact_scope.plan_business_scope
+tests:
+  - symbol: ctx_core.artifact_scope.tests.repository_linked_mr_without_jira_is_not_business_context

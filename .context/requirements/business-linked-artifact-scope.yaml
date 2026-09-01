@@ -1,0 +1,24 @@
+id: REQ-EXT-002
+type: requirement
+feature: FEAT-INDEXING
+status: active
+statement: >
+  The opt-in business-linked artifact scope must retain only development
+  evidence with a deterministic path from this repository's Git artifacts
+  to a Jira business-context issue, directly or through a repository-linked
+  merge request. Jira project membership is only an admissibility check and
+  is never repository-relevance evidence: Jira artifacts already stored in
+  the repository cannot seed or perpetuate the scoped set. Merge requests
+  without a Jira anchor, and branches or commits without a direct Jira
+  anchor or an anchored merge-request relationship, are outside the final
+  business scope. Jira RelatedIssue expansion is explicitly bounded and
+  defaults to zero hops. Every keep/prune decision carries a deterministic
+  reason suitable for logs and dry-run reports, and planning is linear in
+  the number of artifacts and links.
+implementation:
+  - symbol: ctx_core.artifact_scope.plan_business_scope
+tests:
+  - symbol: ctx_core.artifact_scope.tests.keeps_only_a_git_mr_jira_chain_with_business_context
+  - symbol: ctx_core.artifact_scope.tests.jira_artifacts_cannot_seed_each_other_without_repository_evidence
+  - symbol: ctx_core.artifact_scope.tests.repository_linked_mr_without_jira_is_not_business_context
+  - symbol: ctx_core.artifact_scope.tests.jira_related_issue_expansion_is_bounded_by_depth

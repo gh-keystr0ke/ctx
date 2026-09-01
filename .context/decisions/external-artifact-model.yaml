@@ -20,9 +20,9 @@ decision: >
   code, are stored separately as artifact_links, distinct from the semantic
   edges the graph uses for verified/asserted product knowledge. Each
   artifact also carries an independent per-artifact `ctx enrich` analysis
-  ledger (REQ-INCR-002: content_hash + analyzed_at, keyed by the artifact's
-  own row) so incremental re-analysis is tracked at the same identity this
-  decision already established, not a parallel one.
+  ledger (REQ-INCR-002: content_hash + full input_fingerprint + analyzed_at,
+  keyed by the artifact's own row) so incremental re-analysis is tracked at
+  the same identity this decision already established, not a parallel one.
 implementation:
   - symbol: ctx_core.artifact.Artifact
   - symbol: ctx_core.artifact.ArtifactIdentity

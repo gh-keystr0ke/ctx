@@ -1,0 +1,18 @@
+id: INV-CTX-119
+type: invariant
+feature: FEAT-INDEXING
+status: active
+statement: >
+  Removing a stored artifact must atomically remove every incoming and
+  outgoing artifact link plus its local analysis-ledger row before removing
+  the artifact itself. Replacing a source artifact's outgoing links must
+  remove relationships absent from the new complete snapshot, so stale
+  evidence cannot survive a successful reconciliation. Repeating the same
+  reconcile or delete operation is idempotent.
+implementation:
+  - symbol: ctx_adapters.sqlite.artifacts.SqliteStore.ArtifactMaintenanceStore.replace_outgoing_links
+  - symbol: ctx_adapters.sqlite.artifacts.SqliteStore.ArtifactMaintenanceStore.reconcile_snapshot
+  - symbol: ctx_adapters.sqlite.artifacts.SqliteStore.ArtifactMaintenanceStore.delete_artifacts
+tests:
+  - symbol: ctx_adapters.sqlite.artifacts.tests.replacing_outgoing_links_removes_relationships_missing_from_the_new_snapshot
+  - symbol: ctx_adapters.sqlite.artifacts.tests.reconciling_a_snapshot_removes_absent_artifacts_and_all_dependencies

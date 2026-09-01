@@ -1,5 +1,6 @@
 use ctx_app::ports::{
-    ArtifactLinkStore, ArtifactRepository, IngestCursorStore, KnowledgeCandidateStore, PortError,
+    ArtifactLinkStore, ArtifactMaintenanceStore, ArtifactReconcileReport, ArtifactRepository,
+    IngestCursorStore, KnowledgeCandidateStore, PortError,
 };
 use ctx_core::{
     artifact::{
@@ -97,6 +98,7 @@ impl ArtifactRepository for SqliteStore {
         repository: &RepositoryId,
         identity: &ArtifactIdentity,
         content_hash: &str,
+        input_fingerprint: &str,
         analyzed_at: &str,
     ) -> Result<(), PortError> {
         let transaction = self.connection.transaction().map_err(database_error)?;
@@ -111,25 +113,28 @@ impl ArtifactRepository for SqliteStore {
         };
         transaction
             .execute(
-                "INSERT INTO artifact_analysis(artifact_id, content_hash, analyzed_at)
-                 VALUES (?1, ?2, ?3)
+                "INSERT INTO artifact_analysis(
+                    artifact_id, content_hash, analyzed_at, input_fingerprint
+                 ) VALUES (?1, ?2, ?3, ?4)
                  ON CONFLICT(artifact_id) DO UPDATE SET
                     content_hash = excluded.content_hash,
-                    analyzed_at = excluded.analyzed_at",
-                params![artifact_row, content_hash, analyzed_at],
+                    analyzed_at = excluded.analyzed_at,
+                    input_fingerprint = excluded.input_fingerprint",
+                params![artifact_row, content_hash, analyzed_at, input_fingerprint],
             )
             .map_err(database_error)?;
         transaction.commit().map_err(database_error)
     }
 
-    fn analyzed_content_hashes(
+    fn analyzed_input_fingerprints(
         &self,
         repository: &RepositoryId,
     ) -> Result<std::collections::HashMap<ArtifactIdentity, String>, PortError> {
         let mut statement = self
             .connection
             .prepare(
-                "SELECT a.provider, a.kind, a.external_id, aa.content_hash
+                "SELECT a.provider, a.kind, a.external_id,
+                        COALESCE(aa.input_fingerprint, aa.content_hash)
                  FROM artifact_analysis aa
                  JOIN artifacts a ON a.id = aa.artifact_id
                  JOIN repositories r ON r.id = a.repository_id
@@ -170,75 +175,7 @@ impl ArtifactLinkStore for SqliteStore {
     ) -> Result<(), PortError> {
         let transaction = self.connection.transaction().map_err(database_error)?;
         let repository_row = repository_row(&transaction, repository)?;
-        for link in links {
-            let Some(source_row) = artifact_row(&transaction, repository_row, &link.source)? else {
-                // The source artifact isn't stored yet (out-of-order ingestion);
-                // skip rather than abort the whole batch, matching this
-                // project's "one bad reference never blocks the rest" policy.
-                continue;
-            };
-            let (target_artifact_row, target_node_row) = match &link.target {
-                ArtifactLinkTarget::Artifact(identity) => {
-                    let Some(row) = artifact_row(&transaction, repository_row, identity)? else {
-                        continue;
-                    };
-                    (Some(row), None)
-                }
-                ArtifactLinkTarget::CodeSymbol(stable_key) => {
-                    let Some(row) = node_row(&transaction, repository_row, stable_key)? else {
-                        continue;
-                    };
-                    (None, Some(row))
-                }
-            };
-            // SQLite's UNIQUE indexes never consider two NULLs equal, and
-            // exactly one of `target_artifact_id`/`target_node_id` is always
-            // NULL here, so a `ON CONFLICT` unique index can't dedup this
-            // row shape; use an explicit `IS`-based existence check instead
-            // (NULL-safe, unlike `=`), matching this codebase's existing
-            // `ensure_source`-style idempotent-insert idiom.
-            let existing_row: Option<i64> = transaction
-                .query_row(
-                    "SELECT id FROM artifact_links
-                     WHERE repository_id = ?1 AND source_artifact_id = ?2
-                       AND target_artifact_id IS ?3 AND target_node_id IS ?4 AND kind = ?5",
-                    params![
-                        repository_row,
-                        source_row,
-                        target_artifact_row,
-                        target_node_row,
-                        link_kind_str(link.kind),
-                    ],
-                    |row| row.get(0),
-                )
-                .optional()
-                .map_err(database_error)?;
-            if let Some(existing_row) = existing_row {
-                transaction
-                    .execute(
-                        "UPDATE artifact_links SET evidence_locator = ?2 WHERE id = ?1",
-                        params![existing_row, link.evidence_locator],
-                    )
-                    .map_err(database_error)?;
-            } else {
-                transaction
-                    .execute(
-                        "INSERT INTO artifact_links(
-                            repository_id, source_artifact_id, target_artifact_id,
-                            target_node_id, kind, evidence_locator
-                         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-                        params![
-                            repository_row,
-                            source_row,
-                            target_artifact_row,
-                            target_node_row,
-                            link_kind_str(link.kind),
-                            link.evidence_locator,
-                        ],
-                    )
-                    .map_err(database_error)?;
-            }
-        }
+        persist_link_rows(&transaction, repository_row, links)?;
         transaction.commit().map_err(database_error)
     }
 
@@ -317,6 +254,74 @@ impl ArtifactLinkStore for SqliteStore {
             });
         }
         Ok(links)
+    }
+}
+
+impl ArtifactMaintenanceStore for SqliteStore {
+    fn replace_outgoing_links(
+        &mut self,
+        repository: &RepositoryId,
+        source: &ArtifactIdentity,
+        links: &[ArtifactLink],
+    ) -> Result<(), PortError> {
+        if links.iter().any(|link| link.source != *source) {
+            return Err(PortError::new(
+                "replacement link batch contains a different source artifact",
+            ));
+        }
+        let transaction = self.connection.transaction().map_err(database_error)?;
+        let repository_row = repository_row(&transaction, repository)?;
+        let Some(source_row) = artifact_row(&transaction, repository_row, source)? else {
+            return Err(PortError::new(format!(
+                "artifact '{}:{:?}:{}' is not stored yet",
+                provider_str(source.provider),
+                source.kind,
+                source.external_id
+            )));
+        };
+        transaction
+            .execute(
+                "DELETE FROM artifact_links
+                 WHERE repository_id = ?1 AND source_artifact_id = ?2",
+                params![repository_row, source_row],
+            )
+            .map_err(database_error)?;
+        persist_link_rows(&transaction, repository_row, links)?;
+        transaction.commit().map_err(database_error)
+    }
+
+    fn reconcile_snapshot(
+        &mut self,
+        repository: &RepositoryId,
+        provider: ArtifactProvider,
+        kinds: &[ArtifactKind],
+        current: &std::collections::HashSet<ArtifactIdentity>,
+    ) -> Result<ArtifactReconcileReport, PortError> {
+        if kinds.is_empty() {
+            return Ok(ArtifactReconcileReport::default());
+        }
+        let transaction = self.connection.transaction().map_err(database_error)?;
+        let repository_row = repository_row(&transaction, repository)?;
+        let stored = artifacts_for_provider(&transaction, repository_row, provider)?;
+        let removed: Vec<_> = stored
+            .into_iter()
+            .filter(|identity| kinds.contains(&identity.kind) && !current.contains(identity))
+            .collect();
+        delete_artifact_rows(&transaction, repository_row, &removed)?;
+        transaction.commit().map_err(database_error)?;
+        Ok(ArtifactReconcileReport { removed })
+    }
+
+    fn delete_artifacts(
+        &mut self,
+        repository: &RepositoryId,
+        identities: &[ArtifactIdentity],
+    ) -> Result<ArtifactReconcileReport, PortError> {
+        let transaction = self.connection.transaction().map_err(database_error)?;
+        let repository_row = repository_row(&transaction, repository)?;
+        let removed = delete_artifact_rows(&transaction, repository_row, identities)?;
+        transaction.commit().map_err(database_error)?;
+        Ok(ArtifactReconcileReport { removed })
     }
 }
 
@@ -407,6 +412,147 @@ impl IngestCursorStore for SqliteStore {
             .map_err(database_error)?;
         transaction.commit().map_err(database_error)
     }
+}
+
+fn persist_link_rows(
+    transaction: &Transaction<'_>,
+    repository_row: i64,
+    links: &[ArtifactLink],
+) -> Result<(), PortError> {
+    for link in links {
+        let Some(source_row) = artifact_row(transaction, repository_row, &link.source)? else {
+            // The source artifact isn't stored yet (out-of-order ingestion);
+            // skip rather than abort the whole batch, matching this project's
+            // "one bad reference never blocks the rest" policy.
+            continue;
+        };
+        let (target_artifact_row, target_node_row) = match &link.target {
+            ArtifactLinkTarget::Artifact(identity) => {
+                let Some(row) = artifact_row(transaction, repository_row, identity)? else {
+                    continue;
+                };
+                (Some(row), None)
+            }
+            ArtifactLinkTarget::CodeSymbol(stable_key) => {
+                let Some(row) = node_row(transaction, repository_row, stable_key)? else {
+                    continue;
+                };
+                (None, Some(row))
+            }
+        };
+        // SQLite's UNIQUE indexes never consider two NULLs equal, and exactly
+        // one target is NULL. Use a NULL-safe existence check for idempotency.
+        let existing_row: Option<i64> = transaction
+            .query_row(
+                "SELECT id FROM artifact_links
+                 WHERE repository_id = ?1 AND source_artifact_id = ?2
+                   AND target_artifact_id IS ?3 AND target_node_id IS ?4 AND kind = ?5",
+                params![
+                    repository_row,
+                    source_row,
+                    target_artifact_row,
+                    target_node_row,
+                    link_kind_str(link.kind),
+                ],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(database_error)?;
+        if let Some(existing_row) = existing_row {
+            transaction
+                .execute(
+                    "UPDATE artifact_links SET evidence_locator = ?2 WHERE id = ?1",
+                    params![existing_row, link.evidence_locator],
+                )
+                .map_err(database_error)?;
+        } else {
+            transaction
+                .execute(
+                    "INSERT INTO artifact_links(
+                        repository_id, source_artifact_id, target_artifact_id,
+                        target_node_id, kind, evidence_locator
+                     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                    params![
+                        repository_row,
+                        source_row,
+                        target_artifact_row,
+                        target_node_row,
+                        link_kind_str(link.kind),
+                        link.evidence_locator,
+                    ],
+                )
+                .map_err(database_error)?;
+        }
+    }
+    Ok(())
+}
+
+fn artifacts_for_provider(
+    transaction: &Transaction<'_>,
+    repository_row: i64,
+    provider: ArtifactProvider,
+) -> Result<Vec<ArtifactIdentity>, PortError> {
+    let mut statement = transaction
+        .prepare(
+            "SELECT kind, external_id FROM artifacts
+             WHERE repository_id = ?1 AND provider = ?2
+             ORDER BY kind, external_id",
+        )
+        .map_err(database_error)?;
+    let rows = statement
+        .query_map(params![repository_row, provider_str(provider)], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })
+        .map_err(database_error)?;
+    let mut identities = Vec::new();
+    for row in rows {
+        let (kind, external_id) = row.map_err(database_error)?;
+        identities.push(ArtifactIdentity {
+            provider,
+            kind: parse_artifact_kind(&kind)?,
+            external_id,
+        });
+    }
+    Ok(identities)
+}
+
+fn delete_artifact_rows(
+    transaction: &Transaction<'_>,
+    repository_row: i64,
+    identities: &[ArtifactIdentity],
+) -> Result<Vec<ArtifactIdentity>, PortError> {
+    let mut removed = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    for identity in identities {
+        if !seen.insert(identity.clone()) {
+            continue;
+        }
+        let Some(row) = artifact_row(transaction, repository_row, identity)? else {
+            continue;
+        };
+        transaction
+            .execute(
+                "DELETE FROM artifact_links
+                 WHERE repository_id = ?1
+                   AND (source_artifact_id = ?2 OR target_artifact_id = ?2)",
+                params![repository_row, row],
+            )
+            .map_err(database_error)?;
+        transaction
+            .execute(
+                "DELETE FROM artifact_analysis WHERE artifact_id = ?1",
+                [row],
+            )
+            .map_err(database_error)?;
+        transaction
+            .execute(
+                "DELETE FROM artifacts WHERE id = ?1 AND repository_id = ?2",
+                params![row, repository_row],
+            )
+            .map_err(database_error)?;
+        removed.push(identity.clone());
+    }
+    Ok(removed)
 }
 
 type ArtifactColumns = (
@@ -653,6 +799,21 @@ mod tests {
         }
     }
 
+    fn artifact_with(
+        provider: ArtifactProvider,
+        kind: ArtifactKind,
+        external_id: &str,
+    ) -> Artifact {
+        Artifact {
+            identity: ArtifactIdentity {
+                provider,
+                kind,
+                external_id: external_id.to_owned(),
+            },
+            ..sample_artifact(external_id, external_id)
+        }
+    }
+
     #[test]
     fn re_syncing_the_same_external_object_versions_it_instead_of_duplicating() {
         let directory = tempdir().expect("temporary directory");
@@ -716,6 +877,165 @@ mod tests {
 
         let links = store.list_links(&repository).expect("links");
         assert_eq!(links, vec![link]);
+    }
+
+    #[test]
+    fn replacing_outgoing_links_removes_relationships_missing_from_the_new_snapshot() {
+        let directory = tempdir().expect("temporary directory");
+        let (mut store, repository) = open_repository(directory.path());
+        let mr = sample_artifact("842", "Fixes PSI-317.");
+        let first = artifact_with(ArtifactProvider::Jira, ArtifactKind::Issue, "PSI-317");
+        let second = artifact_with(ArtifactProvider::Jira, ArtifactKind::Issue, "PSI-318");
+        for artifact in [&mr, &first, &second] {
+            store
+                .upsert_artifact(&repository, artifact, "2026-08-21T00:00:00Z", "v1")
+                .expect("artifact");
+        }
+        let old_link = ArtifactLink {
+            source: mr.identity.clone(),
+            target: ArtifactLinkTarget::Artifact(first.identity.clone()),
+            kind: ArtifactLinkKind::References,
+            evidence_locator: "body:PSI-317".to_owned(),
+        };
+        store
+            .persist_links(&repository, std::slice::from_ref(&old_link))
+            .expect("old link");
+        let current_link = ArtifactLink {
+            source: mr.identity.clone(),
+            target: ArtifactLinkTarget::Artifact(second.identity.clone()),
+            kind: ArtifactLinkKind::References,
+            evidence_locator: "body:PSI-318".to_owned(),
+        };
+
+        store
+            .replace_outgoing_links(
+                &repository,
+                &mr.identity,
+                std::slice::from_ref(&current_link),
+            )
+            .expect("replace links");
+
+        assert_eq!(
+            store.list_links(&repository).expect("links"),
+            vec![current_link]
+        );
+    }
+
+    #[test]
+    fn reconciling_a_snapshot_removes_absent_artifacts_and_all_dependencies() {
+        let directory = tempdir().expect("temporary directory");
+        let (mut store, repository) = open_repository(directory.path());
+        let stale = artifact_with(
+            ArtifactProvider::Code,
+            ArtifactKind::CodeComment,
+            "src/lib.rs:1",
+        );
+        let current = artifact_with(
+            ArtifactProvider::Code,
+            ArtifactKind::Docstring,
+            "src/lib.rs:20",
+        );
+        let commit = artifact_with(ArtifactProvider::Git, ArtifactKind::Commit, "abc123");
+        for artifact in [&stale, &current, &commit] {
+            store
+                .upsert_artifact(&repository, artifact, "2026-08-21T00:00:00Z", "v1")
+                .expect("artifact");
+        }
+        let links = vec![
+            ArtifactLink {
+                source: stale.identity.clone(),
+                target: ArtifactLinkTarget::Artifact(commit.identity.clone()),
+                kind: ArtifactLinkKind::References,
+                evidence_locator: "outgoing".to_owned(),
+            },
+            ArtifactLink {
+                source: commit.identity.clone(),
+                target: ArtifactLinkTarget::Artifact(stale.identity.clone()),
+                kind: ArtifactLinkKind::References,
+                evidence_locator: "incoming".to_owned(),
+            },
+        ];
+        store.persist_links(&repository, &links).expect("links");
+        store
+            .mark_analyzed(
+                &repository,
+                &stale.identity,
+                &stale.content_hash,
+                "bundle-v1",
+                "2026-08-21T01:00:00Z",
+            )
+            .expect("analysis");
+        let current_identities = std::collections::HashSet::from([current.identity.clone()]);
+
+        let report = store
+            .reconcile_snapshot(
+                &repository,
+                ArtifactProvider::Code,
+                &[ArtifactKind::CodeComment, ArtifactKind::Docstring],
+                &current_identities,
+            )
+            .expect("reconcile");
+
+        assert_eq!(report.removed, vec![stale.identity.clone()]);
+        let retained = store.list_artifacts(&repository).expect("artifacts");
+        assert_eq!(retained.len(), 2);
+        assert!(
+            retained
+                .iter()
+                .any(|artifact| artifact.identity == current.identity)
+        );
+        assert!(
+            retained
+                .iter()
+                .any(|artifact| artifact.identity == commit.identity)
+        );
+        assert!(store.list_links(&repository).expect("links").is_empty());
+        assert!(
+            store
+                .analyzed_input_fingerprints(&repository)
+                .expect("analysis")
+                .is_empty()
+        );
+
+        let repeated = store
+            .reconcile_snapshot(
+                &repository,
+                ArtifactProvider::Code,
+                &[ArtifactKind::CodeComment, ArtifactKind::Docstring],
+                &current_identities,
+            )
+            .expect("idempotent reconcile");
+        assert!(repeated.removed.is_empty());
+    }
+
+    #[test]
+    fn explicit_deletion_ignores_unknown_identities_and_reports_stored_ones() {
+        let directory = tempdir().expect("temporary directory");
+        let (mut store, repository) = open_repository(directory.path());
+        let stored = sample_artifact("842", "Fixes PSI-317.");
+        let unknown = sample_artifact("999", "Unknown.");
+        store
+            .upsert_artifact(&repository, &stored, "2026-08-21T00:00:00Z", "v1")
+            .expect("artifact");
+
+        let report = store
+            .delete_artifacts(
+                &repository,
+                &[
+                    unknown.identity,
+                    stored.identity.clone(),
+                    stored.identity.clone(),
+                ],
+            )
+            .expect("delete");
+
+        assert_eq!(report.removed, vec![stored.identity]);
+        assert!(
+            store
+                .list_artifacts(&repository)
+                .expect("artifacts")
+                .is_empty()
+        );
     }
 
     #[test]
@@ -895,7 +1215,7 @@ mod tests {
     }
 
     #[test]
-    fn marking_an_artifact_analyzed_round_trips_its_content_hash() {
+    fn marking_an_artifact_analyzed_round_trips_its_input_fingerprint() {
         let directory = tempdir().expect("temporary directory");
         let (mut store, repository) = open_repository(directory.path());
         let artifact = sample_artifact("842", "PAY-317. Users lose access immediately.");
@@ -905,7 +1225,7 @@ mod tests {
 
         assert!(
             store
-                .analyzed_content_hashes(&repository)
+                .analyzed_input_fingerprints(&repository)
                 .expect("analyzed hashes")
                 .is_empty()
         );
@@ -915,14 +1235,18 @@ mod tests {
                 &repository,
                 &artifact.identity,
                 &artifact.content_hash,
+                "bundle-v1",
                 "2026-08-21T01:00:00Z",
             )
             .expect("mark analyzed");
 
         let hashes = store
-            .analyzed_content_hashes(&repository)
+            .analyzed_input_fingerprints(&repository)
             .expect("analyzed hashes");
-        assert_eq!(hashes.get(&artifact.identity), Some(&artifact.content_hash));
+        assert_eq!(
+            hashes.get(&artifact.identity),
+            Some(&"bundle-v1".to_owned())
+        );
 
         // Re-marking with a new content hash (the artifact changed since
         // last analysis) updates the record in place rather than duplicating.
@@ -931,16 +1255,17 @@ mod tests {
                 &repository,
                 &artifact.identity,
                 "new-hash",
+                "bundle-v2",
                 "2026-08-21T02:00:00Z",
             )
             .expect("re-mark analyzed");
         let updated = store
-            .analyzed_content_hashes(&repository)
+            .analyzed_input_fingerprints(&repository)
             .expect("analyzed hashes");
         assert_eq!(updated.len(), 1);
         assert_eq!(
             updated.get(&artifact.identity),
-            Some(&"new-hash".to_owned())
+            Some(&"bundle-v2".to_owned())
         );
     }
 

@@ -1,9 +1,11 @@
 use std::fmt;
 
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use ctx_core::{
-    artifact::{Artifact, ArtifactIdentity, ArtifactLink, ArtifactRef},
+    artifact::{
+        Artifact, ArtifactIdentity, ArtifactKind, ArtifactLink, ArtifactProvider, ArtifactRef,
+    },
     business::{BusinessDocument, ContextImportStats},
     domain::{CommitOid, RepositoryId},
     graph::GraphSnapshot,
@@ -362,10 +364,11 @@ pub trait ArtifactRepository {
     /// Returns [`PortError`] when stored artifacts cannot be read.
     fn list_artifacts(&self, repository: &RepositoryId) -> Result<Vec<Artifact>, PortError>;
 
-    /// Records that `identity` was analyzed by `ctx enrich` at
-    /// `content_hash` (prompt3.md PR-INCR-002, basic level): a later run
-    /// skips it while the artifact's stored content is unchanged, rather
-    /// than repeating an agent call on the exact same text every time.
+    /// Records that `identity` was analyzed by `ctx enrich` with the complete
+    /// `input_fingerprint`. `content_hash` is retained separately for audit;
+    /// incremental skipping keys on the complete input so changed links or
+    /// neighboring artifacts trigger re-analysis even when the subject text
+    /// itself is unchanged.
     ///
     /// # Errors
     /// Returns [`PortError`] when the record cannot be persisted.
@@ -374,15 +377,16 @@ pub trait ArtifactRepository {
         repository: &RepositoryId,
         identity: &ArtifactIdentity,
         content_hash: &str,
+        input_fingerprint: &str,
         analyzed_at: &str,
     ) -> Result<(), PortError>;
 
-    /// The content hash each artifact was last analyzed at, keyed by
-    /// identity.
+    /// The complete input fingerprint each artifact was last analyzed with,
+    /// keyed by identity.
     ///
     /// # Errors
     /// Returns [`PortError`] when stored analysis records cannot be read.
-    fn analyzed_content_hashes(
+    fn analyzed_input_fingerprints(
         &self,
         repository: &RepositoryId,
     ) -> Result<HashMap<ArtifactIdentity, String>, PortError>;
@@ -407,6 +411,53 @@ pub trait ArtifactLinkStore {
     /// # Errors
     /// Returns [`PortError`] when stored links cannot be read.
     fn list_links(&self, repository: &RepositoryId) -> Result<Vec<ArtifactLink>, PortError>;
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct ArtifactReconcileReport {
+    pub removed: Vec<ArtifactIdentity>,
+}
+
+/// Destructive artifact maintenance is deliberately separated from ordinary
+/// upsert/read operations. Callers must opt into this port when they own a
+/// complete provider snapshot or an explicit prune plan.
+pub trait ArtifactMaintenanceStore {
+    /// Replaces every outgoing link for one stored source artifact as one
+    /// transaction. Links targeting unknown artifacts or nodes are skipped,
+    /// matching [`ArtifactLinkStore::persist_links`].
+    ///
+    /// # Errors
+    /// Returns [`PortError`] when links cannot be reconciled.
+    fn replace_outgoing_links(
+        &mut self,
+        repository: &RepositoryId,
+        source: &ArtifactIdentity,
+        links: &[ArtifactLink],
+    ) -> Result<(), PortError>;
+
+    /// Reconciles a complete provider/kind snapshot, deleting stored
+    /// artifacts in that scope which are absent from `current`.
+    ///
+    /// # Errors
+    /// Returns [`PortError`] when the snapshot cannot be reconciled.
+    fn reconcile_snapshot(
+        &mut self,
+        repository: &RepositoryId,
+        provider: ArtifactProvider,
+        kinds: &[ArtifactKind],
+        current: &HashSet<ArtifactIdentity>,
+    ) -> Result<ArtifactReconcileReport, PortError>;
+
+    /// Deletes exactly the named stored artifacts and all incoming/outgoing
+    /// artifact links and analysis-ledger rows that depend on them.
+    ///
+    /// # Errors
+    /// Returns [`PortError`] when deletion cannot be completed atomically.
+    fn delete_artifacts(
+        &mut self,
+        repository: &RepositoryId,
+        identities: &[ArtifactIdentity],
+    ) -> Result<ArtifactReconcileReport, PortError>;
 }
 
 /// Persists AI-derived typed knowledge candidates awaiting human

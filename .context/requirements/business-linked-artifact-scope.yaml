@@ -17,8 +17,11 @@ statement: >
   the number of artifacts and links.
 implementation:
   - symbol: ctx_core.artifact_scope.plan_business_scope
+  - symbol: ctx_app.ports.ArtifactMaintenanceStore
+  - symbol: ctx_adapters.sqlite.artifacts.SqliteStore.ArtifactMaintenanceStore.delete_artifacts
 tests:
   - symbol: ctx_core.artifact_scope.tests.keeps_only_a_git_mr_jira_chain_with_business_context
   - symbol: ctx_core.artifact_scope.tests.jira_artifacts_cannot_seed_each_other_without_repository_evidence
   - symbol: ctx_core.artifact_scope.tests.repository_linked_mr_without_jira_is_not_business_context
   - symbol: ctx_core.artifact_scope.tests.jira_related_issue_expansion_is_bounded_by_depth
+  - symbol: ctx_adapters.sqlite.artifacts.tests.reconciling_a_snapshot_removes_absent_artifacts_and_all_dependencies

@@ -251,12 +251,13 @@ mod tests {
             _repository: &RepositoryId,
             _identity: &ctx_core::artifact::ArtifactIdentity,
             _content_hash: &str,
+            _input_fingerprint: &str,
             _analyzed_at: &str,
         ) -> Result<(), PortError> {
             unreachable!("explain never marks artifacts analyzed")
         }
 
-        fn analyzed_content_hashes(
+        fn analyzed_input_fingerprints(
             &self,
             _repository: &RepositoryId,
         ) -> Result<

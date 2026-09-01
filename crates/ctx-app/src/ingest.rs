@@ -534,12 +534,13 @@ mod tests {
             _repository: &RepositoryId,
             _identity: &ArtifactIdentity,
             _content_hash: &str,
+            _input_fingerprint: &str,
             _analyzed_at: &str,
         ) -> Result<(), PortError> {
             unreachable!("ingest never marks artifacts analyzed")
         }
 
-        fn analyzed_content_hashes(
+        fn analyzed_input_fingerprints(
             &self,
             _repository: &RepositoryId,
         ) -> Result<std::collections::HashMap<ArtifactIdentity, String>, PortError> {

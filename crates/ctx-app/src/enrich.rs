@@ -133,9 +133,9 @@ where
             .flat_map(|candidate| candidate.evidence.iter())
             .map(|evidence| evidence.identity.clone())
             .collect();
-        let analyzed_content_hashes = self
+        let analyzed_input_fingerprints = self
             .store
-            .analyzed_content_hashes(repository)
+            .analyzed_input_fingerprints(repository)
             .map_err(EnrichError::Read)?;
 
         let total = known_artifacts.len();
@@ -151,7 +151,7 @@ where
                 report.artifacts_skipped_covered_by_parent += 1;
                 continue;
             }
-            if analyzed_content_hashes.get(&subject.identity) == Some(&subject.content_hash) {
+            if analyzed_input_fingerprints.get(&subject.identity) == Some(&subject.content_hash) {
                 report.artifacts_skipped_unchanged += 1;
                 continue;
             }
@@ -172,6 +172,7 @@ where
                 .mark_analyzed(
                     repository,
                     &subject.identity,
+                    &subject.content_hash,
                     &subject.content_hash,
                     produced_at,
                 )
@@ -260,16 +261,17 @@ mod tests {
             &mut self,
             _repository: &RepositoryId,
             identity: &ArtifactIdentity,
-            content_hash: &str,
+            _content_hash: &str,
+            input_fingerprint: &str,
             _analyzed_at: &str,
         ) -> Result<(), PortError> {
             self.analyzed
                 .borrow_mut()
-                .insert(identity.clone(), content_hash.to_owned());
+                .insert(identity.clone(), input_fingerprint.to_owned());
             Ok(())
         }
 
-        fn analyzed_content_hashes(
+        fn analyzed_input_fingerprints(
             &self,
             _repository: &RepositoryId,
         ) -> Result<std::collections::HashMap<ArtifactIdentity, String>, PortError> {

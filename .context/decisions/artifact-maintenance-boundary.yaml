@@ -1,0 +1,21 @@
+id: ADR-EXT-006
+type: decision
+feature: FEAT-INDEXING
+status: accepted
+title: Separate destructive artifact reconciliation from ordinary artifact persistence
+decision: >
+  Snapshot reconciliation and explicit pruning use a dedicated
+  ArtifactMaintenanceStore port instead of expanding ArtifactRepository.
+  Ordinary ingestion therefore retains its idempotent upsert-only contract,
+  while callers that own a complete snapshot or an explicit prune plan must
+  opt into destructive maintenance. SQLite performs dependency cleanup and
+  artifact deletion in one transaction; the git-tracked candidate queue and
+  accepted .context documents are outside that transaction and are never
+  silently deleted with local artifacts.
+implementation:
+  - symbol: ctx_app.ports.ArtifactMaintenanceStore
+  - symbol: ctx_adapters.sqlite.artifacts.SqliteStore.ArtifactMaintenanceStore.reconcile_snapshot
+  - symbol: ctx_adapters.sqlite.artifacts.SqliteStore.ArtifactMaintenanceStore.delete_artifacts
+tests:
+  - symbol: ctx_adapters.sqlite.artifacts.tests.reconciling_a_snapshot_removes_absent_artifacts_and_all_dependencies
+  - symbol: ctx_adapters.sqlite.artifacts.tests.explicit_deletion_ignores_unknown_identities_and_reports_stored_ones

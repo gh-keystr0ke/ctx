@@ -26,6 +26,10 @@ const MIGRATIONS: &[(i64, &str)] = &[
     ),
     (8, include_str!("../migrations/008_document_visibility.sql")),
     (9, include_str!("../migrations/009_federation.sql")),
+    (
+        10,
+        include_str!("../migrations/010_artifact_reconciliation.sql"),
+    ),
 ];
 
 #[derive(Debug, Error)]

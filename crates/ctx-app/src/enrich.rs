@@ -23,7 +23,7 @@
 //! before its parent, or one whose parent was never ingested at all) is its
 //! only chance to be analyzed at all. A `Branch` is skipped the same way
 //! only when a known merge/pull request already names it as `source_branch`
-//! ([`is_covered_by_a_known_parent`]).
+//! (`is_covered_by_a_known_parent`).
 
 use std::collections::{HashMap, HashSet};
 

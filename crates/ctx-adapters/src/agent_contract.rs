@@ -13,7 +13,10 @@
 //! validation logic, and never touching `ctx-core`/`ctx-app`.
 
 use std::collections::BTreeSet;
+use std::io;
 use std::ops::Range;
+use std::process::{Command, Output};
+use std::time::Duration;
 
 use ctx_core::{
     artifact::{ArtifactIdentity, ArtifactKind, ArtifactProvider},
@@ -31,6 +34,9 @@ use thiserror::Error;
 /// Kept well under typical CLI-agent context windows: this is one artifact's
 /// bounded neighborhood, not a whole-repository prompt (PR-AGENT-003).
 pub(crate) const DEFAULT_TOKEN_BUDGET: usize = 6000;
+
+const MAX_SUBPROCESS_SPAWN_ATTEMPTS: usize = 3;
+const EXECUTABLE_BUSY_RETRY_DELAY: Duration = Duration::from_millis(10);
 
 const SYSTEM_PROMPT: &str = r#"You are analyzing one bounded artifact neighborhood from a software repository to decide whether it states new product knowledge -- a Feature, Requirement, Invariant, or Decision -- that is not already covered by the "Already-known related product knowledge" section below, if present.
 
@@ -80,6 +86,42 @@ pub trait AgentTransport {
     /// Returns [`AgentContractError`] when the process cannot be started or
     /// exits with a failure status.
     fn run(&self, prompt: &str) -> Result<String, AgentContractError>;
+}
+
+/// Starts a CLI agent, retrying the transient executable-busy error that can
+/// occur when an executable has just been written or replaced. Every other
+/// spawn error is returned immediately, and the retry budget is finite.
+pub(crate) fn run_subprocess(
+    command: &mut Command,
+    binary: &str,
+) -> Result<Output, AgentContractError> {
+    retry_executable_busy(binary, || command.output())
+        .map_err(|error| AgentContractError::Spawn(format!("{binary}: {error}")))
+}
+
+fn retry_executable_busy<T>(
+    binary: &str,
+    mut operation: impl FnMut() -> io::Result<T>,
+) -> io::Result<T> {
+    for attempt in 1..=MAX_SUBPROCESS_SPAWN_ATTEMPTS {
+        match operation() {
+            Ok(value) => return Ok(value),
+            Err(error)
+                if error.kind() == io::ErrorKind::ExecutableFileBusy
+                    && attempt < MAX_SUBPROCESS_SPAWN_ATTEMPTS =>
+            {
+                tracing::debug!(
+                    binary,
+                    attempt,
+                    max_attempts = MAX_SUBPROCESS_SPAWN_ATTEMPTS,
+                    "agent executable is busy; retrying subprocess spawn"
+                );
+                std::thread::sleep(EXECUTABLE_BUSY_RETRY_DELAY);
+            }
+            Err(error) => return Err(error),
+        }
+    }
+    unreachable!("the finite spawn-attempt loop always returns")
 }
 
 /// Composes the bounded prompt, runs it through `transport`, and parses and
@@ -744,6 +786,45 @@ mod tests {
         fn run(&self, _prompt: &str) -> Result<String, AgentContractError> {
             Ok(self.response.clone())
         }
+    }
+
+    #[test]
+    fn executable_busy_spawn_errors_are_retried_with_a_finite_budget() {
+        let mut attempts = 0;
+        let result = retry_executable_busy("fake-agent", || -> io::Result<()> {
+            attempts += 1;
+            if attempts < MAX_SUBPROCESS_SPAWN_ATTEMPTS {
+                Err(io::Error::from(io::ErrorKind::ExecutableFileBusy))
+            } else {
+                Ok(())
+            }
+        });
+
+        result.expect("the final spawn attempt succeeds");
+        assert_eq!(attempts, MAX_SUBPROCESS_SPAWN_ATTEMPTS);
+
+        let mut exhausted_attempts = 0;
+        let error = retry_executable_busy("fake-agent", || -> io::Result<()> {
+            exhausted_attempts += 1;
+            Err(io::Error::from(io::ErrorKind::ExecutableFileBusy))
+        })
+        .expect_err("the retry budget must be finite");
+
+        assert_eq!(error.kind(), io::ErrorKind::ExecutableFileBusy);
+        assert_eq!(exhausted_attempts, MAX_SUBPROCESS_SPAWN_ATTEMPTS);
+    }
+
+    #[test]
+    fn non_transient_spawn_errors_are_not_retried() {
+        let mut attempts = 0;
+        let error = retry_executable_busy("fake-agent", || -> io::Result<()> {
+            attempts += 1;
+            Err(io::Error::from(io::ErrorKind::PermissionDenied))
+        })
+        .expect_err("permission errors are not transient");
+
+        assert_eq!(error.kind(), io::ErrorKind::PermissionDenied);
+        assert_eq!(attempts, 1);
     }
 
     fn issue() -> Artifact {

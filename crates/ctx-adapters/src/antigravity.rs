@@ -57,10 +57,8 @@ impl AgentTransport for SubprocessTransport {
         if let Some(model) = &self.model {
             command.arg("--model").arg(model);
         }
-        let output = command
-            .arg(prompt)
-            .output()
-            .map_err(|error| AgentContractError::Spawn(format!("{}: {error}", self.binary)))?;
+        command.arg(prompt);
+        let output = agent_contract::run_subprocess(&mut command, &self.binary)?;
         tracing::debug!(
             agent = "antigravity",
             status = ?output.status.code(),

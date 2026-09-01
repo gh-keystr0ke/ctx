@@ -315,7 +315,8 @@ fn indexed_file_count(graph: &GraphSnapshot) -> usize {
 }
 
 /// Above this many changed paths, [`changed_symbol_links`] emits nothing at
-/// all rather than an arbitrary subset. See [`SWEEP_RATIO`].
+/// all rather than an arbitrary subset. See the private `SWEEP_RATIO`
+/// constant for the fraction used to calculate the threshold.
 pub fn sweep_threshold(graph: &GraphSnapshot) -> usize {
     #[allow(
         clippy::cast_precision_loss,

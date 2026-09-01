@@ -339,7 +339,8 @@ const MAX_ARTIFACT_HISTORY: usize = 20;
 /// answer "what commits/merge requests/comments touched this code over its
 /// history" (`ctx explain`). Newest first when an artifact reports a
 /// creation timestamp, with artifacts reporting none sorted last; ties
-/// break deterministically by identity. Bounded by [`MAX_ARTIFACT_HISTORY`].
+/// break deterministically by identity. Bounded by the private
+/// `MAX_ARTIFACT_HISTORY` constant.
 #[must_use]
 pub fn artifact_history(
     symbol: &crate::domain::StableKey,

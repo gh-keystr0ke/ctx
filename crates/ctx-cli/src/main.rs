@@ -54,6 +54,7 @@ use serde_json::json;
 use thiserror::Error;
 
 mod agent_dispatch;
+mod diagnostics;
 mod federation_command;
 mod tab_title;
 mod verify_command;
@@ -83,6 +84,9 @@ struct Cli {
     json: bool,
     #[arg(short, long, action = ArgAction::Count, global = true)]
     verbose: u8,
+    /// Write full trace diagnostics to a timestamped file under `.ctx/logs`.
+    #[arg(long, global = true)]
+    debug: bool,
     #[command(subcommand)]
     command: Command,
 }
@@ -399,7 +403,7 @@ struct FullIndexReport {
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
-    match run(&cli) {
+    match execute(&cli) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             if cli.json {
@@ -413,41 +417,68 @@ fn main() -> ExitCode {
     }
 }
 
-fn run(cli: &Cli) -> Result<(), CliError> {
+fn execute(cli: &Cli) -> Result<(), CliError> {
     let current = env::current_dir()?;
     let git = GitRepo::discover(&current)?;
+    let diagnostics = diagnostics::init(cli.verbose, cli.debug, git.root())?;
+    if cli.debug {
+        git.ignore_local_state()?;
+    }
+    if let Some(path) = diagnostics.debug_path() {
+        eprintln!("Debug log: {}", path.display());
+    }
+    let started = std::time::Instant::now();
+    tracing::info!(command = cli.command.name(), "command started");
+    let result = run(cli, &git);
+    match &result {
+        Ok(()) => tracing::info!(
+            command = cli.command.name(),
+            elapsed_ms = started.elapsed().as_millis(),
+            "command completed"
+        ),
+        Err(error) => tracing::info!(
+            command = cli.command.name(),
+            elapsed_ms = started.elapsed().as_millis(),
+            error = %error,
+            "command failed"
+        ),
+    }
+    result
+}
+
+fn run(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
     match &cli.command {
-        Command::Init => initialize(cli, &git),
-        Command::Index => index(cli, &git),
-        Command::Status => status(cli, &git),
-        Command::Impact { target } => impact(cli, &git, target),
-        Command::Explain { target, trace } => explain(cli, &git, target, *trace),
+        Command::Init => initialize(cli, git),
+        Command::Index => index(cli, git),
+        Command::Status => status(cli, git),
+        Command::Impact { target } => impact(cli, git, target),
+        Command::Explain { target, trace } => explain(cli, git, target, *trace),
         Command::Trace {
             target,
             federation_continuation,
-        } => trace(cli, &git, target, federation_continuation.as_deref()),
-        Command::Find { target } => find(cli, &git, target),
-        Command::Ingest { source, since } => ingest(cli, &git, source, since.as_deref()),
+        } => trace(cli, git, target, federation_continuation.as_deref()),
+        Command::Find { target } => find(cli, git, target),
+        Command::Ingest { source, since } => ingest(cli, git, source, since.as_deref()),
         Command::Enrich {
             agent,
             model,
             allow_ungrounded_symbols,
-        } => enrich(cli, &git, agent, model.clone(), *allow_ungrounded_symbols),
+        } => enrich(cli, git, agent, model.clone(), *allow_ungrounded_symbols),
         Command::Review {
             base,
             related_tests,
-        } => review(cli, &git, base, related_tests.as_deref()),
+        } => review(cli, git, base, related_tests.as_deref()),
         Command::Context {
             task,
             file,
             symbol,
             token_budget,
-        } => context(cli, &git, task, file, symbol, *token_budget),
-        Command::Registry { command } => registry(cli, &git, command),
-        Command::ContextStore { command } => context_store(cli, &git, command),
-        Command::Export { out } => export(cli, &git, out.as_deref()),
-        Command::Sync => sync(cli, &git),
-        Command::Federation { command } => federation(cli, &git, command),
+        } => context(cli, git, task, file, symbol, *token_budget),
+        Command::Registry { command } => registry(cli, git, command),
+        Command::ContextStore { command } => context_store(cli, git, command),
+        Command::Export { out } => export(cli, git, out.as_deref()),
+        Command::Sync => sync(cli, git),
+        Command::Federation { command } => federation(cli, git, command),
         Command::Verify {
             accept,
             reject,
@@ -462,11 +493,11 @@ fn run(cli: &Cli) -> Result<(), CliError> {
             stale,
         } => {
             if *stale {
-                verify_stale(cli, &git, agent, model.clone(), author)
+                verify_stale(cli, git, agent, model.clone(), author)
             } else if *auto {
                 verify_knowledge_auto(
                     cli,
-                    &git,
+                    git,
                     agent,
                     model.clone(),
                     id_prefix.as_deref().expect("clap requires id_prefix"),
@@ -476,7 +507,7 @@ fn run(cli: &Cli) -> Result<(), CliError> {
             } else if *knowledge {
                 verify_knowledge(
                     cli,
-                    &git,
+                    git,
                     accept.as_deref(),
                     reject.as_deref(),
                     id.as_deref(),
@@ -484,15 +515,40 @@ fn run(cli: &Cli) -> Result<(), CliError> {
                     *force,
                 )
             } else {
-                verify(cli, &git, accept.as_deref(), reject.as_deref(), author)
+                verify(cli, git, accept.as_deref(), reject.as_deref(), author)
             }
         }
         Command::Serve { mcp } => {
             if *mcp {
-                ctx_mcp::serve_stdio(&git).map_err(CliError::from)
+                ctx_mcp::serve_stdio(git).map_err(CliError::from)
             } else {
                 Err(CliError::UnsupportedServe)
             }
+        }
+    }
+}
+
+impl Command {
+    const fn name(&self) -> &'static str {
+        match self {
+            Self::Init => "init",
+            Self::Index => "index",
+            Self::Status => "status",
+            Self::Impact { .. } => "impact",
+            Self::Explain { .. } => "explain",
+            Self::Trace { .. } => "trace",
+            Self::Find { .. } => "find",
+            Self::Ingest { .. } => "ingest",
+            Self::Enrich { .. } => "enrich",
+            Self::Review { .. } => "review",
+            Self::Context { .. } => "context",
+            Self::Registry { .. } => "registry",
+            Self::ContextStore { .. } => "context-store",
+            Self::Export { .. } => "export",
+            Self::Sync => "sync",
+            Self::Federation { .. } => "federation",
+            Self::Verify { .. } => "verify",
+            Self::Serve { .. } => "serve",
         }
     }
 }

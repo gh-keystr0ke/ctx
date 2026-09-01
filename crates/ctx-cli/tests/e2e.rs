@@ -205,6 +205,69 @@ impl FixtureRepository {
 }
 
 #[test]
+fn verbosity_keeps_json_stdout_parseable_and_reports_command_lifecycle() {
+    let repository = FixtureRepository::new();
+    repository.ctx(&["init"]);
+    repository.ctx(&["index"]);
+
+    let output = Command::new(env!("CARGO_BIN_EXE_ctx"))
+        .current_dir(repository.root())
+        .args(["--json", "-vvv", "status"])
+        .output()
+        .expect("execute verbose ctx");
+
+    assert!(output.status.success());
+    serde_json::from_slice::<Value>(&output.stdout).expect("parse JSON stdout");
+    let stderr = String::from_utf8(output.stderr).expect("UTF-8 stderr");
+    assert!(stderr.contains("command started"));
+    assert!(stderr.contains("command completed"));
+}
+
+#[test]
+fn debug_writes_trace_jsonl_and_keeps_it_out_of_git() {
+    let repository = FixtureRepository::new();
+    repository.ctx(&["init"]);
+    repository.ctx(&["index"]);
+
+    let output = Command::new(env!("CARGO_BIN_EXE_ctx"))
+        .current_dir(repository.root())
+        .args(["--json", "status", "--debug"])
+        .output()
+        .expect("execute debug ctx");
+
+    assert!(output.status.success());
+    serde_json::from_slice::<Value>(&output.stdout).expect("parse JSON stdout");
+    assert!(String::from_utf8_lossy(&output.stderr).contains("Debug log:"));
+    let files = fs::read_dir(repository.root().join(".ctx/logs"))
+        .expect("debug log directory")
+        .map(|entry| entry.expect("debug log entry").path())
+        .collect::<Vec<_>>();
+    assert_eq!(files.len(), 1);
+    let log = fs::read_to_string(&files[0]).expect("read debug log");
+    assert!(log.contains("command started"));
+    assert!(log.contains("command completed"));
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        assert_eq!(
+            fs::metadata(&files[0])
+                .expect("debug log metadata")
+                .permissions()
+                .mode()
+                & 0o777,
+            0o600
+        );
+    }
+    let status = Command::new("git")
+        .current_dir(repository.root())
+        .args(["status", "--short"])
+        .output()
+        .expect("git status");
+    assert!(status.status.success());
+    assert!(!String::from_utf8_lossy(&status.stdout).contains(".ctx/logs"));
+}
+
+#[test]
 fn document_visibility_is_reported_by_status_and_explain_in_json_and_text() {
     let repository = FixtureRepository::new();
     let requirement_path = repository

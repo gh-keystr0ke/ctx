@@ -1,0 +1,15 @@
+id: REQ-CTX-038
+type: requirement
+status: active
+visibility: private
+statement: >-
+  The global repeatable -v flag must select progressively richer terminal diagnostics without
+  corrupting JSON stdout, while --debug independently records trace-level JSONL diagnostics in a
+  timestamped, permission-restricted, Git-ignored file under .ctx/logs.
+implementation:
+  - symbol: ctx_cli.diagnostics.init
+  - symbol: ctx_cli.execute
+  - symbol: ctx_adapters.git.GitRepo.ignore_local_state
+tests:
+  - symbol: crates.ctx-cli.tests.e2e.verbosity_keeps_json_stdout_parseable_and_reports_command_lifecycle
+  - symbol: crates.ctx-cli.tests.e2e.debug_writes_trace_jsonl_and_keeps_it_out_of_git

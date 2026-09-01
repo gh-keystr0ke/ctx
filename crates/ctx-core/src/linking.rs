@@ -530,7 +530,13 @@ mod tests {
         // 200 indexed files puts the 10% ratio (20) above the floor (20 too,
         // here, but the point is it tracks repository size, not a constant).
         let nodes = (0..200)
-            .map(|n| symbol_node(&format!("sym-{n}"), &format!("sym{n}"), &format!("file-{n}.py")))
+            .map(|n| {
+                symbol_node(
+                    &format!("sym-{n}"),
+                    &format!("sym{n}"),
+                    &format!("file-{n}.py"),
+                )
+            })
             .collect::<Vec<_>>();
         let graph = GraphSnapshot {
             nodes: nodes

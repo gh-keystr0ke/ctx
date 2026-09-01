@@ -1,4 +1,4 @@
-use std::collections::{btree_map::Entry, BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, btree_map::Entry};
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -1027,7 +1027,9 @@ fn indexed_api_endpoints(symbols: &[IndexedSymbol]) -> BTreeMap<String, ApiEndpo
             Entry::Vacant(slot) => {
                 slot.insert(endpoint.clone());
             }
-            Entry::Occupied(mut slot) if endpoint.openapi.is_some() && slot.get().openapi.is_none() => {
+            Entry::Occupied(mut slot)
+                if endpoint.openapi.is_some() && slot.get().openapi.is_none() =>
+            {
                 slot.insert(endpoint.clone());
             }
             Entry::Occupied(_) => {}

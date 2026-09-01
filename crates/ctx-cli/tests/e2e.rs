@@ -598,8 +598,11 @@ fn ingest_git_links_a_commit_to_the_symbol_in_the_file_it_changed() {
 
     let path = repository.root().join("src/billing/subscription.py");
     let source = fs::read_to_string(&path).expect("fixture source");
-    fs::write(&path, format!("{source}\n# tightened cancellation window\n"))
-        .expect("write fixture change");
+    fs::write(
+        &path,
+        format!("{source}\n# tightened cancellation window\n"),
+    )
+    .expect("write fixture change");
     run_git(repository.root(), &["add", "."]);
     run_git(
         repository.root(),
@@ -608,10 +611,8 @@ fn ingest_git_links_a_commit_to_the_symbol_in_the_file_it_changed() {
 
     repository.ctx(&["ingest", "git"]);
 
-    let explanation = repository.ctx(&[
-        "explain",
-        "billing.subscription.SubscriptionService.cancel",
-    ]);
+    let explanation =
+        repository.ctx(&["explain", "billing.subscription.SubscriptionService.cancel"]);
     let history = explanation["matches"][0]["artifact_history"]
         .as_array()
         .expect("artifact history");
@@ -2058,7 +2059,11 @@ components:
 
     ctx_json_at(repository.path(), &["init"]);
     let indexed = ctx_json_at(repository.path(), &["index"]);
-    assert!(indexed["failed_files"].as_array().is_some_and(Vec::is_empty));
+    assert!(
+        indexed["failed_files"]
+            .as_array()
+            .is_some_and(Vec::is_empty)
+    );
     assert!(indexed["stats"]["nodes_created"].as_u64().unwrap_or(0) > 0);
 
     let impact = ctx_json_at(repository.path(), &["impact", "HEAD /items/{id}"]);
@@ -2075,7 +2080,9 @@ components:
     assert_eq!(manifest["schema_version"], 2);
     assert_eq!(manifest["endpoints"].as_array().map(Vec::len), Some(2));
     assert!(manifest["endpoints"].as_array().is_some_and(|endpoints| {
-        endpoints.iter().all(|endpoint| endpoint["openapi"].is_object())
+        endpoints
+            .iter()
+            .all(|endpoint| endpoint["openapi"].is_object())
     }));
 
     fs::write(
@@ -2086,7 +2093,11 @@ components:
     let review = ctx_json_at(repository.path(), &["review", "--base", "HEAD"]);
     let api_findings = review["api_findings"].as_array().expect("API findings");
     assert_eq!(api_findings.len(), 2);
-    assert!(api_findings.iter().all(|finding| finding["destructive"] == true));
+    assert!(
+        api_findings
+            .iter()
+            .all(|finding| finding["destructive"] == true)
+    );
     assert!(
         api_findings
             .iter()
@@ -2136,7 +2147,11 @@ components:
 
     ctx_json_at(repository.path(), &["init"]);
     let indexed = ctx_json_at(repository.path(), &["index"]);
-    assert!(indexed["failed_files"].as_array().is_some_and(Vec::is_empty));
+    assert!(
+        indexed["failed_files"]
+            .as_array()
+            .is_some_and(Vec::is_empty)
+    );
 
     let exported = ctx_json_at(repository.path(), &["export"]);
     assert_eq!(
@@ -2162,9 +2177,9 @@ components:
     );
     let evidence = endpoint["evidence"].as_array().expect("evidence array");
     assert!(
-        evidence
-            .iter()
-            .any(|item| item["source_uri"].as_str().is_some_and(|uri| uri.contains("api.py"))),
+        evidence.iter().any(|item| item["source_uri"]
+            .as_str()
+            .is_some_and(|uri| uri.contains("api.py"))),
         "evidence must include the code handler's edge: {evidence:?}"
     );
     assert!(

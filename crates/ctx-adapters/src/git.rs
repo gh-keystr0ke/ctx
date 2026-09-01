@@ -669,7 +669,10 @@ const COMMIT_RECORD_SEPARATOR: u8 = 0x1e;
 const MAX_BRANCH_OWN_COMMITS: usize = 100;
 
 impl GitArtifactSource for GitRepo {
-    fn commit_artifacts(&self, since: Option<&CommitOid>) -> Result<Vec<CommitArtifact>, PortError> {
+    fn commit_artifacts(
+        &self,
+        since: Option<&CommitOid>,
+    ) -> Result<Vec<CommitArtifact>, PortError> {
         let range = since.map_or_else(
             || "HEAD".to_owned(),
             |oid| format!("{}..HEAD", oid.as_str()),
@@ -678,7 +681,12 @@ impl GitArtifactSource for GitRepo {
         let bytes = self
             .output(&["log", &format, "--name-status", "-z", "-M", &range])
             .map_err(port_error)?;
-        parse_commit_artifacts(&bytes, &self.project_label(), &self.languages, &self.path_filter)
+        parse_commit_artifacts(
+            &bytes,
+            &self.project_label(),
+            &self.languages,
+            &self.path_filter,
+        )
     }
 
     fn branch_artifacts(&self) -> Result<Vec<BranchArtifact>, PortError> {
@@ -1321,11 +1329,7 @@ mod tests {
         let repository = GitRepo::discover(root.path()).expect("discover");
         let branches = repository.branch_artifacts().expect("branch artifacts");
 
-        assert!(
-            branches
-                .iter()
-                .all(|branch| branch.own_commits.is_empty())
-        );
+        assert!(branches.iter().all(|branch| branch.own_commits.is_empty()));
     }
 
     #[test]

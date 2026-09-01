@@ -1,5 +1,5 @@
 use std::{
-    collections::{btree_map::Entry, BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, btree_map::Entry},
     env, fs,
     io::{self, IsTerminal, Write},
     path::{Path, PathBuf},

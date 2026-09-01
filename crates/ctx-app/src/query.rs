@@ -8,7 +8,9 @@ use ctx_core::{
 };
 use thiserror::Error;
 
-use crate::ports::{ArtifactLinkStore, ArtifactRepository, GraphStore, KnowledgeCandidateStore, PortError};
+use crate::ports::{
+    ArtifactLinkStore, ArtifactRepository, GraphStore, KnowledgeCandidateStore, PortError,
+};
 
 #[derive(Debug, Error)]
 pub enum QueryError {
@@ -130,7 +132,10 @@ where
         let Ok(stable_key) = StableKey::new(&subject.stable_key) else {
             return Ok(Vec::new());
         };
-        let links = self.store.list_links(repository).map_err(QueryError::Store)?;
+        let links = self
+            .store
+            .list_links(repository)
+            .map_err(QueryError::Store)?;
         let known_artifacts = self
             .store
             .list_artifacts(repository)
@@ -539,7 +544,9 @@ mod tests {
             artifacts: vec![commit.clone()],
             links: vec![ctx_core::artifact::ArtifactLink {
                 source: commit.identity.clone(),
-                target: ctx_core::artifact::ArtifactLinkTarget::CodeSymbol(symbol.stable_key.clone()),
+                target: ctx_core::artifact::ArtifactLinkTarget::CodeSymbol(
+                    symbol.stable_key.clone(),
+                ),
                 kind: ctx_core::artifact::ArtifactLinkKind::ChangedSymbol,
                 evidence_locator: "changed_file:billing.py".to_owned(),
             }],

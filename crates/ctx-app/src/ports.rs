@@ -267,7 +267,8 @@ pub trait GitArtifactSource {
     ///
     /// # Errors
     /// Returns [`PortError`] when Git history cannot be read.
-    fn commit_artifacts(&self, since: Option<&CommitOid>) -> Result<Vec<CommitArtifact>, PortError>;
+    fn commit_artifacts(&self, since: Option<&CommitOid>)
+    -> Result<Vec<CommitArtifact>, PortError>;
 
     /// Returns one entry per local branch, in deterministic (name-sorted)
     /// order.

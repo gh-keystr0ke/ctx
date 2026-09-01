@@ -81,7 +81,8 @@ pub fn build_neighborhood(
     graph: &GraphSnapshot,
 ) -> ArtifactNeighborhood {
     let mut changed_symbol_keys = BTreeSet::new();
-    let linked_artifacts = linked_artifacts(subject, links, known_artifacts, &mut changed_symbol_keys);
+    let linked_artifacts =
+        linked_artifacts(subject, links, known_artifacts, &mut changed_symbol_keys);
 
     let changed_symbols = changed_symbol_keys
         .iter()
@@ -213,7 +214,9 @@ pub fn artifact_history(
     let mut history = links
         .iter()
         .filter(|link| link.target == ArtifactLinkTarget::CodeSymbol(symbol.clone()))
-        .filter_map(|link| find_artifact(known_artifacts, &link.source).map(|artifact| (link.kind, artifact)))
+        .filter_map(|link| {
+            find_artifact(known_artifacts, &link.source).map(|artifact| (link.kind, artifact))
+        })
         .filter(|(kind, artifact)| seen.insert((artifact.identity.clone(), *kind)))
         .map(|(kind, artifact)| LinkedArtifact {
             kind,
@@ -223,7 +226,12 @@ pub fn artifact_history(
     history.sort_by(|left, right| {
         history_created_at(right)
             .cmp(&history_created_at(left))
-            .then_with(|| left.artifact.identity.external_id.cmp(&right.artifact.identity.external_id))
+            .then_with(|| {
+                left.artifact
+                    .identity
+                    .external_id
+                    .cmp(&right.artifact.identity.external_id)
+            })
     });
     history.truncate(MAX_ARTIFACT_HISTORY);
     history
@@ -752,7 +760,10 @@ mod tests {
             neighborhood.linked_artifacts[0].kind,
             ArtifactLinkKind::ContainsCommit
         );
-        assert_eq!(neighborhood.linked_artifacts[0].artifact.identity, mr.identity);
+        assert_eq!(
+            neighborhood.linked_artifacts[0].artifact.identity,
+            mr.identity
+        );
     }
 
     #[test]
@@ -843,7 +854,8 @@ mod tests {
             "older fix",
             "older fix",
         );
-        older.external_created_at = Some(crate::domain::Timestamp("2026-01-01T00:00:00Z".to_owned()));
+        older.external_created_at =
+            Some(crate::domain::Timestamp("2026-01-01T00:00:00Z".to_owned()));
         let mut newer = artifact_from(
             ArtifactProvider::Git,
             "newer",
@@ -851,7 +863,8 @@ mod tests {
             "newer fix",
             "newer fix",
         );
-        newer.external_created_at = Some(crate::domain::Timestamp("2026-06-01T00:00:00Z".to_owned()));
+        newer.external_created_at =
+            Some(crate::domain::Timestamp("2026-06-01T00:00:00Z".to_owned()));
         let links = vec![
             ArtifactLink {
                 source: older.identity.clone(),
@@ -870,7 +883,10 @@ mod tests {
         let history = artifact_history(&cancel.stable_key, &links, &[older.clone(), newer.clone()]);
 
         assert_eq!(
-            history.iter().map(|entry| &entry.artifact.identity).collect::<Vec<_>>(),
+            history
+                .iter()
+                .map(|entry| &entry.artifact.identity)
+                .collect::<Vec<_>>(),
             vec![&newer.identity, &older.identity]
         );
     }

@@ -21,9 +21,9 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::ports::{
-    ArtifactLinkStore, ArtifactRepository, BranchArtifact, CommitArtifact,
-    ExternalArtifactRequest, ExternalArtifactSource, GitArtifactSource, GitRepository, GraphStore,
-    IngestCursorStore, LanguageAnalyzer, PortError, ReviewRepository,
+    ArtifactLinkStore, ArtifactRepository, BranchArtifact, CommitArtifact, ExternalArtifactRequest,
+    ExternalArtifactSource, GitArtifactSource, GitRepository, GraphStore, IngestCursorStore,
+    LanguageAnalyzer, PortError, ReviewRepository,
 };
 
 /// Bumped when the normalization this runner applies to Git artifacts
@@ -104,7 +104,10 @@ where
             .store
             .list_artifacts(repository)
             .map_err(IngestError::Store)?;
-        let graph = self.store.load_graph(repository).map_err(IngestError::Store)?;
+        let graph = self
+            .store
+            .load_graph(repository)
+            .map_err(IngestError::Store)?;
         let mut links = branch_commit_links(&branches);
         links.extend(commit_symbol_links(&commits, &graph));
         links.extend(
@@ -605,7 +608,12 @@ mod tests {
         }
     }
 
-    fn commit_artifact(external_id: &str, kind: ArtifactKind, title: &str, body: &str) -> CommitArtifact {
+    fn commit_artifact(
+        external_id: &str,
+        kind: ArtifactKind,
+        title: &str,
+        body: &str,
+    ) -> CommitArtifact {
         CommitArtifact {
             artifact: artifact(external_id, kind, title, body),
             changed_paths: BTreeSet::new(),
@@ -769,7 +777,12 @@ mod tests {
     #[test]
     fn re_running_ingest_does_not_duplicate_artifacts() {
         let source = FakeGitSource {
-            commits: vec![commit_artifact("abc123", ArtifactKind::Commit, "fix", "body")],
+            commits: vec![commit_artifact(
+                "abc123",
+                ArtifactKind::Commit,
+                "fix",
+                "body",
+            )],
             branches: Vec::new(),
         };
         let mut store = FakeStore::default();

@@ -28,7 +28,10 @@
 use std::collections::HashSet;
 
 use ctx_core::{
-    artifact::{Artifact, ArtifactIdentity, ArtifactKind, ArtifactLink, ArtifactLinkKind, ArtifactLinkTarget},
+    artifact::{
+        Artifact, ArtifactIdentity, ArtifactKind, ArtifactLink, ArtifactLinkKind,
+        ArtifactLinkTarget,
+    },
     domain::RepositoryId,
     knowledge::AgentOutcome,
     neighborhood::build_neighborhood,

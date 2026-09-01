@@ -4,6 +4,23 @@ All notable changes to `ctx` are documented here. The project follows semantic v
 
 ## Unreleased
 
+## 0.7.2 — 2026-09-01
+
+### Added
+
+- `--scope business-linked` for GitLab/Jira ingestion and enrichment. GitLab fetches details only for MRs tied to current Git; Jira keys come only from Git and selected MRs/comments, with `--related-depth 0` by default. Enrichment sends one Jira-anchored Jira↔MR↔commit→symbol/test bundle per agent call and never submits an unanchored branch, commit, or MR alone.
+- `ctx artifacts prune --scope business-linked`, dry-run-first cleanup of already-stored artifacts with deterministic keep/prune reasons, `--apply` for atomic deletion, `-v` reason counts, `-vv` identity details, full JSON plans, and warnings for pending candidates whose evidence intersects the prune set.
+- `ctx ingest code-comments --reconcile` for treating successfully analyzed HEAD comments/docstrings as a complete snapshot and removing entries no longer present.
+
+### Changed
+
+- Incremental enrichment now fingerprints the exact rendered prompt — including linked artifact bodies, changed symbols, nearby tests, prompt rules, and grounding mode — instead of only the subject content hash.
+- Destructive artifact maintenance is isolated behind its own storage port. Reconciliation/pruning removes incoming and outgoing links plus analysis rows before artifacts in one transaction, while `.context/` and `.ctx-candidates/` remain untouched.
+
+### Fixed
+
+- Jira tasks already stored for a shared Jira project can no longer seed repository-scoped ingestion themselves, preventing unrelated repositories' business context from accumulating in the local artifact store.
+
 ## 0.7.1 — 2026-09-01
 
 ### Added

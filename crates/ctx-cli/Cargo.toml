@@ -17,10 +17,10 @@ path = "src/main.rs"
 [dependencies]
 chrono.workspace = true
 clap.workspace = true
-ctx-adapters = { path = "../ctx-adapters", version = "0.6.2" }
-ctx-app = { path = "../ctx-app", version = "0.6.2" }
-ctx-core = { path = "../ctx-core", version = "0.6.2" }
-ctx-mcp = { path = "../ctx-mcp", version = "0.6.2" }
+ctx-adapters = { path = "../ctx-adapters", version = "0.7.0" }
+ctx-app = { path = "../ctx-app", version = "0.7.0" }
+ctx-core = { path = "../ctx-core", version = "0.7.0" }
+ctx-mcp = { path = "../ctx-mcp", version = "0.7.0" }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true

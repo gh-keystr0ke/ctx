@@ -4,6 +4,13 @@ All notable changes to `ctx` are documented here. The project follows semantic v
 
 ## Unreleased
 
+## 0.7.0 — 2026-09-01
+
+### Fixed
+
+- `ctx enrich --model <name>` (and `ctx verify --auto`/`--stale --model <name>`) accepted the flag and recorded it into the resulting candidate's provenance, but never actually put it on the agent CLI's argv — the `claude`/`codex`/`agy` subprocess silently ran whichever model the CLI defaults to while `ctx explain` kept claiming the requested model produced the output. `--model` now reaches the real subprocess call for all three agents.
+- `ctx enrich --agent claude` (and the `claude` `--auto`/`--stale` review path) now runs `claude` with `--safe-mode`, skipping CLAUDE.md/skills/plugins/hooks/MCP-server/custom-agent loading that a single self-contained prompt-in/JSON-out call never needed — cutting context spent on unrelated project configuration on every call, without affecting OAuth/keychain-based auth.
+
 ## 0.6.2 — 2026-09-01
 
 ### Fixed

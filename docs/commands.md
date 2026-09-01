@@ -43,8 +43,9 @@ See [docs/mining-knowledge.md](mining-knowledge.md) for the full workflow.
 
 | Command | Flags | Purpose |
 | --- | --- | --- |
-| `ctx ingest <source>` | `--since <OID>` | Normalize external artifacts into their own store. `source` is `git`, `code-comments`, `gitlab`, or `jira`. |
-| `ctx enrich` | `--agent <claude\|codex\|antigravity>` (default `claude`), `--model <NAME>`, `--allow-ungrounded-symbols` | Ask an AI agent to propose typed knowledge candidates from ingested artifacts, one bounded neighborhood at a time. Always produces `pending` candidates, never asserted facts. |
+| `ctx ingest <source>` | `--since <OID>`, `--scope <all\|business-linked>`, `--related-depth <N>`, `--reconcile` | Normalize external artifacts into their own store. Strict scope selects GitLab MRs from Git and Jira keys from Git/selected MRs; `--reconcile` applies to `code-comments`. |
+| `ctx artifacts prune` | `--scope business-linked`, `--related-depth <N>`, `--apply` | Explain the keep/prune plan. Dry-run by default; `--apply` atomically removes the prune set. `-v` groups reasons, `-vv` lists identities. |
+| `ctx enrich` | `--agent <claude\|codex\|antigravity>` (default `claude`), `--model <NAME>`, `--allow-ungrounded-symbols`, `--scope <all\|business-linked>`, `--related-depth <N>` | Ask an AI agent to propose typed knowledge candidates. Strict scope sends one Jira-anchored bundle at a time and never sends a branch, commit, or MR alone. |
 | `ctx verify` | `--accept <FINGERPRINT>` \| `--reject <FINGERPRINT>`, `--author <NAME>` (default `local-user`) | List or decide heuristic implementation-link candidates (the deterministic relation suggestions from indexing, not AI-derived). |
 | `ctx verify --knowledge` | `--accept <FINGERPRINT> --id <STABLE-ID>` \| `--reject <FINGERPRINT>`, `--force`, `--author <NAME>` | List or decide pending AI-derived knowledge candidates from `ctx enrich`. Accepting writes an ordinary `.context/*.yaml` document. |
 | `ctx verify --knowledge --auto` | `--agent <NAME>`, `--model <NAME>`, `--id-prefix <PREFIX>` (required) | Have a review agent decide every pending knowledge candidate in bulk instead of a human pressing accept/reject by hand. Every resulting document is recorded as agent-decided (`ctx explain` renders it as "Auto-verified", never as a human review). |

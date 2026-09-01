@@ -3,12 +3,15 @@
 If a team already has commit history, code comments, or a GitLab project full of issues and merge requests, `ctx` can propose product-context documents from that instead of requiring everything to be authored from scratch.
 
 ```bash
-ctx ingest git             # commit messages and branch names
-ctx ingest code-comments   # comments and docstrings, attributed to their nearest symbol
-ctx ingest gitlab          # issues, merge requests, and their comments — needs [gitlab] in .ctx/config.toml
-ctx ingest jira            # only issues already referenced by known artifacts, plus one hop of related issues — needs [jira] in .ctx/config.toml
+ctx ingest git
+ctx ingest gitlab --scope business-linked   # details only for MRs tied to this Git repository
+ctx ingest jira --scope business-linked     # Jira keys only from Git/selected MRs; related depth defaults to zero
+ctx ingest code-comments --reconcile        # complete HEAD snapshot; removes comments/docstrings gone from code
 
-ctx enrich --agent claude  # or --agent codex / --agent antigravity
+ctx artifacts prune --scope business-linked # dry-run the keep/prune plan
+ctx artifacts prune --scope business-linked --apply
+
+ctx enrich --scope business-linked --agent claude  # or codex / antigravity
 
 ctx verify --knowledge     # review each proposed candidate; accept allocates its stable ID
 ```
@@ -17,17 +20,25 @@ Ingested artifacts are never product knowledge on their own — they are source 
 
 ## Ingest
 
-`ctx ingest <git|code-comments|gitlab|jira>` normalizes artifacts into their own store, idempotently re-synced on every run. `--since <OID>` narrows `git` to commits after that point (branch names are always re-synced). `gitlab` stores a per-project sync cursor so a later run asks GitLab for only what changed since the previous one — a missing or reset cursor only costs a fuller re-fetch, never a wrong result.
+`ctx ingest <git|code-comments|gitlab|jira>` normalizes artifacts into their own store, idempotently re-synced on every run. `--since <OID>` narrows `git` to commits after that point (branch names are always re-synced). The default `gitlab` mode stores a per-project sync cursor and ingests issues plus MRs. `ctx ingest gitlab --scope business-linked` deliberately does something narrower: it relists MR summaries, selects only those connected to current Git by source branch, commit SHA, or an explicit `!IID`, and fetches comments/commits only for the selected MRs. It does not fetch GitLab issues or advance the default-mode cursor.
 
-`jira` doesn't use a cursor at all: since a Jira project can span many repositories, it never fetches "the whole project, or everything changed since last time." Instead, on every run it scans this repository's already-known artifacts for ticket-key-shaped references (`PSI-1122`), fetches exactly those issues under the configured project plus one hop of Jira-reported related issues (`issuelinks`/`parent`), and re-does this in full each run — cheap and correct because the referenced-key set, not a time filter, is what keeps the fetch bounded.
+`jira` doesn't use a cursor at all: since a Jira project can span many repositories, it never fetches "the whole project, or everything changed since last time." In business-linked mode, every run derives ticket keys (`PSI-1122`) only from current Git, selected MRs, and their comments. Old Jira rows and unrelated GitLab issues cannot seed or perpetuate the set. `--related-depth 0` admits only directly referenced issues; increase it explicitly to follow a bounded number of Jira-reported `issuelinks`/`parent` hops.
+
+`ctx ingest code-comments --reconcile` treats the successfully read/analyzed HEAD as a complete snapshot. Comments and docstrings absent from that snapshot are removed together with their local links and analysis rows; a read/analyzer failure happens before deletion and preserves the previous snapshot.
+
+## Prune oversized artifact stores
+
+`ctx artifacts prune --scope business-linked` applies the same deterministic planner to everything already stored. It is a dry run by default and reports how many artifacts would be kept/pruned. Add `-v` for counts grouped by reason, `-vv` for every identity and reason, or `--json` for the full decision list. Only `--apply` performs deletion, atomically removing the named artifacts with their links and analysis-ledger rows. Repeating apply is idempotent.
+
+Prune never edits `.context/` or `.ctx-candidates/`. A pending candidate that cites evidence in the prune set is reported for follow-up, not silently deleted. This makes the safe cleanup sequence explicit: strict GitLab/Jira ingestion, reconciled code comments, dry-run review, apply, then strict enrichment.
 
 ## Enrich
 
 `ctx enrich --agent claude|codex|antigravity` shells out to that agent's own CLI (`claude`, `codex`, `agy`) already on `PATH` — see [docs/configuration.md](configuration.md) for the override environment variables. No token or API key is read from `ctx` itself; each CLI handles its own authentication.
 
-Each run analyzes one bounded artifact neighborhood at a time — the artifact's own linked artifacts, the code it touched, nearby tests, and already-mapped product knowledge — never the whole repository or backlog. Every evidence citation and implementation/test-candidate path is checked against that neighborhood; anything outside it, or malformed output altogether, is dropped or rejected, never trusted. `--allow-ungrounded-symbols` relaxes only the implementation/test-candidate check to allow the agent's own heuristic knowledge of the repository — evidence-artifact grounding stays strict either way.
+The default `--scope all` keeps the legacy one-artifact-neighborhood behavior. `ctx enrich --scope business-linked` instead makes a retained Jira issue the only valid agent subject and assembles one bounded Jira↔MR↔commit→symbol/test bundle around it. Linked artifact bodies are included, so the agent receives the business requirement together with its implementation evidence; a branch name, one commit message, or an MR without Jira context is never sent alone. Every evidence citation and implementation/test-candidate path is checked against that bundle; anything outside it, or malformed output altogether, is dropped or rejected, never trusted. `--allow-ungrounded-symbols` relaxes only the implementation/test-candidate check — evidence-artifact grounding stays strict.
 
-An artifact whose content hasn't changed since its last analysis is skipped rather than re-sent to an agent every run, regardless of the previous outcome.
+The analysis ledger fingerprints the exact rendered prompt, not only the Jira body. A changed MR/commit, link, symbol/test set, prompt rule, or grounding mode triggers re-analysis; an identical prompt is skipped regardless of whether the previous outcome was relevant.
 
 ## Verify
 

@@ -11,13 +11,18 @@ statement: >
   reconcile or delete operation is idempotent.
   Code-comment reconciliation must finish reading and analyzing the complete
   HEAD snapshot before it performs any deletion, so a source or analyzer
-  failure cannot erase the last successful snapshot.
+  failure cannot erase the last successful snapshot. Explicit business-scope
+  pruning must use the already-computed plan unchanged and cannot mutate
+  candidate or business-context files.
 implementation:
   - symbol: ctx_adapters.sqlite.artifacts.SqliteStore.ArtifactMaintenanceStore.replace_outgoing_links
   - symbol: ctx_adapters.sqlite.artifacts.SqliteStore.ArtifactMaintenanceStore.reconcile_snapshot
   - symbol: ctx_adapters.sqlite.artifacts.SqliteStore.ArtifactMaintenanceStore.delete_artifacts
   - symbol: ctx_app.ingest.CodeDocIngestRunner.run_with_reconcile
+  - symbol: ctx_app.artifact_prune.ArtifactPruneService.run
 tests:
   - symbol: ctx_adapters.sqlite.artifacts.tests.replacing_outgoing_links_removes_relationships_missing_from_the_new_snapshot
   - symbol: ctx_adapters.sqlite.artifacts.tests.reconciling_a_snapshot_removes_absent_artifacts_and_all_dependencies
   - symbol: crates.ctx-cli.tests.e2e.ingest_code_comments_attaches_a_doc_comment_to_its_nearest_symbol
+  - symbol: ctx_app.artifact_prune.tests.apply_deletes_exactly_the_planned_prune_set
+  - symbol: crates.ctx-cli.tests.e2e.artifacts_prune_is_a_dry_run_until_apply_and_then_is_idempotent

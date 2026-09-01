@@ -1,0 +1,22 @@
+id: ADR-EXT-007
+type: decision
+title: Artifact pruning is explicit, dry-run-first, and isolated from knowledge files
+status: accepted
+decision: >
+  `ctx artifacts prune --scope business-linked` reuses the same deterministic
+  scope plan for preview and deletion, and is a dry run unless the operator
+  passes `--apply`. Apply deletes exactly the planned artifact identities plus
+  their local links and analysis-ledger dependencies through the separate
+  ArtifactMaintenanceStore transaction. It never modifies `.context/` or
+  `.ctx-candidates/`; pending candidates whose evidence intersects the prune
+  set are reported for human follow-up. Default output is a summary, `-v`
+  groups prune reasons, `-vv` lists identities with reasons, and `--json`
+  returns the complete auditable plan.
+implementation:
+  - symbol: ctx_app.artifact_prune.ArtifactPruneService.run
+  - symbol: ctx_app.ports.ArtifactMaintenanceStore.delete_artifacts
+  - symbol: ctx_cli.artifacts_command.artifacts
+tests:
+  - symbol: ctx_app.artifact_prune.tests.dry_run_reports_pruned_artifacts_and_candidate_impact_without_deleting
+  - symbol: ctx_app.artifact_prune.tests.apply_deletes_exactly_the_planned_prune_set
+  - symbol: crates.ctx-cli.tests.e2e.artifacts_prune_is_a_dry_run_until_apply_and_then_is_idempotent

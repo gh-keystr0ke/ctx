@@ -32,7 +32,11 @@ statement: >
   never submitted alone, even when it is orphaned. Linked artifact bodies are
   included so the bundle carries business and implementation context rather
   than only names or one commit-message. The legacy all-artifacts ingest and
-  enrich behavior remains the default.
+  enrich behavior remains the default. `ctx artifacts prune --scope
+  business-linked` exposes the complete reasoned plan as a dry run by default;
+  only `--apply` atomically deletes the planned artifact set and its local
+  dependencies. Prune never edits business documents or candidate files and
+  reports pending candidates that cite removed evidence.
 implementation:
   - symbol: ctx_core.artifact_scope.plan_business_scope
   - symbol: ctx_app.ingest.GitLabIngestRunner.run_scoped
@@ -43,6 +47,8 @@ implementation:
   - symbol: ctx_adapters.sqlite.artifacts.SqliteStore.ArtifactMaintenanceStore.delete_artifacts
   - symbol: ctx_app.enrich.EnrichRunner.run_business_linked_with_progress
   - symbol: ctx_core.neighborhood.build_business_neighborhood
+  - symbol: ctx_app.artifact_prune.ArtifactPruneService.run
+  - symbol: ctx_cli.artifacts_command.artifacts
 tests:
   - symbol: ctx_core.artifact_scope.tests.keeps_only_a_git_mr_jira_chain_with_business_context
   - symbol: ctx_core.artifact_scope.tests.jira_artifacts_cannot_seed_each_other_without_repository_evidence
@@ -57,3 +63,6 @@ tests:
   - symbol: ctx_app.enrich.tests.business_linked_enrich_sends_one_jira_anchored_bundle_not_standalone_git
   - symbol: ctx_app.enrich.tests.business_linked_enrich_rejects_git_and_merge_requests_without_jira
   - symbol: crates.ctx-cli.tests.e2e.business_linked_enrich_never_invokes_an_agent_for_git_without_jira_context
+  - symbol: ctx_app.artifact_prune.tests.dry_run_reports_pruned_artifacts_and_candidate_impact_without_deleting
+  - symbol: ctx_app.artifact_prune.tests.apply_deletes_exactly_the_planned_prune_set
+  - symbol: crates.ctx-cli.tests.e2e.artifacts_prune_is_a_dry_run_until_apply_and_then_is_idempotent

@@ -669,6 +669,61 @@ fn ingest_rejects_an_unsupported_source() {
     );
 }
 
+#[test]
+fn artifacts_prune_is_a_dry_run_until_apply_and_then_is_idempotent() {
+    let repository = FixtureRepository::new();
+    repository.ctx(&["init"]);
+    let ingested = repository.ctx(&["ingest", "git"]);
+    assert!(ingested["artifacts_ingested"].as_u64().unwrap_or(0) > 0);
+
+    let dry_run = repository.ctx(&[
+        "artifacts",
+        "prune",
+        "--scope",
+        "business-linked",
+        "--related-depth",
+        "0",
+    ]);
+    let planned = dry_run["artifacts_pruned"]
+        .as_u64()
+        .expect("planned prune count");
+    assert!(!dry_run["applied"].as_bool().expect("applied flag"));
+    assert!(planned > 0);
+    assert_eq!(
+        dry_run["artifacts_removed"]
+            .as_array()
+            .expect("removed identities")
+            .len(),
+        0
+    );
+
+    let still_present = repository.ctx(&["artifacts", "prune"]);
+    assert_eq!(still_present["artifacts_pruned"].as_u64(), Some(planned));
+    let reason_summary = repository.ctx_text(&["-v", "artifacts", "prune"]);
+    assert!(reason_summary.contains("NoBusinessAnchor"));
+    let identity_detail = repository.ctx_text(&["-vv", "artifacts", "prune"]);
+    assert!(identity_detail.contains("git:commit:"));
+
+    let applied = repository.ctx(&["artifacts", "prune", "--apply"]);
+    assert!(applied["applied"].as_bool().expect("applied flag"));
+    assert_eq!(
+        applied["artifacts_removed"]
+            .as_array()
+            .expect("removed identities")
+            .len() as u64,
+        planned
+    );
+
+    let repeated = repository.ctx(&["artifacts", "prune", "--apply"]);
+    assert_eq!(repeated["artifacts_pruned"], 0);
+    assert!(
+        repeated["artifacts_removed"]
+            .as_array()
+            .expect("removed identities")
+            .is_empty()
+    );
+}
+
 /// Writes a fake `claude` script that always proposes one grounded-evidence
 /// candidate (the evidence artifact id is read out of the prompt itself, so
 /// it's always valid regardless of the flag under test -- `--allow

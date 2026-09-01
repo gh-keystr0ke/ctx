@@ -1,5 +1,6 @@
 //! IO orchestration for `ctx` use cases.
 
+pub mod artifact_prune;
 pub mod context;
 pub mod enrich;
 pub mod index;

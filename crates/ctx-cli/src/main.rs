@@ -52,6 +52,7 @@ use thiserror::Error;
 
 mod agent_dispatch;
 mod agent_pacing;
+mod artifacts_command;
 mod diagnostics;
 mod federation_command;
 mod ingest_command;
@@ -59,6 +60,7 @@ mod tab_title;
 mod verify_command;
 
 use agent_dispatch::ConfiguredAgent;
+use artifacts_command::{ArtifactsCommand, artifacts};
 use federation_command::{
     CliFederationResolver, attach_product_context, federation, federation_binary,
     print_endpoint_trace, sync, trace,
@@ -101,20 +103,6 @@ struct EnrichOptions {
     related_depth: usize,
 }
 
-impl EnrichOptions {
-    const fn new(
-        allow_ungrounded_symbols: bool,
-        scope: IngestScopeArg,
-        related_depth: usize,
-    ) -> Self {
-        Self {
-            allow_ungrounded_symbols,
-            scope,
-            related_depth,
-        }
-    }
-}
-
 #[derive(Debug, Subcommand)]
 enum Command {
     /// Initialize local storage and business-context directories.
@@ -151,6 +139,11 @@ enum Command {
     },
     /// Discover indexed symbols/nodes by short or exact name.
     Find { target: String },
+    /// Inspect and maintain locally stored external artifacts.
+    Artifacts {
+        #[command(subcommand)]
+        command: ArtifactsCommand,
+    },
     /// Ingest external development artifacts as evidence-backed source material.
     Ingest {
         /// The source to ingest from ("git": commit messages and branch
@@ -383,6 +376,8 @@ enum CliError {
     #[error(transparent)]
     Enrich(#[from] EnrichError),
     #[error(transparent)]
+    ArtifactPrune(#[from] ctx_app::artifact_prune::ArtifactPruneError),
+    #[error(transparent)]
     Federation(#[from] FederationError),
     #[error("unsupported ingest source '{0}'; supported: git, code-comments, gitlab, jira")]
     UnsupportedIngestSource(String),
@@ -500,6 +495,7 @@ fn run(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
             federation_continuation,
         } => trace(cli, git, target, federation_continuation.as_deref()),
         Command::Find { target } => find(cli, git, target),
+        Command::Artifacts { command } => artifacts(cli, git, command),
         Command::Ingest {
             source,
             since,
@@ -592,6 +588,7 @@ impl Command {
             Self::Explain { .. } => "explain",
             Self::Trace { .. } => "trace",
             Self::Find { .. } => "find",
+            Self::Artifacts { .. } => "artifacts",
             Self::Ingest { .. } => "ingest",
             Self::Enrich { .. } => "enrich",
             Self::Review { .. } => "review",
@@ -1505,7 +1502,11 @@ fn enrich_command(cli: &Cli, git: &GitRepo, command: &Command) -> Result<(), Cli
         git,
         agent,
         model.clone(),
-        EnrichOptions::new(*allow_ungrounded_symbols, *scope, *related_depth),
+        EnrichOptions {
+            allow_ungrounded_symbols: *allow_ungrounded_symbols,
+            scope: *scope,
+            related_depth: *related_depth,
+        },
     )
 }
 

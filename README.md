@@ -80,8 +80,12 @@ Add `-v` for lower-confidence diagnostics and suppressed-change counts. See [doc
 
 **Don't want to hand-author `.context/` from scratch?** Mine it from what already exists:
 ```bash
-ctx ingest git && ctx ingest code-comments   # gitlab/jira too, if configured
-ctx enrich --agent claude                    # or codex / antigravity
+ctx ingest git
+ctx ingest gitlab --scope business-linked    # if GitLab is configured
+ctx ingest jira --scope business-linked      # Jira keys found in Git/selected MRs only
+ctx ingest code-comments --reconcile         # remove comments/docstrings gone from HEAD
+ctx artifacts prune --scope business-linked  # dry run; add --apply after review
+ctx enrich --scope business-linked --agent claude  # or codex / antigravity
 ctx verify --knowledge                       # accept/reject each proposed candidate
 ```
 Full workflow, including bulk-reviewing hundreds of candidates with `ctx verify --knowledge --auto`, in [docs/mining-knowledge.md](docs/mining-knowledge.md).
@@ -141,7 +145,8 @@ exclude = ["generated", "vendor", "build", "dist", "target", ".venv"]
 | `ctx review [--base REV]` | Review a branch or working diff against product, schema, and API contracts |
 | `ctx context <task>` | Compile a bounded Context Pack; accepts repeated `--file`/`--symbol` seeds |
 | `ctx ingest <source>` | Ingest external artifacts (`git`, `code-comments`, `gitlab`, `jira`) as separately stored source material |
-| `ctx enrich [--agent NAME]` | Propose typed knowledge candidates from ingested artifacts via an AI agent |
+| `ctx artifacts prune [--apply]` | Dry-run or apply removal of artifacts without a deterministic repository→Jira business anchor |
+| `ctx enrich [--agent NAME] [--scope business-linked]` | Propose typed knowledge candidates; strict scope sends one Jira-anchored MR/commit/code bundle per agent call |
 | `ctx verify [--knowledge] [--auto]` | Decide heuristic or AI-derived candidates, by hand or via a review agent |
 | `ctx registry` / `ctx export` / `ctx sync` / `ctx federation` | Share and inspect federated knowledge with sibling repositories |
 | `ctx serve --mcp` | Serve the read-only MCP tools over stdio |

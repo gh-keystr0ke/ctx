@@ -4,6 +4,4 @@ status: active
 statement: Every proposed knowledge candidate must include concrete evidence excerpts that support its statement and must not use the agent's own reasoning as evidence.
 implementation:
 - symbol: ctx_core.knowledge.KnowledgeCandidate
-tests:
-- symbol: ctx_app.query.tests.a_requirement_from_an_accepted_candidate_carries_its_full_provenance_chain
 

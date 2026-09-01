@@ -3,8 +3,7 @@ type: requirement
 status: active
 statement: Codex and Antigravity CLI binary paths can be overridden independently through CTX-specific environment variables for testability.
 implementation:
-  - symbol: ctx_cli.enrich
-  - symbol: ctx_cli.verify_command.verify_knowledge_auto
+  - symbol: ctx_cli.agent_dispatch.ConfiguredAgent.from_name
 tests:
   - symbol: crates.ctx-cli.tests.e2e.enrich_dispatches_codex_to_codex_exec_with_its_own_binary_override
   - symbol: crates.ctx-cli.tests.e2e.enrich_dispatches_antigravity_to_agy_p_with_its_own_binary_override

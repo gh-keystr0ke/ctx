@@ -497,6 +497,39 @@ fn ingest_git_reads_commits_and_branches_and_links_a_referenced_ticket() {
 }
 
 #[test]
+fn ingest_git_links_a_commit_to_the_symbol_in_the_file_it_changed() {
+    let repository = FixtureRepository::new();
+    repository.ctx(&["init"]);
+    repository.ctx(&["index"]);
+
+    let path = repository.root().join("src/billing/subscription.py");
+    let source = fs::read_to_string(&path).expect("fixture source");
+    fs::write(&path, format!("{source}\n# tightened cancellation window\n"))
+        .expect("write fixture change");
+    run_git(repository.root(), &["add", "."]);
+    run_git(
+        repository.root(),
+        &["commit", "--quiet", "-m", "tighten cancellation window"],
+    );
+
+    repository.ctx(&["ingest", "git"]);
+
+    let explanation = repository.ctx(&[
+        "explain",
+        "billing.subscription.SubscriptionService.cancel",
+    ]);
+    let history = explanation["matches"][0]["artifact_history"]
+        .as_array()
+        .expect("artifact history");
+    assert!(
+        history
+            .iter()
+            .any(|entry| entry["artifact"]["title"] == "tighten cancellation window"),
+        "commit that changed the file should appear in the symbol's artifact history: {history:?}"
+    );
+}
+
+#[test]
 fn ingest_gitlab_without_configuration_fails_clearly_before_any_network_call() {
     let repository = FixtureRepository::new();
     repository.ctx(&["init"]);

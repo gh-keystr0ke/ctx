@@ -55,6 +55,13 @@ pub struct Explanation {
     /// originated from an accepted AI-derived candidate; assembled at the
     /// `ctx-app` layer, since the candidate record lives outside the graph.
     pub knowledge_provenance: Option<KnowledgeProvenance>,
+    /// Every artifact (commit, merge/pull request, comment, ...) whose
+    /// changeset structurally touched or discussed this symbol, newest
+    /// first (`ctx_core::neighborhood::artifact_history`). Set only for a
+    /// plain node query with exactly one `CodeSymbol` subject; assembled at
+    /// the `ctx-app` layer, since artifacts and their links live outside
+    /// the graph.
+    pub artifact_history: Vec<crate::neighborhood::LinkedArtifact>,
 }
 
 #[derive(Clone, Debug, Error, Eq, PartialEq)]
@@ -115,6 +122,7 @@ fn explain_nodes(query: &str, nodes: &[&GraphNode], graph: &GraphSnapshot) -> Ex
         subjects: nodes.iter().map(|node| NodeSummary::from(*node)).collect(),
         claims,
         knowledge_provenance: None,
+        artifact_history: Vec::new(),
     }
 }
 
@@ -158,6 +166,7 @@ fn explain_relationship(
         subjects,
         claims: matching,
         knowledge_provenance: None,
+        artifact_history: Vec::new(),
     })
 }
 

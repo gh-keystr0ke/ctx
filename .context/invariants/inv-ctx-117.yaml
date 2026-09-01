@@ -1,0 +1,11 @@
+id: INV-CTX-117
+type: invariant
+status: active
+statement: Artifact history is attached only to single-subject CodeSymbol explanations, resolved deterministically from stored artifact links (ctx_core.neighborhood.artifact_history), and is empty for any other subject shape (relationship queries, multiple matches, or non-code nodes) since artifact links never target a business node.
+implementation:
+- symbol: ctx_app.query.QueryService.artifact_history_for
+- symbol: ctx_core.neighborhood.artifact_history
+tests:
+- symbol: ctx_app.query.tests.explaining_a_code_symbol_lists_the_artifacts_that_touched_it
+- symbol: ctx_core.neighborhood.tests.artifact_history_lists_artifacts_that_touched_a_symbol_newest_first
+- symbol: ctx_core.neighborhood.tests.artifact_history_ignores_links_to_other_symbols

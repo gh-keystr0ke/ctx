@@ -1,13 +1,14 @@
 use ctx_core::{
     context_pack::{ContextCompileError, ContextPack, ContextRequest, compile_context_pack},
-    domain::{NodeKind, RepositoryId},
+    domain::{NodeKind, RepositoryId, StableKey},
     explain::{ExplainError, Explanation, KnowledgeProvenance, explain},
     graph::{NodeSummary, SymbolMatch, find_requirements, find_symbols},
     impact::{ImpactError, ImpactReport, analyze_impact},
+    neighborhood::artifact_history,
 };
 use thiserror::Error;
 
-use crate::ports::{GraphStore, KnowledgeCandidateStore, PortError};
+use crate::ports::{ArtifactLinkStore, ArtifactRepository, GraphStore, KnowledgeCandidateStore, PortError};
 
 #[derive(Debug, Error)]
 pub enum QueryError {
@@ -27,7 +28,7 @@ pub struct QueryService<'a, S> {
 
 impl<'a, S> QueryService<'a, S>
 where
-    S: GraphStore + KnowledgeCandidateStore,
+    S: GraphStore + KnowledgeCandidateStore + ArtifactRepository + ArtifactLinkStore,
 {
     pub const fn new(store: &'a S) -> Self {
         Self { store }
@@ -78,6 +79,7 @@ where
         for explanation in &mut explanations {
             explanation.knowledge_provenance =
                 self.knowledge_provenance_for(repository, explanation)?;
+            explanation.artifact_history = self.artifact_history_for(repository, explanation)?;
         }
         Ok(explanations)
     }
@@ -108,6 +110,32 @@ where
             decided_at: record.decided_at,
             decision_method: record.decision_method,
         }))
+    }
+
+    /// The artifacts that structurally touched a single `CodeSymbol`
+    /// subject's history — empty for any other subject shape (several
+    /// subjects, or one that isn't code), since artifact links never target
+    /// a business node.
+    fn artifact_history_for(
+        &self,
+        repository: &RepositoryId,
+        explanation: &Explanation,
+    ) -> Result<Vec<ctx_core::neighborhood::LinkedArtifact>, QueryError> {
+        let [subject] = explanation.subjects.as_slice() else {
+            return Ok(Vec::new());
+        };
+        if subject.kind != NodeKind::CodeSymbol {
+            return Ok(Vec::new());
+        }
+        let Ok(stable_key) = StableKey::new(&subject.stable_key) else {
+            return Ok(Vec::new());
+        };
+        let links = self.store.list_links(repository).map_err(QueryError::Store)?;
+        let known_artifacts = self
+            .store
+            .list_artifacts(repository)
+            .map_err(QueryError::Store)?;
+        Ok(artifact_history(&stable_key, &links, &known_artifacts))
     }
 
     /// Compiles a bounded context pack from task and explicit seeds.
@@ -185,11 +213,69 @@ mod tests {
     struct FakeStore {
         graph: GraphSnapshot,
         accepted: BTreeMap<String, AcceptedKnowledgeRecord>,
+        artifacts: Vec<ctx_core::artifact::Artifact>,
+        links: Vec<ctx_core::artifact::ArtifactLink>,
     }
 
     impl GraphStore for FakeStore {
         fn load_graph(&self, _repository: &RepositoryId) -> Result<GraphSnapshot, PortError> {
             Ok(self.graph.clone())
+        }
+    }
+
+    impl ArtifactRepository for FakeStore {
+        fn upsert_artifact(
+            &mut self,
+            _repository: &RepositoryId,
+            _artifact: &ctx_core::artifact::Artifact,
+            _ingested_at: &str,
+            _ingest_version: &str,
+        ) -> Result<(), PortError> {
+            unreachable!("explain never upserts artifacts")
+        }
+
+        fn list_artifacts(
+            &self,
+            _repository: &RepositoryId,
+        ) -> Result<Vec<ctx_core::artifact::Artifact>, PortError> {
+            Ok(self.artifacts.clone())
+        }
+
+        fn mark_analyzed(
+            &mut self,
+            _repository: &RepositoryId,
+            _identity: &ctx_core::artifact::ArtifactIdentity,
+            _content_hash: &str,
+            _analyzed_at: &str,
+        ) -> Result<(), PortError> {
+            unreachable!("explain never marks artifacts analyzed")
+        }
+
+        fn analyzed_content_hashes(
+            &self,
+            _repository: &RepositoryId,
+        ) -> Result<
+            std::collections::HashMap<ctx_core::artifact::ArtifactIdentity, String>,
+            PortError,
+        > {
+            unreachable!("explain never reads analyzed content hashes")
+        }
+    }
+
+    impl ArtifactLinkStore for FakeStore {
+        fn persist_links(
+            &mut self,
+            _repository: &RepositoryId,
+            _links: &[ctx_core::artifact::ArtifactLink],
+        ) -> Result<(), PortError> {
+            unreachable!("explain never persists links")
+        }
+
+        fn list_links(
+            &self,
+            _repository: &RepositoryId,
+        ) -> Result<Vec<ctx_core::artifact::ArtifactLink>, PortError> {
+            Ok(self.links.clone())
         }
     }
 
@@ -345,6 +431,7 @@ mod tests {
                 "REQ-SUB-014".to_owned(),
                 accepted_record(vec!["gitlab:issue:317".to_owned()]),
             )]),
+            ..FakeStore::default()
         };
         let repository = RepositoryId::new("repo:test").expect("repository ID");
 
@@ -381,6 +468,7 @@ mod tests {
                 edges: Vec::new(),
             },
             accepted: BTreeMap::new(),
+            ..FakeStore::default()
         };
         let repository = RepositoryId::new("repo:test").expect("repository ID");
 
@@ -411,6 +499,7 @@ mod tests {
                 "REQ-SUB-014".to_owned(),
                 accepted_record(vec!["gitlab:issue:317".to_owned()]),
             )]),
+            ..FakeStore::default()
         };
         let repository = RepositoryId::new("repo:test").expect("repository ID");
 
@@ -420,5 +509,53 @@ mod tests {
 
         assert_eq!(explanations.len(), 1);
         assert!(explanations[0].knowledge_provenance.is_none());
+    }
+
+    #[test]
+    fn explaining_a_code_symbol_lists_the_artifacts_that_touched_it() {
+        let symbol = symbol_node("cancel", "SubscriptionService.cancel");
+        let commit = ctx_core::artifact::Artifact {
+            identity: ctx_core::artifact::ArtifactIdentity {
+                provider: ctx_core::artifact::ArtifactProvider::Git,
+                kind: ctx_core::artifact::ArtifactKind::Commit,
+                external_id: "abc123".to_owned(),
+            },
+            project: ctx_core::domain::Project("billing/subscriptions".to_owned()),
+            title: "fix cancellation".to_owned(),
+            body: "fix cancellation".to_owned(),
+            author: None,
+            external_created_at: None,
+            external_updated_at: None,
+            source_locator: ctx_core::domain::Url("git:commit:abc123".to_owned()),
+            content_hash: "hash".to_owned(),
+        };
+        let store = FakeStore {
+            graph: GraphSnapshot {
+                nodes: [(symbol.stable_key.clone(), symbol.clone())]
+                    .into_iter()
+                    .collect(),
+                edges: Vec::new(),
+            },
+            artifacts: vec![commit.clone()],
+            links: vec![ctx_core::artifact::ArtifactLink {
+                source: commit.identity.clone(),
+                target: ctx_core::artifact::ArtifactLinkTarget::CodeSymbol(symbol.stable_key.clone()),
+                kind: ctx_core::artifact::ArtifactLinkKind::ChangedSymbol,
+                evidence_locator: "changed_file:billing.py".to_owned(),
+            }],
+            ..FakeStore::default()
+        };
+        let repository = RepositoryId::new("repo:test").expect("repository ID");
+
+        let explanations = QueryService::new(&store)
+            .explain(&repository, "SubscriptionService.cancel")
+            .expect("explanation");
+
+        assert_eq!(explanations.len(), 1);
+        assert_eq!(explanations[0].artifact_history.len(), 1);
+        assert_eq!(
+            explanations[0].artifact_history[0].artifact.identity,
+            commit.identity
+        );
     }
 }

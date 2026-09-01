@@ -1134,25 +1134,19 @@ fn explain(cli: &Cli, git: &GitRepo, target: &str, want_trace: bool) -> Result<(
                 ),
             }
         }
-        for claim in explanation.claims {
-            println!("- {}", claim.claim);
-            println!(
-                "  {:?}, {:?}, confidence {:.2}, valid from {}",
-                claim.claim_class, claim.status, claim.confidence, claim.valid_from
-            );
-            println!("  Provenance: {:?} ({})", claim.provenance, claim.producer);
-            if let Some(reason) = claim.stale_reason {
-                println!("  Stale because: {reason}");
-            }
-            for evidence in claim.evidence {
+        if !explanation.artifact_history.is_empty() {
+            println!("  History:");
+            for entry in &explanation.artifact_history {
                 println!(
-                    "  Evidence: {}#{} at {}",
-                    evidence.source_uri,
-                    evidence.locator,
-                    evidence.commit.as_deref().unwrap_or("unknown")
+                    "    {:?} ({:?}): {} — {}",
+                    entry.artifact.identity.kind,
+                    entry.kind,
+                    entry.artifact.identity.external_id,
+                    entry.artifact.title
                 );
             }
         }
+        print_claims(explanation.claims);
         if total > 1 {
             println!();
         }
@@ -1378,6 +1372,28 @@ fn enrich(
         );
     }
     Ok(())
+}
+
+fn print_claims(claims: Vec<ctx_core::explain::ClaimExplanation>) {
+    for claim in claims {
+        println!("- {}", claim.claim);
+        println!(
+            "  {:?}, {:?}, confidence {:.2}, valid from {}",
+            claim.claim_class, claim.status, claim.confidence, claim.valid_from
+        );
+        println!("  Provenance: {:?} ({})", claim.provenance, claim.producer);
+        if let Some(reason) = claim.stale_reason {
+            println!("  Stale because: {reason}");
+        }
+        for evidence in claim.evidence {
+            println!(
+                "  Evidence: {}#{} at {}",
+                evidence.source_uri,
+                evidence.locator,
+                evidence.commit.as_deref().unwrap_or("unknown")
+            );
+        }
+    }
 }
 
 fn print_nodes(label: &str, nodes: &[ctx_core::graph::NodeSummary]) {

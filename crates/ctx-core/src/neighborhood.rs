@@ -190,6 +190,53 @@ fn linked_artifacts(
     linked
 }
 
+/// Bounds how many historical artifacts one [`artifact_history`] call may
+/// return, for the same reason [`MAX_LINKED_ARTIFACTS`] bounds one
+/// neighborhood: a hot, long-lived symbol touched by hundreds of commits
+/// over its life must never return unbounded history.
+const MAX_ARTIFACT_HISTORY: usize = 20;
+
+/// Every artifact whose changeset structurally touched `symbol`
+/// (`ChangedSymbol`) or that discusses it (`Discusses`) — the reverse
+/// direction of [`build_neighborhood`]'s artifact-to-symbol links, used to
+/// answer "what commits/merge requests/comments touched this code over its
+/// history" (`ctx explain`). Newest first when an artifact reports a
+/// creation timestamp, with artifacts reporting none sorted last; ties
+/// break deterministically by identity. Bounded by [`MAX_ARTIFACT_HISTORY`].
+#[must_use]
+pub fn artifact_history(
+    symbol: &crate::domain::StableKey,
+    links: &[ArtifactLink],
+    known_artifacts: &[Artifact],
+) -> Vec<LinkedArtifact> {
+    let mut seen = HashSet::new();
+    let mut history = links
+        .iter()
+        .filter(|link| link.target == ArtifactLinkTarget::CodeSymbol(symbol.clone()))
+        .filter_map(|link| find_artifact(known_artifacts, &link.source).map(|artifact| (link.kind, artifact)))
+        .filter(|(kind, artifact)| seen.insert((artifact.identity.clone(), *kind)))
+        .map(|(kind, artifact)| LinkedArtifact {
+            kind,
+            artifact: artifact.clone(),
+        })
+        .collect::<Vec<_>>();
+    history.sort_by(|left, right| {
+        history_created_at(right)
+            .cmp(&history_created_at(left))
+            .then_with(|| left.artifact.identity.external_id.cmp(&right.artifact.identity.external_id))
+    });
+    history.truncate(MAX_ARTIFACT_HISTORY);
+    history
+}
+
+fn history_created_at(entry: &LinkedArtifact) -> Option<&str> {
+    entry
+        .artifact
+        .external_created_at
+        .as_ref()
+        .map(crate::domain::Timestamp::as_str)
+}
+
 fn related_knowledge(
     graph: &GraphSnapshot,
     changed_symbol_keys: &BTreeSet<crate::domain::StableKey>,
@@ -784,6 +831,71 @@ mod tests {
             neighborhood.linked_artifacts[0].kind,
             ArtifactLinkKind::CommentsOn
         );
+    }
+
+    #[test]
+    fn artifact_history_lists_artifacts_that_touched_a_symbol_newest_first() {
+        let cancel = symbol_node("cancel", "SubscriptionService.cancel");
+        let mut older = artifact_from(
+            ArtifactProvider::Git,
+            "older",
+            crate::artifact::ArtifactKind::Commit,
+            "older fix",
+            "older fix",
+        );
+        older.external_created_at = Some(crate::domain::Timestamp("2026-01-01T00:00:00Z".to_owned()));
+        let mut newer = artifact_from(
+            ArtifactProvider::Git,
+            "newer",
+            crate::artifact::ArtifactKind::Commit,
+            "newer fix",
+            "newer fix",
+        );
+        newer.external_created_at = Some(crate::domain::Timestamp("2026-06-01T00:00:00Z".to_owned()));
+        let links = vec![
+            ArtifactLink {
+                source: older.identity.clone(),
+                target: ArtifactLinkTarget::CodeSymbol(cancel.stable_key.clone()),
+                kind: ArtifactLinkKind::ChangedSymbol,
+                evidence_locator: "changed_file:billing.py".to_owned(),
+            },
+            ArtifactLink {
+                source: newer.identity.clone(),
+                target: ArtifactLinkTarget::CodeSymbol(cancel.stable_key.clone()),
+                kind: ArtifactLinkKind::ChangedSymbol,
+                evidence_locator: "changed_file:billing.py".to_owned(),
+            },
+        ];
+
+        let history = artifact_history(&cancel.stable_key, &links, &[older.clone(), newer.clone()]);
+
+        assert_eq!(
+            history.iter().map(|entry| &entry.artifact.identity).collect::<Vec<_>>(),
+            vec![&newer.identity, &older.identity]
+        );
+    }
+
+    #[test]
+    fn artifact_history_ignores_links_to_other_symbols() {
+        let cancel = symbol_node("cancel", "SubscriptionService.cancel");
+        let refund = symbol_node("refund", "SubscriptionService.refund");
+        let commit = artifact_from(
+            ArtifactProvider::Git,
+            "abc123",
+            crate::artifact::ArtifactKind::Commit,
+            "fix refund",
+            "fix refund",
+        );
+        let links = vec![ArtifactLink {
+            source: commit.identity.clone(),
+            target: ArtifactLinkTarget::CodeSymbol(refund.stable_key.clone()),
+            kind: ArtifactLinkKind::ChangedSymbol,
+            evidence_locator: "changed_file:billing.py".to_owned(),
+        }];
+
+        let history = artifact_history(&cancel.stable_key, &links, &[commit]);
+
+        assert!(history.is_empty());
     }
 
     #[test]

@@ -4,8 +4,8 @@ use std::{
 };
 
 use ctx_app::ports::{
-    CommitMetadata, GitArtifactSource, GitRepository, PortError, RepositoryDescriptor,
-    ReviewChangeSet, ReviewRepository, SourceScope,
+    BranchArtifact, CommitMetadata, GitArtifactSource, GitRepository, PortError,
+    RepositoryDescriptor, ReviewChangeSet, ReviewRepository, SourceScope,
 };
 use ctx_core::{
     artifact::{Artifact, ArtifactIdentity, ArtifactKind, ArtifactProvider},
@@ -46,6 +46,10 @@ pub struct GitRepo {
     languages: Vec<SupportedLanguage>,
     path_filter: PathFilter,
     service_name: Option<String>,
+    /// Explicit `[git] default_branch` from `.ctx/config.toml`, checked
+    /// before the `origin/HEAD` / `main` / `master` fallback in
+    /// [`GitRepo::default_branch_revision`].
+    configured_default_branch: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -55,11 +59,17 @@ struct ConfigFile {
     #[serde(default)]
     paths: ConfigPaths,
     service: Option<ConfigService>,
+    git: Option<ConfigGit>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
 struct ConfigService {
     name: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct ConfigGit {
+    default_branch: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -81,6 +91,10 @@ struct RepositoryConfiguration {
     languages: Vec<SupportedLanguage>,
     path_filter: PathFilter,
     service_name: Option<String>,
+    /// Explicit `[git] default_branch` from `.ctx/config.toml`, checked
+    /// before the `origin/HEAD` / `main` / `master` fallback in
+    /// [`GitRepo::default_branch_revision`].
+    configured_default_branch: Option<String>,
 }
 
 impl Default for RepositoryConfiguration {
@@ -89,6 +103,7 @@ impl Default for RepositoryConfiguration {
             languages: vec![SupportedLanguage::Python],
             path_filter: PathFilter::default(),
             service_name: None,
+            configured_default_branch: None,
         }
     }
 }
@@ -144,6 +159,7 @@ impl GitRepo {
             languages: configuration.languages,
             path_filter: configuration.path_filter,
             service_name: configuration.service_name,
+            configured_default_branch: configuration.configured_default_branch,
         })
     }
 
@@ -260,6 +276,37 @@ impl GitRepo {
             .map_err(|_| GitError::InvalidUtf8)?
             .trim();
         Ok((!value.is_empty()).then(|| value.to_owned()))
+    }
+
+    /// The revision this repository treats as its trunk, used only to bound
+    /// a branch's "commits it alone contains" (`GitArtifactSource`). Tries,
+    /// in order: `.ctx/config.toml`'s `[git] default_branch`, the remote's
+    /// `origin/HEAD` symbolic target, `main`, `master`. Returns `None` when
+    /// none resolve, rather than falling back to "every commit reachable
+    /// from a branch's tip" -- which for any branch would just be the whole
+    /// repository history.
+    fn default_branch_revision(&self) -> Result<Option<String>, GitError> {
+        if let Some(configured) = &self.configured_default_branch
+            && self
+                .optional_text(&["rev-parse", "--verify", "--quiet", configured])?
+                .is_some()
+        {
+            return Ok(Some(configured.clone()));
+        }
+        if let Some(symbolic) =
+            self.optional_text(&["symbolic-ref", "--short", "refs/remotes/origin/HEAD"])?
+        {
+            return Ok(Some(symbolic));
+        }
+        for candidate in ["main", "master"] {
+            if self
+                .optional_text(&["rev-parse", "--verify", "--quiet", candidate])?
+                .is_some()
+            {
+                return Ok(Some(candidate.to_owned()));
+            }
+        }
+        Ok(None)
     }
 
     fn resolve_revision(&self, revision: &str) -> Result<String, GitError> {
@@ -602,6 +649,13 @@ impl ReviewRepository for GitRepo {
 
 const COMMIT_RECORD_SEPARATOR: u8 = 0x1e;
 
+/// A branch diverging from trunk by more than this is a long-lived line of
+/// development, not a short-lived feature branch about to be squash-merged
+/// -- past this point "which commits are mine" stops being cheap, bounded
+/// evidence and becomes an arbitrary newest-first prefix, so it is capped
+/// rather than paying for (or storing) an unbounded history.
+const MAX_BRANCH_OWN_COMMITS: usize = 100;
+
 impl GitArtifactSource for GitRepo {
     fn commit_artifacts(&self, since: Option<&CommitOid>) -> Result<Vec<Artifact>, PortError> {
         let range = since.map_or_else(
@@ -613,20 +667,64 @@ impl GitArtifactSource for GitRepo {
         parse_commit_artifacts(&bytes, &self.project_label())
     }
 
-    fn branch_artifacts(&self) -> Result<Vec<Artifact>, PortError> {
+    fn branch_artifacts(&self) -> Result<Vec<BranchArtifact>, PortError> {
         let bytes = self
             .output(&["for-each-ref", "--format=%(refname:short)", "refs/heads/"])
             .map_err(port_error)?;
         let text = std::str::from_utf8(&bytes).map_err(|_| PortError::new("invalid Git UTF-8"))?;
         let project = self.project_label();
+        let default_branch = self.default_branch_revision().map_err(port_error)?;
         let mut branches = text
             .lines()
             .map(str::trim)
             .filter(|name| !name.is_empty())
-            .map(|name| branch_artifact(name, &project))
-            .collect::<Vec<_>>();
-        branches.sort_by(|left, right| left.identity.external_id.cmp(&right.identity.external_id));
+            .map(|name| {
+                let own_commits = match &default_branch {
+                    Some(default) if default != name => {
+                        self.branch_own_commits(name, default).map_err(port_error)?
+                    }
+                    _ => Vec::new(),
+                };
+                Ok(BranchArtifact {
+                    artifact: branch_artifact(name, &project),
+                    own_commits,
+                })
+            })
+            .collect::<Result<Vec<_>, PortError>>()?;
+        branches.sort_by(|left, right| {
+            left.artifact
+                .identity
+                .external_id
+                .cmp(&right.artifact.identity.external_id)
+        });
         Ok(branches)
+    }
+}
+
+impl GitRepo {
+    /// Commit OIDs reachable from `branch` but not from `default`, newest
+    /// first, capped at [`MAX_BRANCH_OWN_COMMITS`]. One `git rev-list` per
+    /// divergent branch -- bounded by branch count, the same cost shape as
+    /// the per-MR requests GitLab ingestion already makes. Not
+    /// `git log --source --all --not <default>`: that attributes a commit
+    /// shared by several branches to only the first one that reaches it,
+    /// which would silently drop it from every other branch that also
+    /// contains it.
+    fn branch_own_commits(&self, branch: &str, default: &str) -> Result<Vec<CommitOid>, GitError> {
+        let bytes = self.output(&[
+            "rev-list",
+            &format!("--max-count={MAX_BRANCH_OWN_COMMITS}"),
+            branch,
+            "--not",
+            default,
+        ])?;
+        let text = std::str::from_utf8(&bytes).map_err(|_| GitError::InvalidUtf8)?;
+        Ok(text
+            .lines()
+            .map(str::trim)
+            .filter(|oid| !oid.is_empty())
+            .filter_map(|oid| CommitOid::new(oid).ok())
+            .collect())
     }
 }
 
@@ -812,6 +910,7 @@ fn load_configuration(root: &Path) -> Result<RepositoryConfiguration, GitError> 
         Some(service) => Some(service.name),
         None => None,
     };
+    let configured_default_branch = config.git.and_then(|git| git.default_branch);
     let defaults = PathFilter::default();
     Ok(RepositoryConfiguration {
         languages,
@@ -828,6 +927,7 @@ fn load_configuration(root: &Path) -> Result<RepositoryConfiguration, GitError> 
             },
         },
         service_name,
+        configured_default_branch,
     })
 }
 
@@ -1063,13 +1163,13 @@ mod tests {
         assert_eq!(commits[0].identity.kind, ArtifactKind::Commit);
         let branch_names = branches
             .iter()
-            .map(|artifact| artifact.identity.external_id.as_str())
+            .map(|branch| branch.artifact.identity.external_id.as_str())
             .collect::<Vec<_>>();
         assert!(branch_names.contains(&"feature/PAY-317-cancel"));
         assert!(
             branches
                 .iter()
-                .all(|artifact| artifact.identity.kind == ArtifactKind::Branch)
+                .all(|branch| branch.artifact.identity.kind == ArtifactKind::Branch)
         );
     }
 
@@ -1081,6 +1181,85 @@ mod tests {
             .status()
             .expect("run git");
         assert!(status.success(), "git {args:?} failed");
+    }
+
+    fn commit_file(root: &Path, name: &str, message: &str) {
+        std::fs::write(root.join(name), message).expect("write file");
+        run(root, &["add", name]);
+        run(root, &["commit", "-q", "-m", message]);
+    }
+
+    #[test]
+    fn a_branch_reports_only_the_commits_it_does_not_share_with_the_default_branch() {
+        let root = tempfile::tempdir().expect("temp dir");
+        init_repository(root.path());
+        run(root.path(), &["symbolic-ref", "HEAD", "refs/heads/main"]);
+        commit_file(root.path(), "a.txt", "on main");
+        run(root.path(), &["checkout", "-q", "-b", "feature/x"]);
+        commit_file(root.path(), "b.txt", "on feature/x");
+
+        let repository = GitRepo::discover(root.path()).expect("discover");
+        let branches = repository.branch_artifacts().expect("branch artifacts");
+
+        let main = branches
+            .iter()
+            .find(|branch| branch.artifact.identity.external_id == "main")
+            .expect("main branch");
+        let feature = branches
+            .iter()
+            .find(|branch| branch.artifact.identity.external_id == "feature/x")
+            .expect("feature branch");
+        assert!(main.own_commits.is_empty());
+        assert_eq!(feature.own_commits.len(), 1);
+    }
+
+    #[test]
+    fn a_repository_with_no_recognizable_default_branch_links_no_branch_commits() {
+        let root = tempfile::tempdir().expect("temp dir");
+        init_repository(root.path());
+        run(root.path(), &["symbolic-ref", "HEAD", "refs/heads/trunk"]);
+        commit_file(root.path(), "a.txt", "on trunk");
+        run(root.path(), &["checkout", "-q", "-b", "feature/x"]);
+        commit_file(root.path(), "b.txt", "on feature/x");
+
+        let repository = GitRepo::discover(root.path()).expect("discover");
+        let branches = repository.branch_artifacts().expect("branch artifacts");
+
+        assert!(
+            branches
+                .iter()
+                .all(|branch| branch.own_commits.is_empty())
+        );
+    }
+
+    #[test]
+    fn a_configured_default_branch_overrides_the_main_master_fallback() {
+        let root = tempfile::tempdir().expect("temp dir");
+        init_repository(root.path());
+        run(root.path(), &["symbolic-ref", "HEAD", "refs/heads/trunk"]);
+        std::fs::create_dir(root.path().join(".ctx")).expect("ctx directory");
+        std::fs::write(
+            root.path().join(".ctx/config.toml"),
+            "languages = [\"rust\"]\n\n[git]\ndefault_branch = \"trunk\"\n",
+        )
+        .expect("configuration");
+        commit_file(root.path(), "a.txt", "on trunk");
+        run(root.path(), &["checkout", "-q", "-b", "feature/x"]);
+        commit_file(root.path(), "b.txt", "on feature/x");
+
+        let repository = GitRepo::discover(root.path()).expect("discover");
+        let branches = repository.branch_artifacts().expect("branch artifacts");
+
+        let trunk = branches
+            .iter()
+            .find(|branch| branch.artifact.identity.external_id == "trunk")
+            .expect("trunk branch");
+        let feature = branches
+            .iter()
+            .find(|branch| branch.artifact.identity.external_id == "feature/x")
+            .expect("feature branch");
+        assert!(trunk.own_commits.is_empty());
+        assert_eq!(feature.own_commits.len(), 1);
     }
 
     #[test]

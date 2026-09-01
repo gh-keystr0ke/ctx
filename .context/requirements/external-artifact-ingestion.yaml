@@ -10,8 +10,15 @@ statement: >
   commit reachable from HEAD (optionally bounded to commits after a given
   OID) as artifacts, each keyed by its own identity for idempotent re-sync —
   running ingestion again never duplicates an already-known commit or
-  branch, only versions it if its stored content actually changed. After
-  ingesting, every artifact's title/body text is scanned for deterministic
+  branch, only versions it if its stored content actually changed. Each
+  branch other than the repository's own default branch is additionally
+  linked (`ContainsCommit`) to the commits it alone contains relative to
+  that default branch (resolved from `.ctx/config.toml`'s `[git]
+  default_branch`, `origin/HEAD`, or a `main`/`master` fallback, in that
+  order; no default branch resolving means no branch-commit links at all,
+  never a guess), bounded to the newest 100 commits per branch — surviving
+  the individual commit messages a squash-merge would otherwise discard.
+  After ingesting, every artifact's title/body text is scanned for deterministic
   references (ctx_core.linking) to every other artifact already known for
   the repository, and a References link is persisted for each one that
   resolves to a real, already-known target — never a guessed one.
@@ -33,8 +40,10 @@ statement: >
   merge request for the configured project, their non-system comments, and
   each merge request's commit SHAs, normalizing all of it into artifacts
   plus the deterministic links GitLab's own API reports directly (a comment
-  `CommentsOn` its issue/MR, an MR `ContainsCommit` for each of its commits)
-  — on top of which the same text-reference scan every other source uses
+  `CommentsOn` its issue/MR, an MR `ContainsCommit` for each of its commits,
+  an MR `References` its own `source_branch` field as a Git branch identity
+  — a structured-field fact, not a text mention, so it holds even when the
+  branch name carries no ticket key) — on top of which the same text-reference scan every other source uses
   still runs, so a ticket mentioned in an MR body can resolve against an
   artifact from any already-known source, not only GitLab's own. GitLab
   ingestion is incremental by default (REQ-INCR-001): a stored sync cursor
@@ -83,6 +92,11 @@ tests:
   - symbol: ctx_adapters.git.tests.commit_and_branch_artifacts_round_trip_against_a_real_repository
   - symbol: ctx_app.ingest.tests.ingests_branches_and_commits_and_links_references_between_them
   - symbol: ctx_app.ingest.tests.re_running_ingest_does_not_duplicate_artifacts
+  - symbol: ctx_app.ingest.tests.git_ingest_links_a_branch_to_the_commits_it_alone_contains
+  - symbol: ctx_adapters.git.tests.a_branch_reports_only_the_commits_it_does_not_share_with_the_default_branch
+  - symbol: ctx_adapters.git.tests.a_repository_with_no_recognizable_default_branch_links_no_branch_commits
+  - symbol: ctx_adapters.git.tests.a_configured_default_branch_overrides_the_main_master_fallback
+  - symbol: ctx_adapters.gitlab.tests.a_merge_request_links_to_its_source_branch_by_the_api_field_not_a_text_match
   - symbol: crates.ctx-cli.tests.e2e.ingest_git_reads_commits_and_branches_and_links_a_referenced_ticket
   - symbol: ctx_core.codedoc.tests.groups_consecutive_doc_comment_lines_into_one_block_attached_to_the_following_symbol
   - symbol: ctx_core.codedoc.tests.python_docstring_attaches_to_its_enclosing_function_not_only_the_file

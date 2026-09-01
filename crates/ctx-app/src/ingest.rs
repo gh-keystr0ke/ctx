@@ -20,9 +20,9 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::ports::{
-    ArtifactLinkStore, ArtifactRepository, ExternalArtifactRequest, ExternalArtifactSource,
-    GitArtifactSource, GitRepository, GraphStore, IngestCursorStore, LanguageAnalyzer, PortError,
-    ReviewRepository,
+    ArtifactLinkStore, ArtifactRepository, BranchArtifact, ExternalArtifactRequest,
+    ExternalArtifactSource, GitArtifactSource, GitRepository, GraphStore, IngestCursorStore,
+    LanguageAnalyzer, PortError, ReviewRepository,
 };
 
 /// Bumped when the normalization this runner applies to Git artifacts
@@ -67,8 +67,10 @@ where
     }
 
     /// Ingests every local branch and every commit reachable from `HEAD`
-    /// back to (exclusive of) `since`, then links references found in their
-    /// text to every artifact already known for this repository.
+    /// back to (exclusive of) `since`, links each branch to the commits it
+    /// alone contains relative to the repository's default branch, then
+    /// links references found in artifact text to every artifact already
+    /// known for this repository.
     ///
     /// # Errors
     /// Returns [`IngestError`] when artifacts cannot be read or persisted.
@@ -78,15 +80,19 @@ where
         since: Option<&CommitOid>,
         ingested_at: &str,
     ) -> Result<IngestReport, IngestError> {
-        let mut artifacts = self
+        let branches = self
             .source
             .branch_artifacts()
             .map_err(IngestError::Source)?;
-        artifacts.extend(
-            self.source
-                .commit_artifacts(since)
-                .map_err(IngestError::Source)?,
-        );
+        let commits = self
+            .source
+            .commit_artifacts(since)
+            .map_err(IngestError::Source)?;
+        let mut artifacts = branches
+            .iter()
+            .map(|branch| branch.artifact.clone())
+            .collect::<Vec<_>>();
+        artifacts.extend(commits);
         for artifact in &artifacts {
             self.store
                 .upsert_artifact(repository, artifact, ingested_at, GIT_INGEST_VERSION)
@@ -96,10 +102,12 @@ where
             .store
             .list_artifacts(repository)
             .map_err(IngestError::Store)?;
-        let links = artifacts
-            .iter()
-            .flat_map(|artifact| text_reference_links(artifact, &known))
-            .collect::<Vec<_>>();
+        let mut links = branch_commit_links(&branches);
+        links.extend(
+            artifacts
+                .iter()
+                .flat_map(|artifact| text_reference_links(artifact, &known)),
+        );
         self.store
             .persist_links(repository, &links)
             .map_err(IngestError::Store)?;
@@ -108,6 +116,27 @@ where
             links_created: links.len(),
         })
     }
+}
+
+/// A branch's structural `ContainsCommit` links to the commits it alone
+/// contains ([`BranchArtifact::own_commits`]) -- empty for the default
+/// branch and for any branch when no default branch could be resolved.
+fn branch_commit_links(branches: &[BranchArtifact]) -> Vec<ArtifactLink> {
+    branches
+        .iter()
+        .flat_map(|branch| {
+            branch.own_commits.iter().map(|oid| ArtifactLink {
+                source: branch.artifact.identity.clone(),
+                target: ArtifactLinkTarget::Artifact(ArtifactIdentity {
+                    provider: ArtifactProvider::Git,
+                    kind: ArtifactKind::Commit,
+                    external_id: oid.as_str().to_owned(),
+                }),
+                kind: ArtifactLinkKind::ContainsCommit,
+                evidence_locator: format!("branch:{}", branch.artifact.identity.external_id),
+            })
+        })
+        .collect()
 }
 
 /// The provider tag `GitLabIngestRunner`'s cursor is stored under (matches
@@ -428,7 +457,7 @@ mod tests {
 
     struct FakeGitSource {
         commits: Vec<Artifact>,
-        branches: Vec<Artifact>,
+        branches: Vec<BranchArtifact>,
     }
 
     impl GitArtifactSource for FakeGitSource {
@@ -436,7 +465,7 @@ mod tests {
             Ok(self.commits.clone())
         }
 
-        fn branch_artifacts(&self) -> Result<Vec<Artifact>, PortError> {
+        fn branch_artifacts(&self) -> Result<Vec<BranchArtifact>, PortError> {
             Ok(self.branches.clone())
         }
     }
@@ -553,12 +582,15 @@ mod tests {
                 "fix cancellation",
                 "See branch feature/PAY-317-cancel",
             )],
-            branches: vec![artifact(
-                "feature/PAY-317-cancel",
-                ArtifactKind::Branch,
-                "feature/PAY-317-cancel",
-                "",
-            )],
+            branches: vec![BranchArtifact {
+                artifact: artifact(
+                    "feature/PAY-317-cancel",
+                    ArtifactKind::Branch,
+                    "feature/PAY-317-cancel",
+                    "",
+                ),
+                own_commits: Vec::new(),
+            }],
         };
         let mut store = FakeStore::default();
         let repository = RepositoryId::new("repo:test").expect("repository ID");
@@ -580,6 +612,46 @@ mod tests {
         // not defined for branches, so zero links from this fixture is the
         // conservative, correct outcome: no fabricated relation.
         assert_eq!(report.links_created, 0);
+    }
+
+    #[test]
+    fn git_ingest_links_a_branch_to_the_commits_it_alone_contains() {
+        let commit = artifact(
+            "abc123",
+            ArtifactKind::Commit,
+            "fix cancellation",
+            "fix cancellation",
+        );
+        let source = FakeGitSource {
+            commits: vec![commit.clone()],
+            branches: vec![BranchArtifact {
+                artifact: artifact(
+                    "feature/PAY-317-cancel",
+                    ArtifactKind::Branch,
+                    "feature/PAY-317-cancel",
+                    "",
+                ),
+                own_commits: vec![CommitOid::new("abc123").expect("commit oid")],
+            }],
+        };
+        let mut store = FakeStore::default();
+        let repository = RepositoryId::new("repo:test").expect("repository ID");
+
+        GitIngestRunner::new(&source, &mut store)
+            .run(&repository, None, "2026-08-21T00:00:00Z")
+            .expect("ingest run");
+
+        let links = store.list_links(&repository).expect("links");
+        assert!(links.iter().any(|link| {
+            link.source
+                == ArtifactIdentity {
+                    provider: ArtifactProvider::Git,
+                    kind: ArtifactKind::Branch,
+                    external_id: "feature/PAY-317-cancel".to_owned(),
+                }
+                && link.target == ArtifactLinkTarget::Artifact(commit.identity.clone())
+                && link.kind == ArtifactLinkKind::ContainsCommit
+        }));
     }
 
     #[test]

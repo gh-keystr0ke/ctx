@@ -235,6 +235,19 @@ pub trait IndexStore {
     fn status(&self, repository: &RepositoryId) -> Result<RepositoryStatus, PortError>;
 }
 
+/// One branch artifact together with the commits that branch alone
+/// contains relative to the repository's default branch. Deliberately not
+/// "every commit reachable from its tip" -- for the default branch itself
+/// that would be the whole repository history.
+#[derive(Clone, Debug, PartialEq)]
+pub struct BranchArtifact {
+    pub artifact: Artifact,
+    /// Newest-first commit OIDs unique to this branch. Empty for the
+    /// default branch and for any branch when no default branch could be
+    /// resolved.
+    pub own_commits: Vec<CommitOid>,
+}
+
 /// Reads Git-native development artifacts — commit messages and branch
 /// names — as normalized [`Artifact`]s (prompt3.md PR-EXT-001 MUST list),
 /// with no network or provider account required.
@@ -247,12 +260,12 @@ pub trait GitArtifactSource {
     /// Returns [`PortError`] when Git history cannot be read.
     fn commit_artifacts(&self, since: Option<&CommitOid>) -> Result<Vec<Artifact>, PortError>;
 
-    /// Returns one artifact per local branch, in deterministic
-    /// (name-sorted) order.
+    /// Returns one entry per local branch, in deterministic (name-sorted)
+    /// order.
     ///
     /// # Errors
     /// Returns [`PortError`] when Git refs cannot be read.
-    fn branch_artifacts(&self) -> Result<Vec<Artifact>, PortError>;
+    fn branch_artifacts(&self) -> Result<Vec<BranchArtifact>, PortError>;
 }
 
 /// Provider-independent input modes supported by external artifact sources.

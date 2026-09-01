@@ -222,6 +222,18 @@ impl<T: GitLabTransport> GitLabClient<T> {
             encoded_project(&self.project)
         ))? {
             let identity = Self::merge_request_identity(merge_request.iid);
+            if let Some(source_branch) = merge_request.source_branch.clone() {
+                links.push(ArtifactLink {
+                    source: identity.clone(),
+                    target: ArtifactLinkTarget::Artifact(ArtifactIdentity {
+                        provider: ArtifactProvider::Git,
+                        kind: ArtifactKind::Branch,
+                        external_id: source_branch,
+                    }),
+                    kind: ArtifactLinkKind::References,
+                    evidence_locator: "merge_request.source_branch".to_owned(),
+                });
+            }
             artifacts.push(self.merge_request_artifact(&identity, merge_request));
             let notes = self.get_all_pages::<RawNote>(&format!(
                 "/projects/{}/merge_requests/{}/notes?per_page={PAGE_SIZE}",
@@ -441,6 +453,8 @@ struct RawMergeRequest {
     created_at: Option<String>,
     updated_at: Option<String>,
     web_url: Option<String>,
+    #[serde(default)]
+    source_branch: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -633,6 +647,53 @@ mod tests {
                 kind: ArtifactKind::Commit,
                 external_id: "abc123def456".to_owned(),
             })
+        );
+    }
+
+    #[test]
+    fn a_merge_request_links_to_its_source_branch_by_the_api_field_not_a_text_match() {
+        let mut responses = BTreeMap::new();
+        responses.insert(
+            "/projects/billing%2Fsubscriptions/issues?per_page=100&sort=asc&page=1".to_owned(),
+            "[]".to_owned(),
+        );
+        responses.insert(
+            "/projects/billing%2Fsubscriptions/merge_requests?per_page=100&sort=asc&page=1"
+                .to_owned(),
+            r#"[{"iid":842,"title":"Fix cancellation semantics","description":"No ticket key here.","source_branch":"feature/no-ticket-key-here","author":{"username":"alice"},"created_at":"2026-08-02T00:00:00Z","updated_at":"2026-08-02T00:00:00Z","web_url":"https://gitlab.example/billing/subscriptions/-/merge_requests/842"}]"#
+                .to_owned(),
+        );
+        responses.insert(
+            "/projects/billing%2Fsubscriptions/merge_requests/842/notes?per_page=100&page=1"
+                .to_owned(),
+            "[]".to_owned(),
+        );
+        responses.insert(
+            "/projects/billing%2Fsubscriptions/merge_requests/842/commits?per_page=100&page=1"
+                .to_owned(),
+            "[]".to_owned(),
+        );
+        let client = GitLabClient::new(FakeTransport { responses }, "billing/subscriptions");
+
+        let (_, links) = client
+            .fetch_issue_and_mr_artifacts(None)
+            .expect("issues and merge requests");
+
+        let source_branch_link = links
+            .iter()
+            .find(|link| link.kind == ArtifactLinkKind::References)
+            .expect("source branch link");
+        assert_eq!(
+            source_branch_link.target,
+            ArtifactLinkTarget::Artifact(ArtifactIdentity {
+                provider: ArtifactProvider::Git,
+                kind: ArtifactKind::Branch,
+                external_id: "feature/no-ticket-key-here".to_owned(),
+            })
+        );
+        assert_eq!(
+            source_branch_link.evidence_locator,
+            "merge_request.source_branch"
         );
     }
 

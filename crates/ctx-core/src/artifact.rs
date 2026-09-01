@@ -78,12 +78,17 @@ pub struct ArtifactRef {
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ArtifactLinkKind {
-    /// A merge/pull request's changeset includes this commit.
+    /// A merge/pull request's changeset, or a branch's own diverged
+    /// history, includes this commit — a structural "this ref's history
+    /// contains this commit" fact reported by the provider's API or by
+    /// `git rev-list`, never inferred.
     ContainsCommit,
-    /// One artifact's text names a deterministic reference to another
+    /// One artifact names a deterministic reference to another
     /// (PR-LINK-002) without asserting what the reference means
-    /// (PR-LINK-003/004) — for example a branch name containing a ticket
-    /// key, or an MR body mentioning `#482`.
+    /// (PR-LINK-003/004) — either found in its text (a branch name
+    /// containing a ticket key, an MR body mentioning `#482`) or reported
+    /// directly by a provider's own structured field (an MR's
+    /// `source_branch`), with `evidence_locator` recording which.
     References,
     /// The artifact's changeset touched this code symbol (a structural fact
     /// from already-indexed diff data, not an inference).

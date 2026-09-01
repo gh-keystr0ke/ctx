@@ -567,6 +567,15 @@ pub trait BusinessContextWriter {
 /// adapter module (PR-P05). `ctx-core`/`ctx-app` never name a specific
 /// vendor or model.
 pub trait SemanticAgent {
+    /// Returns the fingerprint of the exact prompt input that would be sent
+    /// for this neighborhood and grounding mode, without making an agent
+    /// call. Enrichment uses it for incremental skipping.
+    fn input_fingerprint(
+        &self,
+        neighborhood: &ArtifactNeighborhood,
+        allow_ungrounded_symbols: bool,
+    ) -> String;
+
     /// Analyzes one bounded artifact neighborhood and returns what the agent
     /// found (PR-AI-002). Absence of extracted knowledge (`NotRelevant`/
     /// `InsufficientEvidence`) is always preferred to a fabricated candidate

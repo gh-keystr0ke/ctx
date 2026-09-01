@@ -115,6 +115,14 @@ impl<T: AgentTransport> AntigravityAgent<T> {
 }
 
 impl<T: AgentTransport> SemanticAgent for AntigravityAgent<T> {
+    fn input_fingerprint(
+        &self,
+        neighborhood: &ArtifactNeighborhood,
+        allow_ungrounded_symbols: bool,
+    ) -> String {
+        agent_contract::input_fingerprint(neighborhood, allow_ungrounded_symbols)
+    }
+
     fn analyze(
         &self,
         neighborhood: &ArtifactNeighborhood,

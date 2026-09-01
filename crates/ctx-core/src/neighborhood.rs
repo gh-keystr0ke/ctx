@@ -7,7 +7,7 @@
 //! reaches further than what [`crate::linking`] and [`crate::artifact`]
 //! already established deterministically.
 
-use std::collections::{BTreeSet, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
 
 use serde::{Deserialize, Serialize};
 
@@ -26,6 +26,7 @@ const MAX_LINKED_ARTIFACTS: usize = 20;
 const MAX_CHANGED_SYMBOLS: usize = 30;
 const MAX_NEARBY_TESTS: usize = 15;
 const MAX_RELATED_KNOWLEDGE: usize = 10;
+const MAX_BUSINESS_LINKED_ARTIFACTS: usize = 40;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct LinkedArtifact {
@@ -84,14 +85,7 @@ pub fn build_neighborhood(
     let linked_artifacts =
         linked_artifacts(subject, links, known_artifacts, &mut changed_symbol_keys);
 
-    let changed_symbols = changed_symbol_keys
-        .iter()
-        .filter_map(|key| graph.nodes.get(key))
-        .map(|node| node.identifier().to_owned())
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .take(MAX_CHANGED_SYMBOLS)
-        .collect::<Vec<_>>();
+    let changed_symbols = changed_symbol_names(graph, &changed_symbol_keys);
 
     let related_knowledge = related_knowledge(graph, &changed_symbol_keys);
     let mut nearby_tests = nearby_tests(graph, &changed_symbol_keys, &related_knowledge)
@@ -106,6 +100,148 @@ pub fn build_neighborhood(
         nearby_tests,
         related_knowledge,
     }
+}
+
+/// Builds one bounded business-context unit anchored on a Jira issue.
+///
+/// Unlike [`build_neighborhood`], this deliberately follows a small set of
+/// already-grounded artifact links far enough to keep a ticket, its selected
+/// merge request, commits, branch, and comments together. Callers must pass
+/// only artifacts admitted by the business-scope planner; disconnected or
+/// pruned artifacts can therefore never leak into the unit. Traversal is
+/// deterministic and capped, and code-symbol expansion still uses only
+/// explicit `ChangedSymbol`/`Discusses` links from artifacts in the unit.
+#[must_use]
+pub fn build_business_neighborhood(
+    jira_anchor: &Artifact,
+    links: &[ArtifactLink],
+    scoped_artifacts: &[Artifact],
+    graph: &GraphSnapshot,
+) -> ArtifactNeighborhood {
+    let known = scoped_artifacts
+        .iter()
+        .map(|artifact| (artifact.identity.clone(), artifact))
+        .collect::<HashMap<_, _>>();
+    let linked_identities = business_linked_identities(&jira_anchor.identity, links, &known);
+    let selected = std::iter::once(&jira_anchor.identity)
+        .chain(linked_identities.iter().map(|(identity, _)| identity))
+        .cloned()
+        .collect::<HashSet<_>>();
+    let changed_symbol_keys = links
+        .iter()
+        .filter(|link| selected.contains(&link.source))
+        .filter_map(|link| match (&link.kind, &link.target) {
+            (
+                ArtifactLinkKind::ChangedSymbol | ArtifactLinkKind::Discusses,
+                ArtifactLinkTarget::CodeSymbol(key),
+            ) => Some(key.clone()),
+            _ => None,
+        })
+        .collect::<BTreeSet<_>>();
+    let changed_symbols = changed_symbol_names(graph, &changed_symbol_keys);
+    let related_knowledge = related_knowledge(graph, &changed_symbol_keys);
+    let mut nearby_tests = nearby_tests(graph, &changed_symbol_keys, &related_knowledge)
+        .into_iter()
+        .collect::<Vec<_>>();
+    nearby_tests.truncate(MAX_NEARBY_TESTS);
+    let linked_artifacts = linked_identities
+        .into_iter()
+        .filter_map(|(identity, kind)| {
+            known.get(&identity).map(|artifact| LinkedArtifact {
+                kind,
+                artifact: (*artifact).clone(),
+            })
+        })
+        .collect();
+
+    ArtifactNeighborhood {
+        subject: jira_anchor.clone(),
+        linked_artifacts,
+        changed_symbols,
+        nearby_tests,
+        related_knowledge,
+    }
+}
+
+fn business_linked_identities(
+    anchor: &ArtifactIdentity,
+    links: &[ArtifactLink],
+    known: &HashMap<ArtifactIdentity, &Artifact>,
+) -> Vec<(ArtifactIdentity, ArtifactLinkKind)> {
+    let mut adjacency: HashMap<ArtifactIdentity, Vec<(ArtifactIdentity, ArtifactLinkKind)>> =
+        HashMap::new();
+    for link in links {
+        let ArtifactLinkTarget::Artifact(target) = &link.target else {
+            continue;
+        };
+        if !known.contains_key(&link.source) || !known.contains_key(target) {
+            continue;
+        }
+        adjacency
+            .entry(link.source.clone())
+            .or_default()
+            .push((target.clone(), link.kind));
+        adjacency
+            .entry(target.clone())
+            .or_default()
+            .push((link.source.clone(), link.kind));
+    }
+    for neighbors in adjacency.values_mut() {
+        neighbors.sort_by(business_neighbor_order);
+        neighbors.dedup();
+    }
+
+    let mut seen = HashSet::from([anchor.clone()]);
+    let mut queue = VecDeque::from([anchor.clone()]);
+    let mut reached = Vec::new();
+    while let Some(current) = queue.pop_front() {
+        for (neighbor, kind) in adjacency.get(&current).into_iter().flatten() {
+            if !seen.insert(neighbor.clone()) {
+                continue;
+            }
+            reached.push((neighbor.clone(), *kind));
+            queue.push_back(neighbor.clone());
+            if reached.len() == MAX_BUSINESS_LINKED_ARTIFACTS {
+                return reached;
+            }
+        }
+    }
+    reached
+}
+
+fn business_neighbor_order(
+    (left_identity, left_kind): &(ArtifactIdentity, ArtifactLinkKind),
+    (right_identity, right_kind): &(ArtifactIdentity, ArtifactLinkKind),
+) -> std::cmp::Ordering {
+    business_link_kind_rank(*left_kind)
+        .cmp(&business_link_kind_rank(*right_kind))
+        .then_with(|| left_identity.provider.cmp(&right_identity.provider))
+        .then_with(|| left_identity.kind.cmp(&right_identity.kind))
+        .then_with(|| left_identity.external_id.cmp(&right_identity.external_id))
+}
+
+const fn business_link_kind_rank(kind: ArtifactLinkKind) -> u8 {
+    match kind {
+        ArtifactLinkKind::References => 0,
+        ArtifactLinkKind::ContainsCommit => 1,
+        ArtifactLinkKind::RelatedIssue => 2,
+        ArtifactLinkKind::CommentsOn => 3,
+        ArtifactLinkKind::ChangedSymbol | ArtifactLinkKind::Discusses => 4,
+    }
+}
+
+fn changed_symbol_names(
+    graph: &GraphSnapshot,
+    changed_symbol_keys: &BTreeSet<crate::domain::StableKey>,
+) -> Vec<String> {
+    changed_symbol_keys
+        .iter()
+        .filter_map(|key| graph.nodes.get(key))
+        .map(|node| node.identifier().to_owned())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .take(MAX_CHANGED_SYMBOLS)
+        .collect()
 }
 
 fn find_artifact<'a>(
@@ -362,13 +498,18 @@ pub fn render_neighborhood(
         sections.push(neighborhood.subject.body.clone());
     }
     for linked in &neighborhood.linked_artifacts {
-        sections.push(format!(
+        let mut section = format!(
             "{} ({:?}):\n{} — {}",
             artifact_kind_label(linked.artifact.identity.kind),
             linked.kind,
             linked.artifact.identity.external_id,
             linked.artifact.title
-        ));
+        );
+        if !linked.artifact.body.is_empty() {
+            section.push('\n');
+            section.push_str(&linked.artifact.body);
+        }
+        sections.push(section);
     }
     if !neighborhood.changed_symbols.is_empty() {
         sections.push(format!(
@@ -998,6 +1139,127 @@ mod tests {
     }
 
     #[test]
+    fn business_neighborhood_keeps_the_jira_mr_commit_symbol_test_chain_together() {
+        let jira = artifact_from(
+            ArtifactProvider::Jira,
+            "PAY-317",
+            crate::artifact::ArtifactKind::Issue,
+            "Preserve prepaid access",
+            "Access must remain available through paid_until.",
+        );
+        let mr = artifact(
+            "842",
+            crate::artifact::ArtifactKind::MergeRequest,
+            "Implement PAY-317",
+            "This MR implements the ticket.",
+        );
+        let commit = artifact_from(
+            ArtifactProvider::Git,
+            "abc123",
+            crate::artifact::ArtifactKind::Commit,
+            "Preserve access",
+            "Keep the subscription active until paid_until.",
+        );
+        let disconnected = artifact_from(
+            ArtifactProvider::Git,
+            "orphan",
+            crate::artifact::ArtifactKind::Commit,
+            "Unrelated cleanup",
+            "No business context.",
+        );
+        let cancel = symbol_node("cancel", "SubscriptionService.cancel");
+        let test = test_node("test_cancel", "test_cancel_preserves_access");
+        let graph = GraphSnapshot {
+            nodes: [cancel.clone(), test.clone()]
+                .into_iter()
+                .map(|node| (node.stable_key.clone(), node))
+                .collect(),
+            edges: vec![edge(&cancel, &test, RelationKind::Calls)],
+        };
+        let links = vec![
+            ArtifactLink {
+                source: mr.identity.clone(),
+                target: ArtifactLinkTarget::Artifact(jira.identity.clone()),
+                kind: ArtifactLinkKind::References,
+                evidence_locator: "body: PAY-317".to_owned(),
+            },
+            ArtifactLink {
+                source: mr.identity.clone(),
+                target: ArtifactLinkTarget::Artifact(commit.identity.clone()),
+                kind: ArtifactLinkKind::ContainsCommit,
+                evidence_locator: "merge request commits API".to_owned(),
+            },
+            ArtifactLink {
+                source: commit.identity.clone(),
+                target: ArtifactLinkTarget::CodeSymbol(cancel.stable_key.clone()),
+                kind: ArtifactLinkKind::ChangedSymbol,
+                evidence_locator: "billing.py".to_owned(),
+            },
+        ];
+
+        let neighborhood = build_business_neighborhood(
+            &jira,
+            &links,
+            &[jira.clone(), mr.clone(), commit.clone(), disconnected],
+            &graph,
+        );
+
+        assert_eq!(neighborhood.subject.identity, jira.identity);
+        assert_eq!(
+            neighborhood
+                .linked_artifacts
+                .iter()
+                .map(|linked| linked.artifact.identity.clone())
+                .collect::<HashSet<_>>(),
+            HashSet::from([mr.identity, commit.identity])
+        );
+        assert_eq!(
+            neighborhood.changed_symbols,
+            vec!["SubscriptionService.cancel"]
+        );
+        assert_eq!(
+            neighborhood.nearby_tests,
+            vec!["test_cancel_preserves_access"]
+        );
+    }
+
+    #[test]
+    fn rendered_linked_artifacts_include_their_business_text() {
+        let jira = artifact_from(
+            ArtifactProvider::Jira,
+            "PAY-317",
+            crate::artifact::ArtifactKind::Issue,
+            "Ticket",
+            "Ticket body",
+        );
+        let commit = artifact_from(
+            ArtifactProvider::Git,
+            "abc123",
+            crate::artifact::ArtifactKind::Commit,
+            "Commit title",
+            "Commit body with implementation context",
+        );
+        let neighborhood = ArtifactNeighborhood {
+            subject: jira,
+            linked_artifacts: vec![LinkedArtifact {
+                kind: ArtifactLinkKind::ContainsCommit,
+                artifact: commit,
+            }],
+            changed_symbols: Vec::new(),
+            nearby_tests: Vec::new(),
+            related_knowledge: Vec::new(),
+        };
+
+        let rendered = render_neighborhood(&neighborhood, 1_000).expect("render");
+
+        assert!(
+            rendered
+                .text
+                .contains("Commit body with implementation context")
+        );
+    }
+
+    #[test]
     fn zero_token_budget_is_rejected() {
         let mr = artifact(
             "842",
@@ -1007,6 +1269,9 @@ mod tests {
         );
         let neighborhood = build_neighborhood(&mr, &[], &[], &GraphSnapshot::default());
 
-        assert!(render_neighborhood(&neighborhood, 0).is_err());
+        assert_eq!(
+            render_neighborhood(&neighborhood, 0),
+            Err("token budget must be greater than zero")
+        );
     }
 }

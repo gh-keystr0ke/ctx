@@ -101,17 +101,7 @@ pub fn analyze<T: AgentTransport>(
     model: Option<String>,
     allow_ungrounded_symbols: bool,
 ) -> Result<AgentOutcome, AgentContractError> {
-    let known_ids = known_artifact_ids(neighborhood);
-    let rendered = render_neighborhood(neighborhood, DEFAULT_TOKEN_BUDGET)
-        .expect("DEFAULT_TOKEN_BUDGET is a nonzero constant");
-    let mut prompt = format!(
-        "{SYSTEM_PROMPT}\n\nValid artifact ids for this neighborhood: {}\n\n{}",
-        known_ids.join(", "),
-        rendered.text
-    );
-    if allow_ungrounded_symbols {
-        prompt.push_str(ALLOW_UNGROUNDED_SYMBOLS_HINT);
-    }
+    let (known_ids, prompt) = extraction_prompt(neighborhood, allow_ungrounded_symbols);
     let fingerprint = blake3::hash(prompt.as_bytes()).to_hex().to_string();
     let raw = run_agent_contract(transport, "knowledge extraction", &prompt)?;
     let parsed: RawAgentOutput = parse_json_response(&raw, "knowledge extraction")?;
@@ -128,6 +118,37 @@ pub fn analyze<T: AgentTransport>(
         &provenance,
         allow_ungrounded_symbols,
     ))
+}
+
+/// Fingerprints the exact extraction prompt that [`analyze`] would send,
+/// without invoking a transport. The analysis ledger uses this value so a
+/// changed linked artifact, symbol/test neighborhood, prompt contract, or
+/// grounding mode invalidates an otherwise unchanged subject.
+#[must_use]
+pub fn input_fingerprint(
+    neighborhood: &ArtifactNeighborhood,
+    allow_ungrounded_symbols: bool,
+) -> String {
+    let (_, prompt) = extraction_prompt(neighborhood, allow_ungrounded_symbols);
+    blake3::hash(prompt.as_bytes()).to_hex().to_string()
+}
+
+fn extraction_prompt(
+    neighborhood: &ArtifactNeighborhood,
+    allow_ungrounded_symbols: bool,
+) -> (Vec<String>, String) {
+    let known_ids = known_artifact_ids(neighborhood);
+    let rendered = render_neighborhood(neighborhood, DEFAULT_TOKEN_BUDGET)
+        .expect("DEFAULT_TOKEN_BUDGET is a nonzero constant");
+    let mut prompt = format!(
+        "{SYSTEM_PROMPT}\n\nValid artifact ids for this neighborhood: {}\n\n{}",
+        known_ids.join(", "),
+        rendered.text
+    );
+    if allow_ungrounded_symbols {
+        prompt.push_str(ALLOW_UNGROUNDED_SYMBOLS_HINT);
+    }
+    (known_ids, prompt)
 }
 
 fn known_artifact_ids(neighborhood: &ArtifactNeighborhood) -> Vec<String> {
@@ -709,8 +730,8 @@ mod tests {
     use std::cell::RefCell;
 
     use ctx_core::{
-        artifact::{Artifact, ArtifactIdentity, ArtifactKind, ArtifactProvider},
-        neighborhood::build_neighborhood,
+        artifact::{Artifact, ArtifactIdentity, ArtifactKind, ArtifactLinkKind, ArtifactProvider},
+        neighborhood::{LinkedArtifact, build_neighborhood},
     };
 
     use super::*;
@@ -767,6 +788,33 @@ mod tests {
             None,
             allow_ungrounded_symbols,
         )
+    }
+
+    #[test]
+    fn input_fingerprint_covers_linked_text_and_grounding_mode() {
+        let subject = issue();
+        let mut merge_request = issue();
+        merge_request.identity.kind = ArtifactKind::MergeRequest;
+        merge_request.identity.external_id = "842".to_owned();
+        merge_request.body = "Initial MR business detail".to_owned();
+        let mut neighborhood = build_neighborhood(
+            &subject,
+            &[],
+            std::slice::from_ref(&subject),
+            &ctx_core::graph::GraphSnapshot::default(),
+        );
+        neighborhood.linked_artifacts.push(LinkedArtifact {
+            kind: ArtifactLinkKind::References,
+            artifact: merge_request,
+        });
+
+        let original = input_fingerprint(&neighborhood, false);
+        neighborhood.linked_artifacts[0].artifact.body = "Changed MR business detail".to_owned();
+        let changed_text = input_fingerprint(&neighborhood, false);
+        let changed_mode = input_fingerprint(&neighborhood, true);
+
+        assert_ne!(original, changed_text);
+        assert_ne!(changed_text, changed_mode);
     }
 
     #[test]

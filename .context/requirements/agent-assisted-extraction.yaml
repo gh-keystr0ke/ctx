@@ -4,7 +4,8 @@ feature: FEAT-INDEXING
 status: active
 statement: >
   `ctx enrich --agent <claude|codex|antigravity> [--model <model>]
-  [--allow-ungrounded-symbols]` must analyze one bounded artifact
+  [--allow-ungrounded-symbols] [--scope <all|business-linked>]
+  [--related-depth <n>]` must analyze one bounded artifact
   neighborhood (REQ-NEIGHBORHOOD-001) at a time through an interchangeable
   agent boundary (ADR-AGENT-001) and propose typed
   Feature/Requirement/Invariant/Decision
@@ -44,12 +45,12 @@ statement: >
   checkpoints a relevant result before marking its artifact analyzed and
   before starting the next agent call, so a later agent failure cannot lose
   earlier candidates or leave their source falsely recorded as handled.
-  `ctx enrich`
-  skips an artifact already cited as evidence by a pending candidate, and
-  separately skips one whose content hasn't changed since its last analysis
-  regardless of outcome (REQ-INCR-002 -- a `not_relevant` answer is recorded
-  too, not only a proposed candidate) rather than re-analyzing it every run.
-  It also skips a `Comment`/`ReviewComment`/`Commit`/`Branch` as its own
+  `ctx enrich` skips an artifact already cited as evidence by a pending
+  candidate, and separately skips one whose complete rendered prompt input
+  hasn't changed since its last analysis regardless of outcome (REQ-INCR-002
+  -- a `not_relevant` answer is recorded too, not only a proposed candidate)
+  rather than re-analyzing it every run. In the default `--scope all` mode it
+  also skips a `Comment`/`ReviewComment`/`Commit`/`Branch` as its own
   analysis subject whenever a known parent artifact already structurally
   covers it (a comment's known `CommentsOn` issue/MR, a commit's known
   containing branch or MR via `ContainsCommit`, a branch's known merge/pull
@@ -58,7 +59,12 @@ statement: >
   reads links in either direction), so a separate agent call on it is mostly
   redundant with the one already spent on its parent. Never skipped when no
   such parent is yet known (an orphaned comment/commit, or a branch with no
-  merge request), since that is its only chance to be analyzed at all.
+  merge request), since that is its only chance to be analyzed at all. In
+  `--scope business-linked`, however, only retained Jira issues are agent
+  subjects. Each is sent as one bounded Jira↔MR↔commit→symbol/test bundle;
+  commits, branches, merge requests, and comments contribute their full text
+  only inside that bundle and never consume standalone calls. Any Git/MR
+  evidence without a deterministic Jira anchor is excluded before enrich.
   Everything built before this phase
   (`ctx index`/`ctx impact`/`ctx review`/`ctx explain`/`ctx context`) keeps
   working unchanged with zero agents ever configured and zero candidates
@@ -76,8 +82,11 @@ statement: >
 implementation:
   - symbol: ctx_app.ports.SemanticAgent
   - symbol: ctx_app.enrich.EnrichRunner.run_with_progress
+  - symbol: ctx_app.enrich.EnrichRunner.run_business_linked_with_progress
+  - symbol: ctx_core.neighborhood.build_business_neighborhood
   - symbol: ctx_app.enrich.is_covered_by_a_known_parent
   - symbol: ctx_adapters.agent_contract.analyze
+  - symbol: ctx_adapters.agent_contract.input_fingerprint
   - symbol: ctx_adapters.agent_contract.parse_json_response
   - symbol: ctx_adapters.agent_contract.to_outcome
   - symbol: ctx_adapters.claude_code.ClaudeCodeAgent.analyze_neighborhood
@@ -95,6 +104,7 @@ tests:
   - symbol: ctx_adapters.agent_contract.tests.a_schema_incompatible_object_before_the_response_is_ignored
   - symbol: ctx_adapters.agent_contract.tests.two_contract_objects_are_rejected_as_ambiguous
   - symbol: ctx_adapters.agent_contract.tests.truncated_json_is_rejected_with_an_explicit_reason
+  - symbol: ctx_adapters.agent_contract.tests.input_fingerprint_covers_linked_text_and_grounding_mode
   - symbol: ctx_adapters.claude_code.tests.subprocess_transport_invokes_claude_p_safe_mode_and_returns_stdout
   - symbol: ctx_adapters.codex.tests.subprocess_transport_invokes_codex_exec_and_returns_stdout
   - symbol: ctx_adapters.antigravity.tests.subprocess_transport_invokes_agy_p_and_returns_stdout
@@ -102,15 +112,18 @@ tests:
   - symbol: ctx_app.enrich.tests.a_later_agent_failure_does_not_lose_an_earlier_result
   - symbol: ctx_app.enrich.tests.an_artifact_already_cited_by_a_pending_candidate_is_skipped
   - symbol: ctx_app.enrich.tests.not_relevant_outcomes_never_reach_the_candidate_store
-  - symbol: ctx_app.enrich.tests.an_artifact_analyzed_at_its_current_content_hash_is_skipped_next_run
+  - symbol: ctx_app.enrich.tests.an_artifact_analyzed_at_its_current_input_fingerprint_is_skipped_next_run
   - symbol: ctx_app.enrich.tests.run_with_progress_reports_position_and_total_only_for_real_analysis
   - symbol: ctx_app.enrich.tests.a_comment_with_a_known_parent_is_skipped_but_its_parent_is_still_analyzed
   - symbol: ctx_app.enrich.tests.an_orphaned_comment_with_no_known_parent_is_still_analyzed
   - symbol: ctx_app.enrich.tests.a_branch_named_by_a_known_merge_requests_source_branch_is_skipped
   - symbol: ctx_app.enrich.tests.a_commit_contained_by_a_known_branch_or_merge_request_is_skipped
+  - symbol: ctx_app.enrich.tests.business_linked_enrich_sends_one_jira_anchored_bundle_not_standalone_git
+  - symbol: ctx_app.enrich.tests.business_linked_enrich_rejects_git_and_merge_requests_without_jira
   - symbol: crates.ctx-cli.tests.e2e.enrich_shells_out_to_the_configured_agent_and_reports_its_outcome
   - symbol: crates.ctx-cli.tests.e2e.enrich_rejects_an_unsupported_agent
   - symbol: crates.ctx-cli.tests.e2e.enrich_dispatches_codex_to_codex_exec_with_its_own_binary_override
   - symbol: crates.ctx-cli.tests.e2e.enrich_dispatches_antigravity_to_agy_p_with_its_own_binary_override
   - symbol: crates.ctx-cli.tests.e2e.enrich_drops_ungrounded_implementation_and_test_candidates_by_default
   - symbol: crates.ctx-cli.tests.e2e.enrich_allow_ungrounded_symbols_keeps_implementation_and_test_candidates_outside_the_neighborhood
+  - symbol: crates.ctx-cli.tests.e2e.business_linked_enrich_never_invokes_an_agent_for_git_without_jira_context

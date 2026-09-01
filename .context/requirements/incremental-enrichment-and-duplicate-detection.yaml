@@ -10,11 +10,12 @@ statement: >
   `relevant`, `not_relevant`, or `insufficient_evidence` -- so a
   `not_relevant` answer is never re-asked either, not only a proposed
   candidate. A later run skips an artifact whose computed input fingerprint
-  matches the ledger; at the basic single-subject level that fingerprint is
-  the artifact content hash, so edited and re-ingested text or no ledger entry
-  triggers a fresh analysis. The ledger deliberately stores the full input
-  fingerprint separately so richer neighborhoods can also invalidate on
-  changed links or supporting artifacts. `ctx verify --knowledge --accept` refuses to create a new
+  matches the ledger. That fingerprint is the exact rendered prompt sent to
+  the selected agent contract, including the subject, linked artifact bodies,
+  changed symbols, nearby tests, related product knowledge, prompt rules, and
+  grounding mode. Therefore edited supporting MR/commit text or a changed
+  deterministic neighborhood triggers fresh analysis even when the Jira
+  subject's own content hash is unchanged. `ctx verify --knowledge --accept` refuses to create a new
   document when the candidate's statement looks like a restatement of an
   already-active Requirement/Invariant/Decision of the same kind (§13 MUST:
   "restating REQ-17 must not silently become REQ-94") -- a lexical
@@ -36,14 +37,16 @@ implementation:
   - symbol: ctx_app.enrich.EnrichRunner.run_with_progress
   - symbol: ctx_app.ports.ArtifactRepository.mark_analyzed
   - symbol: ctx_app.ports.ArtifactRepository.analyzed_input_fingerprints
+  - symbol: ctx_app.ports.SemanticAgent.input_fingerprint
+  - symbol: ctx_adapters.agent_contract.input_fingerprint
   - symbol: ctx_core.verification.possible_duplicate
   - symbol: ctx_app.verification.KnowledgeVerificationService.accept
 tests:
-  - symbol: ctx_app.enrich.tests.an_artifact_analyzed_at_its_current_content_hash_is_skipped_next_run
+  - symbol: ctx_app.enrich.tests.an_artifact_analyzed_at_its_current_input_fingerprint_is_skipped_next_run
+  - symbol: ctx_app.enrich.tests.changing_a_linked_merge_request_invalidates_the_jira_bundle_fingerprint
+  - symbol: ctx_adapters.agent_contract.tests.input_fingerprint_covers_linked_text_and_grounding_mode
   - symbol: ctx_app.enrich.tests.run_with_progress_reports_position_and_total_only_for_real_analysis
   - symbol: ctx_adapters.sqlite.artifacts.tests.marking_an_artifact_analyzed_round_trips_its_input_fingerprint
   - symbol: ctx_core.verification.tests.possible_duplicate_finds_a_restated_requirement_by_term_overlap
   - symbol: ctx_app.verification.knowledge_tests.accepting_a_likely_restatement_is_refused_unless_forced
   - symbol: crates.ctx-cli.tests.e2e.accepting_a_restated_requirement_is_refused_unless_forced
-
-

@@ -4,3 +4,5 @@ status: active
 statement: render_neighborhood returns an error message when token_budget is zero.
 implementation:
 - symbol: ctx_core.neighborhood.render_neighborhood
+tests:
+- symbol: ctx_core.neighborhood.tests.zero_token_budget_is_rejected

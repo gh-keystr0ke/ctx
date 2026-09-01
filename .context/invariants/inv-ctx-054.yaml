@@ -1,8 +1,11 @@
 id: INV-CTX-054
 type: invariant
 status: active
-statement: Enrichment records every analyzed artifact regardless of outcome and skips re-analysis while its current content hash matches the analysis ledger.
+statement: Enrichment records every analyzed subject regardless of outcome and skips re-analysis only while the exact rendered agent-input fingerprint matches the analysis ledger; changing a linked artifact, symbol/test neighborhood, prompt contract, or grounding mode invalidates the ledger even when the subject content hash is unchanged.
 implementation:
   - symbol: ctx_app.enrich.EnrichRunner.run_with_progress
+  - symbol: ctx_app.enrich.EnrichRunner.run_business_linked_with_progress
+  - symbol: ctx_adapters.agent_contract.input_fingerprint
 tests:
-  - symbol: ctx_app.enrich.tests.an_artifact_analyzed_at_its_current_content_hash_is_skipped_next_run
+  - symbol: ctx_app.enrich.tests.an_artifact_analyzed_at_its_current_input_fingerprint_is_skipped_next_run
+  - symbol: ctx_app.enrich.tests.changing_a_linked_merge_request_invalidates_the_jira_bundle_fingerprint

@@ -24,7 +24,15 @@ statement: >
   `--related-depth` controls the bounded Jira expansion. `ctx ingest
   code-comments --reconcile` treats HEAD as a complete snapshot and removes
   comments/docstrings no longer present only after the new snapshot was read
-  successfully. The legacy all-artifacts ingest behavior remains the default.
+  successfully. `ctx enrich --scope business-linked` then creates exactly one
+  bounded agent input per retained Jira issue: the Jira issue is the subject,
+  while its deterministically connected selected MR, comments, branch,
+  commits, changed symbols, and nearby tests are supporting evidence inside
+  that same bundle. A branch, commit, or MR without a Jira business anchor is
+  never submitted alone, even when it is orphaned. Linked artifact bodies are
+  included so the bundle carries business and implementation context rather
+  than only names or one commit-message. The legacy all-artifacts ingest and
+  enrich behavior remains the default.
 implementation:
   - symbol: ctx_core.artifact_scope.plan_business_scope
   - symbol: ctx_app.ingest.GitLabIngestRunner.run_scoped
@@ -33,6 +41,8 @@ implementation:
   - symbol: ctx_adapters.gitlab.GitLabClient.fetch_repository_linked_merge_requests
   - symbol: ctx_app.ports.ArtifactMaintenanceStore
   - symbol: ctx_adapters.sqlite.artifacts.SqliteStore.ArtifactMaintenanceStore.delete_artifacts
+  - symbol: ctx_app.enrich.EnrichRunner.run_business_linked_with_progress
+  - symbol: ctx_core.neighborhood.build_business_neighborhood
 tests:
   - symbol: ctx_core.artifact_scope.tests.keeps_only_a_git_mr_jira_chain_with_business_context
   - symbol: ctx_core.artifact_scope.tests.jira_artifacts_cannot_seed_each_other_without_repository_evidence
@@ -44,3 +54,6 @@ tests:
   - symbol: ctx_app.ingest.tests.business_linked_jira_scope_accepts_a_repository_linked_mr_as_evidence
   - symbol: crates.ctx-cli.tests.e2e.ingest_code_comments_attaches_a_doc_comment_to_its_nearest_symbol
   - symbol: ctx_adapters.sqlite.artifacts.tests.reconciling_a_snapshot_removes_absent_artifacts_and_all_dependencies
+  - symbol: ctx_app.enrich.tests.business_linked_enrich_sends_one_jira_anchored_bundle_not_standalone_git
+  - symbol: ctx_app.enrich.tests.business_linked_enrich_rejects_git_and_merge_requests_without_jira
+  - symbol: crates.ctx-cli.tests.e2e.business_linked_enrich_never_invokes_an_agent_for_git_without_jira_context

@@ -730,6 +730,26 @@ fn enrich_drops_ungrounded_implementation_and_test_candidates_by_default() {
 }
 
 #[test]
+fn business_linked_enrich_never_invokes_an_agent_for_git_without_jira_context() {
+    let repository = FixtureRepository::new();
+    repository.ctx(&["init"]);
+    repository.ctx(&["ingest", "git"]);
+    let env = [("CTX_CLAUDE_CLI_BINARY", "/definitely/not/a/real/agent")];
+
+    let enriched = repository.ctx_with_env(
+        &["enrich", "--agent", "claude", "--scope", "business-linked"],
+        &env,
+    );
+
+    assert_eq!(enriched["neighborhoods_analyzed"], 0);
+    assert!(
+        enriched["artifacts_skipped_no_business_anchor"]
+            .as_u64()
+            .is_some_and(|count| count > 0)
+    );
+}
+
+#[test]
 fn enrich_allow_ungrounded_symbols_keeps_implementation_and_test_candidates_outside_the_neighborhood()
  {
     let repository = FixtureRepository::new();

@@ -10,5 +10,10 @@ statement: >
   discarded from business-linked scope and must not consume an agent call.
 implementation:
   - symbol: ctx_core.artifact_scope.plan_business_scope
+  - symbol: ctx_app.enrich.EnrichRunner.run_business_linked_with_progress
+  - symbol: ctx_core.neighborhood.build_business_neighborhood
 tests:
   - symbol: ctx_core.artifact_scope.tests.repository_linked_mr_without_jira_is_not_business_context
+  - symbol: ctx_app.enrich.tests.business_linked_enrich_sends_one_jira_anchored_bundle_not_standalone_git
+  - symbol: ctx_app.enrich.tests.business_linked_enrich_rejects_git_and_merge_requests_without_jira
+  - symbol: crates.ctx-cli.tests.e2e.business_linked_enrich_never_invokes_an_agent_for_git_without_jira_context

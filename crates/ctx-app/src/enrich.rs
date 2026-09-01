@@ -25,16 +25,18 @@
 //! only when a known merge/pull request already names it as `source_branch`
 //! ([`is_covered_by_a_known_parent`]).
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use ctx_core::{
     artifact::{
         Artifact, ArtifactIdentity, ArtifactKind, ArtifactLink, ArtifactLinkKind,
         ArtifactLinkTarget,
     },
+    artifact_scope::{BusinessScopeOptions, plan_business_scope},
     domain::RepositoryId,
+    graph::GraphSnapshot,
     knowledge::AgentOutcome,
-    neighborhood::build_neighborhood,
+    neighborhood::{ArtifactNeighborhood, build_business_neighborhood, build_neighborhood},
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -48,6 +50,7 @@ use crate::ports::{
 pub struct EnrichReport {
     pub neighborhoods_analyzed: usize,
     pub candidates_proposed: usize,
+    pub artifacts_skipped_no_business_anchor: usize,
     pub artifacts_skipped_covered_by_parent: usize,
     pub artifacts_skipped_already_pending: usize,
     pub artifacts_skipped_unchanged: usize,
@@ -66,6 +69,14 @@ pub enum EnrichError {
 pub struct EnrichRunner<'a, A, S> {
     agent: &'a A,
     store: &'a mut S,
+}
+
+struct EnrichSnapshot {
+    artifacts: Vec<Artifact>,
+    links: Vec<ArtifactLink>,
+    graph: GraphSnapshot,
+    already_pending: HashSet<ArtifactIdentity>,
+    analyzed_input_fingerprints: HashMap<ArtifactIdentity, String>,
 }
 
 impl<'a, A, S> EnrichRunner<'a, A, S>
@@ -113,7 +124,126 @@ where
         allow_ungrounded_symbols: bool,
         on_progress: &mut dyn FnMut(usize, usize, &Artifact),
     ) -> Result<EnrichReport, EnrichError> {
-        let known_artifacts = self
+        let snapshot = self.read_snapshot(repository)?;
+        let total = snapshot.artifacts.len();
+        let mut report = EnrichReport::default();
+        let known_artifact_identities: HashSet<_> = snapshot
+            .artifacts
+            .iter()
+            .map(|artifact| artifact.identity.clone())
+            .collect();
+        for (index, subject) in snapshot.artifacts.iter().enumerate() {
+            if snapshot.already_pending.contains(&subject.identity) {
+                report.artifacts_skipped_already_pending += 1;
+                continue;
+            }
+            if is_covered_by_a_known_parent(subject, &snapshot.links, &known_artifact_identities) {
+                report.artifacts_skipped_covered_by_parent += 1;
+                continue;
+            }
+            let neighborhood = build_neighborhood(
+                subject,
+                &snapshot.links,
+                &snapshot.artifacts,
+                &snapshot.graph,
+            );
+            let input_fingerprint = self
+                .agent
+                .input_fingerprint(&neighborhood, allow_ungrounded_symbols);
+            if snapshot.analyzed_input_fingerprints.get(&subject.identity)
+                == Some(&input_fingerprint)
+            {
+                report.artifacts_skipped_unchanged += 1;
+                continue;
+            }
+            on_progress(index + 1, total, subject);
+            let proposed = self.analyze_one(
+                repository,
+                subject,
+                &neighborhood,
+                &input_fingerprint,
+                produced_at,
+                allow_ungrounded_symbols,
+            )?;
+            report.neighborhoods_analyzed += 1;
+            report.candidates_proposed += proposed;
+        }
+        Ok(report)
+    }
+
+    /// Analyzes exactly one unit per in-scope Jira issue. Git branches,
+    /// commits, and merge requests can contribute evidence only inside one
+    /// of those Jira-anchored units; they are never standalone agent inputs.
+    ///
+    /// # Errors
+    /// Returns [`EnrichError`] under the same conditions as
+    /// [`Self::run_with_progress`].
+    pub fn run_business_linked_with_progress(
+        &mut self,
+        repository: &RepositoryId,
+        produced_at: &str,
+        allow_ungrounded_symbols: bool,
+        related_jira_depth: usize,
+        on_progress: &mut dyn FnMut(usize, usize, &Artifact),
+    ) -> Result<EnrichReport, EnrichError> {
+        let snapshot = self.read_snapshot(repository)?;
+        let plan = plan_business_scope(
+            &snapshot.artifacts,
+            &snapshot.links,
+            BusinessScopeOptions { related_jira_depth },
+        );
+        let kept = plan.kept_identities();
+        let scoped_artifacts = snapshot
+            .artifacts
+            .iter()
+            .filter(|artifact| kept.contains(&artifact.identity))
+            .cloned()
+            .collect::<Vec<_>>();
+        let anchors = scoped_artifacts
+            .iter()
+            .filter(|artifact| is_jira_anchor(artifact))
+            .collect::<Vec<_>>();
+        let mut report = EnrichReport {
+            artifacts_skipped_no_business_anchor: plan.pruned_identities().len(),
+            ..EnrichReport::default()
+        };
+        for (index, subject) in anchors.iter().enumerate() {
+            if snapshot.already_pending.contains(&subject.identity) {
+                report.artifacts_skipped_already_pending += 1;
+                continue;
+            }
+            let neighborhood = build_business_neighborhood(
+                subject,
+                &snapshot.links,
+                &scoped_artifacts,
+                &snapshot.graph,
+            );
+            let input_fingerprint = self
+                .agent
+                .input_fingerprint(&neighborhood, allow_ungrounded_symbols);
+            if snapshot.analyzed_input_fingerprints.get(&subject.identity)
+                == Some(&input_fingerprint)
+            {
+                report.artifacts_skipped_unchanged += 1;
+                continue;
+            }
+            on_progress(index + 1, anchors.len(), subject);
+            let proposed = self.analyze_one(
+                repository,
+                subject,
+                &neighborhood,
+                &input_fingerprint,
+                produced_at,
+                allow_ungrounded_symbols,
+            )?;
+            report.neighborhoods_analyzed += 1;
+            report.candidates_proposed += proposed;
+        }
+        Ok(report)
+    }
+
+    fn read_snapshot(&self, repository: &RepositoryId) -> Result<EnrichSnapshot, EnrichError> {
+        let artifacts = self
             .store
             .list_artifacts(repository)
             .map_err(EnrichError::Read)?;
@@ -125,7 +255,7 @@ where
             .store
             .load_graph(repository)
             .map_err(EnrichError::Read)?;
-        let already_pending: HashSet<_> = self
+        let already_pending = self
             .store
             .pending_candidates(repository)
             .map_err(EnrichError::Read)?
@@ -137,49 +267,52 @@ where
             .store
             .analyzed_input_fingerprints(repository)
             .map_err(EnrichError::Read)?;
-
-        let total = known_artifacts.len();
-        let mut report = EnrichReport::default();
-        let known_artifact_identities: HashSet<_> =
-            known_artifacts.iter().map(|a| a.identity.clone()).collect();
-        for (index, subject) in known_artifacts.iter().enumerate() {
-            if already_pending.contains(&subject.identity) {
-                report.artifacts_skipped_already_pending += 1;
-                continue;
-            }
-            if is_covered_by_a_known_parent(subject, &links, &known_artifact_identities) {
-                report.artifacts_skipped_covered_by_parent += 1;
-                continue;
-            }
-            if analyzed_input_fingerprints.get(&subject.identity) == Some(&subject.content_hash) {
-                report.artifacts_skipped_unchanged += 1;
-                continue;
-            }
-            on_progress(index + 1, total, subject);
-            let neighborhood = build_neighborhood(subject, &links, &known_artifacts, &graph);
-            let outcome = self
-                .agent
-                .analyze(&neighborhood, produced_at, allow_ungrounded_symbols)
-                .map_err(EnrichError::Agent)?;
-            report.neighborhoods_analyzed += 1;
-            if let AgentOutcome::Relevant(candidates) = outcome {
-                self.store
-                    .upsert_candidates(repository, &candidates)
-                    .map_err(EnrichError::Store)?;
-                report.candidates_proposed += candidates.len();
-            }
-            self.store
-                .mark_analyzed(
-                    repository,
-                    &subject.identity,
-                    &subject.content_hash,
-                    &subject.content_hash,
-                    produced_at,
-                )
-                .map_err(EnrichError::Store)?;
-        }
-        Ok(report)
+        Ok(EnrichSnapshot {
+            artifacts,
+            links,
+            graph,
+            already_pending,
+            analyzed_input_fingerprints,
+        })
     }
+
+    fn analyze_one(
+        &mut self,
+        repository: &RepositoryId,
+        subject: &Artifact,
+        neighborhood: &ArtifactNeighborhood,
+        input_fingerprint: &str,
+        produced_at: &str,
+        allow_ungrounded_symbols: bool,
+    ) -> Result<usize, EnrichError> {
+        let outcome = self
+            .agent
+            .analyze(neighborhood, produced_at, allow_ungrounded_symbols)
+            .map_err(EnrichError::Agent)?;
+        let proposed = if let AgentOutcome::Relevant(candidates) = outcome {
+            self.store
+                .upsert_candidates(repository, &candidates)
+                .map_err(EnrichError::Store)?;
+            candidates.len()
+        } else {
+            0
+        };
+        self.store
+            .mark_analyzed(
+                repository,
+                &subject.identity,
+                &subject.content_hash,
+                input_fingerprint,
+                produced_at,
+            )
+            .map_err(EnrichError::Store)?;
+        Ok(proposed)
+    }
+}
+
+fn is_jira_anchor(artifact: &Artifact) -> bool {
+    artifact.identity.provider == ctx_core::artifact::ArtifactProvider::Jira
+        && artifact.identity.kind == ArtifactKind::Issue
 }
 
 /// Whether `subject` is a leaf kind whose text is already part of a known
@@ -356,6 +489,14 @@ mod tests {
     }
 
     impl SemanticAgent for FailingSecondAgent {
+        fn input_fingerprint(
+            &self,
+            neighborhood: &ctx_core::neighborhood::ArtifactNeighborhood,
+            allow_ungrounded_symbols: bool,
+        ) -> String {
+            format!("{neighborhood:?}:{allow_ungrounded_symbols}")
+        }
+
         fn analyze(
             &self,
             neighborhood: &ctx_core::neighborhood::ArtifactNeighborhood,
@@ -374,6 +515,14 @@ mod tests {
     }
 
     impl SemanticAgent for FakeAgent {
+        fn input_fingerprint(
+            &self,
+            neighborhood: &ctx_core::neighborhood::ArtifactNeighborhood,
+            allow_ungrounded_symbols: bool,
+        ) -> String {
+            format!("{neighborhood:?}:{allow_ungrounded_symbols}")
+        }
+
         fn analyze(
             &self,
             neighborhood: &ctx_core::neighborhood::ArtifactNeighborhood,
@@ -394,9 +543,17 @@ mod tests {
     }
 
     fn artifact_of_kind(external_id: &str, kind: ArtifactKind) -> Artifact {
+        artifact_from(ArtifactProvider::GitLab, external_id, kind)
+    }
+
+    fn artifact_from(
+        provider: ArtifactProvider,
+        external_id: &str,
+        kind: ArtifactKind,
+    ) -> Artifact {
         Artifact {
             identity: ArtifactIdentity {
-                provider: ArtifactProvider::GitLab,
+                provider,
                 kind,
                 external_id: external_id.to_owned(),
             },
@@ -535,7 +692,7 @@ mod tests {
     }
 
     #[test]
-    fn an_artifact_analyzed_at_its_current_content_hash_is_skipped_next_run() {
+    fn an_artifact_analyzed_at_its_current_input_fingerprint_is_skipped_next_run() {
         let issue = artifact("317");
         let mut store = FakeStore {
             artifacts: vec![issue.clone()],
@@ -564,9 +721,11 @@ mod tests {
             1,
             "the agent must not be re-asked about unchanged content"
         );
-        assert_eq!(
+        assert!(store.analyzed.borrow().contains_key(&issue.identity));
+        assert_ne!(
             store.analyzed.borrow().get(&issue.identity),
-            Some(&issue.content_hash)
+            Some(&issue.content_hash),
+            "the ledger stores the complete prompt fingerprint, not only the subject hash"
         );
     }
 
@@ -719,5 +878,190 @@ mod tests {
 
         assert_eq!(report.artifacts_skipped_covered_by_parent, 1);
         assert_eq!(report.neighborhoods_analyzed, 1);
+    }
+
+    #[derive(Default)]
+    struct CapturingAgent {
+        neighborhoods: RefCell<Vec<ArtifactNeighborhood>>,
+    }
+
+    impl SemanticAgent for CapturingAgent {
+        fn input_fingerprint(
+            &self,
+            neighborhood: &ArtifactNeighborhood,
+            allow_ungrounded_symbols: bool,
+        ) -> String {
+            format!("{neighborhood:?}:{allow_ungrounded_symbols}")
+        }
+
+        fn analyze(
+            &self,
+            neighborhood: &ArtifactNeighborhood,
+            _produced_at: &str,
+            _allow_ungrounded_symbols: bool,
+        ) -> Result<AgentOutcome, PortError> {
+            self.neighborhoods.borrow_mut().push(neighborhood.clone());
+            Ok(AgentOutcome::NotRelevant)
+        }
+    }
+
+    #[test]
+    fn business_linked_enrich_sends_one_jira_anchored_bundle_not_standalone_git() {
+        let jira = artifact_from(ArtifactProvider::Jira, "PAY-317", ArtifactKind::Issue);
+        let merge_request =
+            artifact_from(ArtifactProvider::GitLab, "842", ArtifactKind::MergeRequest);
+        let branch = artifact_from(
+            ArtifactProvider::Git,
+            "feature/PAY-317",
+            ArtifactKind::Branch,
+        );
+        let commit = artifact_from(ArtifactProvider::Git, "abc123", ArtifactKind::Commit);
+        let orphan = artifact_from(ArtifactProvider::Git, "orphan", ArtifactKind::Commit);
+        let mut store = FakeStore {
+            artifacts: vec![
+                branch.clone(),
+                commit.clone(),
+                jira.clone(),
+                merge_request.clone(),
+                orphan,
+            ],
+            links: vec![
+                ArtifactLink {
+                    source: merge_request.identity.clone(),
+                    target: ArtifactLinkTarget::Artifact(branch.identity.clone()),
+                    kind: ArtifactLinkKind::References,
+                    evidence_locator: "merge_request.source_branch".to_owned(),
+                },
+                ArtifactLink {
+                    source: merge_request.identity.clone(),
+                    target: ArtifactLinkTarget::Artifact(jira.identity.clone()),
+                    kind: ArtifactLinkKind::References,
+                    evidence_locator: "body: PAY-317".to_owned(),
+                },
+                ArtifactLink {
+                    source: merge_request.identity.clone(),
+                    target: ArtifactLinkTarget::Artifact(commit.identity.clone()),
+                    kind: ArtifactLinkKind::ContainsCommit,
+                    evidence_locator: "merge request commits API".to_owned(),
+                },
+            ],
+            ..FakeStore::default()
+        };
+        let agent = CapturingAgent::default();
+        let repository = RepositoryId::new("repo:test").expect("repository ID");
+
+        let report = EnrichRunner::new(&agent, &mut store)
+            .run_business_linked_with_progress(
+                &repository,
+                "2026-08-21T00:00:00Z",
+                false,
+                0,
+                &mut |_, _, _| {},
+            )
+            .expect("business-linked enrich");
+
+        let captured = agent.neighborhoods.borrow();
+        assert_eq!(report.neighborhoods_analyzed, 1);
+        assert_eq!(report.artifacts_skipped_no_business_anchor, 1);
+        assert_eq!(captured.len(), 1);
+        assert_eq!(captured[0].subject.identity, jira.identity);
+        let linked = captured[0]
+            .linked_artifacts
+            .iter()
+            .map(|linked| linked.artifact.identity.clone())
+            .collect::<HashSet<_>>();
+        assert_eq!(
+            linked,
+            HashSet::from([merge_request.identity, branch.identity, commit.identity,])
+        );
+    }
+
+    #[test]
+    fn business_linked_enrich_rejects_git_and_merge_requests_without_jira() {
+        let branch = artifact_from(ArtifactProvider::Git, "feature/x", ArtifactKind::Branch);
+        let merge_request =
+            artifact_from(ArtifactProvider::GitLab, "842", ArtifactKind::MergeRequest);
+        let mut store = FakeStore {
+            artifacts: vec![branch.clone(), merge_request.clone()],
+            links: vec![ArtifactLink {
+                source: merge_request.identity,
+                target: ArtifactLinkTarget::Artifact(branch.identity),
+                kind: ArtifactLinkKind::References,
+                evidence_locator: "merge_request.source_branch".to_owned(),
+            }],
+            ..FakeStore::default()
+        };
+        let agent = CapturingAgent::default();
+        let repository = RepositoryId::new("repo:test").expect("repository ID");
+
+        let report = EnrichRunner::new(&agent, &mut store)
+            .run_business_linked_with_progress(
+                &repository,
+                "2026-08-21T00:00:00Z",
+                false,
+                0,
+                &mut |_, _, _| {},
+            )
+            .expect("business-linked enrich");
+
+        assert_eq!(report.neighborhoods_analyzed, 0);
+        assert_eq!(report.artifacts_skipped_no_business_anchor, 2);
+        assert!(agent.neighborhoods.borrow().is_empty());
+    }
+
+    #[test]
+    fn changing_a_linked_merge_request_invalidates_the_jira_bundle_fingerprint() {
+        let jira = artifact_from(ArtifactProvider::Jira, "PAY-317", ArtifactKind::Issue);
+        let branch = artifact_from(ArtifactProvider::Git, "feature/x", ArtifactKind::Branch);
+        let merge_request =
+            artifact_from(ArtifactProvider::GitLab, "842", ArtifactKind::MergeRequest);
+        let mut store = FakeStore {
+            artifacts: vec![jira.clone(), branch.clone(), merge_request.clone()],
+            links: vec![
+                ArtifactLink {
+                    source: merge_request.identity.clone(),
+                    target: ArtifactLinkTarget::Artifact(branch.identity),
+                    kind: ArtifactLinkKind::References,
+                    evidence_locator: "merge_request.source_branch".to_owned(),
+                },
+                ArtifactLink {
+                    source: merge_request.identity.clone(),
+                    target: ArtifactLinkTarget::Artifact(jira.identity),
+                    kind: ArtifactLinkKind::References,
+                    evidence_locator: "body: PAY-317".to_owned(),
+                },
+            ],
+            ..FakeStore::default()
+        };
+        let agent = CapturingAgent::default();
+        let repository = RepositoryId::new("repo:test").expect("repository ID");
+
+        EnrichRunner::new(&agent, &mut store)
+            .run_business_linked_with_progress(
+                &repository,
+                "2026-08-21T00:00:00Z",
+                false,
+                0,
+                &mut |_, _, _| {},
+            )
+            .expect("first enrich");
+        store
+            .artifacts
+            .iter_mut()
+            .find(|artifact| artifact.identity == merge_request.identity)
+            .expect("stored merge request")
+            .body = "changed MR business detail".to_owned();
+        let second = EnrichRunner::new(&agent, &mut store)
+            .run_business_linked_with_progress(
+                &repository,
+                "2026-08-21T01:00:00Z",
+                false,
+                0,
+                &mut |_, _, _| {},
+            )
+            .expect("second enrich");
+
+        assert_eq!(second.neighborhoods_analyzed, 1);
+        assert_eq!(agent.neighborhoods.borrow().len(), 2);
     }
 }

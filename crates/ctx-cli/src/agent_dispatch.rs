@@ -79,6 +79,24 @@ fn binary(variable: &str, default: &str) -> String {
 }
 
 impl SemanticAgent for ConfiguredAgent {
+    fn input_fingerprint(
+        &self,
+        neighborhood: &ArtifactNeighborhood,
+        allow_ungrounded_symbols: bool,
+    ) -> String {
+        match &self.inner {
+            AgentKind::Claude(agent) => {
+                agent.input_fingerprint(neighborhood, allow_ungrounded_symbols)
+            }
+            AgentKind::Codex(agent) => {
+                agent.input_fingerprint(neighborhood, allow_ungrounded_symbols)
+            }
+            AgentKind::Antigravity(agent) => {
+                agent.input_fingerprint(neighborhood, allow_ungrounded_symbols)
+            }
+        }
+    }
+
     fn analyze(
         &self,
         neighborhood: &ArtifactNeighborhood,

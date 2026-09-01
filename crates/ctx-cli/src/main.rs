@@ -94,6 +94,27 @@ struct Cli {
     command: Command,
 }
 
+#[derive(Clone, Copy)]
+struct EnrichOptions {
+    allow_ungrounded_symbols: bool,
+    scope: IngestScopeArg,
+    related_depth: usize,
+}
+
+impl EnrichOptions {
+    const fn new(
+        allow_ungrounded_symbols: bool,
+        scope: IngestScopeArg,
+        related_depth: usize,
+    ) -> Self {
+        Self {
+            allow_ungrounded_symbols,
+            scope,
+            related_depth,
+        }
+    }
+}
+
 #[derive(Debug, Subcommand)]
 enum Command {
     /// Initialize local storage and business-context directories.
@@ -176,6 +197,13 @@ enum Command {
         /// artifact-id grounding is unaffected and stays strict either way.
         #[arg(long)]
         allow_ungrounded_symbols: bool,
+        /// In business-linked scope, send only Jira-anchored bundles to the
+        /// agent; Git/MR artifacts are supporting evidence, never subjects.
+        #[arg(long, value_enum, default_value = "all")]
+        scope: IngestScopeArg,
+        /// Jira `RelatedIssue` hops admitted into business-linked bundles.
+        #[arg(long, default_value_t = 0)]
+        related_depth: usize,
     },
     /// Review a branch or working-tree diff in product terms.
     Review {
@@ -489,11 +517,7 @@ fn run(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
                 reconcile: *reconcile,
             },
         ),
-        Command::Enrich {
-            agent,
-            model,
-            allow_ungrounded_symbols,
-        } => enrich(cli, git, agent, model.clone(), *allow_ungrounded_symbols),
+        command @ Command::Enrich { .. } => enrich_command(cli, git, command),
         Command::Review {
             base,
             related_tests,
@@ -1408,7 +1432,7 @@ fn enrich(
     git: &GitRepo,
     agent: &str,
     model: Option<String>,
-    allow_ungrounded_symbols: bool,
+    options: EnrichOptions,
 ) -> Result<(), CliError> {
     let database_path = database_path(git.root())?;
     let mut store = SqliteStore::open(&database_path, git.context_root())?;
@@ -1432,25 +1456,57 @@ fn enrich(
         };
     let configured_agent = ConfiguredAgent::from_name(agent, model, cli.verbose > 0, cli.siga_siga)
         .map_err(CliError::UnsupportedAgent)?;
-    let report = EnrichRunner::new(&configured_agent, &mut store).run_with_progress(
-        &repository.id,
-        &now,
-        allow_ungrounded_symbols,
-        &mut report_progress,
-    )?;
+    let report = match options.scope {
+        IngestScopeArg::All => EnrichRunner::new(&configured_agent, &mut store).run_with_progress(
+            &repository.id,
+            &now,
+            options.allow_ungrounded_symbols,
+            &mut report_progress,
+        )?,
+        IngestScopeArg::BusinessLinked => EnrichRunner::new(&configured_agent, &mut store)
+            .run_business_linked_with_progress(
+                &repository.id,
+                &now,
+                options.allow_ungrounded_symbols,
+                options.related_depth,
+                &mut report_progress,
+            )?,
+    };
     if cli.json {
         println!("{}", serde_json::to_string_pretty(&report)?);
     } else {
         println!(
             "Analyzed {} artifact neighborhood(s), {} candidate(s) proposed \
-             ({} skipped, already pending; {} skipped, covered by a known parent)",
+             ({} skipped, no business anchor; {} skipped, already pending; \
+             {} skipped, covered by a known parent)",
             report.neighborhoods_analyzed,
             report.candidates_proposed,
+            report.artifacts_skipped_no_business_anchor,
             report.artifacts_skipped_already_pending,
             report.artifacts_skipped_covered_by_parent
         );
     }
     Ok(())
+}
+
+fn enrich_command(cli: &Cli, git: &GitRepo, command: &Command) -> Result<(), CliError> {
+    let Command::Enrich {
+        agent,
+        model,
+        allow_ungrounded_symbols,
+        scope,
+        related_depth,
+    } = command
+    else {
+        unreachable!("enrich_command is called only for Command::Enrich")
+    };
+    enrich(
+        cli,
+        git,
+        agent,
+        model.clone(),
+        EnrichOptions::new(*allow_ungrounded_symbols, *scope, *related_depth),
+    )
 }
 
 fn print_claims(claims: Vec<ctx_core::explain::ClaimExplanation>) {

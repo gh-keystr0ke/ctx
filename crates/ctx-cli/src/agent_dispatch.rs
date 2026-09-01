@@ -28,15 +28,27 @@ impl ConfiguredAgent {
     ) -> Result<Self, String> {
         match name {
             "claude" => Ok(Self::Claude(ClaudeCodeAgent::new(
-                ClaudeTransport::new(binary("CTX_CLAUDE_CLI_BINARY", "claude"), verbose),
+                ClaudeTransport::new(
+                    binary("CTX_CLAUDE_CLI_BINARY", "claude"),
+                    verbose,
+                    model.clone(),
+                ),
                 model,
             ))),
             "codex" => Ok(Self::Codex(CodexAgent::new(
-                CodexTransport::new(binary("CTX_CODEX_CLI_BINARY", "codex"), verbose),
+                CodexTransport::new(
+                    binary("CTX_CODEX_CLI_BINARY", "codex"),
+                    verbose,
+                    model.clone(),
+                ),
                 model,
             ))),
             "antigravity" => Ok(Self::Antigravity(AntigravityAgent::new(
-                AntigravityTransport::new(binary("CTX_ANTIGRAVITY_CLI_BINARY", "agy"), verbose),
+                AntigravityTransport::new(
+                    binary("CTX_ANTIGRAVITY_CLI_BINARY", "agy"),
+                    verbose,
+                    model.clone(),
+                ),
                 model,
             ))),
             other => Err(other.to_owned()),

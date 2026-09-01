@@ -545,7 +545,7 @@ fn write_fake_claude_script_with_ungrounded_candidate_paths(script_path: &Path) 
     fs::write(
         script_path,
         "#!/bin/sh\n\
-         prompt=\"$2\"\n\
+         prompt=\"$3\"\n\
          id=$(echo \"$prompt\" | grep -o 'Valid artifact ids for this neighborhood: [^ ,]*' | sed 's/.*: //')\n\
          echo \"{\\\"outcome\\\":\\\"relevant\\\",\\\"candidates\\\":[{\\\"kind\\\":\\\"requirement\\\",\\\"statement\\\":\\\"Commit history documents cancellation behavior.\\\",\\\"evidence\\\":[{\\\"artifact_id\\\":\\\"$id\\\",\\\"locator\\\":\\\"body\\\",\\\"excerpt\\\":\\\"excerpt\\\"}],\\\"implementation_candidates\\\":[\\\"nonexistent/module.rs\\\"],\\\"test_candidates\\\":[\\\"nonexistent/module_test.rs\\\"]}]}\"\n",
     )
@@ -642,7 +642,7 @@ fn a_pending_candidate_survives_losing_the_local_database_once_committed() {
     fs::write(
         &script_path,
         "#!/bin/sh\n\
-         prompt=\"$2\"\n\
+         prompt=\"$3\"\n\
          id=$(echo \"$prompt\" | grep -o 'Valid artifact ids for this neighborhood: [^ ,]*' | sed 's/.*: //')\n\
          echo \"{\\\"outcome\\\":\\\"relevant\\\",\\\"candidates\\\":[{\\\"kind\\\":\\\"requirement\\\",\\\"statement\\\":\\\"Commit history documents cancellation behavior.\\\",\\\"evidence\\\":[{\\\"artifact_id\\\":\\\"$id\\\",\\\"locator\\\":\\\"body\\\",\\\"excerpt\\\":\\\"excerpt\\\"}]}]}\"\n",
     )
@@ -830,6 +830,106 @@ fn enrich_dispatches_antigravity_to_agy_p_with_its_own_binary_override() {
     assert!(report["neighborhoods_analyzed"].as_u64().unwrap_or(0) > 0);
 }
 
+/// `ctx enrich --agent claude` always runs `claude` with `--safe-mode`,
+/// unconditionally -- there is no flag to turn it off, because this call is
+/// always a single self-contained prompt-in/JSON-out contract that never
+/// needs a repo's CLAUDE.md, skills, plugins, hooks, MCP servers, or custom
+/// commands/agents, and paying their context cost on every enrich/review
+/// call would be pure waste. Unlike `--bare`, `--safe-mode` leaves auth
+/// (OAuth/keychain included) untouched, so this doesn't break users without
+/// an `ANTHROPIC_API_KEY`. Only `claude` gets this treatment: `codex`/`agy`
+/// have no equivalent single flag.
+#[test]
+fn enrich_always_runs_claude_with_safe_mode() {
+    let repository = FixtureRepository::new();
+    repository.ctx(&["init"]);
+    repository.ctx(&["ingest", "git"]);
+
+    let script_path = repository.root().join("fake-claude.sh");
+    fs::write(
+        &script_path,
+        "#!/bin/sh\nif [ \"$1\" = \"-p\" ] && [ \"$2\" = \"--safe-mode\" ]; then echo '{\"outcome\":\"not_relevant\"}'; else exit 1; fi\n",
+    )
+    .expect("write fake claude script");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut permissions = fs::metadata(&script_path)
+            .expect("script metadata")
+            .permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(&script_path, permissions).expect("chmod fake claude script");
+    }
+
+    let report = repository.ctx_with_env(
+        &["enrich", "--agent", "claude"],
+        &[(
+            "CTX_CLAUDE_CLI_BINARY",
+            script_path.to_str().expect("utf8 path"),
+        )],
+    );
+
+    assert!(report["neighborhoods_analyzed"].as_u64().unwrap_or(0) > 0);
+}
+
+/// Regression test for a live bug: `ctx enrich --model haiku` accepted the
+/// flag, recorded "haiku" into the enriched candidate's provenance, and
+/// never actually put `--model haiku` on the agent CLI's argv -- so the
+/// subprocess silently ran whichever model the CLI defaults to (opus)
+/// while `ctx explain` kept claiming "haiku" produced it. Each fake script
+/// below fails closed (`exit 1`) unless its own agent's exact `--model`
+/// placement is present, so a regression here fails the `enrich` call
+/// itself rather than just under-asserting on its output.
+#[test]
+fn enrich_passes_model_flag_through_to_each_agent_cli() {
+    for (agent, binary_env, script_name, script_body) in [
+        (
+            "claude",
+            "CTX_CLAUDE_CLI_BINARY",
+            "fake-claude.sh",
+            "#!/bin/sh\nif [ \"$1\" = \"-p\" ] && [ \"$2\" = \"--safe-mode\" ] && [ \"$3\" = \"--model\" ] && [ \"$4\" = \"haiku\" ]; then echo '{\"outcome\":\"not_relevant\"}'; else exit 1; fi\n",
+        ),
+        (
+            "codex",
+            "CTX_CODEX_CLI_BINARY",
+            "fake-codex.sh",
+            "#!/bin/sh\nif [ \"$1\" = \"exec\" ] && [ \"$2\" = \"--model\" ] && [ \"$3\" = \"haiku\" ]; then echo '{\"outcome\":\"not_relevant\"}'; else exit 1; fi\n",
+        ),
+        (
+            "antigravity",
+            "CTX_ANTIGRAVITY_CLI_BINARY",
+            "fake-agy.sh",
+            "#!/bin/sh\nif [ \"$1\" = \"-p\" ] && [ \"$2\" = \"--model\" ] && [ \"$3\" = \"haiku\" ]; then echo '{\"outcome\":\"not_relevant\"}'; else exit 1; fi\n",
+        ),
+    ] {
+        let repository = FixtureRepository::new();
+        repository.ctx(&["init"]);
+        repository.ctx(&["ingest", "git"]);
+
+        let script_path = repository.root().join(script_name);
+        fs::write(&script_path, script_body).expect("write fake agent script");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut permissions = fs::metadata(&script_path)
+                .expect("script metadata")
+                .permissions();
+            permissions.set_mode(0o755);
+            fs::set_permissions(&script_path, permissions).expect("chmod fake agent script");
+        }
+
+        let report = repository.ctx_with_env(
+            &["enrich", "--agent", agent, "--model", "haiku"],
+            &[(binary_env, script_path.to_str().expect("utf8 path"))],
+        );
+
+        assert!(
+            report["neighborhoods_analyzed"].as_u64().unwrap_or(0) > 0,
+            "agent {agent} did not receive --model in the shape its fake CLI required"
+        );
+    }
+}
+
 #[test]
 fn enrich_rejects_an_unsupported_agent() {
     let repository = FixtureRepository::new();
@@ -853,7 +953,7 @@ fn accepting_a_knowledge_candidate_writes_a_context_document_ctx_index_then_abso
     fs::write(
         &script_path,
         "#!/bin/sh\n\
-         prompt=\"$2\"\n\
+         prompt=\"$3\"\n\
          id=$(echo \"$prompt\" | grep -o 'Valid artifact ids for this neighborhood: [^ ,]*' | sed 's/.*: //')\n\
          echo \"{\\\"outcome\\\":\\\"relevant\\\",\\\"candidates\\\":[{\\\"kind\\\":\\\"requirement\\\",\\\"statement\\\":\\\"Commit history documents cancellation behavior.\\\",\\\"evidence\\\":[{\\\"artifact_id\\\":\\\"$id\\\",\\\"locator\\\":\\\"body\\\",\\\"excerpt\\\":\\\"excerpt\\\"}]}]}\"\n",
     )
@@ -942,7 +1042,7 @@ fn accepting_a_restated_requirement_is_refused_unless_forced() {
     fs::write(
         &script_path,
         "#!/bin/sh\n\
-         prompt=\"$2\"\n\
+         prompt=\"$3\"\n\
          id=$(echo \"$prompt\" | grep -o 'Valid artifact ids for this neighborhood: [^ ,]*' | sed 's/.*: //')\n\
          echo \"{\\\"outcome\\\":\\\"relevant\\\",\\\"candidates\\\":[{\\\"kind\\\":\\\"requirement\\\",\\\"statement\\\":\\\"When a paid user cancels, access must remain active until paid_until.\\\",\\\"evidence\\\":[{\\\"artifact_id\\\":\\\"$id\\\",\\\"locator\\\":\\\"body\\\",\\\"excerpt\\\":\\\"excerpt\\\"}]}]}\"\n",
     )
@@ -1531,7 +1631,7 @@ fn verify_stale_reactivates_an_accepted_claim_and_leaves_a_rejected_one_as_a_sug
     fs::write(
         &script_path,
         "#!/bin/sh\n\
-         fp=$(echo \"$2\" | grep '^- fingerprint:' | head -1 | sed 's/^- fingerprint: //')\n\
+         fp=$(echo \"$3\" | grep '^- fingerprint:' | head -1 | sed 's/^- fingerprint: //')\n\
          echo \"{\\\"decisions\\\":[{\\\"fingerprint\\\":\\\"$fp\\\",\\\"verdict\\\":\\\"accept\\\",\\\"reasoning\\\":\\\"cancel still preserves paid access; it only gained an optional reason parameter\\\"}]}\"\n",
     )
     .expect("write fake claude script");
@@ -1719,7 +1819,7 @@ fn verify_knowledge_auto_reviews_and_accepts_with_an_honest_agent_decision_metho
     fs::write(
         &script_path,
         "#!/bin/sh\n\
-         prompt=\"$2\"\n\
+         prompt=\"$3\"\n\
          if echo \"$prompt\" | grep -q 'second-opinion reviewer'; then\n\
          fp=$(echo \"$prompt\" | grep '^- fingerprint:' | head -1 | sed 's/^- fingerprint: //')\n\
          echo \"{\\\"decisions\\\":[{\\\"fingerprint\\\":\\\"$fp\\\",\\\"verdict\\\":\\\"accept\\\"}]}\"\n\
@@ -2022,7 +2122,7 @@ fn enrich_and_verify_knowledge_accept_a_candidate_into_an_external_context_store
     write_executable_script(
         &script_path,
         "#!/bin/sh\n\
-         prompt=\"$2\"\n\
+         prompt=\"$3\"\n\
          id=$(echo \"$prompt\" | grep -o 'Valid artifact ids for this neighborhood: [^ ,]*' | sed 's/.*: //')\n\
          echo \"{\\\"outcome\\\":\\\"relevant\\\",\\\"candidates\\\":[{\\\"kind\\\":\\\"requirement\\\",\\\"statement\\\":\\\"Handler must return ok.\\\",\\\"evidence\\\":[{\\\"artifact_id\\\":\\\"$id\\\",\\\"locator\\\":\\\"body\\\",\\\"excerpt\\\":\\\"excerpt\\\"}]}]}\"\n",
     );

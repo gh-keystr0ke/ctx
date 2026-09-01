@@ -1,8 +1,8 @@
 id: ADR-CTX-033
 type: decision
 status: active
-title: The Antigravity agent uses `agy -p <prompt>` without elevated permissions becaus…
-decision: The Antigravity agent uses `agy -p <prompt>` without elevated permissions because the artifact neighborhood is embedded in the prompt.
+title: The Antigravity agent uses `agy -p [--model M] <prompt>` without elevated permis…
+decision: The Antigravity agent uses `agy -p [--model M] <prompt>` without elevated permissions because the artifact neighborhood is embedded in the prompt. `--model` is appended only when `ctx enrich --model` is set; unset, the invocation stays exactly `agy -p <prompt>` and falls back to agy's own default model.
 implementation:
   - symbol: ctx_adapters.antigravity.SubprocessTransport.AgentTransport.run
 tests:

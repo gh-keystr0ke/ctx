@@ -23,21 +23,23 @@ use crate::agent_contract::{self, AgentContractError, AgentTransport};
 pub struct SubprocessTransport {
     binary: String,
     verbose: bool,
+    model: Option<String>,
 }
 
 impl SubprocessTransport {
     #[must_use]
-    pub fn new(binary: impl Into<String>, verbose: bool) -> Self {
+    pub fn new(binary: impl Into<String>, verbose: bool, model: Option<String>) -> Self {
         Self {
             binary: binary.into(),
             verbose,
+            model,
         }
     }
 }
 
 impl Default for SubprocessTransport {
     fn default() -> Self {
-        Self::new("codex", false)
+        Self::new("codex", false, None)
     }
 }
 
@@ -49,8 +51,12 @@ impl AgentTransport for SubprocessTransport {
                 self.binary, prompt
             );
         }
-        let output = Command::new(&self.binary)
-            .arg("exec")
+        let mut command = Command::new(&self.binary);
+        command.arg("exec");
+        if let Some(model) = &self.model {
+            command.arg("--model").arg(model);
+        }
+        let output = command
             .arg(prompt)
             .output()
             .map_err(|error| AgentContractError::Spawn(format!("{}: {error}", self.binary)))?;
@@ -153,10 +159,71 @@ mod tests {
             std::fs::set_permissions(&script_path, permissions).expect("chmod");
         }
 
-        let transport = SubprocessTransport::new(script_path.to_string_lossy().into_owned(), false);
+        let transport =
+            SubprocessTransport::new(script_path.to_string_lossy().into_owned(), false, None);
         let output = transport.run("hello neighborhood").expect("script output");
 
         assert!(output.contains("not_relevant"));
         assert!(output.contains("hello neighborhood"));
+    }
+
+    /// Regression test for a live bug: `--model` was accepted by every layer
+    /// above this one but never actually reached the `codex` argv, so
+    /// `ctx enrich --agent codex --model o3` silently ran codex's own
+    /// default model.
+    #[test]
+    fn subprocess_transport_passes_model_flag_to_codex() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let script_path = dir.path().join("codex");
+        std::fs::write(
+            &script_path,
+            "#!/bin/sh\nif [ \"$1\" = \"exec\" ] && [ \"$2\" = \"--model\" ] && [ \"$3\" = \"o3\" ]; then echo \"{\\\"outcome\\\":\\\"not_relevant\\\",\\\"model_arg\\\":\\\"$3\\\"}\"; else exit 1; fi\n",
+        )
+        .expect("write fake codex script");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut permissions = std::fs::metadata(&script_path)
+                .expect("script metadata")
+                .permissions();
+            permissions.set_mode(0o755);
+            std::fs::set_permissions(&script_path, permissions).expect("chmod");
+        }
+
+        let transport = SubprocessTransport::new(
+            script_path.to_string_lossy().into_owned(),
+            false,
+            Some("o3".to_owned()),
+        );
+        let output = transport.run("hello neighborhood").expect("script output");
+
+        assert!(output.contains("\"model_arg\":\"o3\""));
+    }
+
+    /// When no `--model` is configured, none is passed to `codex` either.
+    #[test]
+    fn subprocess_transport_omits_model_flag_when_none_configured() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let script_path = dir.path().join("codex");
+        std::fs::write(
+            &script_path,
+            "#!/bin/sh\nif [ \"$1\" = \"exec\" ] && [ \"$2\" = \"hello neighborhood\" ] && [ $# -eq 2 ]; then echo '{\"outcome\":\"not_relevant\"}'; else exit 1; fi\n",
+        )
+        .expect("write fake codex script");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut permissions = std::fs::metadata(&script_path)
+                .expect("script metadata")
+                .permissions();
+            permissions.set_mode(0o755);
+            std::fs::set_permissions(&script_path, permissions).expect("chmod");
+        }
+
+        let transport =
+            SubprocessTransport::new(script_path.to_string_lossy().into_owned(), false, None);
+        let output = transport.run("hello neighborhood").expect("script output");
+
+        assert!(output.contains("not_relevant"));
     }
 }

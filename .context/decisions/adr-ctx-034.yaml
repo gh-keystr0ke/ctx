@@ -1,8 +1,8 @@
 id: ADR-CTX-034
 type: decision
 status: active
-title: The Codex agent uses `codex exec <prompt>` without extra flags for read-only ana…
-decision: The Codex agent uses `codex exec <prompt>` without extra flags for read-only analysis.
+title: The Codex agent uses `codex exec [--model M] <prompt>` without extra flags beyon…
+decision: The Codex agent uses `codex exec [--model M] <prompt>` without extra flags beyond an optional `--model`, relying on `codex exec`'s own read-only-sandbox/never-approval defaults for read-only analysis. `--model` is appended only when `ctx enrich --model` is set; unset, the invocation stays exactly `codex exec <prompt>`.
 implementation:
   - symbol: ctx_adapters.codex.SubprocessTransport.AgentTransport.run
 tests:

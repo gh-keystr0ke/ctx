@@ -137,7 +137,6 @@ where
 
         let total = known_artifacts.len();
         let mut report = EnrichReport::default();
-        let mut proposed = Vec::new();
         for (index, subject) in known_artifacts.iter().enumerate() {
             if already_pending.contains(&subject.identity) {
                 report.artifacts_skipped_already_pending += 1;
@@ -158,6 +157,12 @@ where
                 .analyze(&neighborhood, produced_at, allow_ungrounded_symbols)
                 .map_err(EnrichError::Agent)?;
             report.neighborhoods_analyzed += 1;
+            if let AgentOutcome::Relevant(candidates) = outcome {
+                self.store
+                    .upsert_candidates(repository, &candidates)
+                    .map_err(EnrichError::Store)?;
+                report.candidates_proposed += candidates.len();
+            }
             self.store
                 .mark_analyzed(
                     repository,
@@ -166,14 +171,7 @@ where
                     produced_at,
                 )
                 .map_err(EnrichError::Store)?;
-            if let AgentOutcome::Relevant(candidates) = outcome {
-                report.candidates_proposed += candidates.len();
-                proposed.extend(candidates);
-            }
         }
-        self.store
-            .upsert_candidates(repository, &proposed)
-            .map_err(EnrichError::Store)?;
         Ok(report)
     }
 }
@@ -346,6 +344,28 @@ mod tests {
         calls: RefCell<usize>,
     }
 
+    struct FailingSecondAgent {
+        calls: RefCell<usize>,
+    }
+
+    impl SemanticAgent for FailingSecondAgent {
+        fn analyze(
+            &self,
+            neighborhood: &ctx_core::neighborhood::ArtifactNeighborhood,
+            _produced_at: &str,
+            _allow_ungrounded_symbols: bool,
+        ) -> Result<AgentOutcome, PortError> {
+            let mut calls = self.calls.borrow_mut();
+            *calls += 1;
+            if *calls == 2 {
+                return Err(PortError::new("second agent call failed"));
+            }
+            Ok(AgentOutcome::Relevant(vec![candidate(
+                &neighborhood.subject.identity,
+            )]))
+        }
+    }
+
     impl SemanticAgent for FakeAgent {
         fn analyze(
             &self,
@@ -435,6 +455,33 @@ mod tests {
         assert_eq!(report.candidates_proposed, 1);
         assert_eq!(*agent.calls.borrow(), 1);
         assert_eq!(store.pending.borrow().len(), 1);
+    }
+
+    #[test]
+    fn a_later_agent_failure_does_not_lose_an_earlier_result() {
+        let first = artifact("1");
+        let second = artifact("2");
+        let mut store = FakeStore {
+            artifacts: vec![first.clone(), second.clone()],
+            ..FakeStore::default()
+        };
+        let agent = FailingSecondAgent {
+            calls: RefCell::new(0),
+        };
+        let repository = RepositoryId::new("repo:test").expect("repository ID");
+
+        let error = EnrichRunner::new(&agent, &mut store)
+            .run(&repository, "2026-08-21T00:00:00Z", false)
+            .expect_err("second call must fail");
+
+        assert!(error.to_string().contains("second agent call failed"));
+        assert_eq!(store.pending.borrow().len(), 1);
+        assert_eq!(
+            store.pending.borrow()[0].evidence[0].identity,
+            first.identity
+        );
+        assert!(store.analyzed.borrow().contains_key(&first.identity));
+        assert!(!store.analyzed.borrow().contains_key(&second.identity));
     }
 
     #[test]

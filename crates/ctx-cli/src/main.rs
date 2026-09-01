@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{btree_map::Entry, BTreeMap, BTreeSet},
     env, fs,
     io::{self, IsTerminal, Write},
     path::{Path, PathBuf},
@@ -42,8 +42,9 @@ use ctx_app::{
 use ctx_core::business::{BusinessKind, ContextImportStats, Visibility};
 use ctx_core::context_pack::ContextRequest;
 use ctx_core::domain::{ClaimStatus, CommitOid, NodeKind, RelationKind};
+use ctx_core::graph::{GraphEvidence, GraphSnapshot};
 use ctx_core::indexing::PlannedNodeAttributes;
-use ctx_core::ir::{ApiParam, ParamSource};
+use ctx_core::ir::{ApiEndpoint, ApiParam, ParamSource};
 use ctx_core::trace::{
     CallResolution, EndpointTrace, FederationResolver as TraceResolver, LocalCall, TerminalReason,
     TraceBudget, VisitedKey, parse_method_path, resolve_endpoint_seeds, trace_endpoint,
@@ -796,29 +797,76 @@ fn build_export_manifest(git: &GitRepo) -> Result<ExportManifest, CliError> {
             })
         })
         .collect::<Vec<_>>();
-    let endpoints = graph
-        .edges
-        .iter()
-        .filter(|edge| edge.kind == RelationKind::Exposes)
-        .filter_map(|edge| {
-            let source = graph.nodes.get(&edge.source)?;
-            let target = graph.nodes.get(&edge.target)?;
-            let PlannedNodeAttributes::ApiEndpoint { endpoint } = &target.attributes else {
-                return None;
-            };
-            Some(ExportedEndpoint::from_contract(
-                source.identifier().to_owned(),
-                endpoint,
-                &edge.evidence,
-            ))
-        })
-        .collect::<Vec<_>>();
+    let endpoints = merged_export_endpoints(&graph);
     Ok(ExportManifest::new(
         service_name,
         head.oid.to_string(),
         documents,
         endpoints,
     ))
+}
+
+/// Merges every `Exposes` edge that targets the same `(method, path)`
+/// endpoint into one exported entry, instead of exporting one per declaring
+/// symbol. A real code handler is preferred over an `OpenAPI` operation symbol
+/// for the trace-facing `handler`, since it points at callable code; when
+/// only an `OpenAPI` operation declares the endpoint, that operation symbol is
+/// used instead. Evidence from every contributing edge (code and `OpenAPI`
+/// alike) is kept.
+fn merged_export_endpoints(graph: &GraphSnapshot) -> Vec<ExportedEndpoint> {
+    struct Merged<'a> {
+        endpoint: &'a ApiEndpoint,
+        handler: String,
+        handler_is_openapi: bool,
+        evidence: Vec<GraphEvidence>,
+    }
+
+    let mut merged: BTreeMap<String, Merged<'_>> = BTreeMap::new();
+    for edge in graph
+        .edges
+        .iter()
+        .filter(|edge| edge.kind == RelationKind::Exposes)
+    {
+        let Some(source) = graph.nodes.get(&edge.source) else {
+            continue;
+        };
+        let Some(target) = graph.nodes.get(&edge.target) else {
+            continue;
+        };
+        let PlannedNodeAttributes::ApiEndpoint { endpoint } = &target.attributes else {
+            continue;
+        };
+        let identifier = format!("{} {}", endpoint.method.as_str(), endpoint.path);
+        let source_is_openapi = matches!(
+            &source.attributes,
+            PlannedNodeAttributes::Symbol { api_endpoints, .. }
+                if api_endpoints.iter().any(|declared| declared.openapi.is_some())
+        );
+        match merged.entry(identifier) {
+            Entry::Vacant(slot) => {
+                slot.insert(Merged {
+                    endpoint,
+                    handler: source.identifier().to_owned(),
+                    handler_is_openapi: source_is_openapi,
+                    evidence: edge.evidence.clone(),
+                });
+            }
+            Entry::Occupied(mut slot) => {
+                let entry = slot.get_mut();
+                entry.evidence.extend(edge.evidence.iter().cloned());
+                if entry.handler_is_openapi && !source_is_openapi {
+                    source.identifier().clone_into(&mut entry.handler);
+                    entry.handler_is_openapi = false;
+                }
+            }
+        }
+    }
+    merged
+        .into_values()
+        .map(|entry| {
+            ExportedEndpoint::from_contract(entry.handler, entry.endpoint, &entry.evidence)
+        })
+        .collect()
 }
 
 fn context(

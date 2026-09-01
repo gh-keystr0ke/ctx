@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{btree_map::Entry, BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -1015,12 +1015,23 @@ fn add_http_facts(
     Ok(())
 }
 
+/// One `ApiEndpoint` per `(method, path)`, deduplicated across every symbol
+/// that declares it. When both a code handler and an `OpenAPI` operation
+/// describe the same endpoint, the `OpenAPI` contract is authoritative: it
+/// carries the richer, spec-derived parameter/response metadata that the
+/// code-derived contract cannot.
 fn indexed_api_endpoints(symbols: &[IndexedSymbol]) -> BTreeMap<String, ApiEndpoint> {
-    let mut endpoints = BTreeMap::new();
+    let mut endpoints: BTreeMap<String, ApiEndpoint> = BTreeMap::new();
     for endpoint in symbols.iter().flat_map(|symbol| &symbol.api_endpoints) {
-        endpoints
-            .entry(api_endpoint_identifier(endpoint))
-            .or_insert_with(|| endpoint.clone());
+        match endpoints.entry(api_endpoint_identifier(endpoint)) {
+            Entry::Vacant(slot) => {
+                slot.insert(endpoint.clone());
+            }
+            Entry::Occupied(mut slot) if endpoint.openapi.is_some() && slot.get().openapi.is_none() => {
+                slot.insert(endpoint.clone());
+            }
+            Entry::Occupied(_) => {}
+        }
     }
     endpoints
 }

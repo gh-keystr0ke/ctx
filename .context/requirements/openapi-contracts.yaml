@@ -16,14 +16,21 @@ statement: >-
   local component references must be followed. Changes must flow through the
   ordinary commit-bounded index and structural API review. Invalid or
   unsupported specifications must be reported as failed files with an
-  explicit reason, never partially guessed.
+  explicit reason, never partially guessed. When a code handler and an
+  OpenAPI operation both describe the same `(method, path)`, the OpenAPI
+  contract is authoritative and the two must export as a single merged
+  contract, not as duplicate endpoints; the merged contract keeps the real
+  code handler as the trace target when one exists, and evidence from both
+  the code and the OpenAPI edge.
 implementation:
   - symbol: ctx_adapters.language.is_openapi_spec
   - symbol: ctx_adapters.analyzer.AnalyzerRegistry.builtins
   - symbol: ctx_adapters.openapi.OpenApiAnalyzer.analyze_source
   - symbol: ctx_adapters.openapi.operation_contract
   - symbol: ctx_core.review.diff_api_endpoints
+  - symbol: ctx_core.indexing.indexed_api_endpoints
   - symbol: ctx_cli.build_export_manifest
+  - symbol: ctx_cli.merged_export_endpoints
 tests:
   - symbol: ctx_adapters.language.tests.recognizes_enabled_extensions_and_excludes_generated_trees
   - symbol: ctx_adapters.git.tests.conventional_openapi_specs_bypass_source_includes_but_not_excludes
@@ -31,3 +38,4 @@ tests:
   - symbol: ctx_adapters.openapi.tests.operation_security_overrides_global_security_and_request_body_is_typed
   - symbol: ctx_adapters.openapi.tests.rejects_non_openapi_and_unsupported_swagger_documents_explicitly
   - symbol: crates.ctx-cli.tests.e2e.openapi_specs_are_discovered_reviewed_and_exported_as_public_contracts
+  - symbol: crates.ctx-cli.tests.e2e.code_and_openapi_endpoints_for_the_same_route_export_as_one_openapi_backed_contract

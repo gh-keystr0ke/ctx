@@ -2095,6 +2095,87 @@ components:
 }
 
 #[test]
+fn code_and_openapi_endpoints_for_the_same_route_export_as_one_openapi_backed_contract() {
+    let repository = tempfile::tempdir().expect("mixed contract repository");
+    fs::create_dir_all(repository.path().join(".ctx")).expect("ctx directory");
+    fs::create_dir_all(repository.path().join("src")).expect("src directory");
+    fs::write(
+        repository.path().join(".ctx/config.toml"),
+        "languages = [\"python\"]\n\n[paths]\ninclude = [\"src\"]\n\n[service]\nname = \"mixed-service\"\n",
+    )
+    .expect("configuration");
+    fs::write(
+        repository.path().join("src/api.py"),
+        "@app.get(\"/items/{id}\")\ndef get_item(id: str) -> Item:\n    return load(id)\n",
+    )
+    .expect("Python handler");
+    let specification = r"
+openapi: 3.1.0
+paths:
+  /items/{id}:
+    get:
+      operationId: getItem
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      responses:
+        '200':
+          description: Found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Item'}
+components:
+  schemas:
+    Item: {type: object}
+";
+    fs::write(repository.path().join("openapi.yaml"), specification)
+        .expect("OpenAPI specification");
+    initialize_git_repository(repository.path());
+
+    ctx_json_at(repository.path(), &["init"]);
+    let indexed = ctx_json_at(repository.path(), &["index"]);
+    assert!(indexed["failed_files"].as_array().is_some_and(Vec::is_empty));
+
+    let exported = ctx_json_at(repository.path(), &["export"]);
+    assert_eq!(
+        exported["endpoints"], 1,
+        "code and OpenAPI evidence for the same route must merge into one exported endpoint"
+    );
+    let manifest: Value = serde_json::from_slice(
+        &fs::read(repository.path().join(".ctx/export.json")).expect("export manifest"),
+    )
+    .expect("manifest JSON");
+    let endpoints = manifest["endpoints"].as_array().expect("endpoints array");
+    assert_eq!(endpoints.len(), 1);
+    let endpoint = &endpoints[0];
+    assert_eq!(endpoint["path"], "/items/{id}");
+    assert!(
+        endpoint["openapi"].is_object(),
+        "the OpenAPI contract must win over the code-derived one: {endpoint}"
+    );
+    let handler = endpoint["handler"].as_str().expect("handler string");
+    assert!(
+        handler.contains("get_item") && !handler.starts_with("openapi."),
+        "the real code handler must be kept as the trace target, not the OpenAPI operation symbol: {handler}"
+    );
+    let evidence = endpoint["evidence"].as_array().expect("evidence array");
+    assert!(
+        evidence
+            .iter()
+            .any(|item| item["source_uri"].as_str().is_some_and(|uri| uri.contains("api.py"))),
+        "evidence must include the code handler's edge: {evidence:?}"
+    );
+    assert!(
+        evidence.iter().any(|item| item["source_uri"]
+            .as_str()
+            .is_some_and(|uri| uri.contains("openapi.yaml"))),
+        "evidence must include the OpenAPI operation's edge: {evidence:?}"
+    );
+}
+
+#[test]
 fn context_store_set_git_redirects_to_a_separate_repository_and_still_enforces_commits() {
     // ADR-CTX-050: .context/ and .ctx-candidates/ may be redirected to a
     // separate repository (e.g. because the checkout being documented isn't

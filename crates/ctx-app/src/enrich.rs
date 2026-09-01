@@ -1,19 +1,36 @@
 //! Orchestrates AI-agent-assisted knowledge extraction (prompt3.md
 //! PR-AI-*): for each currently known external artifact not already cited as
-//! evidence by a pending candidate, and whose content actually changed since
-//! its last analysis (PR-INCR-002 basic level), assembles its bounded
-//! neighborhood ([`ctx_core::neighborhood::build_neighborhood`]) and hands
-//! it to a [`SemanticAgent`]. A candidate the agent proposes is persisted as
+//! evidence by a pending candidate, not already covered by a known parent
+//! artifact, and whose content actually changed since its last analysis
+//! (PR-INCR-002 basic level), assembles its bounded neighborhood
+//! ([`ctx_core::neighborhood::build_neighborhood`]) and hands it to a
+//! [`SemanticAgent`]. A candidate the agent proposes is persisted as
 //! `pending` -- never auto-promoted to fact (PR-P02) -- for a human to
 //! decide through the existing verification flow (Phase 6). Every analyzed
 //! artifact is marked in the ledger regardless of outcome, so a
 //! `not_relevant`/`insufficient_evidence` answer is never re-asked of the
 //! agent on unchanged content either.
+//!
+//! A `Comment`/`ReviewComment` structurally `CommentsOn` its issue/MR, and a
+//! `Commit` is always `ContainsCommit`-linked from the branch or merge
+//! request that carries it, once that ingest has run -- a lone comment or
+//! commit read in isolation is rarely meaningful, and its text is already
+//! part of its parent's own neighborhood (`build_neighborhood` reads links
+//! in either direction). Spending a separate agent call on it is mostly
+//! redundant with the call already spent on its parent, so `run_with_progress`
+//! skips it as its own analysis subject whenever that parent is already
+//! known -- never when it isn't, since an orphaned comment/commit (ingested
+//! before its parent, or one whose parent was never ingested at all) is its
+//! only chance to be analyzed at all. A `Branch` is skipped the same way
+//! only when a known merge/pull request already names it as `source_branch`
+//! ([`is_covered_by_a_known_parent`]).
 
 use std::collections::HashSet;
 
 use ctx_core::{
-    artifact::Artifact, domain::RepositoryId, knowledge::AgentOutcome,
+    artifact::{Artifact, ArtifactKind, ArtifactLink, ArtifactLinkKind, ArtifactLinkTarget},
+    domain::RepositoryId,
+    knowledge::AgentOutcome,
     neighborhood::build_neighborhood,
 };
 use serde::{Deserialize, Serialize};
@@ -28,6 +45,7 @@ use crate::ports::{
 pub struct EnrichReport {
     pub neighborhoods_analyzed: usize,
     pub candidates_proposed: usize,
+    pub artifacts_skipped_covered_by_parent: usize,
     pub artifacts_skipped_already_pending: usize,
     pub artifacts_skipped_unchanged: usize,
 }
@@ -125,6 +143,10 @@ where
                 report.artifacts_skipped_already_pending += 1;
                 continue;
             }
+            if is_covered_by_a_known_parent(subject, &links, &known_artifacts) {
+                report.artifacts_skipped_covered_by_parent += 1;
+                continue;
+            }
             if analyzed_content_hashes.get(&subject.identity) == Some(&subject.content_hash) {
                 report.artifacts_skipped_unchanged += 1;
                 continue;
@@ -153,6 +175,44 @@ where
             .upsert_candidates(repository, &proposed)
             .map_err(EnrichError::Store)?;
         Ok(report)
+    }
+}
+
+/// Whether `subject` is a leaf kind whose text is already part of a known
+/// richer parent's own neighborhood, so analyzing it separately would be
+/// mostly redundant with the call already spent on that parent -- see the
+/// module doc comment. Never true for a kind with no such structural
+/// relationship (an `Issue`, `Documentation`, `CodeComment`, ...), and never
+/// true when the parent itself isn't among `known_artifacts` (an orphan
+/// gets its own chance to be analyzed).
+fn is_covered_by_a_known_parent(
+    subject: &Artifact,
+    links: &[ArtifactLink],
+    known_artifacts: &[Artifact],
+) -> bool {
+    let has_known_counterpart =
+        |identity| known_artifacts.iter().any(|artifact| &artifact.identity == identity);
+    match subject.identity.kind {
+        ArtifactKind::Comment | ArtifactKind::ReviewComment => links.iter().any(|link| {
+            link.source == subject.identity
+                && link.kind == ArtifactLinkKind::CommentsOn
+                && matches!(&link.target, ArtifactLinkTarget::Artifact(parent) if has_known_counterpart(parent))
+        }),
+        ArtifactKind::Commit => links.iter().any(|link| {
+            link.kind == ArtifactLinkKind::ContainsCommit
+                && link.target == ArtifactLinkTarget::Artifact(subject.identity.clone())
+                && has_known_counterpart(&link.source)
+        }),
+        ArtifactKind::Branch => links.iter().any(|link| {
+            link.kind == ArtifactLinkKind::References
+                && link.target == ArtifactLinkTarget::Artifact(subject.identity.clone())
+                && matches!(
+                    link.source.kind,
+                    ArtifactKind::MergeRequest | ArtifactKind::PullRequest
+                )
+                && has_known_counterpart(&link.source)
+        }),
+        _ => false,
     }
 }
 
@@ -303,10 +363,14 @@ mod tests {
     }
 
     fn artifact(external_id: &str) -> Artifact {
+        artifact_of_kind(external_id, ArtifactKind::Issue)
+    }
+
+    fn artifact_of_kind(external_id: &str, kind: ArtifactKind) -> Artifact {
         Artifact {
             identity: ArtifactIdentity {
                 provider: ArtifactProvider::GitLab,
-                kind: ArtifactKind::Issue,
+                kind,
                 external_id: external_id.to_owned(),
             },
             project: ctx_core::domain::Project("billing/subscriptions".to_owned()),
@@ -485,5 +549,121 @@ mod tests {
             vec![(1, 3, "1".to_owned()), (3, 3, "3".to_owned())],
             "reported once per real analysis, positioned within the full known-artifact count, skipping the already-pending one silently"
         );
+    }
+
+    #[test]
+    fn a_comment_with_a_known_parent_is_skipped_but_its_parent_is_still_analyzed() {
+        let issue = artifact("317");
+        let comment = artifact_of_kind("317-comment-1", ArtifactKind::Comment);
+        let mut store = FakeStore {
+            artifacts: vec![issue.clone(), comment.clone()],
+            links: vec![ArtifactLink {
+                source: comment.identity.clone(),
+                target: ArtifactLinkTarget::Artifact(issue.identity.clone()),
+                kind: ArtifactLinkKind::CommentsOn,
+                evidence_locator: "gitlab notes API: 317".to_owned(),
+            }],
+            ..FakeStore::default()
+        };
+        let agent = FakeAgent {
+            outcome: RefCell::new(BTreeMap::new()),
+            calls: RefCell::new(0),
+        };
+        let repository = RepositoryId::new("repo:test").expect("repository ID");
+
+        let report = EnrichRunner::new(&agent, &mut store)
+            .run(&repository, "2026-08-21T00:00:00Z", false)
+            .expect("enrich run");
+
+        assert_eq!(report.artifacts_skipped_covered_by_parent, 1);
+        assert_eq!(report.neighborhoods_analyzed, 1);
+        assert_eq!(*agent.calls.borrow(), 1);
+    }
+
+    #[test]
+    fn an_orphaned_comment_with_no_known_parent_is_still_analyzed() {
+        let comment = artifact_of_kind("999-comment-1", ArtifactKind::Comment);
+        let mut store = FakeStore {
+            artifacts: vec![comment.clone()],
+            links: vec![ArtifactLink {
+                source: comment.identity.clone(),
+                target: ArtifactLinkTarget::Artifact(ArtifactIdentity {
+                    provider: ArtifactProvider::GitLab,
+                    kind: ArtifactKind::Issue,
+                    external_id: "999".to_owned(),
+                }),
+                kind: ArtifactLinkKind::CommentsOn,
+                evidence_locator: "gitlab notes API: 999".to_owned(),
+            }],
+            ..FakeStore::default()
+        };
+        let agent = FakeAgent {
+            outcome: RefCell::new(BTreeMap::new()),
+            calls: RefCell::new(0),
+        };
+        let repository = RepositoryId::new("repo:test").expect("repository ID");
+
+        let report = EnrichRunner::new(&agent, &mut store)
+            .run(&repository, "2026-08-21T00:00:00Z", false)
+            .expect("enrich run");
+
+        assert_eq!(report.artifacts_skipped_covered_by_parent, 0);
+        assert_eq!(report.neighborhoods_analyzed, 1);
+    }
+
+    #[test]
+    fn a_branch_named_by_a_known_merge_requests_source_branch_is_skipped() {
+        let branch = artifact_of_kind("feature/PAY-317-cancel", ArtifactKind::Branch);
+        let merge_request = artifact_of_kind("842", ArtifactKind::MergeRequest);
+        let mut store = FakeStore {
+            artifacts: vec![branch.clone(), merge_request.clone()],
+            links: vec![ArtifactLink {
+                source: merge_request.identity.clone(),
+                target: ArtifactLinkTarget::Artifact(branch.identity.clone()),
+                kind: ArtifactLinkKind::References,
+                evidence_locator: "merge_request.source_branch".to_owned(),
+            }],
+            ..FakeStore::default()
+        };
+        let agent = FakeAgent {
+            outcome: RefCell::new(BTreeMap::new()),
+            calls: RefCell::new(0),
+        };
+        let repository = RepositoryId::new("repo:test").expect("repository ID");
+
+        let report = EnrichRunner::new(&agent, &mut store)
+            .run(&repository, "2026-08-21T00:00:00Z", false)
+            .expect("enrich run");
+
+        assert_eq!(report.artifacts_skipped_covered_by_parent, 1);
+        assert_eq!(report.neighborhoods_analyzed, 1);
+    }
+
+    #[test]
+    fn a_commit_contained_by_a_known_branch_or_merge_request_is_skipped() {
+        let commit = artifact_of_kind("abc123", ArtifactKind::Commit);
+        let branch = artifact_of_kind("feature/x", ArtifactKind::Branch);
+        let mut store = FakeStore {
+            artifacts: vec![commit.clone(), branch.clone()],
+            links: vec![ArtifactLink {
+                source: branch.identity.clone(),
+                target: ArtifactLinkTarget::Artifact(commit.identity.clone()),
+                kind: ArtifactLinkKind::ContainsCommit,
+                evidence_locator: "branch:feature/x".to_owned(),
+            }],
+            ..FakeStore::default()
+        };
+        let agent = FakeAgent {
+            outcome: RefCell::new(BTreeMap::new()),
+            calls: RefCell::new(0),
+        };
+        let repository = RepositoryId::new("repo:test").expect("repository ID");
+
+        let report = EnrichRunner::new(&agent, &mut store)
+            .run(&repository, "2026-08-21T00:00:00Z", false)
+            .expect("enrich run");
+
+        assert_eq!(report.artifacts_skipped_covered_by_parent, 1);
+        assert_eq!(report.neighborhoods_analyzed, 1);
     }
 }

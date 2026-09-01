@@ -1369,10 +1369,12 @@ fn enrich(
         println!("{}", serde_json::to_string_pretty(&report)?);
     } else {
         println!(
-            "Analyzed {} artifact neighborhood(s), {} candidate(s) proposed ({} skipped, already pending)",
+            "Analyzed {} artifact neighborhood(s), {} candidate(s) proposed \
+             ({} skipped, already pending; {} skipped, covered by a known parent)",
             report.neighborhoods_analyzed,
             report.candidates_proposed,
-            report.artifacts_skipped_already_pending
+            report.artifacts_skipped_already_pending,
+            report.artifacts_skipped_covered_by_parent
         );
     }
     Ok(())

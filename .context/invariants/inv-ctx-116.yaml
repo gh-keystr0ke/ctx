@@ -1,0 +1,12 @@
+id: INV-CTX-116
+type: invariant
+status: active
+statement: Enrichment never spends its own agent call on a Comment, ReviewComment, Commit, or Branch that already structurally resolves to a known parent artifact (CommentsOn, ContainsCommit, or a merge/pull request's source_branch References link) — that artifact's text is already part of the parent's own neighborhood. An orphaned artifact with no such known parent is still analyzed.
+implementation:
+- symbol: ctx_app.enrich.is_covered_by_a_known_parent
+- symbol: ctx_app.enrich.EnrichRunner.run_with_progress
+tests:
+- symbol: ctx_app.enrich.tests.a_comment_with_a_known_parent_is_skipped_but_its_parent_is_still_analyzed
+- symbol: ctx_app.enrich.tests.an_orphaned_comment_with_no_known_parent_is_still_analyzed
+- symbol: ctx_app.enrich.tests.a_branch_named_by_a_known_merge_requests_source_branch_is_skipped
+- symbol: ctx_app.enrich.tests.a_commit_contained_by_a_known_branch_or_merge_request_is_skipped

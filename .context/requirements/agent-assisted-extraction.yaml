@@ -40,8 +40,18 @@ statement: >
   skips an artifact already cited as evidence by a pending candidate, and
   separately skips one whose content hasn't changed since its last analysis
   regardless of outcome (REQ-INCR-002 -- a `not_relevant` answer is recorded
-  too, not only a proposed candidate) rather than re-analyzing it every run;
-  everything built before this phase
+  too, not only a proposed candidate) rather than re-analyzing it every run.
+  It also skips a `Comment`/`ReviewComment`/`Commit`/`Branch` as its own
+  analysis subject whenever a known parent artifact already structurally
+  covers it (a comment's known `CommentsOn` issue/MR, a commit's known
+  containing branch or MR via `ContainsCommit`, a branch's known merge/pull
+  request via its `source_branch` `References` link) -- that artifact's text
+  is already part of the parent's own neighborhood (`build_neighborhood`
+  reads links in either direction), so a separate agent call on it is mostly
+  redundant with the one already spent on its parent. Never skipped when no
+  such parent is yet known (an orphaned comment/commit, or a branch with no
+  merge request), since that is its only chance to be analyzed at all.
+  Everything built before this phase
   (`ctx index`/`ctx impact`/`ctx review`/`ctx explain`/`ctx context`) keeps
   working unchanged with zero agents ever configured and zero candidates
   ever proposed (PR-AGENT-002). This contract -- prompt shape, JSON parsing,
@@ -58,6 +68,7 @@ statement: >
 implementation:
   - symbol: ctx_app.ports.SemanticAgent
   - symbol: ctx_app.enrich.EnrichRunner.run_with_progress
+  - symbol: ctx_app.enrich.is_covered_by_a_known_parent
   - symbol: ctx_adapters.agent_contract.analyze
   - symbol: ctx_adapters.agent_contract.to_outcome
   - symbol: ctx_adapters.claude_code.ClaudeCodeAgent.analyze_neighborhood
@@ -78,6 +89,10 @@ tests:
   - symbol: ctx_app.enrich.tests.not_relevant_outcomes_never_reach_the_candidate_store
   - symbol: ctx_app.enrich.tests.an_artifact_analyzed_at_its_current_content_hash_is_skipped_next_run
   - symbol: ctx_app.enrich.tests.run_with_progress_reports_position_and_total_only_for_real_analysis
+  - symbol: ctx_app.enrich.tests.a_comment_with_a_known_parent_is_skipped_but_its_parent_is_still_analyzed
+  - symbol: ctx_app.enrich.tests.an_orphaned_comment_with_no_known_parent_is_still_analyzed
+  - symbol: ctx_app.enrich.tests.a_branch_named_by_a_known_merge_requests_source_branch_is_skipped
+  - symbol: ctx_app.enrich.tests.a_commit_contained_by_a_known_branch_or_merge_request_is_skipped
   - symbol: crates.ctx-cli.tests.e2e.enrich_shells_out_to_the_configured_agent_and_reports_its_outcome
   - symbol: crates.ctx-cli.tests.e2e.enrich_rejects_an_unsupported_agent
   - symbol: crates.ctx-cli.tests.e2e.enrich_dispatches_codex_to_codex_exec_with_its_own_binary_override

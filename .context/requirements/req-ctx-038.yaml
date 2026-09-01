@@ -20,6 +20,10 @@ implementation:
   - symbol: ctx_adapters.jira.UreqTransport.JiraTransport.post
   - symbol: ctx_adapters.sqlite.SqliteStore.open
   - symbol: ctx_app.index.IndexRunner.run
+  - symbol: ctx_adapters.agent_contract.run_agent_contract
+  - symbol: ctx_adapters.claude_code.SubprocessTransport.AgentTransport.run
+  - symbol: ctx_adapters.codex.SubprocessTransport.AgentTransport.run
+  - symbol: ctx_adapters.antigravity.SubprocessTransport.AgentTransport.run
 tests:
   - symbol: crates.ctx-cli.tests.e2e.verbosity_keeps_json_stdout_parseable_and_reports_command_lifecycle
   - symbol: crates.ctx-cli.tests.e2e.ingest_reports_progress_at_the_first_verbosity_level

@@ -22,16 +22,14 @@ use crate::agent_contract::{self, AgentContractError, AgentTransport};
 
 pub struct SubprocessTransport {
     binary: String,
-    verbose: bool,
     model: Option<String>,
 }
 
 impl SubprocessTransport {
     #[must_use]
-    pub fn new(binary: impl Into<String>, verbose: bool, model: Option<String>) -> Self {
+    pub fn new(binary: impl Into<String>, _verbose: bool, model: Option<String>) -> Self {
         Self {
             binary: binary.into(),
-            verbose,
             model,
         }
     }
@@ -45,12 +43,13 @@ impl Default for SubprocessTransport {
 
 impl AgentTransport for SubprocessTransport {
     fn run(&self, prompt: &str) -> Result<String, AgentContractError> {
-        if self.verbose {
-            eprintln!(
-                "--- AGENT PROMPT ({}) ---\n{}\n--- END PROMPT ---",
-                self.binary, prompt
-            );
-        }
+        tracing::debug!(
+            agent = "codex",
+            binary = self.binary,
+            model = ?self.model,
+            "starting agent subprocess"
+        );
+        let started = std::time::Instant::now();
         let mut command = Command::new(&self.binary);
         command.arg("exec");
         if let Some(model) = &self.model {
@@ -60,6 +59,18 @@ impl AgentTransport for SubprocessTransport {
             .arg(prompt)
             .output()
             .map_err(|error| AgentContractError::Spawn(format!("{}: {error}", self.binary)))?;
+        tracing::debug!(
+            agent = "codex",
+            status = ?output.status.code(),
+            elapsed_ms = started.elapsed().as_millis(),
+            "agent subprocess completed"
+        );
+        tracing::trace!(
+            agent = "codex",
+            stdout = %String::from_utf8_lossy(&output.stdout),
+            stderr = %String::from_utf8_lossy(&output.stderr),
+            "agent subprocess output"
+        );
         if !output.status.success() {
             return Err(AgentContractError::ExitFailure(format!(
                 "{}: {}",

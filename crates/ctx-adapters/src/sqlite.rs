@@ -59,6 +59,8 @@ impl SqliteStore {
     /// Returns [`SqliteStoreError`] when the file cannot be opened, `SQLite`
     /// configuration fails, or a migration cannot be applied.
     pub fn open(path: &Path, root: &Path) -> Result<Self, SqliteStoreError> {
+        let started = std::time::Instant::now();
+        tracing::debug!(path = %path.display(), "SQLite store opening");
         let mut connection = Connection::open(path).map_err(|source| SqliteStoreError::Open {
             path: path.display().to_string(),
             source,
@@ -77,6 +79,7 @@ impl SqliteStore {
                 |row| row.get::<_, bool>(0),
             )?;
             if !applied {
+                tracing::trace!(version, "SQLite migration applying");
                 transaction.execute_batch(migration)?;
                 transaction.execute(
                     "INSERT INTO schema_migrations(version) VALUES (?1)",
@@ -85,6 +88,11 @@ impl SqliteStore {
             }
         }
         transaction.commit()?;
+        tracing::debug!(
+            path = %path.display(),
+            elapsed_ms = started.elapsed().as_millis(),
+            "SQLite store opened"
+        );
 
         Ok(Self {
             connection,

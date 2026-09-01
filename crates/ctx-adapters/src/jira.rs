@@ -110,7 +110,8 @@ impl UreqTransport {
 impl JiraTransport for UreqTransport {
     fn get(&self, path: &str) -> Result<String, JiraError> {
         let url = format!("{}{path}", self.base_url);
-        http_retry::run(self.retry_policy, &ThreadSleeper, || {
+        tracing::debug!(method = "GET", url, "Jira request started");
+        let result = http_retry::run(self.retry_policy, &ThreadSleeper, || {
             let mut response = self
                 .agent
                 .get(&url)
@@ -142,12 +143,23 @@ impl JiraTransport for UreqTransport {
                     format!("HTTP {status} after {attempts} attempt(s)")
                 }
             },
-        })
+        });
+        if let Ok(body) = &result {
+            tracing::trace!(
+                method = "GET",
+                url,
+                response = body,
+                "Jira response received"
+            );
+        }
+        result
     }
 
     fn post(&self, path: &str, body: &str) -> Result<String, JiraError> {
         let url = format!("{}{path}", self.base_url);
-        http_retry::run(self.retry_policy, &ThreadSleeper, || {
+        tracing::debug!(method = "POST", url, "Jira request started");
+        tracing::trace!(method = "POST", url, request = body, "Jira request body");
+        let result = http_retry::run(self.retry_policy, &ThreadSleeper, || {
             let mut response = self
                 .agent
                 .post(&url)
@@ -180,7 +192,11 @@ impl JiraTransport for UreqTransport {
                     format!("HTTP {status} after {attempts} attempt(s)")
                 }
             },
-        })
+        });
+        if let Ok(response) = &result {
+            tracing::trace!(method = "POST", url, response, "Jira response received");
+        }
+        result
     }
 }
 

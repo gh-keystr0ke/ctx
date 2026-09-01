@@ -1327,6 +1327,7 @@ fn find(cli: &Cli, git: &GitRepo, target: &str) -> Result<(), CliError> {
 }
 
 fn ingest(cli: &Cli, git: &GitRepo, source: &str, since: Option<&str>) -> Result<(), CliError> {
+    tracing::info!(source, since, "ingest started");
     let database_path = database_path(git.root())?;
     let mut store = SqliteStore::open(&database_path, git.context_root())?;
     let repository = git.descriptor()?;
@@ -1369,6 +1370,12 @@ fn ingest(cli: &Cli, git: &GitRepo, source: &str, since: Option<&str>) -> Result
         }
         other => return Err(CliError::UnsupportedIngestSource(other.to_owned())),
     };
+    tracing::info!(
+        source,
+        artifacts = report.artifacts_ingested,
+        links = report.links_created,
+        "ingest completed"
+    );
     if cli.json {
         println!("{}", serde_json::to_string_pretty(&report)?);
     } else {

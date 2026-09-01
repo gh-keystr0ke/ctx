@@ -110,7 +110,16 @@ pub fn run<T, E>(
 ) -> Result<T, RetryError<E>> {
     let mut retries_used = 0;
     loop {
+        tracing::debug!(attempt = retries_used + 1, "HTTP attempt started");
+        let started = std::time::Instant::now();
         let response = attempt().map_err(RetryError::Request)?;
+        tracing::trace!(
+            attempt = retries_used + 1,
+            status = response.status,
+            retry_after = ?response.retry_after,
+            elapsed_ms = started.elapsed().as_millis(),
+            "HTTP attempt completed"
+        );
         if (200..300).contains(&response.status) {
             return Ok(response.value);
         }
@@ -120,7 +129,14 @@ pub fn run<T, E>(
                 attempts: retries_used + 1,
             });
         }
-        sleeper.sleep(policy.delay(retries_used, response.retry_after.as_deref()));
+        let delay = policy.delay(retries_used, response.retry_after.as_deref());
+        tracing::debug!(
+            attempt = retries_used + 1,
+            status = response.status,
+            delay_ms = delay.as_millis(),
+            "HTTP attempt scheduled for retry"
+        );
+        sleeper.sleep(delay);
         retries_used += 1;
     }
 }

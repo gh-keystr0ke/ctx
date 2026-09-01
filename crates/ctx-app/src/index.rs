@@ -87,6 +87,10 @@ where
             .latest_commit(&repository.id)
             .map_err(IndexError::Storage)?;
         let current_paths = self.git.all_source_files().map_err(IndexError::Git)?;
+        tracing::debug!(
+            source_files = current_paths.len(),
+            "index source scope loaded"
+        );
         let changes = previous
             .as_ref()
             .map_or_else(
@@ -119,6 +123,7 @@ where
             .collect::<Result<BTreeMap<_, _>, _>>()
             .map_err(IndexError::Analysis)?;
         let changes = reconcile_analysis_versions(&changes, &snapshot, &expected_versions);
+        tracing::debug!(changes = changes.len(), "index change plan prepared");
         if changes.is_empty()
             && previous
                 .as_ref()
@@ -131,19 +136,7 @@ where
                 failed_files: Vec::new(),
             });
         }
-        let mut analyses = BTreeMap::new();
-        let mut failed_files = Vec::new();
-        for path in changes.iter().filter_map(|change| change.current_path()) {
-            match self.analyzer.analyze(path) {
-                Ok(file_ir) => {
-                    analyses.insert(path.to_owned(), file_ir);
-                }
-                Err(error) => failed_files.push(FailedFile {
-                    path: path.to_owned(),
-                    error: error.to_string(),
-                }),
-            }
-        }
+        let (analyses, failed_files) = self.analyze_sources(&changes);
         let changes = changes
             .into_iter()
             .filter(|change| {
@@ -153,6 +146,7 @@ where
             })
             .collect::<Vec<_>>();
         let plan = plan_incremental_index(&snapshot, &analyses, &changes)?;
+        tracing::debug!(stats = ?plan.stats, "index persistence started");
         self.store
             .apply_index(&repository.id, &head, now, &plan)
             .map_err(IndexError::Storage)?;
@@ -163,5 +157,40 @@ where
             stats: plan.stats,
             failed_files,
         })
+    }
+
+    fn analyze_sources(
+        &self,
+        changes: &[ctx_core::indexing::FileChange],
+    ) -> (
+        BTreeMap<String, ctx_core::ir::FileAnalysis>,
+        Vec<FailedFile>,
+    ) {
+        let mut analyses = BTreeMap::new();
+        let mut failed_files = Vec::new();
+        for path in changes
+            .iter()
+            .filter_map(ctx_core::indexing::FileChange::current_path)
+        {
+            tracing::trace!(path, "source analysis started");
+            match self.analyzer.analyze(path) {
+                Ok(file_ir) => {
+                    tracing::trace!(
+                        path,
+                        symbols = file_ir.symbols.len(),
+                        "source analysis completed"
+                    );
+                    analyses.insert(path.to_owned(), file_ir);
+                }
+                Err(error) => {
+                    tracing::debug!(path, error = %error, "source analysis failed");
+                    failed_files.push(FailedFile {
+                        path: path.to_owned(),
+                        error: error.to_string(),
+                    });
+                }
+            }
+        }
+        (analyses, failed_files)
     }
 }

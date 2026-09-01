@@ -210,17 +210,48 @@ fn verbosity_keeps_json_stdout_parseable_and_reports_command_lifecycle() {
     repository.ctx(&["init"]);
     repository.ctx(&["index"]);
 
-    let output = Command::new(env!("CARGO_BIN_EXE_ctx"))
-        .current_dir(repository.root())
-        .args(["--json", "-vvv", "status"])
-        .output()
-        .expect("execute verbose ctx");
-
+    let run = |level: &str| {
+        Command::new(env!("CARGO_BIN_EXE_ctx"))
+            .current_dir(repository.root())
+            .args(["--json", level, "status"])
+            .output()
+            .expect("execute verbose ctx")
+    };
+    let output = run("-v");
     assert!(output.status.success());
     serde_json::from_slice::<Value>(&output.stdout).expect("parse JSON stdout");
     let stderr = String::from_utf8(output.stderr).expect("UTF-8 stderr");
     assert!(stderr.contains("command started"));
-    assert!(stderr.contains("command completed"));
+    assert!(!stderr.contains("SQLite store opening"));
+
+    let output = run("-vv");
+    assert!(output.status.success());
+    let stderr = String::from_utf8(output.stderr).expect("UTF-8 stderr");
+    assert!(stderr.contains("SQLite store opening"));
+    assert!(stderr.contains("git command started"));
+    assert!(!stderr.contains("git command completed"));
+
+    let output = run("-vvv");
+    assert!(output.status.success());
+    let stderr = String::from_utf8(output.stderr).expect("UTF-8 stderr");
+    assert!(stderr.contains("git command completed"));
+}
+
+#[test]
+fn ingest_reports_progress_at_the_first_verbosity_level() {
+    let repository = FixtureRepository::new();
+    repository.ctx(&["init"]);
+    let output = Command::new(env!("CARGO_BIN_EXE_ctx"))
+        .current_dir(repository.root())
+        .args(["--json", "-v", "ingest", "git"])
+        .output()
+        .expect("execute verbose ingest");
+
+    assert!(output.status.success());
+    serde_json::from_slice::<Value>(&output.stdout).expect("parse JSON stdout");
+    let stderr = String::from_utf8(output.stderr).expect("UTF-8 stderr");
+    assert!(stderr.contains("ingest started"));
+    assert!(stderr.contains("ingest completed"));
 }
 
 #[test]

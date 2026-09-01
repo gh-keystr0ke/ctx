@@ -4,12 +4,23 @@ status: active
 visibility: private
 statement: >-
   The global repeatable -v flag must select progressively richer terminal diagnostics without
-  corrupting JSON stdout, while --debug independently records trace-level JSONL diagnostics in a
-  timestamped, permission-restricted, Git-ignored file under .ctx/logs.
+  corrupting JSON stdout: -v reports command and ingest lifecycle, -vv adds internal stages and
+  external-call metadata without payloads, and -vvv adds timings plus raw request/response data.
+  Independently, --debug must record the -vvv stream as timestamped JSONL in a
+  permission-restricted, Git-ignored file under .ctx/logs.
 implementation:
   - symbol: ctx_cli.diagnostics.init
   - symbol: ctx_cli.execute
+  - symbol: ctx_cli.ingest
   - symbol: ctx_adapters.git.GitRepo.ignore_local_state
+  - symbol: ctx_adapters.git.run_git
+  - symbol: ctx_adapters.http_retry.run
+  - symbol: ctx_adapters.gitlab.UreqTransport.GitLabTransport.get
+  - symbol: ctx_adapters.jira.UreqTransport.JiraTransport.get
+  - symbol: ctx_adapters.jira.UreqTransport.JiraTransport.post
+  - symbol: ctx_adapters.sqlite.SqliteStore.open
+  - symbol: ctx_app.index.IndexRunner.run
 tests:
   - symbol: crates.ctx-cli.tests.e2e.verbosity_keeps_json_stdout_parseable_and_reports_command_lifecycle
+  - symbol: crates.ctx-cli.tests.e2e.ingest_reports_progress_at_the_first_verbosity_level
   - symbol: crates.ctx-cli.tests.e2e.debug_writes_trace_jsonl_and_keeps_it_out_of_git

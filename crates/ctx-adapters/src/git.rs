@@ -354,11 +354,22 @@ fn is_inside_work_tree(path: &Path) -> bool {
 }
 
 fn run_git(root: &Path, args: &[&str]) -> Result<Vec<u8>, GitError> {
+    let started = std::time::Instant::now();
+    tracing::debug!(root = %root.display(), args = ?args, "git command started");
     let output = Command::new("git")
         .arg("-C")
         .arg(root)
         .args(args)
         .output()?;
+    tracing::trace!(
+        root = %root.display(),
+        args = ?args,
+        status = ?output.status.code(),
+        elapsed_ms = started.elapsed().as_millis(),
+        stdout = %String::from_utf8_lossy(&output.stdout),
+        stderr = %String::from_utf8_lossy(&output.stderr),
+        "git command completed"
+    );
     if output.status.success() {
         Ok(output.stdout)
     } else {

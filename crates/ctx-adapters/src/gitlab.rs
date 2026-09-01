@@ -77,7 +77,8 @@ impl UreqTransport {
 impl GitLabTransport for UreqTransport {
     fn get(&self, path: &str) -> Result<String, GitLabError> {
         let url = format!("{}{path}", self.base_url);
-        http_retry::run(self.retry_policy, &ThreadSleeper, || {
+        tracing::debug!(method = "GET", url, "GitLab request started");
+        let result = http_retry::run(self.retry_policy, &ThreadSleeper, || {
             let mut request = self.agent.get(&url);
             if let Some(token) = &self.token {
                 request = request.header("PRIVATE-TOKEN", token);
@@ -107,7 +108,16 @@ impl GitLabTransport for UreqTransport {
                     format!("HTTP {status} after {attempts} attempt(s)")
                 }
             },
-        })
+        });
+        if let Ok(body) = &result {
+            tracing::trace!(
+                method = "GET",
+                url,
+                response = body,
+                "GitLab response received"
+            );
+        }
+        result
     }
 }
 

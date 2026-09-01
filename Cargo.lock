@@ -251,6 +251,7 @@ dependencies = [
  "tempfile",
  "thiserror",
  "toml",
+ "tracing",
  "tree-sitter",
  "tree-sitter-go",
  "tree-sitter-python",
@@ -267,6 +268,7 @@ dependencies = [
  "ctx-core",
  "serde",
  "thiserror",
+ "tracing",
 ]
 
 [[package]]

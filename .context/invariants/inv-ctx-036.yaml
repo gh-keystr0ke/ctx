@@ -1,9 +1,11 @@
 id: INV-CTX-036
 type: invariant
 status: active
-statement: ChangedSymbol links deterministically connect a source artifact to every currently indexed code symbol in files listed by changed_paths; they are file-level structural evidence and do not claim which symbol bodies changed. A changeset wider than MAX_CHANGED_PATHS_FOR_SYMBOL_ATTRIBUTION attributes no symbols at all rather than an arbitrary subset.
+statement: ChangedSymbol links deterministically connect a source artifact to every currently indexed code symbol in files listed by changed_paths; they are file-level structural evidence and do not claim which symbol bodies changed. A changeset wider than 10% of the repository's currently indexed files (floored at 20 files for small repositories) attributes no symbols at all rather than an arbitrary subset, so the cap scales with repository size instead of a fixed file count.
 implementation:
 - symbol: ctx_core.linking.changed_symbol_links
+- symbol: ctx_core.linking.sweep_threshold
 tests:
 - symbol: ctx_core.linking.tests.changed_symbol_links_attribute_symbols_in_changed_files_only
 - symbol: ctx_core.linking.tests.an_oversized_changeset_attributes_no_symbols_rather_than_an_arbitrary_subset
+- symbol: ctx_core.linking.tests.the_sweep_threshold_scales_with_repository_size_rather_than_a_fixed_count

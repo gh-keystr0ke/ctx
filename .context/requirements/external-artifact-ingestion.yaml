@@ -21,9 +21,10 @@ statement: >
   Each commit is additionally linked (`ChangedSymbol`) to every currently
   indexed code symbol in the files that commit itself changed, read from the
   same `git log --name-status` pass that produced the commit artifact rather
-  than a per-commit subprocess; a changeset wider than
-  `ctx_core.linking.MAX_CHANGED_PATHS_FOR_SYMBOL_ATTRIBUTION` attributes no
-  symbols at all rather than an arbitrary subset. After ingesting, every artifact's title/body text is scanned for deterministic
+  than a per-commit subprocess; a changeset wider than 10% of the
+  repository's currently indexed files (floored at 20 for small
+  repositories) attributes no symbols at all rather than an arbitrary
+  subset. After ingesting, every artifact's title/body text is scanned for deterministic
   references (ctx_core.linking) to every other artifact already known for
   the repository, and a References link is persisted for each one that
   resolves to a real, already-known target — never a guessed one.
@@ -105,6 +106,7 @@ tests:
   - symbol: ctx_adapters.git.tests.commit_artifacts_report_each_commits_own_changed_files_not_a_cumulative_range
   - symbol: ctx_app.ingest.tests.git_ingest_links_a_commit_to_the_symbols_in_the_files_it_changed
   - symbol: ctx_core.linking.tests.an_oversized_changeset_attributes_no_symbols_rather_than_an_arbitrary_subset
+  - symbol: ctx_core.linking.tests.the_sweep_threshold_scales_with_repository_size_rather_than_a_fixed_count
   - symbol: crates.ctx-cli.tests.e2e.ingest_git_reads_commits_and_branches_and_links_a_referenced_ticket
   - symbol: ctx_core.codedoc.tests.groups_consecutive_doc_comment_lines_into_one_block_attached_to_the_following_symbol
   - symbol: ctx_core.codedoc.tests.python_docstring_attaches_to_its_enclosing_function_not_only_the_file

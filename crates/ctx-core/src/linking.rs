@@ -285,12 +285,46 @@ pub fn text_reference_links(source: &Artifact, known_artifacts: &[Artifact]) -> 
     links
 }
 
-/// Above this many changed paths, a changeset is a sweep — a vendored drop,
-/// a formatting pass, a generated-code regeneration — where "this file
-/// changed, so every symbol in it is implicated" stops being evidence and
-/// becomes noise. [`changed_symbol_links`] emits nothing at all past this
-/// point, rather than an arbitrary subset.
-pub const MAX_CHANGED_PATHS_FOR_SYMBOL_ATTRIBUTION: usize = 50;
+/// A changeset touching more than this fraction of the repository's own
+/// currently indexed files is a sweep — a vendored drop, a formatting pass,
+/// a generated-code regeneration, a mechanical rename across half the
+/// codebase — where "this file changed, so every symbol in it is
+/// implicated" stops being evidence and becomes noise. A fixed file count
+/// would be meaningless across repository sizes (50 files is most of a
+/// small service but a rounding error in a monorepo), so the threshold
+/// scales with [`indexed_file_count`], floored at
+/// [`MIN_CHANGED_PATHS_FOR_SYMBOL_ATTRIBUTION`] so a small repository isn't
+/// blocked from ever attributing a normal-sized commit.
+const SWEEP_RATIO: f64 = 0.1;
+
+/// The floor [`sweep_threshold`] never drops below, regardless of how few
+/// files are currently indexed.
+const MIN_CHANGED_PATHS_FOR_SYMBOL_ATTRIBUTION: usize = 20;
+
+/// Distinct file paths currently backing an indexed code symbol.
+fn indexed_file_count(graph: &GraphSnapshot) -> usize {
+    graph
+        .nodes
+        .values()
+        .filter_map(|node| match &node.attributes {
+            PlannedNodeAttributes::Symbol { file_path, .. } => Some(file_path.as_str()),
+            _ => None,
+        })
+        .collect::<BTreeSet<_>>()
+        .len()
+}
+
+/// Above this many changed paths, [`changed_symbol_links`] emits nothing at
+/// all rather than an arbitrary subset. See [`SWEEP_RATIO`].
+fn sweep_threshold(graph: &GraphSnapshot) -> usize {
+    #[allow(
+        clippy::cast_precision_loss,
+        clippy::cast_sign_loss,
+        clippy::cast_possible_truncation
+    )]
+    let scaled = (indexed_file_count(graph) as f64 * SWEEP_RATIO).round() as usize;
+    scaled.max(MIN_CHANGED_PATHS_FOR_SYMBOL_ATTRIBUTION)
+}
 
 /// Deterministic `ChangedSymbol` links from `source` to every currently
 /// indexed code symbol whose file is among `changed_paths` — a structural
@@ -299,14 +333,14 @@ pub const MAX_CHANGED_PATHS_FOR_SYMBOL_ATTRIBUTION: usize = 50;
 /// evidence than a proven per-symbol body change (see
 /// `ctx_core::review`'s changed-entity detection), but never a guess about
 /// *what* changed, only *where*. Empty when `changed_paths` exceeds
-/// [`MAX_CHANGED_PATHS_FOR_SYMBOL_ATTRIBUTION`].
+/// [`sweep_threshold`].
 #[must_use]
 pub fn changed_symbol_links(
     source: &ArtifactIdentity,
     changed_paths: &BTreeSet<String>,
     graph: &GraphSnapshot,
 ) -> Vec<ArtifactLink> {
-    if changed_paths.len() > MAX_CHANGED_PATHS_FOR_SYMBOL_ATTRIBUTION {
+    if changed_paths.len() > sweep_threshold(graph) {
         return Vec::new();
     }
     let mut links = graph
@@ -476,7 +510,9 @@ mod tests {
             edges: Vec::new(),
         };
         let source = artifact("842", ArtifactKind::MergeRequest, "Vendor drop", "").identity;
-        let changed_paths = (0..=MAX_CHANGED_PATHS_FOR_SYMBOL_ATTRIBUTION)
+        // Only one file is indexed, so the floor (not the ratio) governs:
+        // this must exceed MIN_CHANGED_PATHS_FOR_SYMBOL_ATTRIBUTION.
+        let changed_paths = (0..=MIN_CHANGED_PATHS_FOR_SYMBOL_ATTRIBUTION)
             .map(|n| format!("file-{n}.py"))
             .chain(std::iter::once("billing.py".to_owned()))
             .collect::<BTreeSet<_>>();
@@ -484,6 +520,37 @@ mod tests {
         let links = changed_symbol_links(&source, &changed_paths, &graph);
 
         assert!(links.is_empty());
+    }
+
+    #[test]
+    fn the_sweep_threshold_scales_with_repository_size_rather_than_a_fixed_count() {
+        // 200 indexed files puts the 10% ratio (20) above the floor (20 too,
+        // here, but the point is it tracks repository size, not a constant).
+        let nodes = (0..200)
+            .map(|n| symbol_node(&format!("sym-{n}"), &format!("sym{n}"), &format!("file-{n}.py")))
+            .collect::<Vec<_>>();
+        let graph = GraphSnapshot {
+            nodes: nodes
+                .into_iter()
+                .map(|node| (node.stable_key.clone(), node))
+                .collect(),
+            edges: Vec::new(),
+        };
+        let source = artifact("842", ArtifactKind::MergeRequest, "Refactor", "").identity;
+
+        let within_threshold = (0..15).map(|n| format!("file-{n}.py")).collect();
+        let over_threshold = (0..25).map(|n| format!("file-{n}.py")).collect();
+
+        assert_eq!(
+            changed_symbol_links(&source, &within_threshold, &graph).len(),
+            15,
+            "15 of 200 files (7.5%) is a normal-sized change in a repo this size"
+        );
+        assert!(
+            changed_symbol_links(&source, &over_threshold, &graph).is_empty(),
+            "25 of 200 files (12.5%) is a sweep in a repo this size, even though \
+             the old fixed 50-file cap would have let it through"
+        );
     }
 
     fn reference(kind: ReferenceKind, value: &str) -> ExternalReference {

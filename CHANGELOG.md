@@ -4,6 +4,13 @@ All notable changes to `ctx` are documented here. The project follows semantic v
 
 ## Unreleased
 
+## 0.7.3 — 2026-09-01
+
+### Fixed
+
+- CLI-agent subprocess startup now retries transient executable-busy errors with a finite budget, preventing intermittent Linux failures when an executable has just been written or replaced while preserving immediate failures for every other spawn error.
+- Strict rustdoc builds no longer fail when public documentation names private implementation constants or helper functions.
+
 ## 0.7.2 — 2026-09-01
 
 ### Added

@@ -27,8 +27,12 @@ statement: >
   entirely. A `relevant` response that loses every candidate this way, or the agent's
   own `not_relevant`/`insufficient_evidence` answer, all resolve to "nothing
   proposed" rather than a fabricated substitute (PR-P02, FR-01) — absence of
-  extracted knowledge is always the safe outcome. Malformed or unparseable
-  agent output is rejected outright rather than guessed at. Every accepted
+  extracted knowledge is always the safe outcome. A single schema-valid JSON
+  object may be wrapped in Markdown fences or explanatory prose and is still
+  consumed without losing it; braces inside JSON strings are handled as data.
+  Malformed, truncated, schema-incompatible, or ambiguous multi-object agent
+  output is rejected with an explicit reason rather than guessed at or
+  repaired. Every accepted
   candidate carries full provenance (producer, model, the exact input
   artifact ids, a timestamp, and a fingerprint of the prompt that produced
   it) — `--model`, when set, is threaded straight into that same provenance
@@ -70,6 +74,7 @@ implementation:
   - symbol: ctx_app.enrich.EnrichRunner.run_with_progress
   - symbol: ctx_app.enrich.is_covered_by_a_known_parent
   - symbol: ctx_adapters.agent_contract.analyze
+  - symbol: ctx_adapters.agent_contract.parse_json_response
   - symbol: ctx_adapters.agent_contract.to_outcome
   - symbol: ctx_adapters.claude_code.ClaudeCodeAgent.analyze_neighborhood
   - symbol: ctx_adapters.codex.CodexAgent.analyze_neighborhood
@@ -81,6 +86,11 @@ tests:
   - symbol: ctx_adapters.agent_contract.tests.allow_ungrounded_symbols_keeps_an_implementation_candidate_outside_the_neighborhood
   - symbol: ctx_adapters.agent_contract.tests.not_relevant_and_insufficient_evidence_pass_through_unchanged
   - symbol: ctx_adapters.agent_contract.tests.malformed_output_is_rejected_not_guessed_at
+  - symbol: ctx_adapters.agent_contract.tests.a_markdown_fenced_response_is_still_extracted
+  - symbol: ctx_adapters.agent_contract.tests.prose_and_braces_inside_strings_do_not_corrupt_the_response
+  - symbol: ctx_adapters.agent_contract.tests.a_schema_incompatible_object_before_the_response_is_ignored
+  - symbol: ctx_adapters.agent_contract.tests.two_contract_objects_are_rejected_as_ambiguous
+  - symbol: ctx_adapters.agent_contract.tests.truncated_json_is_rejected_with_an_explicit_reason
   - symbol: ctx_adapters.claude_code.tests.subprocess_transport_invokes_claude_p_safe_mode_and_returns_stdout
   - symbol: ctx_adapters.codex.tests.subprocess_transport_invokes_codex_exec_and_returns_stdout
   - symbol: ctx_adapters.antigravity.tests.subprocess_transport_invokes_agy_p_and_returns_stdout
@@ -99,4 +109,3 @@ tests:
   - symbol: crates.ctx-cli.tests.e2e.enrich_dispatches_antigravity_to_agy_p_with_its_own_binary_override
   - symbol: crates.ctx-cli.tests.e2e.enrich_drops_ungrounded_implementation_and_test_candidates_by_default
   - symbol: crates.ctx-cli.tests.e2e.enrich_allow_ungrounded_symbols_keeps_implementation_and_test_candidates_outside_the_neighborhood
-

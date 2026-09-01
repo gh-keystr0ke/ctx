@@ -1,11 +1,19 @@
 id: REQ-CTX-015
 type: requirement
 status: active
-statement: Malformed agent JSON must fail rather than be interpreted heuristically, and subprocess arguments must not use shell-string interpolation.
+statement: >
+  Agent output may contain one schema-valid JSON object wrapped in Markdown
+  or prose. That object must be extracted without being confused by braces in
+  strings; malformed, truncated, schema-incompatible, or multiple matching
+  objects must fail explicitly rather than be repaired or guessed at.
+  Subprocess arguments must not use shell-string interpolation.
 implementation:
-  - symbol: ctx_adapters.agent_contract.extract_json_object
+  - symbol: ctx_adapters.agent_contract.parse_json_response
   - symbol: ctx_adapters.claude_code.SubprocessTransport.AgentTransport.run
 tests:
   - symbol: ctx_adapters.agent_contract.tests.malformed_output_is_rejected_not_guessed_at
+  - symbol: ctx_adapters.agent_contract.tests.a_markdown_fenced_response_is_still_extracted
+  - symbol: ctx_adapters.agent_contract.tests.prose_and_braces_inside_strings_do_not_corrupt_the_response
+  - symbol: ctx_adapters.agent_contract.tests.two_contract_objects_are_rejected_as_ambiguous
+  - symbol: ctx_adapters.agent_contract.tests.truncated_json_is_rejected_with_an_explicit_reason
   - symbol: ctx_adapters.claude_code.tests.subprocess_transport_invokes_claude_p_safe_mode_and_returns_stdout
-

@@ -25,7 +25,7 @@ use ctx_core::{
     neighborhood::{ArtifactNeighborhood, render_neighborhood},
     verification::{StaleClaim, StaleClaimVerdict},
 };
-use serde::Deserialize;
+use serde::{Deserialize, de::DeserializeOwned};
 use thiserror::Error;
 
 /// Kept well under typical CLI-agent context windows: this is one artifact's
@@ -113,11 +113,8 @@ pub fn analyze<T: AgentTransport>(
         prompt.push_str(ALLOW_UNGROUNDED_SYMBOLS_HINT);
     }
     let fingerprint = blake3::hash(prompt.as_bytes()).to_hex().to_string();
-    let raw = transport.run(&prompt)?;
-    let object = extract_json_object(&raw)
-        .ok_or_else(|| AgentContractError::InvalidJson("no JSON object found".to_owned()))?;
-    let parsed: RawAgentOutput = serde_json::from_str(object)
-        .map_err(|error| AgentContractError::InvalidJson(error.to_string()))?;
+    let raw = run_agent_contract(transport, "knowledge extraction", &prompt)?;
+    let parsed: RawAgentOutput = parse_json_response(&raw, "knowledge extraction")?;
     let provenance = AgentProvenance {
         producer: producer.to_owned(),
         model,
@@ -178,14 +175,105 @@ const fn kind_tag(kind: ArtifactKind) -> &'static str {
     }
 }
 
-/// Finds the first top-level `{...}` object in `raw`, defensively tolerating
-/// a stray markdown fence or trailing text around it despite the system
-/// prompt asking for bare JSON -- but never attempting to repair malformed
-/// JSON inside that span; `serde_json` alone decides validity.
-fn extract_json_object(raw: &str) -> Option<&str> {
-    let start = raw.find('{')?;
-    let end = raw.rfind('}')?;
-    (end >= start).then(|| &raw[start..=end])
+fn run_agent_contract<T: AgentTransport>(
+    transport: &T,
+    contract: &str,
+    prompt: &str,
+) -> Result<String, AgentContractError> {
+    tracing::debug!(
+        contract,
+        prompt_bytes = prompt.len(),
+        "sending agent request"
+    );
+    tracing::trace!(contract, prompt, "agent request payload");
+    let started = std::time::Instant::now();
+    let raw = transport.run(prompt)?;
+    tracing::debug!(
+        contract,
+        response_bytes = raw.len(),
+        elapsed_ms = started.elapsed().as_millis(),
+        "agent request completed"
+    );
+    tracing::trace!(contract, response = raw, "agent response payload");
+    Ok(raw)
+}
+
+/// Parses the one response object matching `T` while tolerating prose and
+/// markdown fences around it. Candidate boundaries are found with a small
+/// JSON-aware scanner so braces inside quoted strings never merge or
+/// truncate objects. The contents are still parsed strictly by `serde_json`:
+/// malformed or schema-incompatible data is never repaired or guessed at.
+fn parse_json_response<T: DeserializeOwned>(
+    raw: &str,
+    contract: &str,
+) -> Result<T, AgentContractError> {
+    let candidates = json_object_candidates(raw);
+    if candidates.is_empty() {
+        return Err(AgentContractError::InvalidJson(format!(
+            "{contract}: no complete JSON object found"
+        )));
+    }
+
+    let mut parsed = Vec::new();
+    let mut errors = Vec::new();
+    for candidate in candidates {
+        match serde_json::from_str(candidate) {
+            Ok(value) => parsed.push(value),
+            Err(error) => errors.push(error.to_string()),
+        }
+    }
+    match parsed.len() {
+        1 => Ok(parsed.pop().expect("length checked")),
+        0 => Err(AgentContractError::InvalidJson(format!(
+            "{contract}: no object matched the expected schema ({})",
+            errors.join("; ")
+        ))),
+        count => Err(AgentContractError::InvalidJson(format!(
+            "{contract}: response contains {count} objects matching the expected schema"
+        ))),
+    }
+}
+
+fn json_object_candidates(raw: &str) -> Vec<&str> {
+    let mut candidates = Vec::new();
+    let mut start = None;
+    let mut depth = 0usize;
+    let mut in_string = false;
+    let mut escaped = false;
+
+    for (index, character) in raw.char_indices() {
+        if depth == 0 {
+            if character == '{' {
+                start = Some(index);
+                depth = 1;
+            }
+            continue;
+        }
+        if in_string {
+            if escaped {
+                escaped = false;
+            } else if character == '\\' {
+                escaped = true;
+            } else if character == '"' {
+                in_string = false;
+            }
+            continue;
+        }
+        match character {
+            '"' => in_string = true,
+            '{' => depth += 1,
+            '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    let end = index + character.len_utf8();
+                    candidates.push(&raw[start.expect("set at depth one")..end]);
+                    start = None;
+                }
+            }
+            _ => {}
+        }
+    }
+    candidates
 }
 
 #[derive(Deserialize)]
@@ -348,11 +436,8 @@ pub fn review<T: AgentTransport>(
     candidates: &[KnowledgeCandidate],
 ) -> Result<ClusterReview, AgentContractError> {
     let prompt = format!("{REVIEW_SYSTEM_PROMPT}\n\n{}", render_cluster(candidates));
-    let raw = transport.run(&prompt)?;
-    let object = extract_json_object(&raw)
-        .ok_or_else(|| AgentContractError::InvalidJson("no JSON object found".to_owned()))?;
-    let parsed: RawReviewOutput = serde_json::from_str(object)
-        .map_err(|error| AgentContractError::InvalidJson(error.to_string()))?;
+    let raw = run_agent_contract(transport, "candidate review", &prompt)?;
+    let parsed: RawReviewOutput = parse_json_response(&raw, "candidate review")?;
 
     let known: BTreeSet<&str> = candidates
         .iter()
@@ -499,11 +584,8 @@ fn review_stale_claim_batch<T: AgentTransport>(
         "{STALE_CLAIM_REVIEW_SYSTEM_PROMPT}\n\n{}",
         render_stale_claims(claims)
     );
-    let raw = transport.run(&prompt)?;
-    let object = extract_json_object(&raw)
-        .ok_or_else(|| AgentContractError::InvalidJson("no JSON object found".to_owned()))?;
-    let parsed: RawStaleClaimReviewOutput = serde_json::from_str(object)
-        .map_err(|error| AgentContractError::InvalidJson(error.to_string()))?;
+    let raw = run_agent_contract(transport, "stale claim review", &prompt)?;
+    let parsed: RawStaleClaimReviewOutput = parse_json_response(&raw, "stale claim review")?;
 
     let known: BTreeSet<&str> = claims
         .iter()
@@ -819,6 +901,84 @@ mod tests {
         let outcome = run(response, &neighborhood).expect("parsed outcome");
 
         assert_eq!(outcome, AgentOutcome::NotRelevant);
+    }
+
+    #[test]
+    fn prose_and_braces_inside_strings_do_not_corrupt_the_response() {
+        let subject = issue();
+        let neighborhood = build_neighborhood(
+            &subject,
+            &[],
+            std::slice::from_ref(&subject),
+            &ctx_core::graph::GraphSnapshot::default(),
+        );
+        let response = concat!(
+            "I inspected the request (not JSON).\n",
+            "```json\n",
+            r#"{"outcome":"relevant","candidates":[{"kind":"requirement","statement":"Keep {paid} access.","evidence":[{"artifact_id":"gitlab:issue:317","locator":"body","excerpt":"must remain usable until paid_until"}]}]}"#,
+            "\n```\nDone."
+        );
+
+        let outcome = run(response, &neighborhood).expect("parsed outcome");
+
+        let AgentOutcome::Relevant(candidates) = outcome else {
+            panic!("expected a relevant outcome");
+        };
+        assert_eq!(candidates[0].statement, "Keep {paid} access.");
+    }
+
+    #[test]
+    fn a_schema_incompatible_object_before_the_response_is_ignored() {
+        let subject = issue();
+        let neighborhood = build_neighborhood(
+            &subject,
+            &[],
+            std::slice::from_ref(&subject),
+            &ctx_core::graph::GraphSnapshot::default(),
+        );
+
+        let outcome = run(
+            r#"metadata: {"attempt":1}\nresult: {"outcome":"not_relevant"}"#,
+            &neighborhood,
+        )
+        .expect("parsed outcome");
+
+        assert_eq!(outcome, AgentOutcome::NotRelevant);
+    }
+
+    #[test]
+    fn two_contract_objects_are_rejected_as_ambiguous() {
+        let subject = issue();
+        let neighborhood = build_neighborhood(
+            &subject,
+            &[],
+            std::slice::from_ref(&subject),
+            &ctx_core::graph::GraphSnapshot::default(),
+        );
+
+        let error = run(
+            r#"{"outcome":"not_relevant"}\n{"outcome":"insufficient_evidence"}"#,
+            &neighborhood,
+        )
+        .expect_err("ambiguous response must fail");
+
+        assert!(error.to_string().contains("contains 2 objects"));
+    }
+
+    #[test]
+    fn truncated_json_is_rejected_with_an_explicit_reason() {
+        let subject = issue();
+        let neighborhood = build_neighborhood(
+            &subject,
+            &[],
+            std::slice::from_ref(&subject),
+            &ctx_core::graph::GraphSnapshot::default(),
+        );
+
+        let error = run(r#"```json\n{"outcome":"not_relevant"\n```"#, &neighborhood)
+            .expect_err("truncated response must fail");
+
+        assert!(error.to_string().contains("no complete JSON object"));
     }
 
     fn review_candidate(fingerprint: &str, statement: &str) -> KnowledgeCandidate {

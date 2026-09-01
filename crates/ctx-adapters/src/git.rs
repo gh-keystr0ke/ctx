@@ -4,7 +4,7 @@ use std::{
 };
 
 use ctx_app::ports::{
-    BranchArtifact, CommitMetadata, GitArtifactSource, GitRepository, PortError,
+    BranchArtifact, CommitArtifact, CommitMetadata, GitArtifactSource, GitRepository, PortError,
     RepositoryDescriptor, ReviewChangeSet, ReviewRepository, SourceScope,
 };
 use ctx_core::{
@@ -657,14 +657,16 @@ const COMMIT_RECORD_SEPARATOR: u8 = 0x1e;
 const MAX_BRANCH_OWN_COMMITS: usize = 100;
 
 impl GitArtifactSource for GitRepo {
-    fn commit_artifacts(&self, since: Option<&CommitOid>) -> Result<Vec<Artifact>, PortError> {
+    fn commit_artifacts(&self, since: Option<&CommitOid>) -> Result<Vec<CommitArtifact>, PortError> {
         let range = since.map_or_else(
             || "HEAD".to_owned(),
             |oid| format!("{}..HEAD", oid.as_str()),
         );
-        let format = format!("--format=%H%x00%an%x00%aI%x00%B%x{COMMIT_RECORD_SEPARATOR:02x}");
-        let bytes = self.output(&["log", &format, &range]).map_err(port_error)?;
-        parse_commit_artifacts(&bytes, &self.project_label())
+        let format = format!("--format=%x{COMMIT_RECORD_SEPARATOR:02x}%H%x00%an%x00%aI%x00%B");
+        let bytes = self
+            .output(&["log", &format, "--name-status", "-z", "-M", &range])
+            .map_err(port_error)?;
+        parse_commit_artifacts(&bytes, &self.project_label(), &self.languages, &self.path_filter)
     }
 
     fn branch_artifacts(&self) -> Result<Vec<BranchArtifact>, PortError> {
@@ -974,16 +976,35 @@ fn port_error(error: GitError) -> PortError {
     PortError::new(error.to_string())
 }
 
-fn parse_commit_artifacts(bytes: &[u8], project: &str) -> Result<Vec<Artifact>, PortError> {
+fn parse_commit_artifacts(
+    bytes: &[u8],
+    project: &str,
+    languages: &[SupportedLanguage],
+    path_filter: &PathFilter,
+) -> Result<Vec<CommitArtifact>, PortError> {
     bytes
         .split(|byte| *byte == COMMIT_RECORD_SEPARATOR)
-        .map(|record| record.strip_prefix(b"\n").unwrap_or(record))
         .filter(|record| !record.is_empty())
-        .map(|record| commit_artifact_from_record(record, project))
+        .map(|record| commit_artifact_from_record(record, project, languages, path_filter))
         .collect()
 }
 
-fn commit_artifact_from_record(record: &[u8], project: &str) -> Result<Artifact, PortError> {
+/// Each record is `<oid>\0<author>\0<date>\0<body>\0<name-status>`, produced
+/// by leading the `--format` with the record separator and appending
+/// `--name-status -z -M` so one `git log` invocation yields both a commit's
+/// metadata and its own changed files -- never a per-commit subprocess. The
+/// commit message can never itself contain a NUL byte, so the first `\0`
+/// after the three header fields is unambiguously the body/diff boundary: a
+/// merge or empty commit's diff is empty and that `\0` is the record's last
+/// byte; otherwise it is followed by one `\n` and then `status\0path\0...`
+/// pairs (`R100\0old\0new\0` for a rename), the same shape
+/// [`parse_name_status`] already parses for `changes_since`.
+fn commit_artifact_from_record(
+    record: &[u8],
+    project: &str,
+    languages: &[SupportedLanguage],
+    path_filter: &PathFilter,
+) -> Result<CommitArtifact, PortError> {
     let text =
         std::str::from_utf8(record).map_err(|_| PortError::new("commit log is not valid UTF-8"))?;
     let mut fields = text.splitn(4, '\0');
@@ -992,23 +1013,35 @@ fn commit_artifact_from_record(record: &[u8], project: &str) -> Result<Artifact,
         .ok_or_else(|| PortError::new("commit record is missing its OID"))?;
     let author = fields.next().unwrap_or_default();
     let authored_at = fields.next().unwrap_or_default();
-    let body = fields.next().unwrap_or_default().trim_end_matches('\n');
+    let rest = fields.next().unwrap_or_default();
+    let (body, diff) = rest.split_once('\0').unwrap_or((rest, ""));
+    let body = body.trim_end_matches('\n');
     let title = body.lines().next().unwrap_or_default().to_owned();
-    Ok(Artifact {
-        identity: ArtifactIdentity {
-            provider: ArtifactProvider::Git,
-            kind: ArtifactKind::Commit,
-            external_id: oid.to_owned(),
+    let diff = diff.strip_prefix('\n').unwrap_or(diff);
+    let changed_paths = change_paths(&filter_changes(
+        parse_name_status(diff.as_bytes(), languages)?,
+        path_filter,
+    ))
+    .into_iter()
+    .collect();
+    Ok(CommitArtifact {
+        artifact: Artifact {
+            identity: ArtifactIdentity {
+                provider: ArtifactProvider::Git,
+                kind: ArtifactKind::Commit,
+                external_id: oid.to_owned(),
+            },
+            project: ctx_core::domain::Project(project.to_owned()),
+            title,
+            body: body.to_owned(),
+            author: (!author.is_empty()).then(|| author.to_owned()),
+            external_created_at: (!authored_at.is_empty())
+                .then(|| ctx_core::domain::Timestamp(authored_at.to_owned())),
+            external_updated_at: None,
+            source_locator: ctx_core::domain::Url(format!("git:commit:{oid}")),
+            content_hash: blake3::hash(body.as_bytes()).to_hex().to_string(),
         },
-        project: ctx_core::domain::Project(project.to_owned()),
-        title,
-        body: body.to_owned(),
-        author: (!author.is_empty()).then(|| author.to_owned()),
-        external_created_at: (!authored_at.is_empty())
-            .then(|| ctx_core::domain::Timestamp(authored_at.to_owned())),
-        external_updated_at: None,
-        source_locator: ctx_core::domain::Url(format!("git:commit:{oid}")),
-        content_hash: blake3::hash(body.as_bytes()).to_hex().to_string(),
+        changed_paths,
     })
 }
 
@@ -1032,6 +1065,8 @@ fn branch_artifact(name: &str, project: &str) -> Artifact {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
+
     use super::*;
 
     #[test]
@@ -1101,39 +1136,53 @@ mod tests {
 
     #[test]
     fn parses_commit_artifacts_from_real_git_log_record_output() {
-        // Captured verbatim from `git log --format="%H%x00%an%x00%aI%x00%B%x1e"`
-        // against a real two-commit repository: git inserts a literal `\n`
-        // immediately after each `\x1e` separator (including a trailing one
-        // after the last record), and each record's body itself ends with
-        // its own `\n` before the separator.
-        let bytes = b"96561490e109d358f69f2d9e531d9f16a06a30c3\0test\0\
-2026-08-21T17:10:12+03:00\0second commit\n\x1e\n\
-4925aed1ea285cfad69206d94b0c63f5075d0a77\0test\0\
-2026-08-21T17:10:12+03:00\0first commit\n\nbody line 1\nbody line 2\n\x1e\n";
+        // Captured verbatim from `git log --format="%x1e%H%x00%an%x00%aI%x00%B"
+        // --name-status -z -M` against a real two-commit repository: leading
+        // the format with the record separator puts each commit's own
+        // name-status entries inside its own record instead of the next
+        // one. A commit's diff section, when non-empty, is separated from
+        // its body by a `\0` (from `-z`) followed by one `\n`; an empty
+        // diff (the newest commit here) leaves just the `\0`.
+        let bytes = b"\x1e96561490e109d358f69f2d9e531d9f16a06a30c3\0test\0\
+2026-08-21T17:10:12+03:00\0second commit\n\0\
+\x1e4925aed1ea285cfad69206d94b0c63f5075d0a77\0test\0\
+2026-08-21T17:10:12+03:00\0first commit\n\nbody line 1\nbody line 2\n\0\nM\0src/app.py\0";
 
-        let artifacts = parse_commit_artifacts(bytes, "billing/subscriptions").expect("commits");
+        let commits = parse_commit_artifacts(
+            bytes,
+            "billing/subscriptions",
+            &[SupportedLanguage::Python],
+            &PathFilter::default(),
+        )
+        .expect("commits");
 
-        assert_eq!(artifacts.len(), 2);
-        assert_eq!(artifacts[0].identity.kind, ArtifactKind::Commit);
-        assert_eq!(artifacts[0].identity.provider, ArtifactProvider::Git);
+        assert_eq!(commits.len(), 2);
+        assert_eq!(commits[0].artifact.identity.kind, ArtifactKind::Commit);
+        assert_eq!(commits[0].artifact.identity.provider, ArtifactProvider::Git);
         assert_eq!(
-            artifacts[0].identity.external_id,
+            commits[0].artifact.identity.external_id,
             "96561490e109d358f69f2d9e531d9f16a06a30c3"
         );
-        assert_eq!(artifacts[0].title, "second commit");
-        assert_eq!(artifacts[0].body, "second commit");
-        assert_eq!(artifacts[1].title, "first commit");
+        assert_eq!(commits[0].artifact.title, "second commit");
+        assert_eq!(commits[0].artifact.body, "second commit");
+        assert!(commits[0].changed_paths.is_empty());
+        assert_eq!(commits[1].artifact.title, "first commit");
         assert_eq!(
-            artifacts[1].body,
+            commits[1].artifact.body,
             "first commit\n\nbody line 1\nbody line 2"
         );
-        assert_eq!(artifacts[1].author.as_deref(), Some("test"));
+        assert_eq!(commits[1].artifact.author.as_deref(), Some("test"));
         assert_eq!(
-            artifacts[1]
+            commits[1]
+                .artifact
                 .external_created_at
                 .as_ref()
                 .map(ctx_core::domain::Timestamp::as_str),
             Some("2026-08-21T17:10:12+03:00")
+        );
+        assert_eq!(
+            commits[1].changed_paths,
+            BTreeSet::from(["src/app.py".to_owned()])
         );
     }
 
@@ -1159,8 +1208,8 @@ mod tests {
         let branches = repository.branch_artifacts().expect("branch artifacts");
 
         assert_eq!(commits.len(), 1);
-        assert_eq!(commits[0].title, "PAY-317 fix cancellation");
-        assert_eq!(commits[0].identity.kind, ArtifactKind::Commit);
+        assert_eq!(commits[0].artifact.title, "PAY-317 fix cancellation");
+        assert_eq!(commits[0].artifact.identity.kind, ArtifactKind::Commit);
         let branch_names = branches
             .iter()
             .map(|branch| branch.artifact.identity.external_id.as_str())
@@ -1170,6 +1219,30 @@ mod tests {
             branches
                 .iter()
                 .all(|branch| branch.artifact.identity.kind == ArtifactKind::Branch)
+        );
+    }
+
+    #[test]
+    fn commit_artifacts_report_each_commits_own_changed_files_not_a_cumulative_range() {
+        let root = tempfile::tempdir().expect("temp dir");
+        init_repository(root.path());
+        std::fs::create_dir(root.path().join("src")).expect("src directory");
+        commit_file(root.path(), "src/a.py", "first commit");
+        commit_file(root.path(), "src/b.py", "second commit");
+
+        let repository = GitRepo::discover(root.path()).expect("discover");
+        let commits = repository.commit_artifacts(None).expect("commit artifacts");
+
+        assert_eq!(commits.len(), 2);
+        assert_eq!(commits[0].artifact.title, "second commit");
+        assert_eq!(
+            commits[0].changed_paths,
+            BTreeSet::from(["src/b.py".to_owned()]),
+            "the newest commit must not also carry the older commit's file"
+        );
+        assert_eq!(
+            commits[1].changed_paths,
+            BTreeSet::from(["src/a.py".to_owned()])
         );
     }
 

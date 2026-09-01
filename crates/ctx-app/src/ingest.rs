@@ -14,15 +14,16 @@ use ctx_core::{
     },
     codedoc::{CodeDocKind, extract_code_docs},
     domain::{CommitOid, NodeKind, RepositoryId, StableKey},
+    graph::GraphSnapshot,
     linking::{ReferenceKind, extract_references, text_reference_links},
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::ports::{
-    ArtifactLinkStore, ArtifactRepository, BranchArtifact, ExternalArtifactRequest,
-    ExternalArtifactSource, GitArtifactSource, GitRepository, GraphStore, IngestCursorStore,
-    LanguageAnalyzer, PortError, ReviewRepository,
+    ArtifactLinkStore, ArtifactRepository, BranchArtifact, CommitArtifact,
+    ExternalArtifactRequest, ExternalArtifactSource, GitArtifactSource, GitRepository, GraphStore,
+    IngestCursorStore, LanguageAnalyzer, PortError, ReviewRepository,
 };
 
 /// Bumped when the normalization this runner applies to Git artifacts
@@ -60,7 +61,7 @@ pub struct GitIngestRunner<'a, G, S> {
 impl<'a, G, S> GitIngestRunner<'a, G, S>
 where
     G: GitArtifactSource,
-    S: ArtifactRepository + ArtifactLinkStore,
+    S: ArtifactRepository + ArtifactLinkStore + GraphStore,
 {
     pub const fn new(source: &'a G, store: &'a mut S) -> Self {
         Self { source, store }
@@ -68,9 +69,10 @@ where
 
     /// Ingests every local branch and every commit reachable from `HEAD`
     /// back to (exclusive of) `since`, links each branch to the commits it
-    /// alone contains relative to the repository's default branch, then
-    /// links references found in artifact text to every artifact already
-    /// known for this repository.
+    /// alone contains relative to the repository's default branch, links
+    /// each commit to the already-indexed symbols in the files it changed,
+    /// then links references found in artifact text to every artifact
+    /// already known for this repository.
     ///
     /// # Errors
     /// Returns [`IngestError`] when artifacts cannot be read or persisted.
@@ -92,7 +94,7 @@ where
             .iter()
             .map(|branch| branch.artifact.clone())
             .collect::<Vec<_>>();
-        artifacts.extend(commits);
+        artifacts.extend(commits.iter().map(|commit| commit.artifact.clone()));
         for artifact in &artifacts {
             self.store
                 .upsert_artifact(repository, artifact, ingested_at, GIT_INGEST_VERSION)
@@ -102,7 +104,9 @@ where
             .store
             .list_artifacts(repository)
             .map_err(IngestError::Store)?;
+        let graph = self.store.load_graph(repository).map_err(IngestError::Store)?;
         let mut links = branch_commit_links(&branches);
+        links.extend(commit_symbol_links(&commits, &graph));
         links.extend(
             artifacts
                 .iter()
@@ -135,6 +139,22 @@ fn branch_commit_links(branches: &[BranchArtifact]) -> Vec<ArtifactLink> {
                 kind: ArtifactLinkKind::ContainsCommit,
                 evidence_locator: format!("branch:{}", branch.artifact.identity.external_id),
             })
+        })
+        .collect()
+}
+
+/// Each commit's structural `ChangedSymbol` links to the already-indexed
+/// symbols in the files it changed ([`ctx_core::linking::changed_symbol_links`]).
+/// A graph with nothing indexed yet (no `ctx index` has run) yields none.
+fn commit_symbol_links(commits: &[CommitArtifact], graph: &GraphSnapshot) -> Vec<ArtifactLink> {
+    commits
+        .iter()
+        .flat_map(|commit| {
+            ctx_core::linking::changed_symbol_links(
+                &commit.artifact.identity,
+                &commit.changed_paths,
+                graph,
+            )
         })
         .collect()
 }
@@ -456,12 +476,15 @@ mod tests {
     use super::*;
 
     struct FakeGitSource {
-        commits: Vec<Artifact>,
+        commits: Vec<CommitArtifact>,
         branches: Vec<BranchArtifact>,
     }
 
     impl GitArtifactSource for FakeGitSource {
-        fn commit_artifacts(&self, _since: Option<&CommitOid>) -> Result<Vec<Artifact>, PortError> {
+        fn commit_artifacts(
+            &self,
+            _since: Option<&CommitOid>,
+        ) -> Result<Vec<CommitArtifact>, PortError> {
             Ok(self.commits.clone())
         }
 
@@ -475,6 +498,7 @@ mod tests {
         artifacts: RefCell<BTreeMap<(ArtifactProvider, ArtifactKind, String), Artifact>>,
         links: RefCell<Vec<ArtifactLink>>,
         cursors: RefCell<BTreeMap<String, String>>,
+        graph: RefCell<GraphSnapshot>,
     }
 
     impl ArtifactRepository for FakeStore {
@@ -533,6 +557,12 @@ mod tests {
         }
     }
 
+    impl GraphStore for FakeStore {
+        fn load_graph(&self, _repository: &RepositoryId) -> Result<GraphSnapshot, PortError> {
+            Ok(self.graph.borrow().clone())
+        }
+    }
+
     impl IngestCursorStore for FakeStore {
         fn sync_cursor(
             &self,
@@ -573,10 +603,17 @@ mod tests {
         }
     }
 
+    fn commit_artifact(external_id: &str, kind: ArtifactKind, title: &str, body: &str) -> CommitArtifact {
+        CommitArtifact {
+            artifact: artifact(external_id, kind, title, body),
+            changed_paths: BTreeSet::new(),
+        }
+    }
+
     #[test]
     fn ingests_branches_and_commits_and_links_references_between_them() {
         let source = FakeGitSource {
-            commits: vec![artifact(
+            commits: vec![commit_artifact(
                 "abc123",
                 ArtifactKind::Commit,
                 "fix cancellation",
@@ -623,7 +660,10 @@ mod tests {
             "fix cancellation",
         );
         let source = FakeGitSource {
-            commits: vec![commit.clone()],
+            commits: vec![CommitArtifact {
+                artifact: commit.clone(),
+                changed_paths: BTreeSet::new(),
+            }],
             branches: vec![BranchArtifact {
                 artifact: artifact(
                     "feature/PAY-317-cancel",
@@ -655,9 +695,79 @@ mod tests {
     }
 
     #[test]
+    fn git_ingest_links_a_commit_to_the_symbols_in_the_files_it_changed() {
+        use ctx_core::graph::GraphNode;
+        use ctx_core::indexing::PlannedNodeAttributes;
+        use ctx_core::ir::{SourceRange, SymbolKind};
+
+        fn symbol_node(key: &str, file_path: &str, canonical: &str) -> GraphNode {
+            GraphNode {
+                stable_key: StableKey::new(key).expect("stable key"),
+                kind: NodeKind::CodeSymbol,
+                name: canonical.to_owned(),
+                content_hash: "hash".to_owned(),
+                attributes: PlannedNodeAttributes::Symbol {
+                    file_path: file_path.to_owned(),
+                    canonical_path: canonical.to_owned(),
+                    symbol_kind: SymbolKind::Method,
+                    range: SourceRange {
+                        start_byte: 0,
+                        end_byte: 1,
+                        start_line: 1,
+                        end_line: 1,
+                    },
+                    signature: None,
+                    structural_fingerprint: "shape".to_owned(),
+                    calls: Vec::new(),
+                    database_accesses: Vec::new(),
+                    schema_tables: Vec::new(),
+                    api_endpoints: Vec::new(),
+                    external_calls: Vec::new(),
+                },
+            }
+        }
+
+        let touched = symbol_node("cancel", "billing.py", "SubscriptionService.cancel");
+        let untouched = symbol_node("refund", "refund.py", "SubscriptionService.refund");
+        let commit = commit_artifact("abc123", ArtifactKind::Commit, "fix cancellation", "body");
+        let source = FakeGitSource {
+            commits: vec![CommitArtifact {
+                changed_paths: BTreeSet::from(["billing.py".to_owned()]),
+                ..commit.clone()
+            }],
+            branches: Vec::new(),
+        };
+        let mut store = FakeStore::default();
+        *store.graph.borrow_mut() = GraphSnapshot {
+            nodes: [touched.clone(), untouched]
+                .into_iter()
+                .map(|node| (node.stable_key.clone(), node))
+                .collect(),
+            edges: Vec::new(),
+        };
+        let repository = RepositoryId::new("repo:test").expect("repository ID");
+
+        GitIngestRunner::new(&source, &mut store)
+            .run(&repository, None, "2026-08-21T00:00:00Z")
+            .expect("ingest run");
+
+        let links = store.list_links(&repository).expect("links");
+        let changed_symbol_links = links
+            .iter()
+            .filter(|link| link.kind == ArtifactLinkKind::ChangedSymbol)
+            .collect::<Vec<_>>();
+        assert_eq!(changed_symbol_links.len(), 1);
+        assert_eq!(changed_symbol_links[0].source, commit.artifact.identity);
+        assert_eq!(
+            changed_symbol_links[0].target,
+            ArtifactLinkTarget::CodeSymbol(touched.stable_key)
+        );
+    }
+
+    #[test]
     fn re_running_ingest_does_not_duplicate_artifacts() {
         let source = FakeGitSource {
-            commits: vec![artifact("abc123", ArtifactKind::Commit, "fix", "body")],
+            commits: vec![commit_artifact("abc123", ArtifactKind::Commit, "fix", "body")],
             branches: Vec::new(),
         };
         let mut store = FakeStore::default();

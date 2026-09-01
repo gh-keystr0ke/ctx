@@ -248,17 +248,26 @@ pub struct BranchArtifact {
     pub own_commits: Vec<CommitOid>,
 }
 
+/// One commit artifact together with the source files that commit itself
+/// changed, read in the same history walk that produced the artifact —
+/// never a per-commit subprocess.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CommitArtifact {
+    pub artifact: Artifact,
+    pub changed_paths: BTreeSet<String>,
+}
+
 /// Reads Git-native development artifacts — commit messages and branch
 /// names — as normalized [`Artifact`]s (prompt3.md PR-EXT-001 MUST list),
 /// with no network or provider account required.
 pub trait GitArtifactSource {
-    /// Returns one artifact per commit reachable from `HEAD`, or from `HEAD`
+    /// Returns one entry per commit reachable from `HEAD`, or from `HEAD`
     /// back to (exclusive of) `since` when given, in deterministic
     /// (newest-first) order.
     ///
     /// # Errors
     /// Returns [`PortError`] when Git history cannot be read.
-    fn commit_artifacts(&self, since: Option<&CommitOid>) -> Result<Vec<Artifact>, PortError>;
+    fn commit_artifacts(&self, since: Option<&CommitOid>) -> Result<Vec<CommitArtifact>, PortError>;
 
     /// Returns one entry per local branch, in deterministic (name-sorted)
     /// order.

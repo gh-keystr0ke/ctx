@@ -285,19 +285,30 @@ pub fn text_reference_links(source: &Artifact, known_artifacts: &[Artifact]) -> 
     links
 }
 
+/// Above this many changed paths, a changeset is a sweep — a vendored drop,
+/// a formatting pass, a generated-code regeneration — where "this file
+/// changed, so every symbol in it is implicated" stops being evidence and
+/// becomes noise. [`changed_symbol_links`] emits nothing at all past this
+/// point, rather than an arbitrary subset.
+pub const MAX_CHANGED_PATHS_FOR_SYMBOL_ATTRIBUTION: usize = 50;
+
 /// Deterministic `ChangedSymbol` links from `source` to every currently
 /// indexed code symbol whose file is among `changed_paths` — a structural
 /// fact ("this artifact's changeset touched this file, which currently
 /// contains this symbol"), file-level rather than diff-precise. Weaker
 /// evidence than a proven per-symbol body change (see
 /// `ctx_core::review`'s changed-entity detection), but never a guess about
-/// *what* changed, only *where*.
+/// *what* changed, only *where*. Empty when `changed_paths` exceeds
+/// [`MAX_CHANGED_PATHS_FOR_SYMBOL_ATTRIBUTION`].
 #[must_use]
 pub fn changed_symbol_links(
     source: &ArtifactIdentity,
     changed_paths: &BTreeSet<String>,
     graph: &GraphSnapshot,
 ) -> Vec<ArtifactLink> {
+    if changed_paths.len() > MAX_CHANGED_PATHS_FOR_SYMBOL_ATTRIBUTION {
+        return Vec::new();
+    }
     let mut links = graph
         .nodes
         .values()
@@ -452,6 +463,27 @@ mod tests {
                 evidence_locator: "changed_file:billing.py".to_owned(),
             }]
         );
+    }
+
+    #[test]
+    fn an_oversized_changeset_attributes_no_symbols_rather_than_an_arbitrary_subset() {
+        let touched = symbol_node("cancel", "billing.cancel", "billing.py");
+        let graph = GraphSnapshot {
+            nodes: [touched]
+                .into_iter()
+                .map(|node| (node.stable_key.clone(), node))
+                .collect(),
+            edges: Vec::new(),
+        };
+        let source = artifact("842", ArtifactKind::MergeRequest, "Vendor drop", "").identity;
+        let changed_paths = (0..=MAX_CHANGED_PATHS_FOR_SYMBOL_ATTRIBUTION)
+            .map(|n| format!("file-{n}.py"))
+            .chain(std::iter::once("billing.py".to_owned()))
+            .collect::<BTreeSet<_>>();
+
+        let links = changed_symbol_links(&source, &changed_paths, &graph);
+
+        assert!(links.is_empty());
     }
 
     fn reference(kind: ReferenceKind, value: &str) -> ExternalReference {

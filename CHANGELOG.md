@@ -4,6 +4,8 @@ All notable changes to `ctx` are documented here. The project follows semantic v
 
 ## Unreleased
 
+## 0.7.1 — 2026-09-01
+
 ### Added
 
 - `-v`/`-vv`/`-vvv` (repeatable, global) select progressively richer terminal diagnostics on stderr without corrupting `--json` stdout: `-v` reports command and ingest lifecycle, `-vv` adds internal stages and external-call metadata, `-vvv` adds timings and raw request/response data. `--debug` independently records the full `-vvv`-equivalent trace as timestamped JSONL under `.ctx/logs` (Git-ignored, `0600` permissions). Covers ingest, Git, HTTP retry, GitLab, Jira, SQLite, indexing, and AI-agent subprocess calls.

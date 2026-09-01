@@ -1,8 +1,12 @@
 id: INV-CTX-031
 type: invariant
 status: active
-statement: Artifact-neighborhood assembly performs only pure, one-hop reads over data whose links have already been established deterministically.
+statement: Artifact-neighborhood assembly performs only pure, one-hop reads over data whose links have already been established deterministically, reading each link in either direction so a subject sees links authored by its own counterpart as well as ones it authored itself.
 implementation:
   - symbol: ctx_core.neighborhood.build_neighborhood
+  - symbol: ctx_core.neighborhood.linked_artifacts
 tests:
   - symbol: ctx_core.neighborhood.tests.assembles_linked_artifacts_changed_symbols_tests_and_related_knowledge
+  - symbol: ctx_core.neighborhood.tests.a_tickets_neighborhood_includes_the_comment_posted_on_it
+  - symbol: ctx_core.neighborhood.tests.a_commits_neighborhood_includes_the_merge_request_that_contains_it
+  - symbol: ctx_core.neighborhood.tests.the_linked_artifact_cap_keeps_provider_reported_links_over_text_mentions

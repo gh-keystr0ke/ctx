@@ -7,7 +7,7 @@
 //! reaches further than what [`crate::linking`] and [`crate::artifact`]
 //! already established deterministically.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashSet};
 
 use serde::{Deserialize, Serialize};
 
@@ -62,10 +62,17 @@ pub struct ArtifactNeighborhood {
 }
 
 /// Assembles the bounded neighborhood for `subject` from its own
-/// deterministic links: linked artifacts resolved against `known_artifacts`
-/// (a link to an artifact not present there is simply omitted — never
-/// fabricated), and changed/discussed symbols resolved against `graph`,
-/// together with their nearby tests and already-mapped product knowledge.
+/// deterministic links, read in either direction. A link is stored by
+/// whichever side structurally authored it — a comment records
+/// `Comment → Ticket`, a merge request records `MergeRequest → Commit` — so
+/// treating only outgoing links as "the subject's own" would silently hide
+/// a ticket's own comments and a commit's own containing MR. Linked
+/// artifacts are resolved against `known_artifacts` (a link to an artifact
+/// not present there is simply omitted — never fabricated), and
+/// changed/discussed symbols resolved against `graph`, together with their
+/// nearby tests and already-mapped product knowledge. Still exactly one
+/// hop: only links naming `subject` itself are considered, whichever
+/// direction they were recorded in.
 #[must_use]
 pub fn build_neighborhood(
     subject: &Artifact,
@@ -73,26 +80,8 @@ pub fn build_neighborhood(
     known_artifacts: &[Artifact],
     graph: &GraphSnapshot,
 ) -> ArtifactNeighborhood {
-    let own_links = links.iter().filter(|link| link.source == subject.identity);
-
-    let mut linked_artifacts = Vec::new();
     let mut changed_symbol_keys = BTreeSet::new();
-    for link in own_links {
-        match &link.target {
-            ArtifactLinkTarget::Artifact(identity) => {
-                if let Some(artifact) = find_artifact(known_artifacts, identity) {
-                    linked_artifacts.push(LinkedArtifact {
-                        kind: link.kind,
-                        artifact: artifact.clone(),
-                    });
-                }
-            }
-            ArtifactLinkTarget::CodeSymbol(stable_key) => {
-                changed_symbol_keys.insert(stable_key.clone());
-            }
-        }
-    }
-    linked_artifacts.truncate(MAX_LINKED_ARTIFACTS);
+    let linked_artifacts = linked_artifacts(subject, links, known_artifacts, &mut changed_symbol_keys);
 
     let changed_symbols = changed_symbol_keys
         .iter()
@@ -125,6 +114,80 @@ fn find_artifact<'a>(
     known_artifacts
         .iter()
         .find(|artifact| &artifact.identity == identity)
+}
+
+/// Which links survive `MAX_LINKED_ARTIFACTS` must be decided by evidential
+/// strength, not by storage order or direction: a ticket with many
+/// incidental `References` mentions must never crowd out the comments
+/// actually posted on it. A `match`, not `#[derive(Ord)]` on
+/// `ArtifactLinkKind`, so this ranking stays independent of declaration
+/// order.
+const fn link_kind_rank(kind: ArtifactLinkKind) -> u8 {
+    match kind {
+        ArtifactLinkKind::CommentsOn => 0,
+        ArtifactLinkKind::ContainsCommit => 1,
+        ArtifactLinkKind::RelatedIssue => 2,
+        ArtifactLinkKind::Discusses => 3,
+        ArtifactLinkKind::ChangedSymbol => 4,
+        ArtifactLinkKind::References => 5,
+    }
+}
+
+/// Resolves `subject`'s linked artifacts from `links`, regardless of which
+/// side the link's `source`/`target` names `subject`, collecting any
+/// `CodeSymbol` targets from subject-authored links into
+/// `changed_symbol_keys` along the way (a code symbol is never a link
+/// source, so that case only ever arises on the outgoing side).
+fn linked_artifacts(
+    subject: &Artifact,
+    links: &[ArtifactLink],
+    known_artifacts: &[Artifact],
+    changed_symbol_keys: &mut BTreeSet<crate::domain::StableKey>,
+) -> Vec<LinkedArtifact> {
+    let mut seen = HashSet::new();
+    let mut linked = Vec::new();
+    for link in links {
+        let counterpart = if link.source == subject.identity {
+            match &link.target {
+                ArtifactLinkTarget::Artifact(identity) => Some(identity),
+                ArtifactLinkTarget::CodeSymbol(stable_key) => {
+                    changed_symbol_keys.insert(stable_key.clone());
+                    None
+                }
+            }
+        } else if let ArtifactLinkTarget::Artifact(identity) = &link.target
+            && *identity == subject.identity
+        {
+            Some(&link.source)
+        } else {
+            None
+        };
+        let Some(identity) = counterpart else {
+            continue;
+        };
+        if *identity == subject.identity {
+            continue;
+        }
+        let Some(artifact) = find_artifact(known_artifacts, identity) else {
+            continue;
+        };
+        if seen.insert((identity.clone(), link.kind)) {
+            linked.push(LinkedArtifact {
+                kind: link.kind,
+                artifact: artifact.clone(),
+            });
+        }
+    }
+    linked.sort_by_key(|linked| {
+        (
+            link_kind_rank(linked.kind),
+            linked.artifact.identity.provider,
+            linked.artifact.identity.kind,
+            linked.artifact.identity.external_id.clone(),
+        )
+    });
+    linked.truncate(MAX_LINKED_ARTIFACTS);
+    linked
 }
 
 fn related_knowledge(
@@ -342,7 +405,8 @@ mod tests {
 
     use super::*;
 
-    fn artifact(
+    fn artifact_from(
+        provider: ArtifactProvider,
         external_id: &str,
         kind: crate::artifact::ArtifactKind,
         title: &str,
@@ -350,7 +414,7 @@ mod tests {
     ) -> Artifact {
         Artifact {
             identity: ArtifactIdentity {
-                provider: ArtifactProvider::GitLab,
+                provider,
                 kind,
                 external_id: external_id.to_owned(),
             },
@@ -360,9 +424,18 @@ mod tests {
             author: None,
             external_created_at: None,
             external_updated_at: None,
-            source_locator: crate::domain::Url(format!("gitlab:{external_id}")),
+            source_locator: crate::domain::Url(external_id.to_owned()),
             content_hash: "hash".to_owned(),
         }
+    }
+
+    fn artifact(
+        external_id: &str,
+        kind: crate::artifact::ArtifactKind,
+        title: &str,
+        body: &str,
+    ) -> Artifact {
+        artifact_from(ArtifactProvider::GitLab, external_id, kind, title, body)
     }
 
     fn symbol_node(key: &str, canonical: &str) -> GraphNode {
@@ -556,6 +629,161 @@ mod tests {
         );
 
         assert!(neighborhood.linked_artifacts.is_empty());
+    }
+
+    #[test]
+    fn a_tickets_neighborhood_includes_the_comment_posted_on_it() {
+        let issue = artifact(
+            "317",
+            crate::artifact::ArtifactKind::Issue,
+            "Cancellation removes prepaid access",
+            "body",
+        );
+        let comment = artifact_from(
+            ArtifactProvider::GitLab,
+            "317-comment-1",
+            crate::artifact::ArtifactKind::Comment,
+            "Do not revoke immediately",
+            "Do not revoke an already paid entitlement immediately.",
+        );
+        let links = vec![ArtifactLink {
+            source: comment.identity.clone(),
+            target: ArtifactLinkTarget::Artifact(issue.identity.clone()),
+            kind: ArtifactLinkKind::CommentsOn,
+            evidence_locator: "gitlab notes API: 317".to_owned(),
+        }];
+
+        let neighborhood = build_neighborhood(
+            &issue,
+            &links,
+            &[issue.clone(), comment.clone()],
+            &GraphSnapshot::default(),
+        );
+
+        assert_eq!(neighborhood.linked_artifacts.len(), 1);
+        assert_eq!(
+            neighborhood.linked_artifacts[0].kind,
+            ArtifactLinkKind::CommentsOn
+        );
+        assert_eq!(
+            neighborhood.linked_artifacts[0].artifact.identity,
+            comment.identity
+        );
+    }
+
+    #[test]
+    fn a_commits_neighborhood_includes_the_merge_request_that_contains_it() {
+        let mr = artifact(
+            "842",
+            crate::artifact::ArtifactKind::MergeRequest,
+            "Fix cancellation",
+            "body",
+        );
+        let commit = artifact_from(
+            ArtifactProvider::Git,
+            "abc123",
+            crate::artifact::ArtifactKind::Commit,
+            "fix cancellation",
+            "fix cancellation",
+        );
+        let links = vec![ArtifactLink {
+            source: mr.identity.clone(),
+            target: ArtifactLinkTarget::Artifact(commit.identity.clone()),
+            kind: ArtifactLinkKind::ContainsCommit,
+            evidence_locator: "merge_request:842".to_owned(),
+        }];
+
+        let neighborhood = build_neighborhood(
+            &commit,
+            &links,
+            &[mr.clone(), commit.clone()],
+            &GraphSnapshot::default(),
+        );
+
+        assert_eq!(neighborhood.linked_artifacts.len(), 1);
+        assert_eq!(
+            neighborhood.linked_artifacts[0].kind,
+            ArtifactLinkKind::ContainsCommit
+        );
+        assert_eq!(neighborhood.linked_artifacts[0].artifact.identity, mr.identity);
+    }
+
+    #[test]
+    fn a_counterpart_linked_in_both_directions_is_listed_once() {
+        let issue = artifact("317", crate::artifact::ArtifactKind::Issue, "t", "b");
+        let comment = artifact_from(
+            ArtifactProvider::GitLab,
+            "317-comment-1",
+            crate::artifact::ArtifactKind::Comment,
+            "c",
+            "c",
+        );
+        let links = vec![
+            ArtifactLink {
+                source: comment.identity.clone(),
+                target: ArtifactLinkTarget::Artifact(issue.identity.clone()),
+                kind: ArtifactLinkKind::CommentsOn,
+                evidence_locator: "a".to_owned(),
+            },
+            ArtifactLink {
+                source: issue.identity.clone(),
+                target: ArtifactLinkTarget::Artifact(comment.identity.clone()),
+                kind: ArtifactLinkKind::CommentsOn,
+                evidence_locator: "b".to_owned(),
+            },
+        ];
+
+        let neighborhood = build_neighborhood(
+            &issue,
+            &links,
+            &[issue.clone(), comment.clone()],
+            &GraphSnapshot::default(),
+        );
+
+        assert_eq!(neighborhood.linked_artifacts.len(), 1);
+    }
+
+    #[test]
+    fn the_linked_artifact_cap_keeps_provider_reported_links_over_text_mentions() {
+        let issue = artifact("317", crate::artifact::ArtifactKind::Issue, "t", "b");
+        let comment = artifact_from(
+            ArtifactProvider::GitLab,
+            "317-comment-1",
+            crate::artifact::ArtifactKind::Comment,
+            "c",
+            "c",
+        );
+        let mut known = vec![issue.clone(), comment.clone()];
+        let mut links = vec![ArtifactLink {
+            source: comment.identity.clone(),
+            target: ArtifactLinkTarget::Artifact(issue.identity.clone()),
+            kind: ArtifactLinkKind::CommentsOn,
+            evidence_locator: "gitlab notes API: 317".to_owned(),
+        }];
+        for n in 0..25 {
+            let commit = artifact_from(
+                ArtifactProvider::Git,
+                &format!("commit-{n:02}"),
+                crate::artifact::ArtifactKind::Commit,
+                "PAY-317 fix",
+                "PAY-317 fix",
+            );
+            links.push(ArtifactLink {
+                source: commit.identity.clone(),
+                target: ArtifactLinkTarget::Artifact(issue.identity.clone()),
+                kind: ArtifactLinkKind::References,
+                evidence_locator: "text:PAY-317".to_owned(),
+            });
+            known.push(commit);
+        }
+
+        let neighborhood = build_neighborhood(&issue, &links, &known, &GraphSnapshot::default());
+
+        assert_eq!(neighborhood.linked_artifacts.len(), MAX_LINKED_ARTIFACTS);
+        assert_eq!(
+            neighborhood.linked_artifacts[0].kind,
+            ArtifactLinkKind::CommentsOn
+        );
     }
 
     #[test]

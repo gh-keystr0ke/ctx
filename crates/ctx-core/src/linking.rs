@@ -316,7 +316,7 @@ fn indexed_file_count(graph: &GraphSnapshot) -> usize {
 
 /// Above this many changed paths, [`changed_symbol_links`] emits nothing at
 /// all rather than an arbitrary subset. See [`SWEEP_RATIO`].
-fn sweep_threshold(graph: &GraphSnapshot) -> usize {
+pub fn sweep_threshold(graph: &GraphSnapshot) -> usize {
     #[allow(
         clippy::cast_precision_loss,
         clippy::cast_sign_loss,
@@ -339,8 +339,9 @@ pub fn changed_symbol_links(
     source: &ArtifactIdentity,
     changed_paths: &BTreeSet<String>,
     graph: &GraphSnapshot,
+    sweep_threshold: usize,
 ) -> Vec<ArtifactLink> {
-    if changed_paths.len() > sweep_threshold(graph) {
+    if changed_paths.len() > sweep_threshold {
         return Vec::new();
     }
     let mut links = graph
@@ -486,7 +487,8 @@ mod tests {
         let source = artifact("842", ArtifactKind::MergeRequest, "Fix cancellation", "").identity;
         let changed_paths = BTreeSet::from(["billing.py".to_owned()]);
 
-        let links = changed_symbol_links(&source, &changed_paths, &graph);
+        let threshold = sweep_threshold(&graph);
+        let links = changed_symbol_links(&source, &changed_paths, &graph, threshold);
 
         assert_eq!(
             links,
@@ -517,7 +519,8 @@ mod tests {
             .chain(std::iter::once("billing.py".to_owned()))
             .collect::<BTreeSet<_>>();
 
-        let links = changed_symbol_links(&source, &changed_paths, &graph);
+        let threshold = sweep_threshold(&graph);
+        let links = changed_symbol_links(&source, &changed_paths, &graph, threshold);
 
         assert!(links.is_empty());
     }
@@ -541,13 +544,14 @@ mod tests {
         let within_threshold = (0..15).map(|n| format!("file-{n}.py")).collect();
         let over_threshold = (0..25).map(|n| format!("file-{n}.py")).collect();
 
+        let threshold = sweep_threshold(&graph);
         assert_eq!(
-            changed_symbol_links(&source, &within_threshold, &graph).len(),
+            changed_symbol_links(&source, &within_threshold, &graph, threshold).len(),
             15,
             "15 of 200 files (7.5%) is a normal-sized change in a repo this size"
         );
         assert!(
-            changed_symbol_links(&source, &over_threshold, &graph).is_empty(),
+            changed_symbol_links(&source, &over_threshold, &graph, threshold).is_empty(),
             "25 of 200 files (12.5%) is a sweep in a repo this size, even though \
              the old fixed 50-file cap would have let it through"
         );

@@ -147,6 +147,7 @@ fn branch_commit_links(branches: &[BranchArtifact]) -> Vec<ArtifactLink> {
 /// symbols in the files it changed ([`ctx_core::linking::changed_symbol_links`]).
 /// A graph with nothing indexed yet (no `ctx index` has run) yields none.
 fn commit_symbol_links(commits: &[CommitArtifact], graph: &GraphSnapshot) -> Vec<ArtifactLink> {
+    let threshold = ctx_core::linking::sweep_threshold(graph);
     commits
         .iter()
         .flat_map(|commit| {
@@ -154,6 +155,7 @@ fn commit_symbol_links(commits: &[CommitArtifact], graph: &GraphSnapshot) -> Vec
                 &commit.artifact.identity,
                 &commit.changed_paths,
                 graph,
+                threshold,
             )
         })
         .collect()

@@ -1,6 +1,11 @@
 # Command reference
 
-Every command accepts two global flags: `--json` for stable machine-readable output, and `-v`/`-vv` (repeatable) for more verbose diagnostics. Both must appear before the subcommand (`ctx --json impact ...`).
+Every command accepts these global flags, which must appear before the subcommand (`ctx --json impact ...`):
+
+- `--json` — stable machine-readable output.
+- `-v`/`-vv`/`-vvv` (repeatable) — progressively richer terminal diagnostics on stderr, without corrupting `--json` stdout. `-v` reports command and ingest lifecycle; `-vv` adds internal stages and external-call metadata (no payloads); `-vvv` adds timings plus raw request/response data.
+- `--debug` — independently of `-v`, record the full `-vvv`-equivalent trace as timestamped JSONL under `.ctx/logs` (Git-ignored, `0600` permissions).
+- `--siga-siga` — pace AI-agent calls made by `ctx enrich`, `ctx verify --knowledge --auto`, and `ctx verify --stale`: one request immediately, then at least 30s between requests, with a 15m pause after 30m of continuous calling. No effect on commands that don't call an agent.
 
 ## Setup and indexing
 
@@ -9,7 +14,7 @@ Every command accepts two global flags: `--json` for stable machine-readable out
 | `ctx init` | | Create `.ctx/config.toml`, `.context/{features,requirements,invariants,decisions}/`, and local SQLite storage. Adds `.ctx/ctx.db*`, `.ctx/registry.toml`, and `.ctx/export.json` to the repository-local Git exclude file (not the shared `.gitignore`). Scaffolds `.context/`/`.ctx-candidates/` under a redirected location instead, if one is set (see `ctx context-store` below). Safe to re-run. |
 | `ctx context-store set <path>` | `--git` | Redirect `.context/`/`.ctx-candidates/` to `path` — a plain directory by default, or a Git repository with `--git` (created via `git init` if needed). Recorded only in a machine-local registry, never written into this checkout. See [configuration.md](configuration.md#redirecting-the-context-store-ctx-context-store). |
 | `ctx context-store show` | | Show whether `.context/`/`.ctx-candidates/` are currently redirected, to where, and whether that location is Git-backed. |
-| `ctx index` | | Incrementally index the current commit's configured source files and `.context` documents. Only committed source is read; `.context`/`.ctx-candidates` are only required to be committed when their (possibly redirected) location is a Git repository — see [configuration.md](configuration.md). Run again after every commit you want reflected in impact/explain/review/status. |
+| `ctx index` | | Incrementally index the current commit's configured source files and `.context` documents. Only committed source is read; `.context`/`.ctx-candidates` are only required to be committed when their (possibly redirected) location is a Git repository — see [configuration.md](configuration.md). Run again after every commit you want reflected in impact/explain/review/status. Conventional `openapi.yaml`/`openapi.yml`/`openapi.json` files are discovered automatically regardless of configured `languages` or source include paths (normal excludes still apply) — see [api-contracts.md](api-contracts.md#openapi-specifications). |
 | `ctx status` | | Health report: indexed commit vs. `HEAD`, effective source scope, node/claim counts, stale claims, `needs_mappings` (active Requirement/Invariant/Decision with no implementation link), best-effort schema `reconciliation` divergences, and a suggested next action. |
 
 ## Query

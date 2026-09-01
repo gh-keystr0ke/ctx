@@ -4,6 +4,17 @@ All notable changes to `ctx` are documented here. The project follows semantic v
 
 ## Unreleased
 
+### Added
+
+- `-v`/`-vv`/`-vvv` (repeatable, global) select progressively richer terminal diagnostics on stderr without corrupting `--json` stdout: `-v` reports command and ingest lifecycle, `-vv` adds internal stages and external-call metadata, `-vvv` adds timings and raw request/response data. `--debug` independently records the full `-vvv`-equivalent trace as timestamped JSONL under `.ctx/logs` (Git-ignored, `0600` permissions). Covers ingest, Git, HTTP retry, GitLab, Jira, SQLite, indexing, and AI-agent subprocess calls.
+- `--siga-siga` (global) paces AI-agent calls made by `ctx enrich`, `ctx verify --knowledge --auto`, and `ctx verify --stale`: the first request runs immediately, then at least 30s between requests, with a 15m pause after 30m of continuous calling.
+- OpenAPI 3.0/3.1 support: conventional `openapi.yaml`/`openapi.yml`/`openapi.json` files are discovered automatically during `ctx index` regardless of configured `languages` or source include paths (normal excludes still apply). Every path operation for `GET`/`POST`/`PUT`/`DELETE`/`PATCH`/`HEAD`/`OPTIONS`/`TRACE` becomes a language-neutral `ApiEndpoint`, retaining `operationId`, descriptions, tags, deprecation, effective security and servers, path/query/header/cookie parameters, request-body content, and response content/schema metadata; local `$ref`s are followed. OpenAPI operations flow through the ordinary index/`ctx review` API-findings/`ctx export` federation pipeline, and are exported as public contracts even without a matching product document. When a code handler and an OpenAPI operation describe the same `(method, path)`, the OpenAPI contract is authoritative and the two export as one merged endpoint, keeping the real code handler as the trace target when one exists and combining evidence from both. See [docs/api-contracts.md](docs/api-contracts.md#openapi-specifications).
+
+### Fixed
+
+- `ctx enrich` now checkpoints each agent result as soon as it succeeds, instead of only writing candidates after every artifact in the batch finished — a later failure no longer discards already-produced results.
+- AI agent responses wrapped in Markdown/prose around a JSON payload are now recovered by a JSON-aware scanner instead of requiring the response to be bare JSON; malformed, truncated, ambiguous, and schema-invalid JSON now fail with an explicit, distinguishing error instead of a generic parse failure.
+
 ## 0.7.0 — 2026-09-01
 
 ### Fixed

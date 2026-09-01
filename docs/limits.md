@@ -17,7 +17,7 @@
 
 ## HTTP contracts
 
-See [docs/api-contracts.md](api-contracts.md#current-limits) for the full list: Python-only, FastAPI/Flask/`requests`/`httpx`-only, five HTTP methods, heuristic parameter classification, and no fact for a dynamic route or call URL.
+See [docs/api-contracts.md](api-contracts.md#current-limits) for the full list: from code, Python-only with FastAPI/Flask/`requests`/`httpx`-only and five HTTP methods with heuristic parameter classification; from OpenAPI, 3.0/3.1 documents only with local `$ref`s only; and no fact for a dynamic route or call URL either way.
 
 ## Federation
 

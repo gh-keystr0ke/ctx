@@ -8,7 +8,7 @@ The core — indexing, impact, explain, review, Context Packs — is determinist
 
 | | |
 | --- | --- |
-| **Index** | Git-aware incremental Python/Rust/Go indexing (Tree-sitter) of files, symbols, calls, tests, database reads/writes, schema declarations, and HTTP contracts. |
+| **Index** | Git-aware incremental Python/Rust/Go indexing (Tree-sitter) of files, symbols, calls, tests, database reads/writes, schema declarations, and HTTP contracts — plus language-neutral HTTP contracts auto-discovered from OpenAPI 3.0/3.1 specs. |
 | **Impact & explain** | Bounded, evidence-backed traversal from a file, symbol, stable ID, or `table.column` to the product intent, code, and tests around it. |
 | **Review** | High-precision diff review across three independent streams — product-requirement impact, database schema changes, and HTTP contract changes — each with linked evidence and a reviewer action. See [docs/architecture.md](docs/architecture.md). |
 | **Context Packs** | Token-budgeted, evidence-backed context for a coding task, from the CLI or over MCP. |

@@ -4,6 +4,12 @@ All notable changes to `ctx` are documented here. The project follows semantic v
 
 ## Unreleased
 
+## 0.7.4 — 2026-09-02
+
+### Added
+
+- The Python adapter recognizes import-gated `SQLAlchemy` expression calls — `select(Model)`, `select(Model.a, Model.b)`, `insert(Model)`, `update(Model).values(...)`, and `delete(Model)` — and resolves the referenced model only by an exact imported/same-file canonical path or one unique schema-bearing symbol sharing its bare name, never by naming convention or dataflow aliasing. Resolved accesses join the same `DbEntity` a table's declarative model or migrations already produce, so `ReadsFrom`/`WritesTo` edges, impact analysis, and `ctx explain` now cover ORM expression-language queries, not just literal SQL.
+
 ## 0.7.3 — 2026-09-01
 
 ### Fixed

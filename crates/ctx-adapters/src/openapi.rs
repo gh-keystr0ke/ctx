@@ -262,6 +262,7 @@ fn operation_symbol(namespace: &str, endpoint: ApiEndpoint) -> SymbolDefinition 
         structural_fingerprint: body_hash,
         calls: Vec::new(),
         database_accesses: Vec::new(),
+        orm_accesses: Vec::new(),
         schema_tables: Vec::new(),
         api_endpoints: vec![endpoint],
         external_calls: Vec::new(),

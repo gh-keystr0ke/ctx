@@ -161,6 +161,17 @@ pub struct DatabaseAccess {
     pub columns: Vec<String>,
 }
 
+/// One statically recognizable ORM model access whose table identity must be
+/// resolved against schema-bearing symbols during indexing.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct OrmModelAccess {
+    pub kind: DatabaseAccessKind,
+    pub model_ref: String,
+    pub columns: Vec<String>,
+    pub range: SourceRange,
+    pub statement_hash: String,
+}
+
 /// A statically recognized foreign-key target. `column` is `None` when a
 /// recognizer locates the referenced table but not a specific column (for
 /// example a bare `REFERENCES accounts` without a column list).
@@ -286,6 +297,8 @@ pub struct SymbolDefinition {
     pub calls: Vec<CallSite>,
     #[serde(default)]
     pub database_accesses: Vec<DatabaseAccess>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub orm_accesses: Vec<OrmModelAccess>,
     #[serde(default)]
     pub schema_tables: Vec<SchemaTableDefinition>,
     #[serde(default)]

@@ -62,6 +62,7 @@ impl GooseAnalyzer {
                 structural_fingerprint: structural_fingerprint(source.as_bytes()),
                 calls: Vec::new(),
                 database_accesses: Vec::new(),
+                orm_accesses: Vec::new(),
                 schema_tables,
                 api_endpoints: Vec::new(),
                 external_calls: Vec::new(),

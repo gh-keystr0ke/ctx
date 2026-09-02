@@ -645,6 +645,7 @@ fn parse_definition(
         structural_fingerprint: structural_fingerprint(body_bytes),
         calls,
         database_accesses,
+        orm_accesses: Vec::new(),
         schema_tables,
         api_endpoints,
         external_calls,

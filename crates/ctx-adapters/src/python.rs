@@ -6,9 +6,9 @@ use std::{
 
 use ctx_app::ports::{LanguageAnalyzer, PortError};
 use ctx_core::ir::{
-    ApiEndpoint, ApiParam, CallSite, DatabaseAccess, ExternalCall, FileAnalysis, ForeignKeyRef,
-    HttpMethod, ParamSource, SchemaColumn, SchemaTableDefinition, SourceRange, SymbolDefinition,
-    SymbolKind,
+    ApiEndpoint, ApiParam, CallSite, DatabaseAccess, DatabaseAccessKind, ExternalCall,
+    FileAnalysis, ForeignKeyRef, HttpMethod, OrmModelAccess, ParamSource, SchemaColumn,
+    SchemaTableDefinition, SourceRange, SymbolDefinition, SymbolKind,
 };
 use thiserror::Error;
 use tree_sitter::{Node, Parser, TreeCursor};
@@ -61,21 +61,21 @@ impl PythonAnalyzer {
             .parse(source, None)
             .ok_or_else(|| PythonAnalysisError::Parse(relative_path.to_owned()))?;
         let module = module_path(relative_path);
-        let routing = collect_python_bindings(tree.root_node(), source.as_bytes());
+        let bindings = collect_python_bindings(tree.root_node(), source.as_bytes(), &module);
         let mut symbols = Vec::new();
         collect_definitions(
             tree.root_node(),
             source.as_bytes(),
             &module,
             None,
-            &routing,
+            &bindings,
             &mut symbols,
         );
         symbols.sort_by(|left, right| left.canonical_path.cmp(&right.canonical_path));
         Ok(FileAnalysis {
             path: relative_path.to_owned(),
             language: "python".to_owned(),
-            analysis_version: "python-tree-sitter-v4".to_owned(),
+            analysis_version: "python-tree-sitter-v5".to_owned(),
             content_hash: blake3::hash(source.as_bytes()).to_hex().to_string(),
             symbols,
         })
@@ -84,7 +84,7 @@ impl PythonAnalyzer {
 
 impl LanguageAnalyzer for PythonAnalyzer {
     fn analysis_version(&self, _relative_path: &str) -> Result<String, PortError> {
-        Ok("python-tree-sitter-v4".to_owned())
+        Ok("python-tree-sitter-v5".to_owned())
     }
 
     fn analyze(&self, relative_path: &str) -> Result<FileAnalysis, PortError> {
@@ -121,19 +121,71 @@ impl AnalyzerModule for PythonAnalyzer {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum SqlAlchemyVerb {
+    Select,
+    Insert,
+    Update,
+    Delete,
+}
+
+impl SqlAlchemyVerb {
+    fn from_name(name: &str) -> Option<Self> {
+        match name {
+            "select" => Some(Self::Select),
+            "insert" => Some(Self::Insert),
+            "update" => Some(Self::Update),
+            "delete" => Some(Self::Delete),
+            _ => None,
+        }
+    }
+
+    fn access_kind(self) -> DatabaseAccessKind {
+        match self {
+            Self::Select => DatabaseAccessKind::Read,
+            Self::Insert | Self::Update | Self::Delete => DatabaseAccessKind::Write,
+        }
+    }
+}
+
 #[derive(Default)]
 struct PythonBindings {
     router_prefixes: BTreeMap<String, String>,
     httpx_clients: BTreeSet<String>,
+    sqlalchemy_expr_names: BTreeMap<String, SqlAlchemyVerb>,
+    sqlalchemy_module_aliases: BTreeSet<String>,
+    imported_symbols: BTreeMap<String, String>,
+    same_file_classes: BTreeMap<String, String>,
 }
 
-fn collect_python_bindings(root: Node<'_>, source: &[u8]) -> PythonBindings {
+fn collect_python_bindings(root: Node<'_>, source: &[u8], module: &str) -> PythonBindings {
     let mut bindings = PythonBindings::default();
     visit_python_bindings(root, source, &mut bindings);
+    let mut cursor = root.walk();
+    for child in root.named_children(&mut cursor) {
+        let definition = unwrap_decorated(child);
+        if definition.kind() != "class_definition" {
+            continue;
+        }
+        let Some(name) = definition
+            .child_by_field_name("name")
+            .and_then(|name| name.utf8_text(source).ok())
+        else {
+            continue;
+        };
+        bindings
+            .same_file_classes
+            .insert(name.to_owned(), format!("{module}.{name}"));
+    }
     bindings
 }
 
 fn visit_python_bindings(node: Node<'_>, source: &[u8], bindings: &mut PythonBindings) {
+    match node.kind() {
+        "import_from_statement" => collect_from_imports(node, source, bindings),
+        "import_statement" => collect_module_imports(node, source, bindings),
+        _ => {}
+    }
     if node.kind() == "assignment"
         && let (Some(left), Some(right)) = (
             node.child_by_field_name("left"),
@@ -165,6 +217,72 @@ fn visit_python_bindings(node: Node<'_>, source: &[u8], bindings: &mut PythonBin
     for child in node.named_children(&mut cursor) {
         visit_python_bindings(child, source, bindings);
     }
+}
+
+fn collect_from_imports(node: Node<'_>, source: &[u8], bindings: &mut PythonBindings) {
+    let Some(module_node) = node.child_by_field_name("module_name") else {
+        return;
+    };
+    if module_node.kind() != "dotted_name" {
+        return;
+    }
+    let Ok(module) = module_node.utf8_text(source) else {
+        return;
+    };
+    let mut cursor = node.walk();
+    for imported in node.children_by_field_name("name", &mut cursor) {
+        let Some((name, local_name)) = import_name_and_binding(imported, source, true) else {
+            continue;
+        };
+        bindings
+            .imported_symbols
+            .insert(local_name.clone(), format!("{module}.{name}"));
+        if matches!(module, "sqlalchemy" | "sqlalchemy.sql")
+            && let Some(verb) = SqlAlchemyVerb::from_name(&name)
+        {
+            bindings.sqlalchemy_expr_names.insert(local_name, verb);
+        }
+    }
+}
+
+fn collect_module_imports(node: Node<'_>, source: &[u8], bindings: &mut PythonBindings) {
+    let mut cursor = node.walk();
+    for imported in node.children_by_field_name("name", &mut cursor) {
+        let Some((name, local_name)) = import_name_and_binding(imported, source, false) else {
+            continue;
+        };
+        if matches!(name.as_str(), "sqlalchemy" | "sqlalchemy.sql") {
+            bindings.sqlalchemy_module_aliases.insert(local_name);
+        }
+    }
+}
+
+fn import_name_and_binding(
+    imported: Node<'_>,
+    source: &[u8],
+    from_import: bool,
+) -> Option<(String, String)> {
+    let (name_node, alias) = if imported.kind() == "aliased_import" {
+        (
+            imported.child_by_field_name("name")?,
+            imported
+                .child_by_field_name("alias")?
+                .utf8_text(source)
+                .ok()
+                .map(str::to_owned),
+        )
+    } else {
+        (imported, None)
+    };
+    let name = name_node.utf8_text(source).ok()?.to_owned();
+    let local_name = alias.unwrap_or_else(|| {
+        if from_import {
+            name.rsplit('.').next().unwrap_or(&name).to_owned()
+        } else {
+            name.clone()
+        }
+    });
+    Some((name, local_name))
 }
 
 fn collect_api_endpoints(
@@ -541,7 +659,7 @@ fn collect_definitions(
     source: &[u8],
     module: &str,
     parent: Option<&str>,
-    routing: &PythonBindings,
+    bindings: &PythonBindings,
     symbols: &mut Vec<SymbolDefinition>,
 ) {
     let mut cursor = node.walk();
@@ -553,16 +671,16 @@ fn collect_definitions(
         ) {
             let decorated = (child.kind() == "decorated_definition").then_some(child);
             if let Some(symbol) =
-                parse_definition(definition, decorated, source, module, parent, routing)
+                parse_definition(definition, decorated, source, module, parent, bindings)
             {
                 let canonical = symbol.canonical_path.clone();
                 symbols.push(symbol);
                 if let Some(body) = definition.child_by_field_name("body") {
-                    collect_definitions(body, source, module, Some(&canonical), routing, symbols);
+                    collect_definitions(body, source, module, Some(&canonical), bindings, symbols);
                 }
             }
         } else {
-            collect_definitions(child, source, module, parent, routing, symbols);
+            collect_definitions(child, source, module, parent, bindings, symbols);
         }
     }
 }
@@ -584,7 +702,7 @@ fn parse_definition(
     source: &[u8],
     module: &str,
     parent: Option<&str>,
-    routing: &PythonBindings,
+    bindings: &PythonBindings,
 ) -> Option<SymbolDefinition> {
     let name_node = node.child_by_field_name("name")?;
     let name = name_node.utf8_text(source).ok()?.to_owned();
@@ -618,6 +736,11 @@ fn parse_definition(
     } else {
         collect_database_accesses(body, source)
     };
+    let orm_accesses = if is_class {
+        Vec::new()
+    } else {
+        collect_orm_accesses(body, source, bindings)
+    };
     let schema_tables = if is_class {
         sqlalchemy_schema_table(body, source).into_iter().collect()
     } else {
@@ -627,13 +750,13 @@ fn parse_definition(
         Vec::new()
     } else {
         decorated.map_or_else(Vec::new, |decorated| {
-            collect_api_endpoints(decorated, node, source, routing)
+            collect_api_endpoints(decorated, node, source, bindings)
         })
     };
     let external_calls = if is_class {
         Vec::new()
     } else {
-        collect_external_calls(body, source, routing)
+        collect_external_calls(body, source, bindings)
     };
     Some(SymbolDefinition {
         name,
@@ -645,7 +768,7 @@ fn parse_definition(
         structural_fingerprint: structural_fingerprint(body_bytes),
         calls,
         database_accesses,
-        orm_accesses: Vec::new(),
+        orm_accesses,
         schema_tables,
         api_endpoints,
         external_calls,
@@ -741,6 +864,272 @@ fn visit_database_calls(
         }
         cursor.goto_parent();
     }
+}
+
+fn collect_orm_accesses(
+    node: Node<'_>,
+    source: &[u8],
+    bindings: &PythonBindings,
+) -> Vec<OrmModelAccess> {
+    let mut accesses = Vec::new();
+    let mut cursor = node.walk();
+    visit_orm_calls(&mut cursor, source, bindings, &mut accesses, true);
+    accesses.sort_by(|left, right| {
+        left.model_ref
+            .cmp(&right.model_ref)
+            .then_with(|| left.kind.cmp(&right.kind))
+            .then_with(|| left.range.start_byte.cmp(&right.range.start_byte))
+    });
+    accesses.dedup_by(|left, right| {
+        left.model_ref == right.model_ref
+            && left.kind == right.kind
+            && left.statement_hash == right.statement_hash
+    });
+    accesses
+}
+
+fn visit_orm_calls(
+    cursor: &mut TreeCursor<'_>,
+    source: &[u8],
+    bindings: &PythonBindings,
+    accesses: &mut Vec<OrmModelAccess>,
+    root: bool,
+) {
+    let node = cursor.node();
+    if !root && matches!(node.kind(), "function_definition" | "class_definition") {
+        return;
+    }
+    if node.kind() == "call" && !is_nested_in_execute_call(node, source) {
+        if let Some((verb_call, values_arguments)) = sqlalchemy_values_call(node, source, bindings)
+        {
+            if let Some(access) =
+                orm_access_from_call(node, verb_call, Some(values_arguments), source, bindings)
+            {
+                accesses.push(access);
+            }
+        } else if sqlalchemy_verb_call(node, source, bindings).is_some()
+            && !is_values_chain_inner(node, source, bindings)
+            && let Some(access) = orm_access_from_call(node, node, None, source, bindings)
+        {
+            accesses.push(access);
+        }
+    }
+    if cursor.goto_first_child() {
+        loop {
+            visit_orm_calls(cursor, source, bindings, accesses, false);
+            if !cursor.goto_next_sibling() {
+                break;
+            }
+        }
+        cursor.goto_parent();
+    }
+}
+
+fn sqlalchemy_verb_call<'a>(
+    call: Node<'a>,
+    source: &[u8],
+    bindings: &PythonBindings,
+) -> Option<(SqlAlchemyVerb, Node<'a>)> {
+    if call.kind() != "call" {
+        return None;
+    }
+    let function = call.child_by_field_name("function")?;
+    let verb = if function.kind() == "identifier" {
+        let local_name = function.utf8_text(source).ok()?;
+        bindings.sqlalchemy_expr_names.get(local_name).copied()
+    } else if function.kind() == "attribute" {
+        let owner = function.child_by_field_name("object")?;
+        let operation = function
+            .child_by_field_name("attribute")?
+            .utf8_text(source)
+            .ok()?;
+        owner
+            .utf8_text(source)
+            .ok()
+            .filter(|owner| bindings.sqlalchemy_module_aliases.contains(*owner))
+            .and_then(|_| SqlAlchemyVerb::from_name(operation))
+    } else {
+        None
+    }?;
+    Some((verb, call.child_by_field_name("arguments")?))
+}
+
+fn sqlalchemy_values_call<'a>(
+    call: Node<'a>,
+    source: &[u8],
+    bindings: &PythonBindings,
+) -> Option<(Node<'a>, Node<'a>)> {
+    if call.kind() != "call" {
+        return None;
+    }
+    let function = call.child_by_field_name("function")?;
+    if function.kind() != "attribute"
+        || function
+            .child_by_field_name("attribute")?
+            .utf8_text(source)
+            .ok()?
+            != "values"
+    {
+        return None;
+    }
+    let verb_call = function.child_by_field_name("object")?;
+    let (verb, _) = sqlalchemy_verb_call(verb_call, source, bindings)?;
+    if !matches!(verb, SqlAlchemyVerb::Insert | SqlAlchemyVerb::Update) {
+        return None;
+    }
+    Some((verb_call, call.child_by_field_name("arguments")?))
+}
+
+fn is_values_chain_inner(call: Node<'_>, source: &[u8], bindings: &PythonBindings) -> bool {
+    let Some(attribute) = call.parent().filter(|parent| parent.kind() == "attribute") else {
+        return false;
+    };
+    if attribute.child_by_field_name("object") != Some(call) {
+        return false;
+    }
+    let Some(outer_call) = attribute.parent().filter(|parent| parent.kind() == "call") else {
+        return false;
+    };
+    sqlalchemy_values_call(outer_call, source, bindings)
+        .is_some_and(|(verb_call, _)| verb_call == call)
+}
+
+fn is_nested_in_execute_call(call: Node<'_>, source: &[u8]) -> bool {
+    let mut ancestor = call.parent();
+    while let Some(node) = ancestor {
+        if matches!(node.kind(), "function_definition" | "class_definition") {
+            return false;
+        }
+        if node.kind() == "call"
+            && node
+                .child_by_field_name("function")
+                .and_then(|function| function.utf8_text(source).ok())
+                .is_some_and(|callee| callee.rsplit('.').next() == Some("execute"))
+        {
+            return true;
+        }
+        ancestor = node.parent();
+    }
+    false
+}
+
+fn orm_access_from_call(
+    expression: Node<'_>,
+    verb_call: Node<'_>,
+    values_arguments: Option<Node<'_>>,
+    source: &[u8],
+    bindings: &PythonBindings,
+) -> Option<OrmModelAccess> {
+    let (verb, verb_arguments) = sqlalchemy_verb_call(verb_call, source, bindings)?;
+    let (model_name, mut columns) = orm_model_and_columns(verb, verb_arguments, source)?;
+    if matches!(verb, SqlAlchemyVerb::Insert | SqlAlchemyVerb::Update) {
+        columns =
+            values_arguments.map_or_else(Vec::new, |arguments| values_columns(arguments, source));
+    } else if verb == SqlAlchemyVerb::Delete {
+        columns.clear();
+    }
+    columns.sort_unstable();
+    columns.dedup();
+    Some(OrmModelAccess {
+        kind: verb.access_kind(),
+        model_ref: resolve_model_ref(&model_name, bindings),
+        columns,
+        range: source_range(expression),
+        statement_hash: blake3::hash(&source[expression.byte_range()])
+            .to_hex()
+            .to_string(),
+    })
+}
+
+fn orm_model_and_columns(
+    verb: SqlAlchemyVerb,
+    arguments: Node<'_>,
+    source: &[u8],
+) -> Option<(String, Vec<String>)> {
+    let mut cursor = arguments.walk();
+    let arguments = arguments.named_children(&mut cursor).collect::<Vec<_>>();
+    if arguments.is_empty() || (verb != SqlAlchemyVerb::Select && arguments.len() != 1) {
+        return None;
+    }
+    let mut model_name = None::<String>;
+    let mut columns = Vec::new();
+    for argument in arguments {
+        let (candidate, column) = if argument.kind() == "identifier" {
+            (argument.utf8_text(source).ok()?.to_owned(), None)
+        } else if argument.kind() == "attribute" {
+            let object = argument.child_by_field_name("object")?;
+            if object.kind() != "identifier" {
+                return None;
+            }
+            (
+                object.utf8_text(source).ok()?.to_owned(),
+                argument
+                    .child_by_field_name("attribute")?
+                    .utf8_text(source)
+                    .ok()
+                    .map(str::to_owned),
+            )
+        } else {
+            return None;
+        };
+        if model_name.as_ref().is_some_and(|model| model != &candidate) {
+            return None;
+        }
+        model_name = Some(candidate);
+        if verb == SqlAlchemyVerb::Select
+            && let Some(column) = column
+        {
+            columns.push(column);
+        }
+    }
+    Some((model_name?, columns))
+}
+
+fn values_columns(arguments: Node<'_>, source: &[u8]) -> Vec<String> {
+    let mut cursor = arguments.walk();
+    let arguments = arguments.named_children(&mut cursor).collect::<Vec<_>>();
+    if !arguments.is_empty()
+        && arguments
+            .iter()
+            .all(|argument| argument.kind() == "keyword_argument")
+    {
+        return arguments
+            .iter()
+            .filter_map(|argument| argument.child_by_field_name("name"))
+            .filter_map(|name| name.utf8_text(source).ok())
+            .map(str::to_owned)
+            .collect();
+    }
+    let [dictionary] = arguments.as_slice() else {
+        return Vec::new();
+    };
+    if dictionary.kind() != "dictionary" {
+        return Vec::new();
+    }
+    let mut cursor = dictionary.walk();
+    let entries = dictionary.named_children(&mut cursor).collect::<Vec<_>>();
+    if entries.iter().any(|entry| entry.kind() != "pair") {
+        return Vec::new();
+    }
+    entries
+        .iter()
+        .map(|entry| entry.child_by_field_name("key"))
+        .map(|key| {
+            key.filter(|key| key.kind() == "string")
+                .and_then(|key| key.utf8_text(source).ok())
+                .and_then(static_string_content)
+        })
+        .collect::<Option<Vec<_>>>()
+        .unwrap_or_default()
+}
+
+fn resolve_model_ref(model_name: &str, bindings: &PythonBindings) -> String {
+    bindings
+        .imported_symbols
+        .get(model_name)
+        .or_else(|| bindings.same_file_classes.get(model_name))
+        .cloned()
+        .unwrap_or_else(|| model_name.to_owned())
 }
 
 fn is_database_execution_call(expression: &str) -> bool {
@@ -1056,6 +1445,167 @@ def load_and_archive(connection):
                 ),
                 (ctx_core::ir::DatabaseAccessKind::Read, "subscriptions"),
             ]
+        );
+    }
+
+    #[test]
+    fn extracts_same_file_sqlalchemy_expression_accesses_and_static_columns() {
+        let source = r#"
+from sqlalchemy import insert, select, update
+
+class Subscription(Base):
+    __tablename__ = "subscriptions"
+    id = Column(String, primary_key=True)
+    status = Column(String)
+
+def persist(status):
+    select(Subscription)
+    select(Subscription.id, Subscription.status)
+    update(Subscription).values(status=status)
+    insert(Subscription).values(a=1, b=2)
+    insert(Subscription).values({"created_at": now(), "status": status})
+"#;
+        let analysis = PythonAnalyzer::analyze_source("src/app/models.py", source)
+            .expect("SQLAlchemy expressions");
+        let persist = analysis
+            .symbols
+            .iter()
+            .find(|symbol| symbol.name == "persist")
+            .expect("persist function");
+        assert!(
+            persist
+                .orm_accesses
+                .iter()
+                .all(|access| access.model_ref == "app.models.Subscription")
+        );
+        assert_eq!(
+            persist
+                .orm_accesses
+                .iter()
+                .map(|access| (access.kind, access.columns.as_slice()))
+                .collect::<Vec<_>>(),
+            vec![
+                (DatabaseAccessKind::Read, &[][..]),
+                (
+                    DatabaseAccessKind::Read,
+                    &["id".to_owned(), "status".to_owned()][..]
+                ),
+                (DatabaseAccessKind::Write, &["status".to_owned()][..]),
+                (
+                    DatabaseAccessKind::Write,
+                    &["a".to_owned(), "b".to_owned()][..]
+                ),
+                (
+                    DatabaseAccessKind::Write,
+                    &["created_at".to_owned(), "status".to_owned()][..],
+                ),
+            ]
+        );
+    }
+
+    #[test]
+    fn dynamic_values_payloads_leave_columns_wholly_unknown() {
+        let source = r#"
+from sqlalchemy import update
+
+class Subscription(Base):
+    __tablename__ = "subscriptions"
+    id = Column(String)
+
+def persist(payload, some_var, key):
+    update(Subscription).values(**payload)
+    update(Subscription).values(some_var)
+    update(Subscription).values(build())
+    update(Subscription).values({"status": payload, key: some_var})
+"#;
+        let analysis = PythonAnalyzer::analyze_source("models.py", source).expect("dynamic values");
+        let persist = analysis
+            .symbols
+            .iter()
+            .find(|symbol| symbol.name == "persist")
+            .expect("persist function");
+        assert_eq!(persist.orm_accesses.len(), 4);
+        assert!(
+            persist
+                .orm_accesses
+                .iter()
+                .all(|access| access.columns.is_empty())
+        );
+    }
+
+    #[test]
+    fn sqlalchemy_import_aliases_gate_expression_recognition() {
+        let source = r#"
+from sqlalchemy import select as sel
+import sqlalchemy as sa
+import sqlalchemy
+import sqlalchemy.sql as sasql
+from app.models import Subscription as Sub
+
+def access():
+    sel(Sub)
+    sa.update(Sub).values(status="active")
+    sqlalchemy.delete(Sub)
+    sasql.insert(Sub)
+"#;
+        let analysis =
+            PythonAnalyzer::analyze_source("src/app/service.py", source).expect("import aliases");
+        assert_eq!(analysis.analysis_version, "python-tree-sitter-v5");
+        let access = analysis
+            .symbols
+            .iter()
+            .find(|symbol| symbol.name == "access")
+            .expect("access function");
+        assert_eq!(access.orm_accesses.len(), 4);
+        assert!(
+            access
+                .orm_accesses
+                .iter()
+                .all(|orm| orm.model_ref == "app.models.Subscription")
+        );
+        assert_eq!(
+            access
+                .orm_accesses
+                .iter()
+                .map(|orm| orm.kind)
+                .collect::<Vec<_>>(),
+            vec![
+                DatabaseAccessKind::Read,
+                DatabaseAccessKind::Write,
+                DatabaseAccessKind::Write,
+                DatabaseAccessKind::Write,
+            ]
+        );
+    }
+
+    #[test]
+    fn unbound_or_dynamic_sqlalchemy_expression_shapes_emit_no_access() {
+        let source = r#"
+from sqlalchemy import select as sa_select
+
+class Model(Base):
+    __tablename__ = "models"
+    id = Column(String)
+
+def select(value):
+    return value
+
+def local_select():
+    select(Model)
+
+def dynamic_model():
+    sa_select(get_model())
+
+def wrapped(session):
+    session.execute(sa_select(Model))
+"#;
+        let analysis =
+            PythonAnalyzer::analyze_source("models.py", source).expect("negative expressions");
+        assert!(
+            analysis
+                .symbols
+                .iter()
+                .all(|symbol| symbol.orm_accesses.is_empty())
         );
     }
 

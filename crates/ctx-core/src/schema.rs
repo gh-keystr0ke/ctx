@@ -904,6 +904,7 @@ mod tests {
                 structural_fingerprint: "fp".to_owned(),
                 calls: Vec::new(),
                 database_accesses: Vec::new(),
+                orm_accesses: Vec::new(),
                 schema_tables,
                 api_endpoints: Vec::new(),
                 external_calls: Vec::new(),

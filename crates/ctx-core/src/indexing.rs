@@ -7,7 +7,7 @@ use crate::{
     domain::{ClaimClass, ClaimStatus, Confidence, NodeKind, RelationKind, SourceKind, StableKey},
     ir::{
         ApiEndpoint, DatabaseAccess, DatabaseAccessKind, ExternalCall, FileAnalysis,
-        SchemaTableDefinition, SourceRange, SymbolDefinition, SymbolKind,
+        OrmModelAccess, SchemaTableDefinition, SourceRange, SymbolDefinition, SymbolKind,
     },
 };
 
@@ -26,6 +26,8 @@ pub struct IndexedSymbol {
     pub calls: Vec<String>,
     #[serde(default)]
     pub database_accesses: Vec<DatabaseAccess>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub orm_accesses: Vec<OrmModelAccess>,
     #[serde(default)]
     pub schema_tables: Vec<SchemaTableDefinition>,
     #[serde(default)]
@@ -175,6 +177,8 @@ pub enum PlannedNodeAttributes {
         calls: Vec<String>,
         #[serde(default)]
         database_accesses: Vec<DatabaseAccess>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        orm_accesses: Vec<OrmModelAccess>,
         #[serde(default)]
         schema_tables: Vec<SchemaTableDefinition>,
         #[serde(default)]
@@ -288,7 +292,8 @@ pub fn plan_incremental_index(
     let mut plan = IndexPlan::default();
     let mut retired = BTreeSet::new();
     let historical_symbols = all_symbols(snapshot);
-    let historical_database_entities = database_entities(&historical_symbols);
+    let historical_database_entities =
+        database_entities(&historical_symbols, std::iter::empty::<&DatabaseAccess>());
     let mut current_symbols = historical_symbols.clone();
     // Shared across every file in this transition: once one file's symbol
     // claims a prior identity (typically via its own unchanged canonical
@@ -527,6 +532,7 @@ fn write_symbol(
             structural_fingerprint: definition.structural_fingerprint.clone(),
             calls: calls.clone(),
             database_accesses: definition.database_accesses.clone(),
+            orm_accesses: definition.orm_accesses.clone(),
             schema_tables: definition.schema_tables.clone(),
             api_endpoints: definition.api_endpoints.clone(),
             external_calls: definition.external_calls.clone(),
@@ -547,6 +553,7 @@ fn write_symbol(
         structural_fingerprint: definition.structural_fingerprint.clone(),
         calls,
         database_accesses: definition.database_accesses.clone(),
+        orm_accesses: definition.orm_accesses.clone(),
         schema_tables: definition.schema_tables.clone(),
         api_endpoints: definition.api_endpoints.clone(),
         external_calls: definition.external_calls.clone(),
@@ -780,13 +787,7 @@ fn producer_name(language: &str) -> String {
 }
 
 fn add_resolved_calls(plan: &mut IndexPlan, symbols: &[IndexedSymbol]) {
-    let mut names: BTreeMap<(&str, &str), Vec<&IndexedSymbol>> = BTreeMap::new();
-    for symbol in symbols.iter().filter(|symbol| is_callable(symbol.kind)) {
-        names
-            .entry((&symbol.language, &symbol.name))
-            .or_default()
-            .push(symbol);
-    }
+    let names = symbols_by_language_and_name(symbols, |symbol| is_callable(symbol.kind));
     let changed: BTreeSet<_> = plan
         .nodes_to_write
         .iter()
@@ -798,34 +799,133 @@ fn add_resolved_calls(plan: &mut IndexPlan, symbols: &[IndexedSymbol]) {
         .filter(|symbol| changed.contains(&symbol.stable_key))
     {
         for callee_name in &caller.calls {
-            let Some(candidates) = names.get(&(caller.language.as_str(), callee_name.as_str()))
-            else {
+            let Some(callee) = unique_named_symbol(&names, &caller.language, callee_name) else {
                 continue;
             };
-            if let [callee] = candidates.as_slice() {
-                plan.edges_to_create.push(structural_edge(
-                    &caller.stable_key,
-                    &callee.stable_key,
-                    RelationKind::Calls,
-                    &caller.file_path,
-                    &caller.body_hash,
-                    &caller.language,
-                    None,
-                ));
-            }
+            plan.edges_to_create.push(structural_edge(
+                &caller.stable_key,
+                &callee.stable_key,
+                RelationKind::Calls,
+                &caller.file_path,
+                &caller.body_hash,
+                &caller.language,
+                None,
+            ));
         }
     }
 }
 
-fn database_entities(symbols: &[IndexedSymbol]) -> BTreeSet<String> {
-    symbols
+type SymbolNameIndex<'a> = BTreeMap<(&'a str, &'a str), Vec<&'a IndexedSymbol>>;
+
+fn symbols_by_language_and_name(
+    symbols: &[IndexedSymbol],
+    include: impl Fn(&IndexedSymbol) -> bool,
+) -> SymbolNameIndex<'_> {
+    let mut names = BTreeMap::new();
+    for symbol in symbols.iter().filter(|symbol| include(symbol)) {
+        names
+            .entry((symbol.language.as_str(), symbol.name.as_str()))
+            .or_insert_with(Vec::new)
+            .push(symbol);
+    }
+    names
+}
+
+fn unique_named_symbol<'a>(
+    names: &SymbolNameIndex<'a>,
+    language: &str,
+    name: &str,
+) -> Option<&'a IndexedSymbol> {
+    let [symbol] = names.get(&(language, name))?.as_slice() else {
+        return None;
+    };
+    Some(*symbol)
+}
+
+fn database_entities<'a, 'b>(
+    symbols: &'a [IndexedSymbol],
+    resolved_orm_accesses: impl IntoIterator<Item = &'b DatabaseAccess>,
+) -> BTreeSet<String> {
+    let mut entities = symbols
         .iter()
         .flat_map(|symbol| {
             let accesses = symbol.database_accesses.iter().map(|access| &access.entity);
             let schemas = symbol.schema_tables.iter().map(|table| &table.entity);
             accesses.chain(schemas).cloned()
         })
-        .collect()
+        .collect::<BTreeSet<_>>();
+    entities.extend(
+        resolved_orm_accesses
+            .into_iter()
+            .map(|access| access.entity.clone()),
+    );
+    entities
+}
+
+fn resolve_orm_accesses(symbols: &[IndexedSymbol]) -> BTreeMap<StableKey, Vec<DatabaseAccess>> {
+    let mut canonical_candidates = BTreeMap::<&str, Vec<&str>>::new();
+    for symbol in symbols {
+        if let Some(entity) = unique_schema_entity(symbol) {
+            canonical_candidates
+                .entry(symbol.canonical_path.as_str())
+                .or_default()
+                .push(entity);
+        }
+    }
+    let canonical_entities = canonical_candidates
+        .into_iter()
+        .filter_map(|(canonical_path, mut entities)| {
+            entities.sort_unstable();
+            entities.dedup();
+            let [entity] = entities.as_slice() else {
+                return None;
+            };
+            Some((canonical_path, *entity))
+        })
+        .collect::<BTreeMap<_, _>>();
+    let schema_names =
+        symbols_by_language_and_name(symbols, |symbol| unique_schema_entity(symbol).is_some());
+
+    let mut resolved = BTreeMap::<StableKey, Vec<DatabaseAccess>>::new();
+    for symbol in symbols {
+        for access in &symbol.orm_accesses {
+            let entity = canonical_entities
+                .get(access.model_ref.as_str())
+                .copied()
+                .or_else(|| {
+                    unique_named_symbol(&schema_names, &symbol.language, &access.model_ref)
+                        .and_then(unique_schema_entity)
+                });
+            let Some(entity) = entity else {
+                continue;
+            };
+            resolved
+                .entry(symbol.stable_key.clone())
+                .or_default()
+                .push(DatabaseAccess {
+                    entity: entity.to_owned(),
+                    kind: access.kind,
+                    range: access.range,
+                    statement_hash: access.statement_hash.clone(),
+                    columns: access.columns.clone(),
+                });
+        }
+    }
+    resolved
+}
+
+fn unique_schema_entity(symbol: &IndexedSymbol) -> Option<&str> {
+    let entities = symbol
+        .schema_tables
+        .iter()
+        .map(|table| table.entity.as_str())
+        .collect::<BTreeSet<_>>();
+    let mut entities = entities.into_iter();
+    let entity = entities.next()?;
+    if entities.next().is_some() {
+        return None;
+    }
+    Some(entity)
 }
 
 fn add_database_facts(
@@ -833,7 +933,8 @@ fn add_database_facts(
     historical_entities: &BTreeSet<String>,
     symbols: &[IndexedSymbol],
 ) -> Result<(), IndexPlanError> {
-    let current_entities = database_entities(symbols);
+    let resolved_orm_accesses = resolve_orm_accesses(symbols);
+    let current_entities = database_entities(symbols, resolved_orm_accesses.values().flatten());
     for entity in current_entities.difference(historical_entities) {
         let stable_key = database_entity_key(entity)?;
         plan.nodes_to_write.push(PlannedNode {
@@ -861,7 +962,13 @@ fn add_database_facts(
         .iter()
         .filter(|symbol| changed.contains(&symbol.stable_key))
     {
-        add_database_access_edges(plan, symbol)?;
+        add_database_access_edges(
+            plan,
+            symbol,
+            resolved_orm_accesses
+                .get(&symbol.stable_key)
+                .map_or(&[], Vec::as_slice),
+        )?;
         add_schema_definition_edges(plan, symbol)?;
     }
     Ok(())
@@ -870,9 +977,10 @@ fn add_database_facts(
 fn add_database_access_edges(
     plan: &mut IndexPlan,
     symbol: &IndexedSymbol,
+    resolved_orm_accesses: &[DatabaseAccess],
 ) -> Result<(), IndexPlanError> {
     let mut grouped = BTreeMap::<(DatabaseAccessKind, &str), Vec<&DatabaseAccess>>::new();
-    for access in &symbol.database_accesses {
+    for access in symbol.database_accesses.iter().chain(resolved_orm_accesses) {
         grouped
             .entry((access.kind, access.entity.as_str()))
             .or_default()
@@ -1259,7 +1367,7 @@ fn normalize_plan(plan: &mut IndexPlan) -> Result<(), IndexPlanError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{CallSite, DatabaseAccess};
+    use crate::ir::{CallSite, DatabaseAccess, OrmModelAccess};
 
     fn range() -> SourceRange {
         SourceRange {
@@ -1288,6 +1396,56 @@ mod tests {
         }
     }
 
+    fn schema_model(name: &str, canonical: &str, entity: &str) -> SymbolDefinition {
+        let mut model = definition(name, canonical, "model-body", canonical);
+        model.kind = SymbolKind::Class;
+        model.schema_tables.push(SchemaTableDefinition {
+            entity: entity.to_owned(),
+            table_created: true,
+            range: range(),
+            ..SchemaTableDefinition::default()
+        });
+        model
+    }
+
+    fn orm_access(
+        kind: DatabaseAccessKind,
+        model_ref: &str,
+        line: usize,
+        statement_hash: &str,
+        columns: &[&str],
+    ) -> OrmModelAccess {
+        OrmModelAccess {
+            kind,
+            model_ref: model_ref.to_owned(),
+            columns: columns.iter().map(|column| (*column).to_owned()).collect(),
+            range: SourceRange {
+                start_line: line,
+                ..range()
+            },
+            statement_hash: statement_hash.to_owned(),
+        }
+    }
+
+    fn added_python_analysis(path: &str, symbols: Vec<SymbolDefinition>) -> FileAnalysis {
+        FileAnalysis {
+            path: path.to_owned(),
+            language: "python".to_owned(),
+            analysis_version: "python-tree-sitter-v5".to_owned(),
+            content_hash: format!("file:{path}"),
+            symbols,
+        }
+    }
+
+    fn plan_added_files(analyses: &BTreeMap<String, FileAnalysis>) -> IndexPlan {
+        let changes = analyses
+            .keys()
+            .map(|path| FileChange::Added { path: path.clone() })
+            .collect::<Vec<_>>();
+        plan_incremental_index(&RepositorySnapshot::default(), analyses, &changes)
+            .expect("added files plan")
+    }
+
     fn indexed_file(path: &str, definition: &SymbolDefinition) -> IndexedFile {
         IndexedFile {
             stable_key: file_key(path).expect("file key"),
@@ -1308,6 +1466,7 @@ mod tests {
                 structural_fingerprint: definition.structural_fingerprint.clone(),
                 calls: Vec::new(),
                 database_accesses: definition.database_accesses.clone(),
+                orm_accesses: definition.orm_accesses.clone(),
                 schema_tables: definition.schema_tables.clone(),
                 api_endpoints: definition.api_endpoints.clone(),
                 external_calls: definition.external_calls.clone(),
@@ -1628,6 +1787,214 @@ mod tests {
             .iter()
             .find(|edge| edge.kind == RelationKind::WritesTo)
             .expect("write fact");
+        assert_eq!(
+            edge.evidence_locator.as_deref(),
+            Some("lines:4,5 columns:paid_until,status")
+        );
+    }
+
+    #[test]
+    fn imported_orm_model_access_resolves_across_files() {
+        let model = schema_model("Subscription", "app.models.Subscription", "subscriptions");
+        let mut reader = definition("load", "app.service.load", "reader-body", "reader-shape");
+        reader.orm_accesses.push(orm_access(
+            DatabaseAccessKind::Read,
+            "app.models.Subscription",
+            7,
+            "select-subscription",
+            &[],
+        ));
+        let plan = plan_added_files(&BTreeMap::from([
+            (
+                "src/app/models.py".to_owned(),
+                added_python_analysis("src/app/models.py", vec![model]),
+            ),
+            (
+                "src/app/service.py".to_owned(),
+                added_python_analysis("src/app/service.py", vec![reader]),
+            ),
+        ]));
+
+        let edge = plan
+            .edges_to_create
+            .iter()
+            .find(|edge| edge.kind == RelationKind::ReadsFrom)
+            .expect("resolved ORM read");
+        assert_eq!(edge.target.as_str(), "db:subscriptions");
+        assert_eq!(edge.claim_class, ClaimClass::Fact);
+        assert_eq!(edge.confidence, Confidence::CERTAIN);
+    }
+
+    #[test]
+    fn unique_bare_orm_model_reference_resolves_within_its_language() {
+        let model = schema_model("Subscription", "app.models.Subscription", "subscriptions");
+        let mut reader = definition("load", "app.service.load", "reader-body", "reader-shape");
+        reader.orm_accesses.push(orm_access(
+            DatabaseAccessKind::Read,
+            "Subscription",
+            7,
+            "bare-select",
+            &[],
+        ));
+        let plan = plan_added_files(&BTreeMap::from([
+            (
+                "src/app/models.py".to_owned(),
+                added_python_analysis("src/app/models.py", vec![model]),
+            ),
+            (
+                "src/app/service.py".to_owned(),
+                added_python_analysis("src/app/service.py", vec![reader]),
+            ),
+        ]));
+
+        assert!(plan.edges_to_create.iter().any(|edge| {
+            edge.kind == RelationKind::ReadsFrom && edge.target.as_str() == "db:subscriptions"
+        }));
+    }
+
+    #[test]
+    fn canonical_orm_reference_wins_over_an_ambiguous_bare_name() {
+        let first = schema_model(
+            "Subscription",
+            "first.models.Subscription",
+            "first_subscriptions",
+        );
+        let second = schema_model(
+            "Subscription",
+            "second.models.Subscription",
+            "second_subscriptions",
+        );
+        let mut reader = definition("load", "app.load", "reader-body", "reader-shape");
+        reader.orm_accesses.push(orm_access(
+            DatabaseAccessKind::Read,
+            "second.models.Subscription",
+            3,
+            "precise-select",
+            &[],
+        ));
+        let plan = plan_added_files(&BTreeMap::from([
+            (
+                "first/models.py".to_owned(),
+                added_python_analysis("first/models.py", vec![first]),
+            ),
+            (
+                "second/models.py".to_owned(),
+                added_python_analysis("second/models.py", vec![second]),
+            ),
+            (
+                "app.py".to_owned(),
+                added_python_analysis("app.py", vec![reader]),
+            ),
+        ]));
+
+        let read = plan
+            .edges_to_create
+            .iter()
+            .find(|edge| edge.kind == RelationKind::ReadsFrom)
+            .expect("canonical ORM read");
+        assert_eq!(read.target.as_str(), "db:second_subscriptions");
+    }
+
+    #[test]
+    fn ambiguous_bare_orm_model_reference_emits_no_access_edge() {
+        let first = schema_model(
+            "Subscription",
+            "first.models.Subscription",
+            "first_subscriptions",
+        );
+        let second = schema_model(
+            "Subscription",
+            "second.models.Subscription",
+            "second_subscriptions",
+        );
+        let mut reader = definition("load", "app.load", "reader-body", "reader-shape");
+        reader.orm_accesses.push(orm_access(
+            DatabaseAccessKind::Read,
+            "Subscription",
+            3,
+            "ambiguous-select",
+            &[],
+        ));
+        let plan = plan_added_files(&BTreeMap::from([
+            (
+                "first/models.py".to_owned(),
+                added_python_analysis("first/models.py", vec![first]),
+            ),
+            (
+                "second/models.py".to_owned(),
+                added_python_analysis("second/models.py", vec![second]),
+            ),
+            (
+                "app.py".to_owned(),
+                added_python_analysis("app.py", vec![reader]),
+            ),
+        ]));
+
+        assert!(plan.edges_to_create.iter().all(|edge| {
+            !matches!(edge.kind, RelationKind::ReadsFrom | RelationKind::WritesTo)
+        }));
+    }
+
+    #[test]
+    fn unmatched_orm_model_reference_emits_no_edge_or_phantom_entity() {
+        let mut reader = definition("load", "app.load", "reader-body", "reader-shape");
+        reader.orm_accesses.push(orm_access(
+            DatabaseAccessKind::Read,
+            "missing.models.Subscription",
+            3,
+            "missing-select",
+            &[],
+        ));
+        let plan = plan_added_files(&BTreeMap::from([(
+            "app.py".to_owned(),
+            added_python_analysis("app.py", vec![reader]),
+        )]));
+
+        assert!(
+            plan.nodes_to_write
+                .iter()
+                .all(|node| node.kind != NodeKind::DbEntity)
+        );
+        assert!(plan.edges_to_create.iter().all(|edge| {
+            !matches!(edge.kind, RelationKind::ReadsFrom | RelationKind::WritesTo)
+        }));
+    }
+
+    #[test]
+    fn orm_column_write_evidence_is_unioned_for_one_resolved_table() {
+        let model = schema_model("Subscription", "app.models.Subscription", "subscriptions");
+        let mut writer = definition("persist", "app.persist", "writer-body", "writer-shape");
+        writer.orm_accesses.push(orm_access(
+            DatabaseAccessKind::Write,
+            "app.models.Subscription",
+            4,
+            "update-a",
+            &["status"],
+        ));
+        writer.orm_accesses.push(orm_access(
+            DatabaseAccessKind::Write,
+            "app.models.Subscription",
+            5,
+            "update-b",
+            &["paid_until", "status"],
+        ));
+        let plan = plan_added_files(&BTreeMap::from([
+            (
+                "src/app/models.py".to_owned(),
+                added_python_analysis("src/app/models.py", vec![model]),
+            ),
+            (
+                "src/app/service.py".to_owned(),
+                added_python_analysis("src/app/service.py", vec![writer]),
+            ),
+        ]));
+
+        let edge = plan
+            .edges_to_create
+            .iter()
+            .find(|edge| edge.kind == RelationKind::WritesTo)
+            .expect("resolved ORM write");
+        assert_eq!(edge.target.as_str(), "db:subscriptions");
         assert_eq!(
             edge.evidence_locator.as_deref(),
             Some("lines:4,5 columns:paid_until,status")

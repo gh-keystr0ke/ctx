@@ -19,13 +19,13 @@ Full extraction scope and honest boundaries: [docs/limits.md](docs/limits.md). L
 
 ## Install
 
-macOS (Apple Silicon or Intel) or Linux x86_64: download the latest release, verify its checksum, and install to `~/.local/bin`:
+macOS (Apple Silicon or Intel) or Linux (x86_64 or ARM64): download the latest release, verify its checksum, and install to `~/.local/bin`:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/gh-keystr0ke/ctx/main/install.sh | sh
 ```
 
-The Linux binary is a statically linked `x86_64-unknown-linux-musl` build, so it runs unmodified on Arch, Ubuntu, Fedora, Gentoo, or any other x86_64 distribution. See [install.sh](install.sh) for the `CTX_INSTALL_VERSION`/`CTX_INSTALL_DIR` overrides.
+The Linux binaries are statically linked `x86_64-unknown-linux-musl` and `aarch64-unknown-linux-musl` builds, so they run unmodified on Arch, Ubuntu, Fedora, Gentoo, or any other distribution for the matching architecture. See [install.sh](install.sh) for the `CTX_INSTALL_VERSION`/`CTX_INSTALL_DIR` overrides.
 
 Building from source instead requires Rust 1.88 or newer and Git (the container build pins Rust 1.97.1):
 

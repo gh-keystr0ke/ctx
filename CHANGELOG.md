@@ -4,6 +4,10 @@ All notable changes to `ctx` are documented here. The project follows semantic v
 
 ## Unreleased
 
+### Added
+
+- Release archives and the one-line installer now support ARM64 Linux via statically linked `aarch64-unknown-linux-musl` builds of both `ctx` and `ctx-mcp`, with CI checks that reject dynamic interpreters or library dependencies.
+
 ## 0.7.5 — 2026-09-03
 
 ### Fixed

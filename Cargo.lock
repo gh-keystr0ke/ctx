@@ -325,6 +325,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "ctx-report"
+version = "0.7.5"
+dependencies = [
+ "blake3",
+ "ctx-app",
+ "ctx-core",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+]
+
+[[package]]
 name = "equivalent"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"

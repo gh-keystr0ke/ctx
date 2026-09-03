@@ -17,6 +17,6 @@ jobs:
         shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.97.1
+      - uses: dtolnay/rust-toolchain@1.100.0
       - uses: taiki-e/install-action@cargo-mutants
       - run: cargo mutants --workspace --no-shuffle --shard ${{ matrix.shard }}/4 --timeout 300

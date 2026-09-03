@@ -1,0 +1,21 @@
+[package]
+name = "ctx-report"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description.workspace = true
+repository.workspace = true
+readme.workspace = true
+
+[dependencies]
+blake3.workspace = true
+ctx-app = { path = "../ctx-app", version = "0.7.0" }
+ctx-core = { path = "../ctx-core", version = "0.7.0" }
+serde.workspace = true
+serde_json.workspace = true
+tempfile.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

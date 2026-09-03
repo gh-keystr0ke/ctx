@@ -2,6 +2,7 @@
 members = [
     "crates/ctx-core",
     "crates/ctx-app",
+    "crates/ctx-report",
     "crates/ctx-adapters",
     "crates/ctx-cli",
     "crates/ctx-mcp",

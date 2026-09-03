@@ -6,10 +6,12 @@ implementation_expected: false
 statement: >
   Pushing a `v<version>` tag triggers a release workflow that first verifies
   the tag matches `[workspace.package].version` in `Cargo.toml`, then builds
-  the `ctx` and `ctx-mcp` binaries for Linux (x86_64) and macOS (x86_64 and
-  aarch64) on the pinned toolchain, and publishes them as tarballs attached
-  to a GitHub Release for that tag, with release notes drawn from the
-  matching `CHANGELOG.md` section. Publishing to crates.io is deliberately
-  deferred: the `ctx-core`, `ctx-cli`, `ctx-mcp`, and bare `ctx` crate names
-  are already registered on crates.io by an unrelated project, so no
-  `cargo publish` step exists until that naming conflict is resolved.
+  the `ctx` and `ctx-mcp` binaries for Linux (statically linked musl builds
+  for x86_64 and aarch64) and macOS (x86_64 and aarch64) on the pinned
+  toolchain, verifies that the Linux binaries have no dynamic interpreter or
+  library dependencies, and publishes them as tarballs attached to a GitHub
+  Release for that tag, with release notes drawn from the matching
+  `CHANGELOG.md` section. Publishing to crates.io is deliberately deferred:
+  the `ctx-core`, `ctx-cli`, `ctx-mcp`, and bare `ctx` crate names are already
+  registered on crates.io by an unrelated project, so no `cargo publish`
+  step exists until that naming conflict is resolved.

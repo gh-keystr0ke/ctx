@@ -40,7 +40,8 @@ case "$os" in
   Linux)
     case "$arch" in
       x86_64) target="x86_64-unknown-linux-musl" ;;
-      *) die "unsupported Linux architecture: $arch (only x86_64 builds are published)" ;;
+      aarch64|arm64) target="aarch64-unknown-linux-musl" ;;
+      *) die "unsupported Linux architecture: $arch (x86_64 and ARM64 builds are published)" ;;
     esac
     ;;
   *)

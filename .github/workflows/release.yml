@@ -33,6 +33,8 @@ jobs:
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-musl
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
           - os: macos-latest
             target: aarch64-apple-darwin
           - os: macos-latest
@@ -40,14 +42,35 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       CC_x86_64_unknown_linux_musl: musl-gcc
+      CC_aarch64_unknown_linux_musl: musl-gcc
+      CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER: musl-gcc
+      CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER: musl-gcc
     steps:
       - uses: actions/checkout@v4
-      - if: matrix.target == 'x86_64-unknown-linux-musl'
+      - if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y musl-tools
       - uses: dtolnay/rust-toolchain@1.97.1
         with:
           targets: ${{ matrix.target }}
       - run: cargo build --locked --release -p ctx-cli -p ctx-mcp --target ${{ matrix.target }}
+      - name: Verify static Linux binaries
+        if: runner.os == 'Linux'
+        run: |
+          for binary in ctx ctx-mcp; do
+            path="target/${{ matrix.target }}/release/$binary"
+            file "$path"
+            if readelf -lW "$path" | grep -q INTERP; then
+              echo "$path has a dynamic program interpreter" >&2
+              exit 1
+            fi
+            if readelf -dW "$path" | grep -q NEEDED; then
+              echo "$path has dynamic library dependencies" >&2
+              exit 1
+            fi
+          done
+      - name: Smoke-test the ARM64 binary
+        if: matrix.target == 'aarch64-unknown-linux-musl'
+        run: target/${{ matrix.target }}/release/ctx --version
       - id: package
         run: |
           name="ctx-${{ needs.verify-tag.outputs.version }}-${{ matrix.target }}"

@@ -4,6 +4,8 @@ All notable changes to `ctx` are documented here. The project follows semantic v
 
 ## Unreleased
 
+## 0.7.6 — 2026-09-03
+
 ### Added
 
 - `ctx report html` and `ctx report markdown` generate a complete internal static view of the current index: dashboard, seven product catalogs, a searchable folder/file/symbol tree, evidence-rich entity and symbol pages, external artifact/code links, and Mermaid relationship diagrams in Markdown. Same-commit Markdown output is byte-deterministic; generated directories are staged and only previously managed report directories may be replaced.

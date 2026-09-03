@@ -1,5 +1,19 @@
-use std::{collections::BTreeSet, fs, path::Path, process::Command};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fs,
+    path::Path,
+    process::Command,
+};
 
+use ctx_adapters::{git::GitRepo, sqlite::SqliteStore};
+use ctx_app::ports::{ArtifactLinkStore, ArtifactRepository, GitRepository, GraphStore};
+use ctx_core::{
+    artifact::{
+        Artifact, ArtifactIdentity, ArtifactKind, ArtifactLink, ArtifactLinkKind,
+        ArtifactLinkTarget, ArtifactProvider,
+    },
+    domain::{Project, Url},
+};
 use serde_json::Value;
 use tempfile::TempDir;
 
@@ -339,6 +353,123 @@ fn document_visibility_is_reported_by_status_and_explain_in_json_and_text() {
             .ctx_text(&["explain", "FEAT-SUBSCRIPTIONS"])
             .contains("Visibility: private")
     );
+}
+
+#[test]
+fn markdown_report_is_byte_deterministic_across_the_complete_output_tree() {
+    let repository = FixtureRepository::new();
+    repository.ctx(&["init"]);
+    repository.ctx(&["index"]);
+    let output_root = tempfile::tempdir().expect("report output root");
+    let first = output_root.path().join("first");
+    let second = output_root.path().join("second");
+
+    let first_result = repository.ctx(&[
+        "report",
+        "markdown",
+        "--out",
+        first.to_str().expect("UTF-8 path"),
+    ]);
+    repository.ctx(&[
+        "report",
+        "markdown",
+        "--out",
+        second.to_str().expect("UTF-8 path"),
+    ]);
+
+    assert_eq!(first_result["format"], "markdown");
+    assert_eq!(
+        read_report_tree(&first),
+        read_report_tree(&second),
+        "same-commit reports must be byte-stable across every generated file"
+    );
+    let index = fs::read_to_string(first.join("index.md")).expect("Markdown dashboard");
+    assert!(index.contains("# Context dashboard"));
+    assert!(index.contains("[Source tree](tree.md)"));
+    let exclude = fs::read_to_string(repository.root().join(".git/info/exclude"))
+        .expect("repository-local excludes");
+    assert!(exclude.lines().any(|line| line == ".ctx/report/"));
+}
+
+#[test]
+fn html_report_links_external_evidence_and_code_at_the_source_commit() {
+    let repository = FixtureRepository::new();
+    run_git(
+        repository.root(),
+        &[
+            "remote",
+            "add",
+            "origin",
+            "https://gitlab.example.com/payments/subscriptions.git",
+        ],
+    );
+    repository.ctx(&["init"]);
+    repository.ctx(&["index"]);
+
+    let git = GitRepo::discover(repository.root()).expect("Git repository");
+    let mut store = SqliteStore::open(&repository.root().join(".ctx/ctx.db"), git.context_root())
+        .expect("store");
+    let descriptor = git.descriptor().expect("descriptor");
+    let graph = store.load_graph(&descriptor.id).expect("graph");
+    let symbol = graph
+        .resolve("billing.subscription.SubscriptionService.cancel")
+        .into_iter()
+        .next()
+        .expect("cancel symbol");
+    let artifact = Artifact {
+        identity: ArtifactIdentity {
+            provider: ArtifactProvider::Jira,
+            kind: ArtifactKind::Issue,
+            external_id: "PAY-317".to_owned(),
+        },
+        project: Project("PAY".to_owned()),
+        title: "Keep paid access during cancellation".to_owned(),
+        body: "Cancellation retains prepaid entitlement.".to_owned(),
+        author: Some("product-team".to_owned()),
+        external_created_at: None,
+        external_updated_at: None,
+        source_locator: Url("https://jira.example.com/browse/PAY-317".to_owned()),
+        content_hash: "jira-pay-317".to_owned(),
+    };
+    store
+        .upsert_artifact(&descriptor.id, &artifact, "2026-09-03T20:00:00Z", "test")
+        .expect("Jira artifact");
+    store
+        .persist_links(
+            &descriptor.id,
+            &[ArtifactLink {
+                source: artifact.identity,
+                target: ArtifactLinkTarget::CodeSymbol(symbol.stable_key.clone()),
+                kind: ArtifactLinkKind::ChangedSymbol,
+                evidence_locator: "src/billing/subscription.py".to_owned(),
+            }],
+        )
+        .expect("artifact link");
+    drop(store);
+
+    let output_root = tempfile::tempdir().expect("report output root");
+    let output = output_root.path().join("html");
+    repository.ctx(&[
+        "report",
+        "html",
+        "--out",
+        output.to_str().expect("UTF-8 path"),
+    ]);
+
+    let detail = read_report_tree(&output)
+        .into_values()
+        .filter_map(|bytes| String::from_utf8(bytes).ok())
+        .find(|page| page.contains("billing.subscription.SubscriptionService.cancel"))
+        .expect("cancel detail page");
+    assert!(detail.contains("href=\"https://jira.example.com/browse/PAY-317\""));
+    let head = git.head().expect("HEAD");
+    assert!(detail.contains(&format!(
+        "https://gitlab.example.com/payments/subscriptions/-/blob/{}/src/billing/subscription.py#L",
+        head.oid
+    )));
+    let tree = fs::read_to_string(output.join("tree.html")).expect("tree page");
+    assert!(tree.contains("id=\"tree-search\""));
+    assert!(output.join("search-index.json").is_file());
 }
 
 #[test]
@@ -2789,4 +2920,30 @@ fn copy_directory(source: &Path, destination: &Path) {
             fs::copy(entry.path(), destination_path).expect("copy fixture file");
         }
     }
+}
+
+fn read_report_tree(root: &Path) -> BTreeMap<String, Vec<u8>> {
+    fn collect(root: &Path, directory: &Path, files: &mut BTreeMap<String, Vec<u8>>) {
+        let mut entries = fs::read_dir(directory)
+            .expect("report directory")
+            .map(|entry| entry.expect("report entry").path())
+            .collect::<Vec<_>>();
+        entries.sort();
+        for path in entries {
+            if path.is_dir() {
+                collect(root, &path, files);
+            } else {
+                let relative = path
+                    .strip_prefix(root)
+                    .expect("report-relative path")
+                    .to_string_lossy()
+                    .replace('\\', "/");
+                files.insert(relative, fs::read(&path).expect("report file"));
+            }
+        }
+    }
+
+    let mut files = BTreeMap::new();
+    collect(root, root, &mut files);
+    files
 }

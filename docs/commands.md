@@ -11,7 +11,7 @@ Every command accepts these global flags, which must appear before the subcomman
 
 | Command | Flags | Purpose |
 | --- | --- | --- |
-| `ctx init` | | Create `.ctx/config.toml`, `.context/{features,requirements,invariants,decisions}/`, and local SQLite storage. Adds `.ctx/ctx.db*`, `.ctx/registry.toml`, and `.ctx/export.json` to the repository-local Git exclude file (not the shared `.gitignore`). Scaffolds `.context/`/`.ctx-candidates/` under a redirected location instead, if one is set (see `ctx context-store` below). Safe to re-run. |
+| `ctx init` | | Create `.ctx/config.toml`, `.context/{features,requirements,invariants,decisions}/`, and local SQLite storage. Adds `.ctx/ctx.db*`, `.ctx/registry.toml`, `.ctx/export.json`, and `.ctx/report/` to the repository-local Git exclude file (not the shared `.gitignore`). Scaffolds `.context/`/`.ctx-candidates/` under a redirected location instead, if one is set (see `ctx context-store` below). Safe to re-run. |
 | `ctx context-store set <path>` | `--git` | Redirect `.context/`/`.ctx-candidates/` to `path` — a plain directory by default, or a Git repository with `--git` (created via `git init` if needed). Recorded only in a machine-local registry, never written into this checkout. See [configuration.md](configuration.md#redirecting-the-context-store-ctx-context-store). |
 | `ctx context-store show` | | Show whether `.context/`/`.ctx-candidates/` are currently redirected, to where, and whether that location is Git-backed. |
 | `ctx index` | | Incrementally index the current commit's configured source files and `.context` documents. Only committed source is read; `.context`/`.ctx-candidates` are only required to be committed when their (possibly redirected) location is a Git repository — see [configuration.md](configuration.md). Run again after every commit you want reflected in impact/explain/review/status. Conventional `openapi.yaml`/`openapi.yml`/`openapi.json` files are discovered automatically regardless of configured `languages` or source include paths (normal excludes still apply) — see [api-contracts.md](api-contracts.md#openapi-specifications). |
@@ -36,6 +36,15 @@ Every command accepts these global flags, which must appear before the subcomman
 | Command | Flags | Purpose |
 | --- | --- | --- |
 | `ctx context <task>` | `--file <PATH>` (repeatable), `--symbol <NAME>` (repeatable), `--token-budget <N>` (default 4000) | Compile a bounded, evidence-backed Context Pack for a coding task. An explicit `--file`/`--symbol` seed is a hard scope boundary; lexical auto-seeding only runs when nothing explicit resolves. |
+
+## Static reports
+
+See [reports.md](reports.md) for the page model, determinism contract, and current visibility boundary.
+
+| Command | Flags | Purpose |
+| --- | --- | --- |
+| `ctx report html` | `--out <DIR>` (default `.ctx/report/html/`) | Generate a self-contained local site with dashboard metrics, a filterable graph canvas, seven product catalogs, source tree, substring search, and evidence-rich detail pages. |
+| `ctx report markdown` | `--out <DIR>` (default `.ctx/report/markdown/`) | Generate the same report as deterministic Markdown files with Mermaid relationship diagrams, suitable for replacing a docs-repository subtree in CI. |
 
 ## Mining existing knowledge
 

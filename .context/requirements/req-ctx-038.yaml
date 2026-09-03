@@ -7,7 +7,9 @@ statement: >-
   corrupting JSON stdout: -v reports command and ingest lifecycle, -vv adds internal stages and
   external-call metadata without payloads, and -vvv adds timings plus raw request/response data.
   Independently, --debug must record the -vvv stream as timestamped JSONL in a
-  permission-restricted, Git-ignored file under .ctx/logs.
+  permission-restricted, Git-ignored file under .ctx/logs. Extending the same
+  repository-local exclude writer with other ctx-owned output paths must remain
+  additive and preserve the logs exclusion and every diagnostics stream rule.
 implementation:
   - symbol: ctx_cli.diagnostics.init
   - symbol: ctx_cli.execute
@@ -28,3 +30,4 @@ tests:
   - symbol: crates.ctx-cli.tests.e2e.verbosity_keeps_json_stdout_parseable_and_reports_command_lifecycle
   - symbol: crates.ctx-cli.tests.e2e.ingest_reports_progress_at_the_first_verbosity_level
   - symbol: crates.ctx-cli.tests.e2e.debug_writes_trace_jsonl_and_keeps_it_out_of_git
+  - symbol: crates.ctx-cli.tests.e2e.markdown_report_is_byte_deterministic_across_the_complete_output_tree

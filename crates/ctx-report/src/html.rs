@@ -54,7 +54,7 @@ fn render_index(data: &ReportData) -> Result<String, RenderError> {
         body,
         "<section class=\"hero\"><p class=\"eyebrow\">Repository at commit</p><h1>Context dashboard</h1><code>{}</code><p class=\"health health--{}\">{:?}</p></section>",
         html(&data.meta.source_commit),
-        html(&format!("{:?}", data.meta.health).to_lowercase()),
+        html(&format!("{:?}", data.meta.health).to_lowercase().replace("attention", "_attention")),
         data.meta.health
     )
     .expect("string write");

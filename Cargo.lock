@@ -281,6 +281,7 @@ dependencies = [
  "ctx-app",
  "ctx-core",
  "ctx-mcp",
+ "ctx-report",
  "serde",
  "serde_json",
  "tempfile",

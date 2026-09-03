@@ -21,6 +21,7 @@ ctx-adapters = { path = "../ctx-adapters", version = "0.7.0" }
 ctx-app = { path = "../ctx-app", version = "0.7.0" }
 ctx-core = { path = "../ctx-core", version = "0.7.0" }
 ctx-mcp = { path = "../ctx-mcp", version = "0.7.0" }
+ctx-report = { path = "../ctx-report", version = "0.7.0" }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true

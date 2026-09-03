@@ -7,6 +7,7 @@ pub mod index;
 pub mod ingest;
 pub mod ports;
 pub mod query;
+pub mod report;
 pub mod review;
 pub mod status;
 pub mod verification;

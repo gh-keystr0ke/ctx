@@ -35,6 +35,7 @@ implementation:
   - symbol: ctx_core.schema.reconcile_orm_and_migrations
 tests:
   - symbol: ctx_adapters.sqlite.tests.migration_closes_duplicate_current_edges_and_enforces_uniqueness
+  - symbol: ctx_adapters.sqlite.index.tests.same_commit_reanalysis_replaces_derived_edge_and_evidence
   - symbol: ctx_core.indexing.tests.identical_symbols_in_different_languages_keep_distinct_identities
   - symbol: ctx_adapters.rust.tests.workspace_rust_symbols_produce_unique_graph_identities
   - symbol: ctx_core.indexing.tests.differently_named_symbols_with_the_same_shape_do_not_merge_across_files
@@ -44,4 +45,3 @@ tests:
   - symbol: ctx_core.indexing.tests.two_new_symbols_sharing_one_canonical_path_claim_distinct_identities
   - symbol: ctx_core.indexing.tests.database_entities_and_facts_follow_the_current_symbol_snapshot
   - symbol: ctx_core.schema.tests.reconciliation_replays_migrations_in_file_path_order
-

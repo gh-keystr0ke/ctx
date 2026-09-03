@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use ctx_app::ports::{
     CommitMetadata, IndexStore, PortError, RepositoryDescriptor, RepositoryStatus,
@@ -473,12 +473,24 @@ fn persist_edge(
         .ok_or_else(|| PortError::new(format!("edge source '{}' is missing", edge.source)))?;
     let target_row = node_row(transaction, repository_row, &edge.target)?
         .ok_or_else(|| PortError::new(format!("edge target '{}' is missing", edge.target)))?;
-    transaction
-        .execute(
+    let edge_row = transaction
+        .query_row(
             "INSERT INTO edges(
                 repository_id, src_node_id, dst_node_id, kind, epistemic_class,
                 provenance_kind, confidence, status, valid_from, producer, fingerprint
-             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+             ON CONFLICT(repository_id, fingerprint, valid_from) DO UPDATE SET
+                src_node_id = excluded.src_node_id,
+                dst_node_id = excluded.dst_node_id,
+                kind = excluded.kind,
+                epistemic_class = excluded.epistemic_class,
+                provenance_kind = excluded.provenance_kind,
+                confidence = excluded.confidence,
+                status = excluded.status,
+                valid_to = NULL,
+                producer = excluded.producer,
+                stale_reason = NULL
+             RETURNING id",
             params![
                 repository_row,
                 source_row,
@@ -492,9 +504,10 @@ fn persist_edge(
                 edge.producer,
                 edge.fingerprint
             ],
+            |row| row.get(0),
         )
         .map_err(database_error)?;
-    let edge_row = transaction.last_insert_rowid();
+    replace_derived_edge_inputs(transaction, edge_row)?;
     transaction
         .execute(
             "INSERT INTO derivations(edge_id, producer, source_uri, input_fingerprint)
@@ -517,6 +530,64 @@ fn persist_edge(
             edge,
             locator,
         )?;
+    }
+    Ok(())
+}
+
+fn replace_derived_edge_inputs(
+    transaction: &Transaction<'_>,
+    edge_row: i64,
+) -> Result<(), PortError> {
+    let evidence_rows = {
+        let mut statement = transaction
+            .prepare(
+                "SELECT ev.id, ev.source_id
+                 FROM edge_evidence ee
+                 JOIN evidence ev ON ev.id = ee.evidence_id
+                 WHERE ee.edge_id = ?1",
+            )
+            .map_err(database_error)?;
+        statement
+            .query_map([edge_row], |row| {
+                Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?))
+            })
+            .map_err(database_error)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(database_error)?
+    };
+    transaction
+        .execute("DELETE FROM edge_evidence WHERE edge_id = ?1", [edge_row])
+        .map_err(database_error)?;
+    transaction
+        .execute("DELETE FROM derivations WHERE edge_id = ?1", [edge_row])
+        .map_err(database_error)?;
+    for (evidence_row, _) in &evidence_rows {
+        transaction
+            .execute(
+                "DELETE FROM evidence
+                 WHERE id = ?1
+                   AND NOT EXISTS (
+                       SELECT 1 FROM edge_evidence WHERE evidence_id = ?1
+                   )",
+                [evidence_row],
+            )
+            .map_err(database_error)?;
+    }
+    let source_rows = evidence_rows
+        .into_iter()
+        .map(|(_, source_row)| source_row)
+        .collect::<BTreeSet<_>>();
+    for source_row in source_rows {
+        transaction
+            .execute(
+                "DELETE FROM sources
+                 WHERE id = ?1
+                   AND NOT EXISTS (
+                       SELECT 1 FROM evidence WHERE source_id = ?1
+                   )",
+                [source_row],
+            )
+            .map_err(database_error)?;
     }
     Ok(())
 }
@@ -791,6 +862,87 @@ mod tests {
         assert_eq!(edge.evidence.len(), 1);
         assert_eq!(edge.evidence[0].locator, "lines:12");
         assert_eq!(store.status(&repository.id).expect("status").db_entities, 1);
+    }
+
+    #[test]
+    fn same_commit_reanalysis_replaces_derived_edge_and_evidence() {
+        let directory = tempdir().expect("temporary directory");
+        let mut store = SqliteStore::open(&directory.path().join("ctx.db"), directory.path())
+            .expect("SQLite store");
+        let repository = RepositoryDescriptor {
+            id: RepositoryId::new("repo:edge-refresh").expect("repository ID"),
+            root_path: "/repo".to_owned(),
+            remote_url: None,
+        };
+        let commit = CommitMetadata {
+            oid: CommitOid::new("cccccccc").expect("commit OID"),
+            parent_oid: None,
+            authored_at: "2026-09-03T00:00:00Z".to_owned(),
+        };
+        store
+            .ensure_repository(&repository, "2026-09-03T00:00:01Z")
+            .expect("repository");
+        store
+            .apply_index(
+                &repository.id,
+                &commit,
+                "2026-09-03T00:00:01Z",
+                &database_plan(),
+            )
+            .expect("first analysis");
+
+        let mut refreshed = database_plan();
+        refreshed
+            .structural_sources_to_close
+            .push("src/billing.py".to_owned());
+        refreshed.edges_to_create[0].input_fingerprint = "new-sql-hash".to_owned();
+        refreshed.edges_to_create[0].evidence_locator =
+            Some("lines:24 columns:paid_until".to_owned());
+        store
+            .apply_index(&repository.id, &commit, "2026-09-03T00:00:02Z", &refreshed)
+            .expect("same-commit edge reanalysis");
+
+        let counts: (i64, i64, i64, i64, i64, i64) = store
+            .connection()
+            .query_row(
+                "SELECT
+                    (SELECT COUNT(*) FROM commits),
+                    (SELECT COUNT(*) FROM edges),
+                    (SELECT COUNT(*) FROM edges WHERE valid_to IS NULL),
+                    (SELECT COUNT(*) FROM derivations),
+                    (SELECT COUNT(*) FROM sources),
+                    (SELECT COUNT(*) FROM evidence)",
+                [],
+                |row| {
+                    Ok((
+                        row.get(0)?,
+                        row.get(1)?,
+                        row.get(2)?,
+                        row.get(3)?,
+                        row.get(4)?,
+                        row.get(5)?,
+                    ))
+                },
+            )
+            .expect("same-commit edge counts");
+        assert_eq!(counts, (1, 1, 1, 1, 1, 1));
+
+        let graph = store.load_graph(&repository.id).expect("graph");
+        let edge = graph
+            .edges
+            .iter()
+            .find(|edge| edge.kind == RelationKind::WritesTo)
+            .expect("refreshed write fact");
+        assert_eq!(edge.evidence.len(), 1);
+        assert_eq!(edge.evidence[0].locator, "lines:24 columns:paid_until");
+        assert_eq!(edge.evidence[0].timestamp, "2026-09-03T00:00:02Z");
+        let input_fingerprint: String = store
+            .connection()
+            .query_row("SELECT input_fingerprint FROM derivations", [], |row| {
+                row.get(0)
+            })
+            .expect("refreshed derivation");
+        assert_eq!(input_fingerprint, "new-sql-hash");
     }
 
     fn file_plan(

@@ -12,6 +12,7 @@ The core — indexing, impact, explain, review, Context Packs — is determinist
 | **Impact & explain** | Bounded, evidence-backed traversal from a file, symbol, stable ID, or `table.column` to the product intent, code, and tests around it. |
 | **Review** | High-precision diff review across three independent streams — product-requirement impact, database schema changes, and HTTP contract changes — each with linked evidence and a reviewer action. See [docs/architecture.md](docs/architecture.md). |
 | **Context Packs** | Token-budgeted, evidence-backed context for a coding task, from the CLI or over MCP. |
+| **Static reports** | A local interactive HTML site or byte-deterministic Markdown export of the indexed dashboard, catalogs, source tree, evidence, and code links. See [docs/reports.md](docs/reports.md). |
 | **Mine existing knowledge** | Propose product-context documents from Git history, code comments, GitLab, or referenced Jira Cloud issues instead of writing everything by hand. See [docs/mining-knowledge.md](docs/mining-knowledge.md). |
 | **Federation** | Share public product docs and HTTP contracts with sibling repositories checked out locally. See [docs/federation.md](docs/federation.md). |
 
@@ -100,6 +101,8 @@ ctx federation show other-service
 ```
 Full setup and limits in [docs/federation.md](docs/federation.md).
 
+**Browse or publish the complete internal context.** Generate a local site with `ctx report html`, or a disposable docs tree with `ctx report markdown --out ../team-docs/context`. Both require an index current with `HEAD`; the Markdown tree is byte-deterministic for the same commit and stored ctx data. This command intentionally includes private documents for now—visibility filtering will be a separate report policy. See [docs/reports.md](docs/reports.md).
+
 ## Author product context
 
 `ctx init` creates four document types under `.context/` (`features/`, `requirements/`, `invariants/`, `decisions/`). A requirement links exact canonical symbols to intent and tests:
@@ -144,6 +147,7 @@ exclude = ["generated", "vendor", "build", "dist", "target", ".venv"]
 | `ctx find <name>` | Discover indexed symbols/nodes by short or exact name |
 | `ctx review [--base REV]` | Review a branch or working diff against product, schema, and API contracts |
 | `ctx context <task>` | Compile a bounded Context Pack; accepts repeated `--file`/`--symbol` seeds |
+| `ctx report <html\|markdown>` | Generate a complete internal static report under `.ctx/report/<format>/` or `--out DIR` |
 | `ctx ingest <source>` | Ingest external artifacts (`git`, `code-comments`, `gitlab`, `jira`) as separately stored source material |
 | `ctx artifacts prune [--apply]` | Dry-run or apply removal of artifacts without a deterministic repository→Jira business anchor |
 | `ctx enrich [--agent NAME] [--scope business-linked]` | Propose typed knowledge candidates; strict scope sends one Jira-anchored MR/commit/code bundle per agent call |

@@ -28,8 +28,9 @@ use ctx_app::{
     ingest::IngestError,
     ports::{GitRepository, GraphStore, IndexStore, PortError},
     query::{QueryError, QueryService},
+    report::ReportError,
     review::{ReviewError, ReviewRunner},
-    status::{IndexState, StatusError, StatusHealth, StatusService},
+    status::StatusError,
     verification::{
         CandidateOutcome, KnowledgeVerificationService, ReviewedCandidate, StaleClaimOutcome,
         VerificationError, VerificationService,
@@ -56,6 +57,8 @@ mod artifacts_command;
 mod diagnostics;
 mod federation_command;
 mod ingest_command;
+mod report_command;
+mod status_command;
 mod tab_title;
 mod verify_command;
 
@@ -66,6 +69,8 @@ use federation_command::{
     print_endpoint_trace, sync, trace,
 };
 use ingest_command::{IngestOptions, IngestScopeArg, ingest};
+use report_command::{ReportCommand, report};
+use status_command::status;
 use verify_command::{verify, verify_knowledge, verify_knowledge_auto, verify_stale};
 
 const DEFAULT_CONFIG: &str = r#"languages = ["python", "rust", "go"]
@@ -240,6 +245,11 @@ enum Command {
         #[arg(long)]
         out: Option<PathBuf>,
     },
+    /// Generate an internal, static repository report.
+    Report {
+        #[command(subcommand)]
+        command: ReportCommand,
+    },
     /// Refresh and resolve public knowledge from every registered neighbor.
     Sync,
     /// Inspect synchronized neighboring repository knowledge.
@@ -379,6 +389,10 @@ enum CliError {
     ArtifactPrune(#[from] ctx_app::artifact_prune::ArtifactPruneError),
     #[error(transparent)]
     Federation(#[from] FederationError),
+    #[error(transparent)]
+    Report(#[from] ReportError),
+    #[error(transparent)]
+    ReportRender(#[from] ctx_report::RenderError),
     #[error("unsupported ingest source '{0}'; supported: git, code-comments, gitlab, jira")]
     UnsupportedIngestSource(String),
     #[error("unsupported agent '{0}'; supported: claude, codex, antigravity")]
@@ -527,6 +541,7 @@ fn run(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
         Command::Registry { command } => registry(cli, git, command),
         Command::ContextStore { command } => context_store(cli, git, command),
         Command::Export { out } => export(cli, git, out.as_deref()),
+        Command::Report { command } => report(cli, git, command),
         Command::Sync => sync(cli, git),
         Command::Federation { command } => federation(cli, git, command),
         Command::Verify {
@@ -596,6 +611,7 @@ impl Command {
             Self::Registry { .. } => "registry",
             Self::ContextStore { .. } => "context-store",
             Self::Export { .. } => "export",
+            Self::Report { .. } => "report",
             Self::Sync => "sync",
             Self::Federation { .. } => "federation",
             Self::Verify { .. } => "verify",
@@ -1653,121 +1669,6 @@ fn index(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
         );
     }
     Ok(())
-}
-
-fn status(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
-    let database_path = database_path(git.root())?;
-    let store = SqliteStore::open(&database_path, git.context_root())?;
-    let status = StatusService::new(git, &store).inspect()?;
-    if cli.json {
-        println!("{}", serde_json::to_string_pretty(&status)?);
-        return Ok(());
-    }
-    println!("Repository: {}", status.repository);
-    println!("Health: {}", health_label(status.health));
-    println!(
-        "Index: {} (HEAD {})",
-        index_state_label(status.index_state),
-        short_oid(status.head_commit.as_str())
-    );
-    if let Some(indexed) = &status.knowledge.last_indexed_commit {
-        println!("Last indexed commit: {}", short_oid(indexed.as_str()));
-    }
-    println!(
-        "Source scope: {} [{}]",
-        status.source_scope.languages.join(", "),
-        status.source_scope.include.join(", ")
-    );
-    println!();
-    println!("Code:");
-    println!("  Files: {}", status.knowledge.files);
-    println!("  Symbols: {}", status.knowledge.symbols);
-    println!("  Database entities: {}", status.knowledge.db_entities);
-    println!("Product context:");
-    println!("  Features: {}", status.knowledge.features);
-    println!("  Requirements: {}", status.knowledge.requirements);
-    println!("  Invariants: {}", status.knowledge.invariants);
-    println!("  Decisions: {}", status.knowledge.decisions);
-    println!(
-        "  Public documents: {} out of {}",
-        status.knowledge.public_documents,
-        status.knowledge.features
-            + status.knowledge.requirements
-            + status.knowledge.invariants
-            + status.knowledge.decisions
-    );
-    println!("Relationships:");
-    println!("  Structural facts: {}", status.knowledge.structural_facts);
-    println!(
-        "  Active assertions: {}",
-        status.knowledge.active_assertions
-    );
-    println!(
-        "  Active inferences: {}",
-        status.knowledge.active_inferences
-    );
-    println!(
-        "  Stale semantics: {}",
-        status.knowledge.stale_semantic_edges
-    );
-    println!(
-        "  Rejected inferences: {}",
-        status.knowledge.rejected_semantic_edges
-    );
-    if status.uncommitted_index_inputs.is_empty() {
-        println!("Index inputs: clean");
-    } else {
-        println!("Index inputs differing from HEAD:");
-        for path in &status.uncommitted_index_inputs {
-            println!("  - {path}");
-        }
-    }
-    if !status.schema_divergences.is_empty() {
-        println!("SQLAlchemy/migration schema divergences (best-effort, presence-only):");
-        for divergence in &status.schema_divergences {
-            let label = match divergence.kind {
-                ctx_core::schema::DivergenceKind::ExpectedByOrmOnly => {
-                    "ORM expects this column; no migration declares it"
-                }
-                ctx_core::schema::DivergenceKind::DeclaredByMigrationOnly => {
-                    "a migration declares this column; the ORM model has no field for it"
-                }
-            };
-            println!("  - {}.{}: {label}", divergence.entity, divergence.column);
-        }
-    }
-    if !status.notices.is_empty() {
-        println!();
-        println!("Why this health state:");
-        for notice in &status.notices {
-            println!("  - {notice}");
-        }
-    }
-    if !status.suggested_actions.is_empty() {
-        println!("Next actions:");
-        for action in &status.suggested_actions {
-            println!("  - {action}");
-        }
-    }
-    Ok(())
-}
-
-const fn health_label(health: StatusHealth) -> &'static str {
-    match health {
-        StatusHealth::Ready => "ready",
-        StatusHealth::NeedsIndex => "needs index",
-        StatusHealth::NeedsContext => "needs product context",
-        StatusHealth::NeedsMappings => "needs semantic mappings",
-        StatusHealth::NeedsAttention => "needs attention",
-    }
-}
-
-const fn index_state_label(state: IndexState) -> &'static str {
-    match state {
-        IndexState::NotIndexed => "not indexed",
-        IndexState::Behind => "behind",
-        IndexState::Current => "current",
-    }
 }
 
 fn database_path(root: &Path) -> Result<PathBuf, CliError> {

@@ -1,0 +1,7 @@
+id: FEAT-REPORT
+type: feature
+name: Static repository reports
+status: active
+description: >
+  Teams can browse or publish a commit-labelled static view of ctx's complete
+  internal repository knowledge without running a server.

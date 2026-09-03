@@ -1,0 +1,17 @@
+id: INV-REPORT-001
+type: invariant
+feature: FEAT-REPORT
+status: active
+statement: >
+  Given the same source commit and unchanged stored ctx data, a Markdown report
+  must contain exactly the same relative paths and bytes across runs. Report
+  content must never include a wall-clock generation timestamp or an absolute
+  checkout path; collections and relationship diagrams use stable identity
+  order, detail filenames are a deterministic hash of stable identity, and the
+  managed marker records only the format, schema version, and source commit.
+implementation:
+  - symbol: ctx_app.report.ReportService.build
+  - symbol: ctx_report.markdown.MarkdownRenderer.ReportRenderer.render
+  - symbol: ctx_report.RenderedReport.write_to
+tests:
+  - symbol: crates.ctx-cli.tests.e2e.markdown_report_is_byte_deterministic_across_the_complete_output_tree

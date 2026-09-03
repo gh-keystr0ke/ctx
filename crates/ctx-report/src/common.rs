@@ -64,7 +64,7 @@ pub(crate) fn code_url(remote: Option<&str>, commit: &str, node: &GraphNode) -> 
         .map(url_segment)
         .collect::<Vec<_>>()
         .join("/");
-    let separator = if remote.contains("gitlab") {
+    let separator = if remote.to_ascii_lowercase().contains("gitlab") {
         "/-/blob/"
     } else {
         "/blob/"
@@ -81,8 +81,13 @@ pub(crate) fn artifact_url(artifact: &Artifact, remote: Option<&str>) -> Option<
     }
     if artifact.identity.provider == ArtifactProvider::Git {
         return normalized_remote(remote?).map(|base| {
+            let separator = if base.to_ascii_lowercase().contains("gitlab") {
+                "/-/commit/"
+            } else {
+                "/commit/"
+            };
             format!(
-                "{base}/commit/{}",
+                "{base}{separator}{}",
                 url_segment(&artifact.identity.external_id)
             )
         });

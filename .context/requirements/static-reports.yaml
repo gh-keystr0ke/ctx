@@ -1,0 +1,31 @@
+id: REQ-REPORT-001
+type: requirement
+feature: FEAT-REPORT
+status: active
+statement: >
+  `ctx report html|markdown [--out DIR]` must require an index current with
+  HEAD and render one shared report projection: dashboard health and counts;
+  catalogs for Feature, Requirement, Invariant, Decision, DomainConcept,
+  Event, and ExternalSystem only; a folder-to-file-to-CodeSymbol tree; and
+  entity/symbol detail pages carrying stored relationships, evidence,
+  provenance, artifact history, and commit-pinned code links when a supported
+  repository remote is available. Endpoint, ApiEndpoint, and DbEntity remain
+  relation leaves rather than standalone catalogs. HTML must work from local
+  files with client-side substring search over every indexed node and an
+  interactive filterable graph. Markdown must emit Mermaid relationship
+  diagrams. Reports are a complete internal view in this phase regardless of
+  document visibility; any visibility policy is a future explicit modifier,
+  never an implicit filter. Relative output paths resolve from the repository
+  root, and an existing unmanaged destination must never be overwritten.
+implementation:
+  - symbol: ctx_app.report.ReportService.build
+  - symbol: ctx_report.ReportRenderer
+  - symbol: ctx_report.html.HtmlRenderer.ReportRenderer.render
+  - symbol: ctx_report.markdown.MarkdownRenderer.ReportRenderer.render
+  - symbol: ctx_report.RenderedReport.write_to
+  - symbol: ctx_cli.report_command.report
+  - symbol: ctx_adapters.git.GitRepo.ignore_local_state
+tests:
+  - symbol: crates.ctx-cli.tests.e2e.html_report_links_external_evidence_and_code_at_the_source_commit
+  - symbol: ctx_report.tests.unmanaged_output_is_never_replaced
+  - symbol: ctx_report.tests.managed_output_is_replaced_as_one_complete_tree

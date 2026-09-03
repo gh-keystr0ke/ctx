@@ -217,6 +217,7 @@ impl GitRepo {
             ".ctx/ctx.db-wal",
             ".ctx/registry.toml",
             ".ctx/export.json",
+            ".ctx/report/",
             ".ctx/logs/",
         ] {
             if content.lines().any(|line| line.trim() == pattern) {

@@ -5,8 +5,7 @@ title: Schema divergences contribute to the existing NeedsAttention health state
 decision: Schema divergences contribute to the existing NeedsAttention health state, and CLI text output shows each divergence and its direction.
 implementation:
 - symbol: ctx_app.status.classify_health
-- symbol: ctx_cli.status
+- symbol: ctx_cli.status_command.status
 tests:
 - symbol: ctx_app.status.tests.schema_divergences_prevent_a_ready_report_even_with_strong_assertions
-
 

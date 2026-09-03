@@ -1,0 +1,22 @@
+id: ADR-REPORT-001
+type: decision
+title: Separate report projection, rendering, and CLI effects
+status: accepted
+decision: >
+  ReportService in ctx-app assembles one serializable, format-neutral projection
+  from the graph, status, artifact, and provenance stores. The ctx-report crate
+  owns rendering and managed-directory replacement, while ctx-cli owns path
+  resolution and user output. HTML and Markdown are direct Rust renderers over
+  the same DTO rather than separate queries or template-file schemas; the small
+  hand-maintained CSS/JavaScript assets contain browser-only behavior. New page
+  types extend the projection/renderers, and new formats implement the renderer
+  trait without changing graph-domain rules.
+implementation:
+  - symbol: ctx_app.report.ReportData
+  - symbol: ctx_app.report.ReportService
+  - symbol: ctx_report.ReportRenderer
+  - symbol: ctx_report.RenderedReport
+  - symbol: ctx_cli.report_command.report
+tests:
+  - symbol: ctx_app.report.tests.catalogs_follow_the_explicit_product_order_and_exclude_leaf_kinds
+  - symbol: ctx_app.report.tests.tree_nests_only_unique_segment_prefixes_and_keeps_free_functions_flat

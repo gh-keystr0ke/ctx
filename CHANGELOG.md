@@ -4,6 +4,12 @@ All notable changes to `ctx` are documented here. The project follows semantic v
 
 ## Unreleased
 
+## 0.7.5 — 2026-09-03
+
+### Fixed
+
+- `ctx index` no longer fails with an `edges.repository_id, edges.fingerprint, edges.valid_from` uniqueness violation when an analyzer-version change reparses unchanged files at the already-indexed Git commit. Same-commit structural edges are now updated idempotently together with their derivation and static evidence, while preserving the one-current-edge-per-fingerprint invariant.
+
 ## 0.7.4 — 2026-09-02
 
 ### Added

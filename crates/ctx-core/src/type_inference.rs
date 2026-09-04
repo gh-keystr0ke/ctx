@@ -1,6 +1,9 @@
 use serde::{Deserialize, Serialize};
 
-use crate::ir::SourceRange;
+use crate::{
+    domain::{Confidence, RelationKind, StableKey},
+    ir::SourceRange,
+};
 
 /// A zero-based source position using UTF-16 code units, matching the
 /// position convention used by LSP-compatible type oracles.
@@ -109,4 +112,27 @@ impl PythonType {
             Self::Other { oracle_kind } => oracle_kind.clone(),
         }
     }
+}
+
+/// One graph inference justified by an external type oracle. Persistence
+/// assigns `ClaimClass::Inference` and type-inference provenance; callers
+/// cannot accidentally promote this shape to a Fact.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct TypeInferenceEdge {
+    pub source: StableKey,
+    pub target: StableKey,
+    pub relation: RelationKind,
+    pub confidence: Confidence,
+    pub producer: String,
+    pub fingerprint: String,
+    pub source_uri: String,
+    pub input_fingerprint: String,
+    pub evidence_locator: String,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct TypeInferencePersistenceStats {
+    pub created: usize,
+    pub updated: usize,
+    pub removed: usize,
 }

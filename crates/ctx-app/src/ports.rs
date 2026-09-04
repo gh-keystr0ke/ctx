@@ -15,7 +15,9 @@ use ctx_core::{
         AcceptedKnowledgeRecord, AgentOutcome, ClusterReview, KnowledgeCandidate, KnowledgeDecision,
     },
     neighborhood::ArtifactNeighborhood,
-    type_inference::{PythonType, TypeProbe, TypeWriteCandidate},
+    type_inference::{
+        PythonType, TypeInferenceEdge, TypeInferencePersistenceStats, TypeProbe, TypeWriteCandidate,
+    },
     verification::{SemanticCandidate, StaleClaim, StaleClaimVerdict, VerificationDecision},
 };
 use serde::{Deserialize, Serialize};
@@ -273,6 +275,23 @@ pub trait IndexStore {
     /// # Errors
     /// Returns [`PortError`] when counters cannot be queried.
     fn status(&self, repository: &RepositoryId) -> Result<RepositoryStatus, PortError>;
+}
+
+/// Atomic persistence boundary for a producer's complete type-inference
+/// layer at one already-indexed commit.
+pub trait TypeInferenceStore {
+    /// Replaces all current type inferences emitted by `producer`.
+    ///
+    /// # Errors
+    /// Returns [`PortError`] without committing any partial replacement.
+    fn replace_type_inferences(
+        &mut self,
+        repository: &RepositoryId,
+        commit: &CommitMetadata,
+        inferred_at: &str,
+        producer: &str,
+        edges: &[TypeInferenceEdge],
+    ) -> Result<TypeInferencePersistenceStats, PortError>;
 }
 
 /// One branch artifact together with the commits that branch alone

@@ -201,6 +201,7 @@ pub enum ClaimClass {
 #[serde(rename_all = "snake_case")]
 pub enum SourceKind {
     StaticAnalysis,
+    TypeInference,
     Human,
     Documentation,
     LlmInference,

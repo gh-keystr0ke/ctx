@@ -245,6 +245,7 @@ fn parse_claim_class(value: &str) -> Result<ClaimClass, PortError> {
 fn parse_source_kind(value: &str) -> Result<SourceKind, PortError> {
     match value {
         "staticanalysis" | "static_analysis" => Ok(SourceKind::StaticAnalysis),
+        "typeinference" | "type_inference" => Ok(SourceKind::TypeInference),
         "human" => Ok(SourceKind::Human),
         "documentation" => Ok(SourceKind::Documentation),
         "llminference" | "llm_inference" => Ok(SourceKind::LlmInference),

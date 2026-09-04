@@ -344,3 +344,298 @@ fn serialization_error(error: serde_json::Error) -> PortError {
         "type inference evidence serialization failed: {error}"
     ))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ctx_app::ports::{GraphStore, IndexStore, RepositoryDescriptor};
+    use ctx_core::{
+        domain::{ClaimClass, ClaimStatus, Confidence, NodeKind, RelationKind, SourceKind},
+        indexing::{IndexPlan, NodeMutationKind, PlannedNode, PlannedNodeAttributes},
+        ir::{SourceRange, SymbolKind},
+    };
+    use tempfile::TempDir;
+
+    #[test]
+    fn persists_inference_class_type_provenance_and_evidence() {
+        let (_directory, mut store, repository, commit) = setup();
+        let stats = store
+            .replace_type_inferences(
+                &repository.id,
+                &commit,
+                "2026-09-04T00:00:01Z",
+                "pyright",
+                &[edge("line:12", "input-a")],
+            )
+            .expect("persist inference");
+        assert_eq!(
+            stats,
+            TypeInferencePersistenceStats {
+                created: 1,
+                updated: 0,
+                removed: 0,
+            }
+        );
+
+        let graph = store.load_graph(&repository.id).expect("graph");
+        let edge = graph.edges.first().expect("inference edge");
+        assert_eq!(edge.kind, RelationKind::WritesTo);
+        assert_eq!(edge.claim_class, ClaimClass::Inference);
+        assert_eq!(edge.source_kind, SourceKind::TypeInference);
+        assert_eq!(edge.status, ClaimStatus::Active);
+        assert_eq!(edge.producer, "pyright");
+        assert_eq!(edge.confidence.get(), 0.9);
+        assert_eq!(edge.evidence.len(), 1);
+        assert_eq!(edge.evidence[0].source_kind, SourceKind::TypeInference);
+        assert_eq!(edge.evidence[0].locator, "line:12");
+    }
+
+    #[test]
+    fn same_commit_refresh_replaces_evidence_without_duplicate_versions() {
+        let (_directory, mut store, repository, commit) = setup();
+        store
+            .replace_type_inferences(
+                &repository.id,
+                &commit,
+                "2026-09-04T00:00:01Z",
+                "pyright",
+                &[edge("line:12", "input-a")],
+            )
+            .expect("first inference");
+        let stats = store
+            .replace_type_inferences(
+                &repository.id,
+                &commit,
+                "2026-09-04T00:00:02Z",
+                "pyright",
+                &[edge("line:24 columns:status", "input-b")],
+            )
+            .expect("same-commit refresh");
+        assert_eq!(stats.updated, 1);
+        assert_eq!(row_counts(&store), (1, 1, 1, 1));
+
+        let graph = store.load_graph(&repository.id).expect("graph");
+        assert_eq!(graph.edges.len(), 1);
+        assert_eq!(graph.edges[0].evidence.len(), 1);
+        assert_eq!(graph.edges[0].evidence[0].locator, "line:24 columns:status");
+        assert_eq!(graph.edges[0].evidence[0].timestamp, "2026-09-04T00:00:02Z");
+    }
+
+    #[test]
+    fn same_commit_full_recompute_can_remove_the_layer_cleanly() {
+        let (_directory, mut store, repository, commit) = setup();
+        store
+            .replace_type_inferences(
+                &repository.id,
+                &commit,
+                "2026-09-04T00:00:01Z",
+                "pyright",
+                &[edge("line:12", "input-a")],
+            )
+            .expect("first inference");
+        let stats = store
+            .replace_type_inferences(
+                &repository.id,
+                &commit,
+                "2026-09-04T00:00:02Z",
+                "pyright",
+                &[],
+            )
+            .expect("remove same-commit layer");
+
+        assert_eq!(stats.removed, 1);
+        assert_eq!(row_counts(&store), (0, 0, 0, 0));
+        assert!(
+            store
+                .load_graph(&repository.id)
+                .expect("graph")
+                .edges
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn next_commit_versions_the_inference_instead_of_overwriting_history() {
+        let (_directory, mut store, repository, first) = setup();
+        store
+            .replace_type_inferences(
+                &repository.id,
+                &first,
+                "2026-09-04T00:00:01Z",
+                "pyright",
+                &[edge("line:12", "input-a")],
+            )
+            .expect("first inference");
+        let second = CommitMetadata {
+            oid: CommitOid::new("cafebabe").expect("commit"),
+            parent_oid: Some(first.oid.clone()),
+            authored_at: "2026-09-05T00:00:00Z".to_owned(),
+        };
+        store
+            .apply_index(
+                &repository.id,
+                &second,
+                "2026-09-05T00:00:01Z",
+                &IndexPlan::default(),
+            )
+            .expect("second indexed commit");
+        store
+            .replace_type_inferences(
+                &repository.id,
+                &second,
+                "2026-09-05T00:00:02Z",
+                "pyright",
+                &[edge("line:24", "input-b")],
+            )
+            .expect("version inference");
+
+        let counts: (i64, i64) = store
+            .connection()
+            .query_row(
+                "SELECT COUNT(*), SUM(valid_to IS NULL) FROM edges
+                 WHERE epistemic_class = 'inference'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("edge versions");
+        assert_eq!(counts, (2, 1));
+        let graph = store.load_graph(&repository.id).expect("graph");
+        assert_eq!(graph.edges.len(), 1);
+        assert_eq!(graph.edges[0].evidence[0].locator, "line:24");
+    }
+
+    #[test]
+    fn invalid_replacement_rolls_back_without_damaging_current_inferences() {
+        let (_directory, mut store, repository, commit) = setup();
+        store
+            .replace_type_inferences(
+                &repository.id,
+                &commit,
+                "2026-09-04T00:00:01Z",
+                "pyright",
+                &[edge("line:12", "input-a")],
+            )
+            .expect("first inference");
+        let mut invalid = edge("line:99", "input-invalid");
+        invalid.fingerprint = "type-inference:invalid".to_owned();
+        invalid.target = StableKey::new("db:missing").expect("missing target key");
+        assert!(
+            store
+                .replace_type_inferences(
+                    &repository.id,
+                    &commit,
+                    "2026-09-04T00:00:02Z",
+                    "pyright",
+                    &[invalid],
+                )
+                .is_err()
+        );
+
+        assert_eq!(row_counts(&store), (1, 1, 1, 1));
+        let graph = store.load_graph(&repository.id).expect("graph");
+        assert_eq!(graph.edges[0].evidence[0].locator, "line:12");
+    }
+
+    fn setup() -> (TempDir, SqliteStore, RepositoryDescriptor, CommitMetadata) {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let mut store = SqliteStore::open(&directory.path().join("ctx.db"), directory.path())
+            .expect("SQLite store");
+        let repository = RepositoryDescriptor {
+            id: RepositoryId::new("repo:type-inference").expect("repository"),
+            root_path: directory.path().display().to_string(),
+            remote_url: None,
+        };
+        let commit = CommitMetadata {
+            oid: CommitOid::new("deadbeef").expect("commit"),
+            parent_oid: None,
+            authored_at: "2026-09-04T00:00:00Z".to_owned(),
+        };
+        store
+            .ensure_repository(&repository, "2026-09-04T00:00:00Z")
+            .expect("repository");
+        store
+            .apply_index(
+                &repository.id,
+                &commit,
+                "2026-09-04T00:00:00Z",
+                &node_plan(),
+            )
+            .expect("indexed nodes");
+        (directory, store, repository, commit)
+    }
+
+    fn node_plan() -> IndexPlan {
+        let source = StableKey::new("symbol:python:service.update:Function").expect("source");
+        let target = StableKey::new("db:models").expect("target");
+        IndexPlan {
+            nodes_to_write: vec![
+                PlannedNode {
+                    stable_key: source,
+                    kind: NodeKind::CodeSymbol,
+                    name: "update".to_owned(),
+                    content_hash: "body".to_owned(),
+                    attributes: PlannedNodeAttributes::Symbol {
+                        file_path: "service.py".to_owned(),
+                        canonical_path: "service.update".to_owned(),
+                        symbol_kind: SymbolKind::Function,
+                        range: SourceRange {
+                            start_byte: 0,
+                            end_byte: 100,
+                            start_line: 1,
+                            end_line: 10,
+                        },
+                        signature: None,
+                        structural_fingerprint: "shape".to_owned(),
+                        calls: Vec::new(),
+                        database_accesses: Vec::new(),
+                        orm_accesses: Vec::new(),
+                        schema_tables: Vec::new(),
+                        api_endpoints: Vec::new(),
+                        external_calls: Vec::new(),
+                    },
+                    mutation: NodeMutationKind::Create,
+                },
+                PlannedNode {
+                    stable_key: target,
+                    kind: NodeKind::DbEntity,
+                    name: "models".to_owned(),
+                    content_hash: "db-entity:models".to_owned(),
+                    attributes: PlannedNodeAttributes::Interaction {
+                        identifier: "models".to_owned(),
+                    },
+                    mutation: NodeMutationKind::Create,
+                },
+            ],
+            ..IndexPlan::default()
+        }
+    }
+
+    fn edge(locator: &str, input: &str) -> TypeInferenceEdge {
+        TypeInferenceEdge {
+            source: StableKey::new("symbol:python:service.update:Function").expect("source"),
+            target: StableKey::new("db:models").expect("target"),
+            relation: RelationKind::WritesTo,
+            confidence: Confidence::new(0.9).expect("confidence"),
+            producer: "pyright".to_owned(),
+            fingerprint: "type_inference:pyright:update:writes:models".to_owned(),
+            source_uri: "service.py".to_owned(),
+            input_fingerprint: input.to_owned(),
+            evidence_locator: locator.to_owned(),
+        }
+    }
+
+    fn row_counts(store: &SqliteStore) -> (i64, i64, i64, i64) {
+        store
+            .connection()
+            .query_row(
+                "SELECT
+                    (SELECT COUNT(*) FROM edges WHERE epistemic_class = 'inference'),
+                    (SELECT COUNT(*) FROM derivations WHERE edge_id IS NOT NULL),
+                    (SELECT COUNT(*) FROM sources WHERE kind = 'typeinference'),
+                    (SELECT COUNT(*) FROM evidence)",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .expect("inference row counts")
+    }
+}

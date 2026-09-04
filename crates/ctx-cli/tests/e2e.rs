@@ -269,6 +269,25 @@ fn ingest_reports_progress_at_the_first_verbosity_level() {
 }
 
 #[test]
+fn missing_pyright_type_server_is_a_successful_graph_noop() {
+    let repository = FixtureRepository::new();
+    repository.ctx(&["init"]);
+    repository.ctx(&["index"]);
+    let before = repository.ctx(&["status"]);
+
+    let inferred = repository.ctx(&[
+        "infer-types",
+        "--pyright",
+        "/definitely/missing/pyright-typeserver",
+    ]);
+
+    assert_eq!(inferred["ok"], true);
+    assert_eq!(inferred["status"], "skipped");
+    assert_eq!(inferred["reason"], "pyright_typeserver_not_found");
+    assert_eq!(repository.ctx(&["status"]), before);
+}
+
+#[test]
 fn debug_writes_trace_jsonl_and_keeps_it_out_of_git() {
     let repository = FixtureRepository::new();
     repository.ctx(&["init"]);

@@ -8,6 +8,7 @@ mod context;
 mod federation;
 mod graph;
 mod index;
+mod type_inference;
 mod verification;
 
 const MIGRATIONS: &[(i64, &str)] = &[

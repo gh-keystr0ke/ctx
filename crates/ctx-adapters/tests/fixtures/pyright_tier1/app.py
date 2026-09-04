@@ -22,6 +22,11 @@ class Subscription:
     addons: list[Model]
 
 
+class Offer:
+    __tablename__ = "offers"
+    status: int = mapped_column()
+
+
 class Queue:
     def add(self, item: Model) -> None: ...
 
@@ -62,3 +67,8 @@ async def typed_writes(
     collection.add(annotated)
     queue.add(annotated)
     dynamic.status = value
+
+
+def update_offer(session: Session, offer: Offer, value: int) -> None:
+    offer.status = value
+    session.add(offer)

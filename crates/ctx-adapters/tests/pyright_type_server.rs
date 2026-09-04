@@ -21,11 +21,12 @@ fn real_type_server_resolves_tier_one_write_sites() {
     let mut oracle = PyrightTypeServer::start(&executable, &root, Duration::from_secs(60))
         .expect("start real Pyright Type Server");
 
-    assert_eq!(candidates.len(), 17);
-    assert_model_probe(&mut oracle, &app, &candidates, "row");
-    assert_model_probe(&mut oracle, &app, &candidates, "fetched");
-    assert_model_probe(&mut oracle, &app, &candidates, "selected");
-    assert_model_probe(&mut oracle, &app, &candidates, "annotated");
+    assert_eq!(candidates.len(), 19);
+    assert_class_probe(&mut oracle, &app, &candidates, "row", "Model");
+    assert_class_probe(&mut oracle, &app, &candidates, "fetched", "Model");
+    assert_class_probe(&mut oracle, &app, &candidates, "selected", "Model");
+    assert_class_probe(&mut oracle, &app, &candidates, "annotated", "Model");
+    assert_class_probe(&mut oracle, &app, &candidates, "offer", "Offer");
     assert!(matches!(
         inferred_probe(&mut oracle, &app, &candidates, "dynamic"),
         PythonType::Any
@@ -92,18 +93,19 @@ fn inferred_method(
         .unwrap_or_else(|error| panic!("resolve {expression}: {error}"))
 }
 
-fn assert_model_probe(
+fn assert_class_probe(
     oracle: &mut PyrightTypeServer,
     app: &std::path::Path,
     candidates: &[TypeWriteCandidate],
     expression: &str,
+    class_name: &str,
 ) {
     let inferred = inferred_probe(oracle, app, candidates, expression);
     let PythonType::Class(model) = inferred else {
         panic!("{expression} resolved to {}", inferred.diagnostic_name());
     };
     assert!(model.is_instance);
-    assert_eq!(model.declaration.name.as_deref(), Some("Model"));
+    assert_eq!(model.declaration.name.as_deref(), Some(class_name));
     assert!(model.declaration.uri.ends_with("/app.py"));
 }
 

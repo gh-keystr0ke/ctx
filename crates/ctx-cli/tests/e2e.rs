@@ -12,7 +12,7 @@ use ctx_core::{
         Artifact, ArtifactIdentity, ArtifactKind, ArtifactLink, ArtifactLinkKind,
         ArtifactLinkTarget, ArtifactProvider,
     },
-    domain::{Project, Url},
+    domain::{ClaimClass, ClaimStatus, Project, RelationKind, SourceKind, Url},
 };
 use serde_json::Value;
 use tempfile::TempDir;
@@ -285,6 +285,74 @@ fn missing_pyright_type_server_is_a_successful_graph_noop() {
     assert_eq!(inferred["status"], "skipped");
     assert_eq!(inferred["reason"], "pyright_typeserver_not_found");
     assert_eq!(repository.ctx(&["status"]), before);
+}
+
+#[test]
+#[ignore = "requires CTX_PYRIGHT_TYPESERVER pointing to a real Pyright Type Server"]
+fn real_pyright_creates_a_type_inference_write_edge_end_to_end() {
+    let executable = std::env::var("CTX_PYRIGHT_TYPESERVER")
+        .expect("set CTX_PYRIGHT_TYPESERVER to the pyright-typeserver executable");
+    let repository = tempfile::tempdir().expect("temporary Pyright repository");
+    let fixture =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../ctx-adapters/tests/fixtures/pyright_tier1");
+    copy_directory(&fixture, repository.path());
+    fs::create_dir_all(repository.path().join(".ctx")).expect("ctx directory");
+    fs::write(
+        repository.path().join(".ctx/config.toml"),
+        "languages = [\"python\"]\n\n[paths]\ninclude = [\"app.py\"]\n",
+    )
+    .expect("ctx configuration");
+    initialize_git_repository(repository.path());
+
+    ctx_json_at(repository.path(), &["init"]);
+    ctx_json_at(repository.path(), &["index"]);
+    let report = ctx_json_at(
+        repository.path(),
+        &[
+            "infer-types",
+            "--pyright",
+            &executable,
+            "--timeout-ms",
+            "60000",
+        ],
+    );
+    assert_eq!(report["candidate_sites"], 9);
+    assert_eq!(report["resolved_model_candidates"], 9);
+    assert_eq!(report["inferences_created"], 1);
+    assert_eq!(report["dropped_unknown"], 0);
+    assert_eq!(report["dropped_ambiguous"], 0);
+    assert_eq!(report["dropped_unsupported"], 0);
+    assert_eq!(report["pyright_failures"], 0);
+
+    let git = GitRepo::discover(repository.path()).expect("discover fixture repository");
+    let store = SqliteStore::open(&repository.path().join(".ctx/ctx.db"), git.context_root())
+        .expect("open fixture graph");
+    let graph = store
+        .load_graph(&git.descriptor().expect("descriptor").id)
+        .expect("load fixture graph");
+    let writes = graph
+        .edges
+        .iter()
+        .filter(|edge| {
+            edge.kind == RelationKind::WritesTo
+                && edge.claim_class == ClaimClass::Inference
+                && edge.status == ClaimStatus::Active
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(writes.len(), 1);
+    let write = writes[0];
+    assert_eq!(write.source_kind, SourceKind::TypeInference);
+    assert_eq!(write.producer, "pyright");
+    assert!((write.confidence.get() - 0.90).abs() < f32::EPSILON);
+    assert!(write.source.as_str().contains("typed_writes"));
+    assert_eq!(
+        graph.nodes.get(&write.target).expect("write target").name,
+        "models"
+    );
+    assert!(write.evidence[0].locator.contains("probes:"));
+    assert!(write.evidence[0].locator.contains("selected"));
+    assert!(write.evidence[0].locator.contains("columns:status"));
+    assert!(write.evidence[0].locator.contains("Model"));
 }
 
 #[test]

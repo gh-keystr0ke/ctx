@@ -331,11 +331,18 @@ where
             .as_ref()
             .is_some_and(|uris| sqlalchemy_session_method(candidate.form, &method_type, uris));
         if !supported {
+            let session_uris = context
+                .session_uris
+                .as_ref()
+                .map(|uris| uris.iter().cloned().collect::<Vec<_>>().join(", "))
+                .unwrap_or_default();
             context.report.dropped_unsupported += 1;
             context.report.diagnostics.push(diagnostic(
                 candidate,
                 TypeInferenceDropReason::UnsupportedOperation,
-                "method is not a bound SQLAlchemy Session/AsyncSession API",
+                &format!(
+                    "method declaration does not match resolved SQLAlchemy Session API modules [{session_uris}]"
+                ),
                 Some(&method_type),
                 Some(resolved),
             ));
@@ -791,11 +798,7 @@ fn sqlalchemy_session_method(
     inferred: &PythonType,
     session_uris: &BTreeSet<String>,
 ) -> bool {
-    let PythonType::Function(PythonFunctionType {
-        declaration,
-        bound_to,
-    }) = inferred
-    else {
+    let PythonType::Function(PythonFunctionType { declaration, .. }) = inferred else {
         return false;
     };
     let expected = match form {
@@ -805,14 +808,7 @@ fn sqlalchemy_session_method(
         TypeWriteForm::Delete => "delete",
         TypeWriteForm::AttrAssign => return false,
     };
-    declaration.name.as_deref() == Some(expected)
-        && declaration.range.is_some()
-        && session_uris.contains(&declaration.uri)
-        && match bound_to.as_deref() {
-            None => true,
-            Some(PythonType::Class(class)) => class.is_instance,
-            Some(_) => false,
-        }
+    declaration.name.as_deref() == Some(expected) && session_uris.contains(&declaration.uri)
 }
 
 fn normalized_path(path: &Path) -> PathBuf {
@@ -1199,7 +1195,7 @@ mod tests {
                 uri: uri.to_owned(),
                 path: None,
                 name: Some(name.to_owned()),
-                range: Some((
+                range: bound.then_some((
                     ctx_core::type_inference::TypePosition {
                         line: 10,
                         character: 4,

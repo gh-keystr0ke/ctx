@@ -1760,6 +1760,14 @@ fn infer_types(
     let report = result?;
     shutdown?;
 
+    print_infer_types_report(cli, &report, pyright_startup_ms)
+}
+
+fn print_infer_types_report(
+    cli: &Cli,
+    report: &InferTypesReport,
+    pyright_startup_ms: u128,
+) -> Result<(), CliError> {
     if cli.json {
         println!(
             "{}",

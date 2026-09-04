@@ -19,6 +19,8 @@ use ctx_adapters::{
         neighbor_head, path_template, require_service_name,
     },
     git::{GitRepo, ensure_repository},
+    pyright::{PyrightError, PyrightTypeServer},
+    python::PythonAnalyzer,
     sqlite::SqliteStore,
 };
 use ctx_app::{
@@ -31,6 +33,9 @@ use ctx_app::{
     report::ReportError,
     review::{ReviewError, ReviewRunner},
     status::StatusError,
+    type_inference::{
+        DEFAULT_TYPE_INFERENCE_CONFIDENCE, InferTypesError, InferTypesReport, InferTypesRunner,
+    },
     verification::{
         CandidateOutcome, KnowledgeVerificationService, ReviewedCandidate, StaleClaimOutcome,
         VerificationError, VerificationService,
@@ -38,7 +43,7 @@ use ctx_app::{
 };
 use ctx_core::business::{BusinessKind, ContextImportStats, Visibility};
 use ctx_core::context_pack::ContextRequest;
-use ctx_core::domain::{ClaimStatus, NodeKind, RelationKind};
+use ctx_core::domain::{ClaimStatus, Confidence, NodeKind, RelationKind};
 use ctx_core::graph::{GraphEvidence, GraphSnapshot};
 use ctx_core::indexing::PlannedNodeAttributes;
 use ctx_core::ir::{ApiEndpoint, ApiParam, ParamSource};
@@ -114,6 +119,22 @@ enum Command {
     Init,
     /// Incrementally index the repository's current Git commit.
     Index,
+    /// Infer typed Python ORM writes with a separate Pyright semantic pass.
+    InferTypes {
+        /// Pyright Type Server executable. It must implement the Type Server Protocol.
+        #[arg(long, default_value = "pyright-typeserver")]
+        pyright: PathBuf,
+        /// Stable epistemic confidence for the resulting Inference edges.
+        #[arg(
+            long,
+            default_value_t = DEFAULT_TYPE_INFERENCE_CONFIDENCE,
+            value_parser = parse_inference_confidence
+        )]
+        confidence: f32,
+        /// Per-request Type Server timeout in milliseconds.
+        #[arg(long, default_value_t = 30_000, value_parser = clap::value_parser!(u64).range(1..))]
+        timeout_ms: u64,
+    },
     /// Show current index health and counts.
     Status,
     /// Show bounded product and implementation impact for a file or symbol.
@@ -370,6 +391,10 @@ enum CliError {
     #[error(transparent)]
     Index(#[from] IndexError),
     #[error(transparent)]
+    InferTypes(#[from] InferTypesError),
+    #[error(transparent)]
+    Pyright(#[from] PyrightError),
+    #[error(transparent)]
     Context(#[from] ContextImportError),
     #[error(transparent)]
     Query(#[from] QueryError),
@@ -501,6 +526,11 @@ fn run(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
     match &cli.command {
         Command::Init => initialize(cli, git),
         Command::Index => index(cli, git),
+        Command::InferTypes {
+            pyright,
+            confidence,
+            timeout_ms,
+        } => infer_types(cli, git, pyright, *confidence, *timeout_ms),
         Command::Status => status(cli, git),
         Command::Impact { target } => impact(cli, git, target),
         Command::Explain { target, trace } => explain(cli, git, target, *trace),
@@ -598,6 +628,7 @@ impl Command {
         match self {
             Self::Init => "init",
             Self::Index => "index",
+            Self::InferTypes { .. } => "infer-types",
             Self::Status => "status",
             Self::Impact { .. } => "impact",
             Self::Explain { .. } => "explain",
@@ -1671,6 +1702,131 @@ fn index(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
     Ok(())
 }
 
+#[derive(Serialize)]
+struct CliInferTypesReport<'a> {
+    ok: bool,
+    status: &'static str,
+    pyright_startup_ms: u128,
+    #[serde(flatten)]
+    inference: &'a InferTypesReport,
+}
+
+fn infer_types(
+    cli: &Cli,
+    git: &GitRepo,
+    pyright: &Path,
+    confidence: f32,
+    timeout_ms: u64,
+) -> Result<(), CliError> {
+    let startup = std::time::Instant::now();
+    let mut oracle = match PyrightTypeServer::start(
+        pyright,
+        git.root(),
+        std::time::Duration::from_millis(timeout_ms),
+    ) {
+        Ok(oracle) => oracle,
+        Err(error) if error.is_not_found() => {
+            if cli.json {
+                println!(
+                    "{}",
+                    json!({
+                        "ok": true,
+                        "status": "skipped",
+                        "reason": "pyright_typeserver_not_found",
+                        "executable": pyright,
+                        "message": format!(
+                            "Pyright Type Server was not found; install `pyright-typeserver` on PATH or pass --pyright <path>"
+                        ),
+                    })
+                );
+            } else {
+                println!(
+                    "Type inference skipped: '{}' was not found. Install Pyright Type Server or pass --pyright <path>.",
+                    pyright.display()
+                );
+            }
+            return Ok(());
+        }
+        Err(error) => return Err(error.into()),
+    };
+    let pyright_startup_ms = startup.elapsed().as_millis();
+    let database_path = database_path(git.root())?;
+    let mut store = SqliteStore::open(&database_path, git.context_root())?;
+    let candidates = PythonAnalyzer::new(git.root().to_path_buf());
+    let confidence = Confidence::new(confidence).expect("confidence is validated by clap");
+    let result = InferTypesRunner::new(git, &candidates, &mut oracle, &mut store, confidence)
+        .run(&Utc::now().to_rfc3339());
+    let shutdown = oracle.shutdown();
+    let report = result?;
+    shutdown?;
+
+    if cli.json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&CliInferTypesReport {
+                ok: true,
+                status: "completed",
+                pyright_startup_ms,
+                inference: &report,
+            })?
+        );
+        return Ok(());
+    }
+
+    println!("Pyright type inference completed");
+    println!(
+        "Candidates: {}; type queries: {}; resolved: {}",
+        report.candidate_sites, report.type_queries, report.resolved_model_candidates
+    );
+    println!(
+        "Inferences created: {}; updated: {}; removed: {}",
+        report.inferences_created, report.inferences_updated, report.inferences_removed
+    );
+    println!(
+        "Unknown: {}; ambiguous: {}; unsupported: {}; suppressed by Fact: {}",
+        report.dropped_unknown,
+        report.dropped_ambiguous,
+        report.dropped_unsupported,
+        report.suppressed_by_fact
+    );
+    println!(
+        "Failed type queries: {}; candidate extraction failures: {}",
+        report.pyright_failures, report.extraction_failures
+    );
+    println!(
+        "Timing: Pyright startup {} ms; inference phase {} ms",
+        pyright_startup_ms, report.duration_ms
+    );
+    if cli.verbose > 1 {
+        for diagnostic in &report.diagnostics {
+            println!(
+                "  {}:{} {:?} probe={} type={} model={} table={} drop={:?}: {}",
+                diagnostic.file,
+                diagnostic.line,
+                diagnostic.form,
+                diagnostic.probe.as_deref().unwrap_or("-"),
+                diagnostic.inferred_type.as_deref().unwrap_or("-"),
+                diagnostic.model_symbol.as_deref().unwrap_or("-"),
+                diagnostic.table.as_deref().unwrap_or("-"),
+                diagnostic.reason,
+                diagnostic.detail
+            );
+        }
+    }
+    Ok(())
+}
+
+fn parse_inference_confidence(value: &str) -> Result<f32, String> {
+    let value = value
+        .parse::<f32>()
+        .map_err(|_| "confidence must be a number between 0 and 1".to_owned())?;
+    if value.is_finite() && (0.0..1.0).contains(&value) {
+        Ok(value)
+    } else {
+        Err("inference confidence must be finite, at least 0, and less than 1".to_owned())
+    }
+}
+
 fn database_path(root: &Path) -> Result<PathBuf, CliError> {
     let path = root.join(".ctx").join("ctx.db");
     if path.exists() {
@@ -1689,5 +1845,31 @@ impl From<serde_json::Error> for CliError {
         Self::Port(PortError::new(format!(
             "could not render JSON output: {error}"
         )))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn infer_types_cli_uses_sound_defaults() {
+        let cli = Cli::try_parse_from(["ctx", "infer-types"]).expect("parse infer-types");
+        let Command::InferTypes {
+            pyright,
+            confidence,
+            timeout_ms,
+        } = cli.command
+        else {
+            panic!("expected infer-types command");
+        };
+        assert_eq!(pyright, PathBuf::from("pyright-typeserver"));
+        assert_eq!(confidence, DEFAULT_TYPE_INFERENCE_CONFIDENCE);
+        assert_eq!(timeout_ms, 30_000);
+    }
+
+    #[test]
+    fn infer_types_cli_rejects_fact_confidence() {
+        assert!(Cli::try_parse_from(["ctx", "infer-types", "--confidence", "1"]).is_err());
     }
 }

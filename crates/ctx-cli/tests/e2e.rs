@@ -316,9 +316,9 @@ fn real_pyright_creates_a_type_inference_write_edge_end_to_end() {
             "60000",
         ],
     );
-    assert_eq!(report["candidate_sites"], 17);
-    assert_eq!(report["resolved_model_candidates"], 14);
-    assert_eq!(report["inferences_created"], 1);
+    assert_eq!(report["candidate_sites"], 19);
+    assert_eq!(report["resolved_model_candidates"], 16);
+    assert_eq!(report["inferences_created"], 2);
     assert_eq!(report["dropped_unknown"], 2);
     assert_eq!(report["dropped_ambiguous"], 1);
     assert_eq!(report["dropped_unsupported"], 4);
@@ -339,20 +339,49 @@ fn real_pyright_creates_a_type_inference_write_edge_end_to_end() {
                 && edge.status == ClaimStatus::Active
         })
         .collect::<Vec<_>>();
-    assert_eq!(writes.len(), 1);
-    let write = writes[0];
-    assert_eq!(write.source_kind, SourceKind::TypeInference);
-    assert_eq!(write.producer, "pyright");
-    assert!((write.confidence.get() - 0.90).abs() < f32::EPSILON);
-    assert!(write.source.as_str().contains("typed_writes"));
-    assert_eq!(
-        graph.nodes.get(&write.target).expect("write target").name,
-        "models"
-    );
-    assert!(write.evidence[0].locator.contains("probes:"));
-    assert!(write.evidence[0].locator.contains("selected"));
-    assert!(write.evidence[0].locator.contains("columns:status"));
-    assert!(write.evidence[0].locator.contains("Model"));
+    assert_eq!(writes.len(), 2);
+    let targets = writes
+        .iter()
+        .map(|write| {
+            graph
+                .nodes
+                .get(&write.target)
+                .expect("write target")
+                .name
+                .as_str()
+        })
+        .collect::<BTreeSet<_>>();
+    assert_eq!(targets, BTreeSet::from(["models", "offers"]));
+    for write in writes {
+        assert_eq!(write.source_kind, SourceKind::TypeInference);
+        assert_eq!(write.producer, "pyright");
+        assert!((write.confidence.get() - 0.90).abs() < f32::EPSILON);
+        assert!(write.evidence[0].locator.contains("probes:"));
+        assert!(write.evidence[0].locator.contains("columns:status"));
+    }
+    let model_write = graph.edges.iter().find(|edge| {
+        edge.kind == RelationKind::WritesTo
+            && edge.claim_class == ClaimClass::Inference
+            && graph
+                .nodes
+                .get(&edge.target)
+                .is_some_and(|node| node.name == "models")
+    });
+    let model_write = model_write.expect("models inference");
+    assert!(model_write.source.as_str().contains("typed_writes"));
+    assert!(model_write.evidence[0].locator.contains("selected"));
+    assert!(model_write.evidence[0].locator.contains("Model"));
+    let offer_write = graph.edges.iter().find(|edge| {
+        edge.kind == RelationKind::WritesTo
+            && edge.claim_class == ClaimClass::Inference
+            && graph
+                .nodes
+                .get(&edge.target)
+                .is_some_and(|node| node.name == "offers")
+    });
+    let offer_write = offer_write.expect("offers inference");
+    assert!(offer_write.source.as_str().contains("update_offer"));
+    assert!(offer_write.evidence[0].locator.contains("Offer"));
 }
 
 #[test]

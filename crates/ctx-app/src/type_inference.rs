@@ -793,7 +793,7 @@ fn sqlalchemy_session_method(
 ) -> bool {
     let PythonType::Function(PythonFunctionType {
         declaration,
-        bound_to: Some(bound_to),
+        bound_to,
     }) = inferred
     else {
         return false;
@@ -808,7 +808,11 @@ fn sqlalchemy_session_method(
     declaration.name.as_deref() == Some(expected)
         && declaration.range.is_some()
         && session_uris.contains(&declaration.uri)
-        && matches!(bound_to.as_ref(), PythonType::Class(class) if class.is_instance)
+        && match bound_to.as_deref() {
+            None => true,
+            Some(PythonType::Class(class)) => class.is_instance,
+            Some(_) => false,
+        }
 }
 
 fn normalized_path(path: &Path) -> PathBuf {
@@ -934,8 +938,9 @@ mod tests {
     fn unit_of_work_requires_sqlalchemy_method_identity_and_model_argument() {
         let candidates = vec![
             call_candidate(TypeWriteForm::Add, "model", "session.add", 101),
-            call_candidate(TypeWriteForm::Add, "model", "collection.add", 102),
-            call_candidate(TypeWriteForm::Add, "name", "session.add", 103),
+            call_candidate(TypeWriteForm::Add, "model", "legacy_session.add", 102),
+            call_candidate(TypeWriteForm::Add, "model", "collection.add", 103),
+            call_candidate(TypeWriteForm::Add, "name", "session.add", 104),
         ];
         let mut oracle = FakeOracle::default();
         oracle
@@ -949,15 +954,19 @@ mod tests {
         );
         oracle.types.insert(
             "session.add".to_owned(),
-            method_type("add", "file:///site/sqlalchemy/orm/session.py"),
+            method_type("add", "file:///site/sqlalchemy/orm/session.py", true),
+        );
+        oracle.types.insert(
+            "legacy_session.add".to_owned(),
+            method_type("add", "file:///site/sqlalchemy/orm/session.py", false),
         );
         oracle.types.insert(
             "collection.add".to_owned(),
-            method_type("add", "file:///stdlib/collections.pyi"),
+            method_type("add", "file:///stdlib/collections.pyi", false),
         );
         let (report, edges) = run(candidates, graph_fixture(), oracle).expect("inference run");
 
-        assert_eq!(report.candidate_sites, 3);
+        assert_eq!(report.candidate_sites, 4);
         assert_eq!(report.dropped_unknown, 1);
         assert_eq!(report.dropped_unsupported, 1);
         assert_eq!(edges.len(), 1);
@@ -1184,7 +1193,7 @@ mod tests {
         })
     }
 
-    fn method_type(name: &str, uri: &str) -> PythonType {
+    fn method_type(name: &str, uri: &str, bound: bool) -> PythonType {
         PythonType::Function(PythonFunctionType {
             declaration: PythonDeclaration {
                 uri: uri.to_owned(),
@@ -1202,11 +1211,13 @@ mod tests {
                 )),
                 category: Some(5),
             },
-            bound_to: Some(Box::new(PythonType::Class(PythonClassType {
-                declaration: declaration("Session", "session.py", 1, 6),
-                is_instance: true,
-                type_arguments: Vec::new(),
-            }))),
+            bound_to: bound.then(|| {
+                Box::new(PythonType::Class(PythonClassType {
+                    declaration: declaration("Session", "session.py", 1, 6),
+                    is_instance: true,
+                    type_arguments: Vec::new(),
+                }))
+            }),
         })
     }
 

@@ -10,6 +10,7 @@ use ctx_core::ir::{
     FileAnalysis, ForeignKeyRef, HttpMethod, OrmModelAccess, ParamSource, SchemaColumn,
     SchemaTableDefinition, SourceRange, SymbolDefinition, SymbolKind,
 };
+use ctx_core::type_inference::{TypePosition, TypeProbe, TypeWriteCandidate, TypeWriteForm};
 use thiserror::Error;
 use tree_sitter::{Node, Parser, TreeCursor};
 
@@ -79,6 +80,190 @@ impl PythonAnalyzer {
             content_hash: blake3::hash(source.as_bytes()).to_hex().to_string(),
             symbols,
         })
+    }
+
+    /// Extracts permissive write-site candidates for a separate type-backed
+    /// enrichment pass. Candidate extraction alone never implies ORM or
+    /// database semantics.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PythonAnalysisError`] when Tree-sitter cannot be configured or
+    /// does not produce a syntax tree.
+    pub fn type_write_candidates(
+        relative_path: &str,
+        source: &str,
+    ) -> Result<Vec<TypeWriteCandidate>, PythonAnalysisError> {
+        let mut parser = Parser::new();
+        let language = tree_sitter_python::LANGUAGE.into();
+        parser
+            .set_language(&language)
+            .map_err(|_| PythonAnalysisError::Language)?;
+        let tree = parser
+            .parse(source, None)
+            .ok_or_else(|| PythonAnalysisError::Parse(relative_path.to_owned()))?;
+        let mut candidates = Vec::new();
+        visit_type_write_candidates(tree.root_node(), relative_path, source, &mut candidates);
+        candidates.sort_by(|left, right| {
+            left.write_range
+                .start_byte
+                .cmp(&right.write_range.start_byte)
+                .then_with(|| {
+                    left.probe
+                        .range
+                        .start_byte
+                        .cmp(&right.probe.range.start_byte)
+                })
+                .then_with(|| left.form.cmp(&right.form))
+        });
+        Ok(candidates)
+    }
+}
+
+fn visit_type_write_candidates(
+    node: Node<'_>,
+    relative_path: &str,
+    source: &str,
+    candidates: &mut Vec<TypeWriteCandidate>,
+) {
+    if matches!(node.kind(), "assignment" | "augmented_assignment") {
+        if let Some(candidate) = attr_assignment_candidate(node, relative_path, source) {
+            candidates.push(candidate);
+        }
+    } else if node.kind() == "call" {
+        collect_unit_of_work_candidates(node, relative_path, source, candidates);
+    }
+    let mut cursor = node.walk();
+    for child in node.named_children(&mut cursor) {
+        visit_type_write_candidates(child, relative_path, source, candidates);
+    }
+}
+
+fn attr_assignment_candidate(
+    assignment: Node<'_>,
+    relative_path: &str,
+    source: &str,
+) -> Option<TypeWriteCandidate> {
+    let left = assignment.child_by_field_name("left")?;
+    if left.kind() != "attribute" {
+        return None;
+    }
+    let object = left.child_by_field_name("object")?;
+    let column = left
+        .child_by_field_name("attribute")?
+        .utf8_text(source.as_bytes())
+        .ok()?
+        .to_owned();
+    Some(type_write_candidate(
+        relative_path,
+        TypeWriteForm::AttrAssign,
+        object,
+        None,
+        Some(column),
+        assignment,
+        source,
+    ))
+}
+
+fn collect_unit_of_work_candidates(
+    call: Node<'_>,
+    relative_path: &str,
+    source: &str,
+    candidates: &mut Vec<TypeWriteCandidate>,
+) {
+    let Some(function) = call.child_by_field_name("function") else {
+        return;
+    };
+    if function.kind() != "attribute" {
+        return;
+    }
+    let Some(operation) = function
+        .child_by_field_name("attribute")
+        .and_then(|attribute| attribute.utf8_text(source.as_bytes()).ok())
+    else {
+        return;
+    };
+    let form = match operation {
+        "add" => TypeWriteForm::Add,
+        "add_all" => TypeWriteForm::AddAll,
+        "merge" => TypeWriteForm::Merge,
+        "delete" => TypeWriteForm::Delete,
+        _ => return,
+    };
+    let Some(arguments) = call.child_by_field_name("arguments") else {
+        return;
+    };
+    let Some(argument) = first_positional_argument(arguments) else {
+        return;
+    };
+    if form == TypeWriteForm::AddAll {
+        if argument.kind() != "list" {
+            return;
+        }
+        let mut cursor = argument.walk();
+        for element in argument
+            .named_children(&mut cursor)
+            .filter(|element| element.kind() != "list_splat")
+        {
+            candidates.push(type_write_candidate(
+                relative_path,
+                form,
+                element,
+                Some(function),
+                None,
+                call,
+                source,
+            ));
+        }
+    } else {
+        candidates.push(type_write_candidate(
+            relative_path,
+            form,
+            argument,
+            Some(function),
+            None,
+            call,
+            source,
+        ));
+    }
+}
+
+fn type_write_candidate(
+    relative_path: &str,
+    form: TypeWriteForm,
+    probe: Node<'_>,
+    method_probe: Option<Node<'_>>,
+    column: Option<String>,
+    write: Node<'_>,
+    source: &str,
+) -> TypeWriteCandidate {
+    TypeWriteCandidate {
+        file_path: relative_path.to_owned(),
+        form,
+        probe: type_probe(probe, source),
+        method_probe: method_probe.map(|probe| type_probe(probe, source)),
+        column,
+        write_range: source_range(write),
+        statement_hash: blake3::hash(&source.as_bytes()[write.byte_range()])
+            .to_hex()
+            .to_string(),
+    }
+}
+
+fn type_probe(node: Node<'_>, source: &str) -> TypeProbe {
+    TypeProbe {
+        expression: source[node.byte_range()].to_owned(),
+        range: source_range(node),
+        start: type_position(source, node.start_byte(), node.start_position().row),
+        end: type_position(source, node.end_byte(), node.end_position().row),
+    }
+}
+
+fn type_position(source: &str, byte: usize, row: usize) -> TypePosition {
+    let line_start = source[..byte].rfind('\n').map_or(0, |offset| offset + 1);
+    TypePosition {
+        line: row,
+        character: source[line_start..byte].encode_utf16().count(),
     }
 }
 
@@ -1846,5 +2031,169 @@ class Subscription(Base):
                 .iter()
                 .all(|symbol| symbol.schema_tables.is_empty())
         );
+    }
+
+    #[test]
+    fn extracts_type_write_candidates_with_exact_probe_ranges() {
+        let source = concat!(
+            "x.status = value\n",
+            "x.count += 1\n",
+            "session.add(row)\n",
+            "session.add_all([a, b])\n",
+            "session.merge(row)\n",
+            "session.delete(row)\n",
+        );
+        let candidates =
+            PythonAnalyzer::type_write_candidates("service.py", source).expect("write candidates");
+
+        assert_eq!(
+            candidates
+                .iter()
+                .map(|candidate| (
+                    candidate.form,
+                    candidate.probe.expression.as_str(),
+                    candidate.probe.start,
+                    candidate.probe.end,
+                    candidate
+                        .method_probe
+                        .as_ref()
+                        .map(|probe| probe.expression.as_str()),
+                    candidate.column.as_deref(),
+                ))
+                .collect::<Vec<_>>(),
+            vec![
+                (
+                    TypeWriteForm::AttrAssign,
+                    "x",
+                    TypePosition {
+                        line: 0,
+                        character: 0,
+                    },
+                    TypePosition {
+                        line: 0,
+                        character: 1,
+                    },
+                    None,
+                    Some("status"),
+                ),
+                (
+                    TypeWriteForm::AttrAssign,
+                    "x",
+                    TypePosition {
+                        line: 1,
+                        character: 0,
+                    },
+                    TypePosition {
+                        line: 1,
+                        character: 1,
+                    },
+                    None,
+                    Some("count"),
+                ),
+                (
+                    TypeWriteForm::Add,
+                    "row",
+                    TypePosition {
+                        line: 2,
+                        character: 12,
+                    },
+                    TypePosition {
+                        line: 2,
+                        character: 15,
+                    },
+                    Some("session.add"),
+                    None,
+                ),
+                (
+                    TypeWriteForm::AddAll,
+                    "a",
+                    TypePosition {
+                        line: 3,
+                        character: 17,
+                    },
+                    TypePosition {
+                        line: 3,
+                        character: 18,
+                    },
+                    Some("session.add_all"),
+                    None,
+                ),
+                (
+                    TypeWriteForm::AddAll,
+                    "b",
+                    TypePosition {
+                        line: 3,
+                        character: 20,
+                    },
+                    TypePosition {
+                        line: 3,
+                        character: 21,
+                    },
+                    Some("session.add_all"),
+                    None,
+                ),
+                (
+                    TypeWriteForm::Merge,
+                    "row",
+                    TypePosition {
+                        line: 4,
+                        character: 14,
+                    },
+                    TypePosition {
+                        line: 4,
+                        character: 17,
+                    },
+                    Some("session.merge"),
+                    None,
+                ),
+                (
+                    TypeWriteForm::Delete,
+                    "row",
+                    TypePosition {
+                        line: 5,
+                        character: 15,
+                    },
+                    TypePosition {
+                        line: 5,
+                        character: 18,
+                    },
+                    Some("session.delete"),
+                    None,
+                ),
+            ]
+        );
+        assert_eq!(candidates[0].write_range.start_line, 1);
+        assert_eq!(candidates[6].write_range.start_line, 6);
+    }
+
+    #[test]
+    fn add_all_requires_a_statically_enumerated_list() {
+        let source = concat!(
+            "session.add_all(items)\n",
+            "session.add_all([first, *rest, second])\n",
+        );
+        let candidates =
+            PythonAnalyzer::type_write_candidates("service.py", source).expect("write candidates");
+
+        assert_eq!(
+            candidates
+                .iter()
+                .map(|candidate| candidate.probe.expression.as_str())
+                .collect::<Vec<_>>(),
+            vec!["first", "second"]
+        );
+    }
+
+    #[test]
+    fn type_probe_positions_use_utf16_code_units() {
+        let source = "label = \"😀\"; row.status = value\n";
+        let candidate = PythonAnalyzer::type_write_candidates("service.py", source)
+            .expect("write candidates")
+            .pop()
+            .expect("attribute assignment");
+
+        assert_eq!(candidate.probe.expression, "row");
+        assert_eq!(candidate.probe.start.character, 14);
+        assert_eq!(candidate.probe.end.character, 17);
     }
 }

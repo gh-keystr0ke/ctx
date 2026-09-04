@@ -20,4 +20,5 @@ pub mod neighborhood;
 pub mod review;
 pub mod schema;
 pub mod trace;
+pub mod type_inference;
 pub mod verification;

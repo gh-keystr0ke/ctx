@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{fmt, path::Path};
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
@@ -15,6 +15,7 @@ use ctx_core::{
         AcceptedKnowledgeRecord, AgentOutcome, ClusterReview, KnowledgeCandidate, KnowledgeDecision,
     },
     neighborhood::ArtifactNeighborhood,
+    type_inference::{PythonType, TypeProbe},
     verification::{SemanticCandidate, StaleClaim, StaleClaimVerdict, VerificationDecision},
 };
 use serde::{Deserialize, Serialize};
@@ -127,6 +128,27 @@ pub trait LanguageAnalyzer {
     /// # Errors
     /// Returns [`PortError`] when the source cannot be parsed.
     fn analyze_text(&self, relative_path: &str, source: &str) -> Result<FileAnalysis, PortError>;
+}
+
+/// External semantic oracle for Python type identity. Consumers decide what
+/// domain meaning, if any, a resolved type supports.
+pub trait PythonTypeOracle {
+    /// Returns the computed, flow-narrowed type of the exact probe node.
+    ///
+    /// # Errors
+    /// Returns [`PortError`] when the oracle cannot answer this query.
+    fn inferred_type(&mut self, file: &Path, probe: &TypeProbe) -> Result<PythonType, PortError>;
+
+    /// Resolves an absolute Python module name from one source file.
+    ///
+    /// # Errors
+    /// Returns [`PortError`] when the oracle request fails. `Ok(None)` means
+    /// that the module is not importable in the configured Python workspace.
+    fn resolve_import(
+        &mut self,
+        from_file: &Path,
+        module: &str,
+    ) -> Result<Option<String>, PortError>;
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]

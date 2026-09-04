@@ -1580,6 +1580,10 @@ fn module_path(path: &str) -> String {
 mod tests {
     use super::*;
 
+    const fn position(line: usize, character: usize) -> TypePosition {
+        TypePosition { line, character }
+    }
+
     #[test]
     fn extracts_classes_methods_tests_and_calls() {
         let source = r"
@@ -2069,8 +2073,6 @@ class Subscription(Base):
                 .map(|candidate| (
                     candidate.form,
                     candidate.probe.expression.as_str(),
-                    candidate.probe.start,
-                    candidate.probe.end,
                     candidate
                         .method_probe
                         .as_ref()
@@ -2079,104 +2081,28 @@ class Subscription(Base):
                 ))
                 .collect::<Vec<_>>(),
             vec![
-                (
-                    TypeWriteForm::AttrAssign,
-                    "x",
-                    TypePosition {
-                        line: 0,
-                        character: 0,
-                    },
-                    TypePosition {
-                        line: 0,
-                        character: 1,
-                    },
-                    None,
-                    Some("status"),
-                ),
-                (
-                    TypeWriteForm::AttrAssign,
-                    "x",
-                    TypePosition {
-                        line: 1,
-                        character: 0,
-                    },
-                    TypePosition {
-                        line: 1,
-                        character: 1,
-                    },
-                    None,
-                    Some("count"),
-                ),
-                (
-                    TypeWriteForm::Add,
-                    "row",
-                    TypePosition {
-                        line: 2,
-                        character: 12,
-                    },
-                    TypePosition {
-                        line: 2,
-                        character: 15,
-                    },
-                    Some("session.add"),
-                    None,
-                ),
-                (
-                    TypeWriteForm::AddAll,
-                    "a",
-                    TypePosition {
-                        line: 3,
-                        character: 17,
-                    },
-                    TypePosition {
-                        line: 3,
-                        character: 18,
-                    },
-                    Some("session.add_all"),
-                    None,
-                ),
-                (
-                    TypeWriteForm::AddAll,
-                    "b",
-                    TypePosition {
-                        line: 3,
-                        character: 20,
-                    },
-                    TypePosition {
-                        line: 3,
-                        character: 21,
-                    },
-                    Some("session.add_all"),
-                    None,
-                ),
-                (
-                    TypeWriteForm::Merge,
-                    "row",
-                    TypePosition {
-                        line: 4,
-                        character: 14,
-                    },
-                    TypePosition {
-                        line: 4,
-                        character: 17,
-                    },
-                    Some("session.merge"),
-                    None,
-                ),
-                (
-                    TypeWriteForm::Delete,
-                    "row",
-                    TypePosition {
-                        line: 5,
-                        character: 15,
-                    },
-                    TypePosition {
-                        line: 5,
-                        character: 18,
-                    },
-                    Some("session.delete"),
-                    None,
-                ),
+                (TypeWriteForm::AttrAssign, "x", None, Some("status"),),
+                (TypeWriteForm::AttrAssign, "x", None, Some("count"),),
+                (TypeWriteForm::Add, "row", Some("session.add"), None,),
+                (TypeWriteForm::AddAll, "a", Some("session.add_all"), None,),
+                (TypeWriteForm::AddAll, "b", Some("session.add_all"), None,),
+                (TypeWriteForm::Merge, "row", Some("session.merge"), None,),
+                (TypeWriteForm::Delete, "row", Some("session.delete"), None,),
+            ]
+        );
+        assert_eq!(
+            candidates
+                .iter()
+                .map(|candidate| (candidate.probe.start, candidate.probe.end))
+                .collect::<Vec<_>>(),
+            vec![
+                (position(0, 0), position(0, 1)),
+                (position(1, 0), position(1, 1)),
+                (position(2, 12), position(2, 15)),
+                (position(3, 17), position(3, 18)),
+                (position(3, 20), position(3, 21)),
+                (position(4, 14), position(4, 17)),
+                (position(5, 15), position(5, 18)),
             ]
         );
         assert_eq!(candidates[0].write_range.start_line, 1);

@@ -58,6 +58,8 @@ pub struct TypeInferenceDiagnostic {
 pub struct InferTypesReport {
     pub candidate_sites: usize,
     pub type_queries: usize,
+    pub import_queries: usize,
+    pub pyright_query_ms: u128,
     pub resolved_model_candidates: usize,
     pub inferences_created: usize,
     pub inferences_updated: usize,
@@ -182,118 +184,18 @@ where
                 }
             };
             report.candidate_sites += extracted.len();
-            let absolute = Path::new(&repository.root_path).join(&path);
-            let mut session_uris = None;
+            let mut context = FileInferenceContext {
+                graph: &graph,
+                models: &models,
+                fact_writes: &fact_writes,
+                relative_path: &path,
+                absolute_path: Path::new(&repository.root_path).join(&path),
+                session_uris: None,
+                report: &mut report,
+                groups: &mut groups,
+            };
             for candidate in extracted {
-                let Some(owner) = containing_symbol(&graph, &candidate) else {
-                    report.dropped_unsupported += 1;
-                    report.diagnostics.push(diagnostic(
-                        &candidate,
-                        TypeInferenceDropReason::MissingSourceOwner,
-                        "no indexed containing function or method",
-                        None,
-                        None,
-                    ));
-                    continue;
-                };
-                report.type_queries += 1;
-                let inferred = match self.oracle.inferred_type(&absolute, &candidate.probe) {
-                    Ok(inferred) => inferred,
-                    Err(error) => {
-                        self.record_oracle_failure(&candidate, &mut report, &error)?;
-                        continue;
-                    }
-                };
-                let resolved = match models.resolve(&inferred) {
-                    Ok(resolved) => resolved,
-                    Err(ModelResolutionError::Unknown(detail)) => {
-                        report.dropped_unknown += 1;
-                        report.diagnostics.push(diagnostic(
-                            &candidate,
-                            TypeInferenceDropReason::UnknownType,
-                            &detail,
-                            Some(&inferred),
-                            None,
-                        ));
-                        continue;
-                    }
-                    Err(ModelResolutionError::Ambiguous(detail)) => {
-                        report.dropped_ambiguous += 1;
-                        report.diagnostics.push(diagnostic(
-                            &candidate,
-                            TypeInferenceDropReason::AmbiguousType,
-                            &detail,
-                            Some(&inferred),
-                            None,
-                        ));
-                        continue;
-                    }
-                };
-                report.resolved_model_candidates += 1;
-
-                if candidate.form == TypeWriteForm::AttrAssign {
-                    let column = candidate.column.as_deref().unwrap_or_default();
-                    if !resolved.columns.contains(column) {
-                        report.dropped_unsupported += 1;
-                        report.diagnostics.push(diagnostic(
-                            &candidate,
-                            TypeInferenceDropReason::UnsupportedOperation,
-                            "attribute is not a statically known mapped column",
-                            Some(&inferred),
-                            Some(&resolved),
-                        ));
-                        continue;
-                    }
-                } else {
-                    if session_uris.is_none() {
-                        session_uris =
-                            Some(self.resolve_session_uris(&absolute, &candidate, &mut report)?);
-                    }
-                    let Some(method_probe) = candidate.method_probe.as_ref() else {
-                        report.dropped_unsupported += 1;
-                        continue;
-                    };
-                    report.type_queries += 1;
-                    let method_type = match self.oracle.inferred_type(&absolute, method_probe) {
-                        Ok(method_type) => method_type,
-                        Err(error) => {
-                            self.record_oracle_failure(&candidate, &mut report, &error)?;
-                            continue;
-                        }
-                    };
-                    if !sqlalchemy_session_method(
-                        candidate.form,
-                        &method_type,
-                        session_uris.as_ref().expect("initialized above"),
-                    ) {
-                        report.dropped_unsupported += 1;
-                        report.diagnostics.push(diagnostic(
-                            &candidate,
-                            TypeInferenceDropReason::UnsupportedOperation,
-                            "method is not a bound SQLAlchemy Session/AsyncSession API",
-                            Some(&method_type),
-                            Some(&resolved),
-                        ));
-                        continue;
-                    }
-                }
-
-                if fact_writes.contains(&(owner.clone(), resolved.target.clone())) {
-                    report.suppressed_by_fact += 1;
-                    report.diagnostics.push(diagnostic(
-                        &candidate,
-                        TypeInferenceDropReason::SuppressedByFact,
-                        "an active Fact already proves this symbol-to-table write",
-                        Some(&inferred),
-                        Some(&resolved),
-                    ));
-                    continue;
-                }
-                groups
-                    .entry((owner.clone(), resolved.target.clone()))
-                    .or_insert_with(|| InferenceGroup::new(owner, resolved.clone(), &path))
-                    .sites
-                    .push(InferenceSite::new(&candidate, &inferred, &resolved));
+                self.process_candidate(&candidate, &mut context)?;
             }
         }
         let edges = groups
@@ -318,6 +220,149 @@ where
         Ok(report)
     }
 
+    fn process_candidate(
+        &mut self,
+        candidate: &TypeWriteCandidate,
+        context: &mut FileInferenceContext<'_>,
+    ) -> Result<(), InferTypesError> {
+        let Some(owner) = containing_symbol(context.graph, candidate) else {
+            context.report.dropped_unsupported += 1;
+            context.report.diagnostics.push(diagnostic(
+                candidate,
+                TypeInferenceDropReason::MissingSourceOwner,
+                "no indexed containing function or method",
+                None,
+                None,
+            ));
+            return Ok(());
+        };
+        let Some(inferred) = self.query_type(
+            &context.absolute_path,
+            &candidate.probe,
+            candidate,
+            context.report,
+        )?
+        else {
+            return Ok(());
+        };
+        let Some(resolved) =
+            resolve_candidate_model(context.models, candidate, &inferred, context.report)
+        else {
+            return Ok(());
+        };
+        if !self.operation_is_supported(candidate, &inferred, &resolved, context)? {
+            return Ok(());
+        }
+        if context
+            .fact_writes
+            .contains(&(owner.clone(), resolved.target.clone()))
+        {
+            context.report.suppressed_by_fact += 1;
+            context.report.diagnostics.push(diagnostic(
+                candidate,
+                TypeInferenceDropReason::SuppressedByFact,
+                "an active Fact already proves this symbol-to-table write",
+                Some(&inferred),
+                Some(&resolved),
+            ));
+            return Ok(());
+        }
+        context
+            .groups
+            .entry((owner.clone(), resolved.target.clone()))
+            .or_insert_with(|| InferenceGroup::new(owner, resolved.clone(), context.relative_path))
+            .sites
+            .push(InferenceSite::new(candidate, &inferred, &resolved));
+        Ok(())
+    }
+
+    fn operation_is_supported(
+        &mut self,
+        candidate: &TypeWriteCandidate,
+        inferred: &PythonType,
+        resolved: &ResolvedModel,
+        context: &mut FileInferenceContext<'_>,
+    ) -> Result<bool, InferTypesError> {
+        if candidate.form == TypeWriteForm::AttrAssign {
+            let column = candidate.column.as_deref().unwrap_or_default();
+            if resolved.columns.contains(column) {
+                return Ok(true);
+            }
+            context.report.dropped_unsupported += 1;
+            context.report.diagnostics.push(diagnostic(
+                candidate,
+                TypeInferenceDropReason::UnsupportedOperation,
+                "attribute is not a statically known mapped column",
+                Some(inferred),
+                Some(resolved),
+            ));
+            return Ok(false);
+        }
+
+        if context.session_uris.is_none() {
+            context.session_uris = Some(self.resolve_session_uris(
+                &context.absolute_path,
+                candidate,
+                context.report,
+            )?);
+        }
+        let Some(method_probe) = candidate.method_probe.as_ref() else {
+            context.report.dropped_unsupported += 1;
+            context.report.diagnostics.push(diagnostic(
+                candidate,
+                TypeInferenceDropReason::UnsupportedOperation,
+                "unit-of-work candidate is missing its method probe",
+                None,
+                Some(resolved),
+            ));
+            return Ok(false);
+        };
+        let Some(method_type) = self.query_type(
+            &context.absolute_path,
+            method_probe,
+            candidate,
+            context.report,
+        )?
+        else {
+            return Ok(false);
+        };
+        let supported = context
+            .session_uris
+            .as_ref()
+            .is_some_and(|uris| sqlalchemy_session_method(candidate.form, &method_type, uris));
+        if !supported {
+            context.report.dropped_unsupported += 1;
+            context.report.diagnostics.push(diagnostic(
+                candidate,
+                TypeInferenceDropReason::UnsupportedOperation,
+                "method is not a bound SQLAlchemy Session/AsyncSession API",
+                Some(&method_type),
+                Some(resolved),
+            ));
+        }
+        Ok(supported)
+    }
+
+    fn query_type(
+        &mut self,
+        file: &Path,
+        probe: &ctx_core::type_inference::TypeProbe,
+        candidate: &TypeWriteCandidate,
+        report: &mut InferTypesReport,
+    ) -> Result<Option<PythonType>, InferTypesError> {
+        report.type_queries += 1;
+        let started = Instant::now();
+        let result = self.oracle.inferred_type(file, probe);
+        report.pyright_query_ms += started.elapsed().as_millis();
+        match result {
+            Ok(inferred) => Ok(Some(inferred)),
+            Err(error) => {
+                self.record_oracle_failure(candidate, report, &error)?;
+                Ok(None)
+            }
+        }
+    }
+
     fn resolve_session_uris(
         &mut self,
         file: &Path,
@@ -326,7 +371,11 @@ where
     ) -> Result<BTreeSet<String>, InferTypesError> {
         let mut uris = BTreeSet::new();
         for module in ["sqlalchemy.orm.session", "sqlalchemy.ext.asyncio.session"] {
-            match self.oracle.resolve_import(file, module) {
+            report.import_queries += 1;
+            let started = Instant::now();
+            let result = self.oracle.resolve_import(file, module);
+            report.pyright_query_ms += started.elapsed().as_millis();
+            match result {
                 Ok(Some(uri)) => {
                     uris.insert(uri);
                 }
@@ -367,6 +416,53 @@ where
             return Err(InferTypesError::OracleFatal(error.clone()));
         }
         Ok(())
+    }
+}
+
+struct FileInferenceContext<'a> {
+    graph: &'a GraphSnapshot,
+    models: &'a ModelIndex,
+    fact_writes: &'a BTreeSet<(StableKey, StableKey)>,
+    relative_path: &'a str,
+    absolute_path: PathBuf,
+    session_uris: Option<BTreeSet<String>>,
+    report: &'a mut InferTypesReport,
+    groups: &'a mut BTreeMap<(StableKey, StableKey), InferenceGroup>,
+}
+
+fn resolve_candidate_model(
+    models: &ModelIndex,
+    candidate: &TypeWriteCandidate,
+    inferred: &PythonType,
+    report: &mut InferTypesReport,
+) -> Option<ResolvedModel> {
+    match models.resolve(inferred) {
+        Ok(resolved) => {
+            report.resolved_model_candidates += 1;
+            Some(resolved)
+        }
+        Err(ModelResolutionError::Unknown(detail)) => {
+            report.dropped_unknown += 1;
+            report.diagnostics.push(diagnostic(
+                candidate,
+                TypeInferenceDropReason::UnknownType,
+                &detail,
+                Some(inferred),
+                None,
+            ));
+            None
+        }
+        Err(ModelResolutionError::Ambiguous(detail)) => {
+            report.dropped_ambiguous += 1;
+            report.diagnostics.push(diagnostic(
+                candidate,
+                TypeInferenceDropReason::AmbiguousType,
+                &detail,
+                Some(inferred),
+                None,
+            ));
+            None
+        }
     }
 }
 

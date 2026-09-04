@@ -1,7 +1,7 @@
 from typing import Generic, TypeVar
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, mapped_column
 
 T = TypeVar("T")
 
@@ -11,7 +11,8 @@ class ScalarResult(Generic[T]):
 
 
 class Model:
-    status: int
+    __tablename__ = "models"
+    status: int = mapped_column()
 
 
 async def typed_writes(

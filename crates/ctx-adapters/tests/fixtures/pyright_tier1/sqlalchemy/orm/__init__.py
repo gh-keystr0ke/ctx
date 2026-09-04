@@ -1,3 +1,9 @@
+from typing import Any
+
 from .session import Session
 
-__all__ = ["Session"]
+
+def mapped_column() -> Any: ...
+
+
+__all__ = ["Session", "mapped_column"]

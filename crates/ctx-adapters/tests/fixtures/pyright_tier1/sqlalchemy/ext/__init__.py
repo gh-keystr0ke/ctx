@@ -1,0 +1,1 @@
+"""Async SQLAlchemy namespace fixture."""

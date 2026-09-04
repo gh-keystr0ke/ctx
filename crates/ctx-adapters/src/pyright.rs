@@ -580,9 +580,12 @@ fn decode_type_inner(
             .get("typeReferenceId")
             .and_then(Value::as_i64)
             .ok_or_else(|| PyrightError::Protocol("type reference had no target id".to_owned()))?;
-        return decoded.get(&reference).cloned().ok_or_else(|| {
-            PyrightError::Protocol(format!("type reference {reference} was unresolved"))
-        });
+        return Ok(decoded
+            .get(&reference)
+            .cloned()
+            .unwrap_or_else(|| PythonType::Other {
+                oracle_kind: format!("unresolved_type_reference_{reference}"),
+            }));
     }
     let id = value
         .get("id")
@@ -872,6 +875,38 @@ while True:
             Some("/workspace/models.py")
         );
         assert_eq!(members[1], PythonType::Unknown);
+    }
+
+    #[test]
+    fn unresolved_nested_type_reference_stays_conservatively_unusable() {
+        let value = json!({
+            "kind": 2,
+            "id": 10,
+            "flags": 4,
+            "declaration": {
+                "kind": 0,
+                "category": 5,
+                "name": "add",
+                "node": {
+                    "uri": "file:///stdlib/builtins.pyi",
+                    "range": {
+                        "start": {"line": 1, "character": 0},
+                        "end": {"line": 1, "character": 3}
+                    }
+                }
+            },
+            "boundToType": {"kind": 9, "id": 11, "flags": 0, "typeReferenceId": 1}
+        });
+
+        let PythonType::Function(function) = decode_type(&value).expect("structured function")
+        else {
+            panic!("expected function");
+        };
+        assert!(matches!(
+            function.bound_to.as_deref(),
+            Some(PythonType::Other { oracle_kind })
+                if oracle_kind == "unresolved_type_reference_1"
+        ));
     }
 
     #[test]

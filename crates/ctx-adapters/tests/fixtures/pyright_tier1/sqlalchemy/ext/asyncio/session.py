@@ -1,7 +1,16 @@
+from collections.abc import Iterable
 from typing import TypeVar
 
 T = TypeVar("T")
 
 
 class AsyncSession:
+    def add(self, instance: object) -> None: ...
+
+    def add_all(self, instances: Iterable[object]) -> None: ...
+
+    async def merge(self, instance: T) -> T: ...
+
+    async def delete(self, instance: object) -> None: ...
+
     async def get(self, entity: type[T], ident: int) -> T | None: ...

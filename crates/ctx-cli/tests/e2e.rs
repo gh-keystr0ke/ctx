@@ -316,12 +316,12 @@ fn real_pyright_creates_a_type_inference_write_edge_end_to_end() {
             "60000",
         ],
     );
-    assert_eq!(report["candidate_sites"], 9);
-    assert_eq!(report["resolved_model_candidates"], 9);
+    assert_eq!(report["candidate_sites"], 17);
+    assert_eq!(report["resolved_model_candidates"], 14);
     assert_eq!(report["inferences_created"], 1);
-    assert_eq!(report["dropped_unknown"], 0);
-    assert_eq!(report["dropped_ambiguous"], 0);
-    assert_eq!(report["dropped_unsupported"], 0);
+    assert_eq!(report["dropped_unknown"], 2);
+    assert_eq!(report["dropped_ambiguous"], 1);
+    assert_eq!(report["dropped_unsupported"], 4);
     assert_eq!(report["pyright_failures"], 0);
 
     let git = GitRepo::discover(repository.path()).expect("discover fixture repository");

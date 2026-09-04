@@ -4,7 +4,7 @@ use std::{
     path::PathBuf,
 };
 
-use ctx_app::ports::{LanguageAnalyzer, PortError};
+use ctx_app::ports::{LanguageAnalyzer, PortError, PythonTypeCandidateExtractor};
 use ctx_core::ir::{
     ApiEndpoint, ApiParam, CallSite, DatabaseAccess, DatabaseAccessKind, ExternalCall,
     FileAnalysis, ForeignKeyRef, HttpMethod, OrmModelAccess, ParamSource, SchemaColumn,
@@ -292,6 +292,23 @@ impl LanguageAnalyzer for PythonAnalyzer {
 
     fn analyze_text(&self, relative_path: &str, source: &str) -> Result<FileAnalysis, PortError> {
         Self::analyze_source(relative_path, source)
+            .map_err(|error| PortError::new(error.to_string()))
+    }
+}
+
+impl PythonTypeCandidateExtractor for PythonAnalyzer {
+    fn candidates(&self, relative_path: &str) -> Result<Vec<TypeWriteCandidate>, PortError> {
+        let path = self.root.join(relative_path);
+        let source = fs::read_to_string(&path).map_err(|source| {
+            PortError::new(
+                PythonAnalysisError::Read {
+                    path: path.display().to_string(),
+                    source,
+                }
+                .to_string(),
+            )
+        })?;
+        Self::type_write_candidates(relative_path, &source)
             .map_err(|error| PortError::new(error.to_string()))
     }
 }

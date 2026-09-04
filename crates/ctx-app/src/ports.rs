@@ -15,7 +15,7 @@ use ctx_core::{
         AcceptedKnowledgeRecord, AgentOutcome, ClusterReview, KnowledgeCandidate, KnowledgeDecision,
     },
     neighborhood::ArtifactNeighborhood,
-    type_inference::{PythonType, TypeProbe},
+    type_inference::{PythonType, TypeProbe, TypeWriteCandidate},
     verification::{SemanticCandidate, StaleClaim, StaleClaimVerdict, VerificationDecision},
 };
 use serde::{Deserialize, Serialize};
@@ -149,6 +149,22 @@ pub trait PythonTypeOracle {
         from_file: &Path,
         module: &str,
     ) -> Result<Option<String>, PortError>;
+
+    /// Reports whether the oracle process remains usable after a failed
+    /// query. A false result makes the enrichment phase abort before writes.
+    fn is_healthy(&mut self) -> bool {
+        true
+    }
+}
+
+/// Syntax-only source of possible Python write sites for type enrichment.
+/// Implementations must not decide whether a candidate is an ORM operation.
+pub trait PythonTypeCandidateExtractor {
+    /// Extracts candidates from one repository-relative Python source path.
+    ///
+    /// # Errors
+    /// Returns [`PortError`] when the source cannot be read or parsed.
+    fn candidates(&self, relative_path: &str) -> Result<Vec<TypeWriteCandidate>, PortError>;
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]

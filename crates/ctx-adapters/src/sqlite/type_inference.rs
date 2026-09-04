@@ -199,6 +199,24 @@ fn persist_inference(
             |row| row.get(0),
         )
         .map_err(database_error)?;
+    persist_inference_inputs(
+        transaction,
+        repository_row,
+        commit_row,
+        inferred_at,
+        edge_row,
+        edge,
+    )
+}
+
+fn persist_inference_inputs(
+    transaction: &Transaction<'_>,
+    repository_row: i64,
+    commit_row: i64,
+    inferred_at: &str,
+    edge_row: i64,
+    edge: &TypeInferenceEdge,
+) -> Result<(), PortError> {
     delete_edge_inputs(transaction, edge_row)?;
     transaction
         .execute(

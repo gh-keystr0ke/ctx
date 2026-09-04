@@ -1775,8 +1775,11 @@ fn infer_types(
 
     println!("Pyright type inference completed");
     println!(
-        "Candidates: {}; type queries: {}; resolved: {}",
-        report.candidate_sites, report.type_queries, report.resolved_model_candidates
+        "Candidates: {}; type queries: {}; import queries: {}; resolved: {}",
+        report.candidate_sites,
+        report.type_queries,
+        report.import_queries,
+        report.resolved_model_candidates
     );
     println!(
         "Inferences created: {}; updated: {}; removed: {}",
@@ -1794,8 +1797,8 @@ fn infer_types(
         report.pyright_failures, report.extraction_failures
     );
     println!(
-        "Timing: Pyright startup {} ms; inference phase {} ms",
-        pyright_startup_ms, report.duration_ms
+        "Timing: Pyright startup {} ms; workspace analysis/type queries {} ms; inference phase {} ms",
+        pyright_startup_ms, report.pyright_query_ms, report.duration_ms
     );
     if cli.verbose > 1 {
         for diagnostic in &report.diagnostics {
@@ -1864,7 +1867,7 @@ mod tests {
             panic!("expected infer-types command");
         };
         assert_eq!(pyright, PathBuf::from("pyright-typeserver"));
-        assert_eq!(confidence, DEFAULT_TYPE_INFERENCE_CONFIDENCE);
+        assert!((confidence - DEFAULT_TYPE_INFERENCE_CONFIDENCE).abs() < f32::EPSILON);
         assert_eq!(timeout_ms, 30_000);
     }
 

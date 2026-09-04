@@ -121,8 +121,7 @@ fn commit_row(
         .map_err(database_error)?
         .ok_or_else(|| {
             PortError::new(format!(
-                "commit '{}' has not been indexed before type inference",
-                commit
+                "commit '{commit}' has not been indexed before type inference"
             ))
         })
 }
@@ -335,10 +334,12 @@ fn node_row(
         .map_err(database_error)
 }
 
+#[allow(clippy::needless_pass_by_value)]
 fn database_error(error: rusqlite::Error) -> PortError {
     PortError::new(format!("SQLite type inference persistence failed: {error}"))
 }
 
+#[allow(clippy::needless_pass_by_value)]
 fn serialization_error(error: serde_json::Error) -> PortError {
     PortError::new(format!(
         "type inference evidence serialization failed: {error}"
@@ -384,7 +385,7 @@ mod tests {
         assert_eq!(edge.source_kind, SourceKind::TypeInference);
         assert_eq!(edge.status, ClaimStatus::Active);
         assert_eq!(edge.producer, "pyright");
-        assert_eq!(edge.confidence.get(), 0.9);
+        assert!((edge.confidence.get() - 0.9).abs() < f32::EPSILON);
         assert_eq!(edge.evidence.len(), 1);
         assert_eq!(edge.evidence[0].source_kind, SourceKind::TypeInference);
         assert_eq!(edge.evidence[0].locator, "line:12");

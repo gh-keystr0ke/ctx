@@ -149,7 +149,7 @@ impl PyrightTypeServer {
                 "capabilities": {},
             })),
         )?;
-        server.notify("initialized", json!({}))?;
+        server.notify("initialized", &json!({}))?;
         let version = server
             .request("typeServer/getSupportedProtocolVersion", None)?
             .as_str()
@@ -176,7 +176,7 @@ impl PyrightTypeServer {
             return Ok(());
         }
         self.request("shutdown", None)?;
-        self.notify("exit", json!({}))?;
+        self.notify("exit", &json!({}))?;
         let deadline = Instant::now() + self.timeout;
         while Instant::now() < deadline {
             if self
@@ -207,7 +207,7 @@ impl PyrightTypeServer {
                 })?;
             self.notify(
                 "textDocument/didOpen",
-                json!({
+                &json!({
                     "textDocument": {
                         "uri": uri,
                         "languageId": "python",
@@ -317,7 +317,7 @@ impl PyrightTypeServer {
         }
     }
 
-    fn notify(&mut self, method: &str, params: Value) -> Result<(), PyrightError> {
+    fn notify(&mut self, method: &str, params: &Value) -> Result<(), PyrightError> {
         self.send(&json!({
             "jsonrpc": "2.0",
             "method": method,
@@ -712,7 +712,7 @@ fn decode_position(value: Option<&Value>) -> Result<TypePosition, PyrightError> 
 fn file_uri(path: &Path) -> Result<String, PyrightError> {
     let path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
     let path = path.to_string_lossy().replace('\\', "/");
-    if !path.starts_with('/') && !path.as_bytes().get(1).is_some_and(|byte| *byte == b':') {
+    if !path.starts_with('/') && path.as_bytes().get(1).is_none_or(|byte| *byte != b':') {
         return Err(PyrightError::Protocol(format!(
             "cannot create a file URI from relative path '{path}'"
         )));
@@ -775,6 +775,67 @@ const fn hex_value(byte: u8) -> Option<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const FAKE_TYPE_SERVER: &str = r"
+import json
+import sys
+
+def read_message():
+    length = None
+    while True:
+        line = sys.stdin.buffer.readline()
+        if not line:
+            return None
+        if line in (b'\r\n', b'\n'):
+            break
+        name, value = line.decode().strip().split(':', 1)
+        if name.lower() == 'content-length':
+            length = int(value.strip())
+    return json.loads(sys.stdin.buffer.read(length))
+
+def send(message):
+    body = json.dumps(message, separators=(',', ':')).encode()
+    sys.stdout.buffer.write(f'Content-Length: {len(body)}\r\n\r\n'.encode() + body)
+    sys.stdout.buffer.flush()
+
+while True:
+    message = read_message()
+    if message is None:
+        break
+    method = message.get('method')
+    if 'id' not in message:
+        if method == 'exit':
+            break
+        continue
+    if method == 'initialize':
+        result = {'capabilities': {}}
+    elif method == 'typeServer/getSupportedProtocolVersion':
+        result = '0.4.1'
+    elif method == 'typeServer/getSnapshot':
+        result = 7
+    elif method == 'typeServer/resolveImport':
+        result = 'file:///site-packages/sqlalchemy/orm/session.py'
+    elif method == 'typeServer/getComputedType':
+        result = {
+            'kind': 3, 'id': 10, 'flags': 2,
+            'declaration': {
+                'kind': 0, 'category': 6, 'name': 'Model',
+                'node': {
+                    'uri': message['params']['arg']['uri'],
+                    'range': {
+                        'start': {'line': 0, 'character': 6},
+                        'end': {'line': 0, 'character': 11},
+                    },
+                },
+            },
+        }
+    elif method == 'shutdown':
+        result = None
+    else:
+        send({'jsonrpc': '2.0', 'id': message['id'], 'error': {'code': -32601, 'message': method}})
+        continue
+    send({'jsonrpc': '2.0', 'id': message['id'], 'result': result})
+";
 
     #[test]
     fn decodes_structured_class_union_without_hover_text() {
@@ -867,70 +928,7 @@ mod tests {
         let temporary = tempfile::tempdir().expect("temporary directory");
         let source_path = temporary.path().join("model.py");
         fs::write(&source_path, "row = Model()\n").expect("source fixture");
-        let executable = executable_fixture(
-            temporary.path(),
-            "server.py",
-            r#"
-import json
-import sys
-
-def read_message():
-    length = None
-    while True:
-        line = sys.stdin.buffer.readline()
-        if not line:
-            return None
-        if line in (b'\r\n', b'\n'):
-            break
-        name, value = line.decode().strip().split(':', 1)
-        if name.lower() == 'content-length':
-            length = int(value.strip())
-    return json.loads(sys.stdin.buffer.read(length))
-
-def send(message):
-    body = json.dumps(message, separators=(',', ':')).encode()
-    sys.stdout.buffer.write(f'Content-Length: {len(body)}\r\n\r\n'.encode() + body)
-    sys.stdout.buffer.flush()
-
-while True:
-    message = read_message()
-    if message is None:
-        break
-    method = message.get('method')
-    if 'id' not in message:
-        if method == 'exit':
-            break
-        continue
-    if method == 'initialize':
-        result = {'capabilities': {}}
-    elif method == 'typeServer/getSupportedProtocolVersion':
-        result = '0.4.1'
-    elif method == 'typeServer/getSnapshot':
-        result = 7
-    elif method == 'typeServer/resolveImport':
-        result = 'file:///site-packages/sqlalchemy/orm/session.py'
-    elif method == 'typeServer/getComputedType':
-        result = {
-            'kind': 3, 'id': 10, 'flags': 2,
-            'declaration': {
-                'kind': 0, 'category': 6, 'name': 'Model',
-                'node': {
-                    'uri': message['params']['arg']['uri'],
-                    'range': {
-                        'start': {'line': 0, 'character': 6},
-                        'end': {'line': 0, 'character': 11},
-                    },
-                },
-            },
-        }
-    elif method == 'shutdown':
-        result = None
-    else:
-        send({'jsonrpc': '2.0', 'id': message['id'], 'error': {'code': -32601, 'message': method}})
-        continue
-    send({'jsonrpc': '2.0', 'id': message['id'], 'result': result})
-"#,
-        );
+        let executable = executable_fixture(temporary.path(), "server.py", FAKE_TYPE_SERVER);
         let mut server =
             PyrightTypeServer::start(&executable, temporary.path(), Duration::from_secs(1))
                 .expect("type server starts");

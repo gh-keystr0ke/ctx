@@ -12,7 +12,10 @@ statement: >
   facts require a literal SQL statement inside a recognized execution call, a
   recognized goose migration statement, or a `SQLAlchemy` model's static
   `__tablename__`/`Column` declarations; dynamic or unsupported text remains
-  unknown instead of being guessed. This holds for every heuristic
+  unknown instead of being guessed. A database write recovered from an
+  external Python type checker is always a separate `Inference` with
+  type-inference provenance and confidence below 1; it can never enter the
+  deterministic Fact layer. This holds for every heuristic
   `SemanticCandidate` score term, including the artifact-evidence signal
   (REQ-MAP-001): a candidate scoring higher because the same artifact that
   backed an accepted requirement also touched the candidate symbol is still
@@ -21,9 +24,12 @@ statement: >
 implementation:
   - symbol: ctx_core.context_pack.traversable
   - symbol: ctx_adapters.sqlite.verification.SqliteStore.VerificationStore.record_verification
+  - symbol: ctx_app.type_inference.InferTypesRunner.run
+  - symbol: ctx_adapters.sqlite.type_inference.SqliteStore.TypeInferenceStore.replace_type_inferences
 tests:
   - symbol: ctx_core.context_pack.tests.never_chains_one_inference_through_another
   - symbol: ctx_core.verification.tests.candidate_score_exposes_individual_heuristic_signals
   - symbol: ctx_core.context_pack.tests.shared_test_reached_through_the_seeds_call_graph_does_not_bridge_unrelated_intent
   - symbol: ctx_adapters.database.tests.ignores_non_sql_and_unquotes_python_and_rust_literals
-
+  - symbol: ctx_app.type_inference.tests.typed_columns_emit_while_any_unions_and_properties_drop
+  - symbol: ctx_adapters.sqlite.type_inference.tests.persists_inference_class_type_provenance_and_evidence

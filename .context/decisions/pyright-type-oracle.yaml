@@ -1,0 +1,23 @@
+id: ADR-TYPE-INFERENCE-001
+type: decision
+feature: FEAT-INDEXING
+status: accepted
+title: Keep external Python types in an explicit reusable enrichment layer
+decision: >
+  Python type knowledge comes from one generic PythonTypeOracle backed primarily
+  by Pyright's dedicated structured Type Server Protocol, not from Rust-side
+  inference, hover text, or SQLAlchemy-specific logic inside the adapter. The
+  ORM consumer separately extracts permissive syntax candidates, proves model
+  and Session identities, and emits only Inference edges. The command reparses
+  candidates and performs a dependency-safe full recompute after `ctx index`;
+  candidates are not persisted in normal FileAnalysis, so this feature neither
+  changes Fact indexing semantics nor requires an analyzer-version bump. One
+  warm server serves the invocation, and transactional replacement occurs only
+  after every query succeeds well enough to leave the oracle healthy.
+implementation:
+  - symbol: ctx_app.ports.PythonTypeOracle
+  - symbol: ctx_adapters.pyright.PyrightTypeServer
+  - symbol: ctx_app.type_inference.InferTypesRunner
+tests:
+  - symbol: crates.ctx-adapters.tests.pyright_type_server.real_type_server_resolves_tier_one_write_sites
+  - symbol: crates.ctx-cli.tests.e2e.real_pyright_creates_a_type_inference_write_edge_end_to_end

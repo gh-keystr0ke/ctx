@@ -1,0 +1,31 @@
+id: REQ-TYPE-INFERENCE-001
+type: requirement
+feature: FEAT-INDEXING
+status: active
+statement: >
+  An explicit `ctx infer-types` pass may recover a Python SQLAlchemy write only
+  when a structured external type result resolves the exact write-site object
+  to a concrete already-indexed ORM model and one existing database entity.
+  Attribute assignments require a known mapped column. Unit-of-work calls
+  require both a model-typed argument and a method declaration belonging to
+  SQLAlchemy Session or AsyncSession, never a receiver-name or method-name
+  heuristic. Any, Unknown, unresolved optional/container types, different-table
+  unions, properties, relationships, and non-SQLAlchemy `add` methods remain
+  unknown. The resulting source-symbol-to-table claim is an Inference with
+  Pyright/type-inference provenance and confidence below 1, atomically replaced
+  only after a complete successful pass; missing Pyright changes no graph state.
+implementation:
+  - symbol: ctx_cli.infer_types
+  - symbol: ctx_adapters.python.PythonAnalyzer.type_write_candidates
+  - symbol: ctx_adapters.pyright.PyrightTypeServer.start
+  - symbol: ctx_app.type_inference.InferTypesRunner.run
+  - symbol: ctx_adapters.sqlite.type_inference.SqliteStore.TypeInferenceStore.replace_type_inferences
+tests:
+  - symbol: ctx_app.type_inference.tests.typed_columns_emit_while_any_unions_and_properties_drop
+  - symbol: ctx_app.type_inference.tests.same_table_model_union_is_allowed_only_for_columns_common_to_all_models
+  - symbol: ctx_app.type_inference.tests.unit_of_work_requires_sqlalchemy_method_identity_and_model_argument
+  - symbol: ctx_app.type_inference.tests.catastrophic_oracle_failure_never_replaces_the_stored_layer
+  - symbol: ctx_adapters.sqlite.type_inference.tests.invalid_replacement_rolls_back_without_damaging_current_inferences
+  - symbol: crates.ctx-cli.tests.e2e.missing_pyright_type_server_is_a_successful_graph_noop
+  - symbol: crates.ctx-cli.tests.e2e.real_pyright_creates_a_type_inference_write_edge_end_to_end
+  - symbol: crates.ctx-adapters.tests.pyright_type_server.real_type_server_resolves_tier_one_write_sites

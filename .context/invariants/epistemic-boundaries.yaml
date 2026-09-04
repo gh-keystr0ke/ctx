@@ -15,8 +15,10 @@ statement: >
   unknown instead of being guessed. A database write recovered from an
   external Python type checker is always a separate `Inference` with
   type-inference provenance and confidence below 1; it can never enter the
-  deterministic Fact layer. This holds for every heuristic
-  `SemanticCandidate` score term, including the artifact-evidence signal
+  deterministic Fact layer. Only a complete successful oracle run may
+  atomically replace that inference layer; startup failure, fatal query
+  failure, or a missing oracle must leave it unchanged. This holds for every
+  heuristic `SemanticCandidate` score term, including the artifact-evidence signal
   (REQ-MAP-001): a candidate scoring higher because the same artifact that
   backed an accepted requirement also touched the candidate symbol is still
   only ever a proposed `SemanticCandidate`, requiring the same explicit `ctx

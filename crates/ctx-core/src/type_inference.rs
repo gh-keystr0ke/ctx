@@ -52,6 +52,9 @@ pub struct TypeWriteCandidate {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct PythonDeclaration {
     pub uri: String,
+    /// Decoded absolute filesystem path when the oracle declaration uses a
+    /// local `file:` URI.
+    pub path: Option<String>,
     pub name: Option<String>,
     pub range: Option<(TypePosition, TypePosition)>,
     pub category: Option<u8>,

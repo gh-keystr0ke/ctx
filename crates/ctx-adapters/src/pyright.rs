@@ -75,6 +75,7 @@ pub struct PyrightTypeServer {
     snapshot: i64,
     open_files: BTreeSet<PathBuf>,
     stopped: bool,
+    failed: bool,
 }
 
 impl PyrightTypeServer {
@@ -135,6 +136,7 @@ impl PyrightTypeServer {
             snapshot: 0,
             open_files: BTreeSet::new(),
             stopped: false,
+            failed: false,
         };
         let root_uri = file_uri(workspace_root)?;
         server.request(
@@ -377,11 +379,13 @@ impl PyrightTypeServer {
 
 impl PythonTypeOracle for PyrightTypeServer {
     fn inferred_type(&mut self, file: &Path, probe: &TypeProbe) -> Result<PythonType, PortError> {
-        let uri = self
+        let result = self
             .ensure_open(file)
-            .map_err(|error| PortError::new(error.to_string()))?;
-        self.computed_type(&uri, probe)
-            .map_err(|error| PortError::new(error.to_string()))
+            .and_then(|uri| self.computed_type(&uri, probe));
+        result.map_err(|error| {
+            self.failed |= fatal_error(&error);
+            PortError::new(error.to_string())
+        })
     }
 
     fn resolve_import(
@@ -389,9 +393,10 @@ impl PythonTypeOracle for PyrightTypeServer {
         from_file: &Path,
         module: &str,
     ) -> Result<Option<String>, PortError> {
-        let uri = self
-            .ensure_open(from_file)
-            .map_err(|error| PortError::new(error.to_string()))?;
+        let uri = self.ensure_open(from_file).map_err(|error| {
+            self.failed |= fatal_error(&error);
+            PortError::new(error.to_string())
+        })?;
         let value = match self.request(
             "typeServer/resolveImport",
             Some(resolve_import_params(&uri, module, self.snapshot)),
@@ -407,7 +412,10 @@ impl PythonTypeOracle for PyrightTypeServer {
             }
             result => result,
         }
-        .map_err(|error| PortError::new(error.to_string()))?;
+        .map_err(|error| {
+            self.failed |= fatal_error(&error);
+            PortError::new(error.to_string())
+        })?;
         if value.is_null() {
             Ok(None)
         } else {
@@ -416,6 +424,10 @@ impl PythonTypeOracle for PyrightTypeServer {
                 .map(|uri| Some(uri.to_owned()))
                 .ok_or_else(|| PortError::new("Pyright resolveImport result was not a URI string"))
         }
+    }
+
+    fn is_healthy(&mut self) -> bool {
+        !self.failed && self.child.try_wait().is_ok_and(|status| status.is_none())
     }
 }
 
@@ -510,6 +522,16 @@ fn supported_protocol(version: &str) -> bool {
         (parts.next(), parts.next(), parts.next(), parts.next()),
         (Some("0"), Some(minor), Some(_), None)
             if minor.parse::<u32>() == Ok(SUPPORTED_PROTOCOL_MINOR)
+    )
+}
+
+const fn fatal_error(error: &PyrightError) -> bool {
+    matches!(
+        error,
+        PyrightError::Timeout { .. }
+            | PyrightError::Protocol(_)
+            | PyrightError::Exited { .. }
+            | PyrightError::ReadSource { .. }
     )
 }
 

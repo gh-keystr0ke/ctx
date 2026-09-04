@@ -10,4 +10,5 @@ pub mod query;
 pub mod report;
 pub mod review;
 pub mod status;
+pub mod type_inference;
 pub mod verification;

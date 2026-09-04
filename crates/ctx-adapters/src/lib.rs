@@ -18,6 +18,7 @@ pub mod http_retry;
 pub mod jira;
 pub mod language;
 pub mod openapi;
+pub mod pyright;
 pub mod python;
 pub mod rust;
 pub mod sqlite;

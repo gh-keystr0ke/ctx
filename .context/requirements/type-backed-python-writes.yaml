@@ -14,6 +14,10 @@ statement: >
   unknown. The resulting source-symbol-to-table claim is an Inference with
   Pyright/type-inference provenance and confidence below 1, atomically replaced
   only after a complete successful pass; missing Pyright changes no graph state.
+  The release installer attempts to provide a checksum-verified Type Server
+  from pinned upstream source when compatible Node.js and npm are present,
+  but failure or an explicit opt-out must never prevent installing the core
+  ctx binary.
 implementation:
   - symbol: ctx_cli.type_inference_command.infer_types
   - symbol: ctx_adapters.python.PythonAnalyzer.type_write_candidates

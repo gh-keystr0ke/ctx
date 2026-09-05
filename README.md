@@ -26,7 +26,7 @@ macOS (Apple Silicon or Intel) or Linux (x86_64 or ARM64): download the latest r
 curl -fsSL https://raw.githubusercontent.com/gh-keystr0ke/ctx/main/install.sh | sh
 ```
 
-The Linux binaries are statically linked `x86_64-unknown-linux-musl` and `aarch64-unknown-linux-musl` builds, so they run unmodified on Arch, Ubuntu, Fedora, Gentoo, or any other distribution for the matching architecture. See [install.sh](install.sh) for the `CTX_INSTALL_VERSION`/`CTX_INSTALL_DIR` overrides.
+The Linux binaries are statically linked `x86_64-unknown-linux-musl` and `aarch64-unknown-linux-musl` builds, so they run unmodified on Arch, Ubuntu, Fedora, Gentoo, or any other distribution for the matching architecture. When Node.js 18.12+ and `npm` are available, the installer also builds a checksum-verified, pinned Pyright Type Server and places `pyright-typeserver` beside `ctx`, enabling `ctx infer-types` without separate setup. This optional step never prevents the core `ctx` installation; set `CTX_INSTALL_PYRIGHT=0` to skip it. See [install.sh](install.sh) for the `CTX_INSTALL_VERSION`/`CTX_INSTALL_DIR` overrides.
 
 Building from source instead requires Rust 1.88 or newer and Git (the container build pins Rust 1.97.1):
 

@@ -8,13 +8,16 @@ statement: >
   bundled tree-sitter-rust 0.24.2 grammar rejects `dyn 'a + Trait`, a
   lifetime bound listed before the trait bound in a trait-object type, even
   though rustc accepts it), an unreadable file, or invalid encoding — must
-  not abort indexing of the rest of the repository. The failing file is
-  excluded from that transition's plan rather than the whole run failing;
-  its path and error are recorded in IndexReport.failed_files for the CLI
-  and JSON callers to surface, and it is left out of the stored snapshot so
-  reconcile_source_scope re-surfaces it as needing analysis on every
+  not abort indexing of the rest of the repository. Its current derived
+  analysis is excluded rather than the whole run failing, and any prior
+  snapshot entry is retired in that transition; its path and error are
+  recorded in IndexReport.failed_files for the CLI and JSON callers to
+  surface. Keeping the failed current file out of the stored snapshot lets
+  reconcile_source_scope re-surface it as needing analysis on every
   subsequent `ctx index` until it succeeds or leaves the configured scope.
 implementation:
   - symbol: ctx_app.index.IndexRunner.run
+  - symbol: ctx_app.index.changes_after_analysis
 tests:
   - symbol: crates.ctx-cli.tests.e2e.one_file_failing_analysis_does_not_block_indexing_the_rest
+  - symbol: crates.ctx-cli.tests.e2e.a_previously_indexed_file_that_starts_failing_is_retried_at_the_same_head

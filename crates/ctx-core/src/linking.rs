@@ -528,9 +528,9 @@ mod tests {
 
     #[test]
     fn the_sweep_threshold_scales_with_repository_size_rather_than_a_fixed_count() {
-        // 200 indexed files puts the 10% ratio (20) above the floor (20 too,
-        // here, but the point is it tracks repository size, not a constant).
-        let nodes = (0..200)
+        // 400 indexed files puts the 10% ratio (40) above the 20-file floor,
+        // so the assertions distinguish scaling from a fixed threshold.
+        let nodes = (0..400)
             .map(|n| {
                 symbol_node(
                     &format!("sym-{n}"),
@@ -548,18 +548,18 @@ mod tests {
         };
         let source = artifact("842", ArtifactKind::MergeRequest, "Refactor", "").identity;
 
-        let within_threshold = (0..15).map(|n| format!("file-{n}.py")).collect();
-        let over_threshold = (0..25).map(|n| format!("file-{n}.py")).collect();
+        let within_threshold = (0..35).map(|n| format!("file-{n}.py")).collect();
+        let over_threshold = (0..45).map(|n| format!("file-{n}.py")).collect();
 
         let threshold = sweep_threshold(&graph);
         assert_eq!(
             changed_symbol_links(&source, &within_threshold, &graph, threshold).len(),
-            15,
-            "15 of 200 files (7.5%) is a normal-sized change in a repo this size"
+            35,
+            "35 of 400 files (8.75%) is a normal-sized change in a repo this size"
         );
         assert!(
             changed_symbol_links(&source, &over_threshold, &graph, threshold).is_empty(),
-            "25 of 200 files (12.5%) is a sweep in a repo this size, even though \
+            "45 of 400 files (11.25%) is a sweep in a repo this size, even though \
              the old fixed 50-file cap would have let it through"
         );
     }

@@ -4,5 +4,7 @@ status: active
 statement: A single file analyzer failure must not abort indexing; the file must be reported as failed and retried on subsequent index runs.
 implementation:
 - symbol: ctx_app.index.IndexRunner.run
+- symbol: ctx_app.index.changes_after_analysis
 tests:
 - symbol: crates.ctx-cli.tests.e2e.one_file_failing_analysis_does_not_block_indexing_the_rest
+- symbol: crates.ctx-cli.tests.e2e.a_previously_indexed_file_that_starts_failing_is_retried_at_the_same_head

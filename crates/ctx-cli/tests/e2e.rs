@@ -1738,6 +1738,38 @@ fn one_file_failing_analysis_does_not_block_indexing_the_rest() {
 }
 
 #[test]
+fn a_previously_indexed_file_that_starts_failing_is_retried_at_the_same_head() {
+    let repository = PartiallyBrokenRustRepository::new();
+
+    repository.ctx(&["init"]);
+    repository.ctx(&["index"]);
+    fs::write(repository.root().join("src/good.rs"), "pub fn run(\n")
+        .expect("break the previously indexed file");
+    run_git(repository.root(), &["add", "src/good.rs"]);
+    run_git(
+        repository.root(),
+        &["commit", "--quiet", "-m", "break an indexed file"],
+    );
+
+    let indexed = repository.ctx(&["index"]);
+    let failed = indexed["failed_files"]
+        .as_array()
+        .expect("failed_files array");
+    assert!(failed.iter().any(|file| file["path"] == "src/good.rs"));
+
+    let reindexed = repository.ctx(&["index"]);
+    let still_failed = reindexed["failed_files"]
+        .as_array()
+        .expect("failed_files array");
+    assert!(
+        still_failed
+            .iter()
+            .any(|file| file["path"] == "src/good.rs"),
+        "a failed modification must remain outside the snapshot and be retried even at the same HEAD"
+    );
+}
+
+#[test]
 fn repositories_export_sync_resolve_and_report_federated_contracts() {
     let provider = service_repository(
         "billing-service",

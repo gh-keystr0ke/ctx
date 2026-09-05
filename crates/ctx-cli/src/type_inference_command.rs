@@ -5,7 +5,10 @@ use std::{
 
 use chrono::Utc;
 use ctx_adapters::{
-    git::GitRepo, pyright::PyrightTypeServer, python::PythonAnalyzer, sqlite::SqliteStore,
+    git::GitRepo,
+    pyright::{PyrightTypeServer, resolve_python_environment},
+    python::PythonAnalyzer,
+    sqlite::SqliteStore,
 };
 use ctx_app::type_inference::{InferTypesReport, InferTypesRunner};
 use ctx_core::domain::Confidence;
@@ -27,19 +30,30 @@ pub(super) fn infer_types(
     cli: &Cli,
     git: &GitRepo,
     pyright: &Path,
+    python: Option<&Path>,
+    venv: Option<&Path>,
     confidence: f32,
     timeout_ms: u64,
 ) -> Result<(), CliError> {
+    let python_env = resolve_python_environment(
+        python.map(Path::to_path_buf),
+        venv.map(Path::to_path_buf),
+        git.root(),
+    );
     let startup = Instant::now();
-    let mut oracle =
-        match PyrightTypeServer::start(pyright, git.root(), Duration::from_millis(timeout_ms)) {
-            Ok(oracle) => oracle,
-            Err(error) if error.is_not_found() => {
-                print_missing_pyright(cli, pyright);
-                return Ok(());
-            }
-            Err(error) => return Err(error.into()),
-        };
+    let mut oracle = match PyrightTypeServer::start(
+        pyright,
+        git.root(),
+        python_env.as_ref(),
+        Duration::from_millis(timeout_ms),
+    ) {
+        Ok(oracle) => oracle,
+        Err(error) if error.is_not_found() => {
+            print_missing_pyright(cli, pyright);
+            return Ok(());
+        }
+        Err(error) => return Err(error.into()),
+    };
     let pyright_startup_ms = startup.elapsed().as_millis();
     let database_path = database_path(git.root())?;
     let mut store = SqliteStore::open(&database_path, git.context_root())?;
@@ -119,6 +133,15 @@ fn print_report(
         "Timing: Pyright startup {} ms; workspace analysis/type queries {} ms; inference phase {} ms",
         pyright_startup_ms, report.pyright_query_ms, report.duration_ms
     );
+    if report.reconciliation_skipped {
+        println!(
+            "warning: SQLAlchemy Session modules could not be resolved in the Pyright environment this run, but active type-inference edges from a previous successful run exist; leaving them untouched rather than replacing them with a degraded result. Pass --python/--venv or add a project venv (.venv)."
+        );
+    } else if report.environment_unresolved {
+        println!(
+            "warning: SQLAlchemy is not resolvable in the Pyright environment; pass --python/--venv or add a project venv (.venv). Unit-of-work writes were skipped."
+        );
+    }
     if cli.verbose > 1 {
         for diagnostic in &report.diagnostics {
             println!(

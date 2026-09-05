@@ -9,7 +9,7 @@ use std::{
 };
 
 use ctx_core::{
-    domain::{ClaimClass, ClaimStatus, Confidence, NodeKind, RelationKind, StableKey},
+    domain::{ClaimClass, ClaimStatus, Confidence, NodeKind, RelationKind, SourceKind, StableKey},
     graph::GraphSnapshot,
     indexing::PlannedNodeAttributes,
     ir::{SourceRange, SymbolKind},
@@ -35,6 +35,7 @@ pub enum TypeInferenceDropReason {
     UnknownType,
     AmbiguousType,
     UnsupportedOperation,
+    EnvironmentUnresolved,
     MissingSourceOwner,
     TypeQueryFailed,
     CandidateExtractionFailed,
@@ -73,6 +74,19 @@ pub struct InferTypesReport {
     pub duration_ms: u128,
     pub persistence: TypeInferencePersistenceStats,
     pub diagnostics: Vec<TypeInferenceDiagnostic>,
+    /// True when unit-of-work candidates existed this run but the
+    /// `SQLAlchemy` `Session`/`AsyncSession` modules never resolved in any
+    /// file -- a global Pyright environment/oracle signal, not a per-site
+    /// semantic unknown. Distinct from `reconciliation_skipped`: this can be
+    /// true on a legitimate first run with nothing yet to lose.
+    pub environment_unresolved: bool,
+    /// True when `environment_unresolved` was detected *and* previously
+    /// persisted, active `typeinference` edges already existed for this
+    /// repository. When true, `replace_type_inferences` was never called
+    /// this run -- the prior layer was left untouched rather than being
+    /// reconciled down to a degraded result, and
+    /// created/updated/removed/persistence all stay at their defaults.
+    pub reconciliation_skipped: bool,
 }
 
 #[derive(Debug, Error)]
@@ -160,43 +174,43 @@ where
         let fact_writes = active_fact_writes(&graph);
         let mut report = InferTypesReport::default();
         let mut groups = BTreeMap::<(StableKey, StableKey), InferenceGroup>::new();
+        let mut session_resolution_attempted = false;
+        let mut session_resolution_ever_succeeded = false;
+        let inputs = RunInputs {
+            root: Path::new(&repository.root_path),
+            graph: &graph,
+            models: &models,
+            fact_writes: &fact_writes,
+        };
         let paths = self.git.all_source_files().map_err(InferTypesError::Git)?;
         for path in paths
             .into_iter()
             .filter(|path| Path::new(path).extension().is_some_and(|ext| ext == "py"))
         {
-            let extracted = match self.candidates.candidates(&path) {
-                Ok(extracted) => extracted,
-                Err(error) => {
-                    report.extraction_failures += 1;
-                    report.diagnostics.push(TypeInferenceDiagnostic {
-                        file: path,
-                        line: 0,
-                        form: None,
-                        probe: None,
-                        inferred_type: None,
-                        model_symbol: None,
-                        table: None,
-                        reason: TypeInferenceDropReason::CandidateExtractionFailed,
-                        detail: error.to_string(),
-                    });
-                    continue;
-                }
-            };
-            report.candidate_sites += extracted.len();
-            let mut context = FileInferenceContext {
-                graph: &graph,
-                models: &models,
-                fact_writes: &fact_writes,
-                relative_path: &path,
-                absolute_path: Path::new(&repository.root_path).join(&path),
-                session_uris: None,
-                report: &mut report,
-                groups: &mut groups,
-            };
-            for candidate in extracted {
-                self.process_candidate(&candidate, &mut context)?;
-            }
+            let outcome = self.process_file(path, &inputs, &mut report, &mut groups)?;
+            session_resolution_attempted |= outcome.attempted;
+            session_resolution_ever_succeeded |= outcome.succeeded;
+        }
+        // A per-site UnknownType/AmbiguousType/UnsupportedOperation drop is a
+        // legitimate semantic unknown from a healthy oracle. Session modules
+        // that unit-of-work candidates needed but that never resolved in any
+        // file this run is a different, global signal: the Pyright
+        // environment itself is degraded. When active typeinference edges
+        // already exist from a previous successful run, that is not
+        // reconciled away by a degraded run -- see the invariant on
+        // `InferTypesReport::reconciliation_skipped`.
+        report.environment_unresolved =
+            session_resolution_attempted && !session_resolution_ever_succeeded;
+        if report.environment_unresolved && active_typeinference_writes_exist(&graph) {
+            report.reconciliation_skipped = true;
+            report.duration_ms = started.elapsed().as_millis();
+            report.diagnostics.sort_by(|left, right| {
+                left.file
+                    .cmp(&right.file)
+                    .then_with(|| left.line.cmp(&right.line))
+                    .then_with(|| left.probe.cmp(&right.probe))
+            });
+            return Ok(report);
         }
         let edges = groups
             .into_values()
@@ -218,6 +232,60 @@ where
                 .then_with(|| left.probe.cmp(&right.probe))
         });
         Ok(report)
+    }
+
+    /// Extracts and processes one file's candidates, reporting whether this
+    /// file's session-module resolution was attempted (i.e. it had a
+    /// method-based unit-of-work candidate) and, if so, whether it
+    /// succeeded -- the per-file signal [`Self::run`] aggregates into a
+    /// whole-run environment-health judgement.
+    fn process_file(
+        &mut self,
+        path: String,
+        inputs: &RunInputs<'_>,
+        report: &mut InferTypesReport,
+        groups: &mut BTreeMap<(StableKey, StableKey), InferenceGroup>,
+    ) -> Result<SessionResolutionOutcome, InferTypesError> {
+        let extracted = match self.candidates.candidates(&path) {
+            Ok(extracted) => extracted,
+            Err(error) => {
+                report.extraction_failures += 1;
+                report.diagnostics.push(TypeInferenceDiagnostic {
+                    file: path,
+                    line: 0,
+                    form: None,
+                    probe: None,
+                    inferred_type: None,
+                    model_symbol: None,
+                    table: None,
+                    reason: TypeInferenceDropReason::CandidateExtractionFailed,
+                    detail: error.to_string(),
+                });
+                return Ok(SessionResolutionOutcome::default());
+            }
+        };
+        report.candidate_sites += extracted.len();
+        let mut context = FileInferenceContext {
+            graph: inputs.graph,
+            models: inputs.models,
+            fact_writes: inputs.fact_writes,
+            relative_path: &path,
+            absolute_path: inputs.root.join(&path),
+            session_uris: None,
+            report,
+            groups,
+        };
+        for candidate in extracted {
+            self.process_candidate(&candidate, &mut context)?;
+        }
+        Ok(context
+            .session_uris
+            .map_or_else(SessionResolutionOutcome::default, |uris| {
+                SessionResolutionOutcome {
+                    attempted: true,
+                    succeeded: !uris.is_empty(),
+                }
+            }))
     }
 
     fn process_candidate(
@@ -331,15 +399,28 @@ where
             .as_ref()
             .is_some_and(|uris| sqlalchemy_session_method(candidate.form, &method_type, uris));
         if !supported {
+            let session_uris_empty = context
+                .session_uris
+                .as_ref()
+                .is_some_and(BTreeSet::is_empty);
             let session_uris = context
                 .session_uris
                 .as_ref()
                 .map(|uris| uris.iter().cloned().collect::<Vec<_>>().join(", "))
                 .unwrap_or_default();
+            // Session modules resolving to nothing at all is a global
+            // Pyright environment signal (defect A), not a per-site
+            // semantic unknown -- an unrelated `.add()` on a healthy oracle
+            // still reports plain UnsupportedOperation.
+            let reason = if session_uris_empty {
+                TypeInferenceDropReason::EnvironmentUnresolved
+            } else {
+                TypeInferenceDropReason::UnsupportedOperation
+            };
             context.report.dropped_unsupported += 1;
             context.report.diagnostics.push(diagnostic(
                 candidate,
-                TypeInferenceDropReason::UnsupportedOperation,
+                reason,
                 &format!(
                     "method declaration does not match resolved SQLAlchemy Session API modules [{session_uris}]"
                 ),
@@ -424,6 +505,21 @@ where
         }
         Ok(())
     }
+}
+
+#[derive(Default)]
+struct SessionResolutionOutcome {
+    attempted: bool,
+    succeeded: bool,
+}
+
+/// The per-run, per-file-invariant inputs [`InferTypesRunner::process_file`]
+/// needs, bundled so the method stays under clippy's argument-count limit.
+struct RunInputs<'a> {
+    root: &'a Path,
+    graph: &'a GraphSnapshot,
+    models: &'a ModelIndex,
+    fact_writes: &'a BTreeSet<(StableKey, StableKey)>,
 }
 
 struct FileInferenceContext<'a> {
@@ -793,6 +889,17 @@ fn active_fact_writes(graph: &GraphSnapshot) -> BTreeSet<(StableKey, StableKey)>
         .collect()
 }
 
+/// Whether this repository already has an active `typeinference` layer from
+/// a previous successful run -- the signal that gates
+/// `InferTypesReport::reconciliation_skipped` (see [`InferTypesRunner::run`]).
+fn active_typeinference_writes_exist(graph: &GraphSnapshot) -> bool {
+    graph.edges.iter().any(|edge| {
+        edge.kind == RelationKind::WritesTo
+            && edge.source_kind == SourceKind::TypeInference
+            && edge.status == ClaimStatus::Active
+    })
+}
+
 fn sqlalchemy_session_method(
     form: TypeWriteForm,
     inferred: &PythonType,
@@ -967,6 +1074,99 @@ mod tests {
         assert_eq!(report.dropped_unsupported, 1);
         assert_eq!(edges.len(), 1);
         assert!(edges[0].evidence_locator.contains("forms:Add"));
+        // A healthy oracle's per-site drops (legacy_session/collection.add
+        // above) are legitimate semantic unknowns, not an environment
+        // failure -- they must never trip the degraded-environment guard.
+        assert!(!report.environment_unresolved);
+        assert!(!report.reconciliation_skipped);
+    }
+
+    #[test]
+    fn unresolvable_session_modules_drop_unit_of_work_candidates_as_environment_unresolved() {
+        let candidates = vec![call_candidate(
+            TypeWriteForm::Add,
+            "model",
+            "session.add",
+            101,
+        )];
+        let mut oracle = FakeOracle {
+            session_modules_resolve: false,
+            ..FakeOracle::default()
+        };
+        oracle
+            .types
+            .insert("model".to_owned(), model_type("Model", "models.py", 1));
+        oracle.types.insert(
+            "session.add".to_owned(),
+            method_type("add", "file:///site/sqlalchemy/orm/session.py", true),
+        );
+        let (report, edges) = run(candidates, graph_fixture(), oracle).expect("inference run");
+
+        assert_eq!(report.dropped_unsupported, 1);
+        assert!(edges.is_empty());
+        assert!(report.environment_unresolved);
+        assert!(
+            !report.reconciliation_skipped,
+            "nothing existed to protect yet"
+        );
+        assert!(report.diagnostics.iter().any(|diagnostic| {
+            diagnostic.reason == TypeInferenceDropReason::EnvironmentUnresolved
+        }));
+    }
+
+    #[test]
+    fn environment_degradation_never_reconciles_away_a_previously_active_type_inference_layer() {
+        let mut graph = graph_fixture();
+        graph.edges.push(GraphEdge {
+            source: key("symbol:python:service.update:Function"),
+            target: key("db:models"),
+            kind: RelationKind::WritesTo,
+            claim_class: ClaimClass::Inference,
+            source_kind: SourceKind::TypeInference,
+            confidence: Confidence::new(DEFAULT_TYPE_INFERENCE_CONFIDENCE).expect("confidence"),
+            status: ClaimStatus::Active,
+            valid_from: "deadbeef".to_owned(),
+            valid_to: None,
+            producer: PYRIGHT_PRODUCER.to_owned(),
+            fingerprint: "prior-inference".to_owned(),
+            stale_reason: None,
+            evidence: Vec::new(),
+        });
+        let candidates = vec![call_candidate(
+            TypeWriteForm::Add,
+            "model",
+            "session.add",
+            101,
+        )];
+        let mut oracle = FakeOracle {
+            session_modules_resolve: false,
+            ..FakeOracle::default()
+        };
+        oracle
+            .types
+            .insert("model".to_owned(), model_type("Model", "models.py", 1));
+        oracle.types.insert(
+            "session.add".to_owned(),
+            method_type("add", "file:///site/sqlalchemy/orm/session.py", true),
+        );
+        let git = FakeGit;
+        let source = FakeCandidates { candidates };
+        let mut store = FakeStore::new(graph);
+        let confidence = Confidence::new(DEFAULT_TYPE_INFERENCE_CONFIDENCE).expect("confidence");
+        let report = InferTypesRunner::new(&git, &source, &mut oracle, &mut store, confidence)
+            .run("2026-09-04T00:00:01Z")
+            .expect("a degraded environment is a successful, honestly-reported run");
+
+        assert!(report.environment_unresolved);
+        assert!(report.reconciliation_skipped);
+        assert_eq!(report.inferences_created, 0);
+        assert_eq!(report.inferences_updated, 0);
+        assert_eq!(report.inferences_removed, 0);
+        assert_eq!(
+            store.replacements, 0,
+            "replace_type_inferences must never run on a degraded-environment pass that \
+             would otherwise reconcile away a previously active inference layer"
+        );
     }
 
     #[test]
@@ -1299,11 +1499,22 @@ mod tests {
         }
     }
 
-    #[derive(Default)]
     struct FakeOracle {
         types: BTreeMap<String, PythonType>,
         failed_probe: Option<String>,
         healthy: bool,
+        session_modules_resolve: bool,
+    }
+
+    impl Default for FakeOracle {
+        fn default() -> Self {
+            Self {
+                types: BTreeMap::new(),
+                failed_probe: None,
+                healthy: false,
+                session_modules_resolve: true,
+            }
+        }
     }
 
     impl PythonTypeOracle for FakeOracle {
@@ -1326,6 +1537,9 @@ mod tests {
             _from_file: &Path,
             module: &str,
         ) -> Result<Option<String>, PortError> {
+            if !self.session_modules_resolve {
+                return Ok(None);
+            }
             Ok(match module {
                 "sqlalchemy.orm.session" => {
                     Some("file:///site/sqlalchemy/orm/session.py".to_owned())

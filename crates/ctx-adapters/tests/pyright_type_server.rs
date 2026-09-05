@@ -1,6 +1,9 @@
-use std::{env, fs, path::PathBuf, time::Duration};
+use std::{env, fs, path::Path, path::PathBuf, process::Command, time::Duration};
 
-use ctx_adapters::{pyright::PyrightTypeServer, python::PythonAnalyzer};
+use ctx_adapters::{
+    pyright::{PyrightTypeServer, PythonEnvironment},
+    python::PythonAnalyzer,
+};
 use ctx_app::ports::PythonTypeOracle;
 use ctx_core::type_inference::{PythonType, TypeWriteCandidate};
 
@@ -18,7 +21,7 @@ fn real_type_server_resolves_tier_one_write_sites() {
     let source = fs::read_to_string(&app).expect("read fixture");
     let candidates =
         PythonAnalyzer::type_write_candidates("app.py", &source).expect("extract write candidates");
-    let mut oracle = PyrightTypeServer::start(&executable, &root, Duration::from_secs(60))
+    let mut oracle = PyrightTypeServer::start(&executable, &root, None, Duration::from_secs(60))
         .expect("start real Pyright Type Server");
 
     assert_eq!(candidates.len(), 19);
@@ -123,4 +126,151 @@ fn assert_session_method(
     assert_eq!(method.declaration.name.as_deref(), Some("add"));
     assert!(method.declaration.uri.ends_with(declaration_suffix));
     assert!(method.bound_to.is_some());
+}
+
+fn copy_directory(source: &Path, destination: &Path) {
+    for entry in fs::read_dir(source).expect("read fixture directory") {
+        let entry = entry.expect("fixture entry");
+        let destination_path = destination.join(entry.file_name());
+        if entry.file_type().expect("fixture entry type").is_dir() {
+            fs::create_dir_all(&destination_path).expect("create fixture directory");
+            copy_directory(&entry.path(), &destination_path);
+        } else {
+            fs::copy(entry.path(), destination_path).expect("copy fixture file");
+        }
+    }
+}
+
+/// Builds `crates/ctx-adapters/tests/fixtures/pyright_venv/` into a real,
+/// working venv inside `root` -- a genuine `.venv/bin/python` executable,
+/// not a synthetic file layout. This matters: Pyright's filesystem
+/// site-packages heuristic requires the interpreter at `pythonPath` to
+/// actually exist (verified empirically -- pointing it at a missing binary
+/// fails resolution even when the identical site-packages directory is
+/// present at the same path). Requires `python3` or `python` on `PATH`.
+fn build_venv_fixture(root: &Path) -> PathBuf {
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/pyright_venv");
+    fs::copy(fixture.join("app.py"), root.join("app.py")).expect("copy app.py fixture");
+
+    let venv_dir = root.join(".venv");
+    let python = ["python3", "python"]
+        .into_iter()
+        .find(|candidate| {
+            Command::new(candidate)
+                .arg("--version")
+                .output()
+                .is_ok_and(|output| output.status.success())
+        })
+        .expect("a python3 or python interpreter on PATH to build the venv fixture");
+    let status = Command::new(python)
+        .args(["-m", "venv"])
+        .arg(&venv_dir)
+        .status()
+        .expect("run python -m venv");
+    assert!(status.success(), "python -m venv failed");
+
+    let venv_python = venv_dir.join("bin").join("python");
+    let site_packages_output = Command::new(&venv_python)
+        .args([
+            "-c",
+            "import sysconfig; print(sysconfig.get_paths()['purelib'])",
+        ])
+        .output()
+        .expect("query venv site-packages path");
+    assert!(
+        site_packages_output.status.success(),
+        "venv interpreter could not report its site-packages path"
+    );
+    let site_packages = PathBuf::from(
+        String::from_utf8(site_packages_output.stdout)
+            .expect("utf8 site-packages path")
+            .trim(),
+    );
+
+    let sqlalchemy_dir = site_packages.join("sqlalchemy");
+    fs::create_dir_all(&sqlalchemy_dir).expect("create sqlalchemy site-packages directory");
+    copy_directory(&fixture.join("sqlalchemy_stub"), &sqlalchemy_dir);
+
+    venv_dir
+}
+
+#[test]
+#[ignore = "requires CTX_PYRIGHT_TYPESERVER pointing to a real Pyright Type Server"]
+fn venv_unconfigured_fails_to_resolve_session_modules() {
+    let executable = env::var_os("CTX_PYRIGHT_TYPESERVER")
+        .map(PathBuf::from)
+        .expect("set CTX_PYRIGHT_TYPESERVER to the pyright-typeserver executable");
+    let root = tempfile::tempdir().expect("temporary workspace");
+    build_venv_fixture(root.path());
+    let app = root.path().join("app.py");
+
+    let mut oracle =
+        PyrightTypeServer::start(&executable, root.path(), None, Duration::from_secs(60))
+            .expect("start real Pyright Type Server");
+
+    assert_eq!(
+        oracle
+            .resolve_import(&app, "sqlalchemy.orm.session")
+            .expect("import query"),
+        None
+    );
+    assert_eq!(
+        oracle
+            .resolve_import(&app, "sqlalchemy.ext.asyncio.session")
+            .expect("import query"),
+        None
+    );
+    oracle.shutdown().expect("clean shutdown");
+}
+
+#[test]
+#[ignore = "requires CTX_PYRIGHT_TYPESERVER pointing to a real Pyright Type Server"]
+fn venv_configured_resolves_async_session_add() {
+    let executable = env::var_os("CTX_PYRIGHT_TYPESERVER")
+        .map(PathBuf::from)
+        .expect("set CTX_PYRIGHT_TYPESERVER to the pyright-typeserver executable");
+    let root = tempfile::tempdir().expect("temporary workspace");
+    let venv_dir = build_venv_fixture(root.path());
+    let app = root.path().join("app.py");
+    let source = fs::read_to_string(&app).expect("read fixture");
+    let candidates =
+        PythonAnalyzer::type_write_candidates("app.py", &source).expect("extract write candidates");
+
+    let env = PythonEnvironment {
+        interpreter: Some(venv_dir.join("bin").join("python")),
+        venv_dir: Some(venv_dir),
+    };
+    let mut oracle = PyrightTypeServer::start(
+        &executable,
+        root.path(),
+        Some(&env),
+        Duration::from_secs(60),
+    )
+    .expect("start real Pyright Type Server with a configured venv");
+
+    let resolved = oracle
+        .resolve_import(&app, "sqlalchemy.ext.asyncio.session")
+        .expect("import query")
+        .expect("sqlalchemy.ext.asyncio.session resolves against the fixture venv");
+    assert!(
+        resolved.ends_with("/sqlalchemy/ext/asyncio/session.py"),
+        "resolved to {resolved}"
+    );
+    let resolved = oracle
+        .resolve_import(&app, "sqlalchemy.orm.session")
+        .expect("import query")
+        .expect("sqlalchemy.orm.session resolves against the fixture venv");
+    assert!(
+        resolved.ends_with("/sqlalchemy/orm/session.py"),
+        "resolved to {resolved}"
+    );
+
+    assert_session_method(
+        &mut oracle,
+        &app,
+        &candidates,
+        "session.add",
+        "/sqlalchemy/ext/asyncio/session.py",
+    );
+    oracle.shutdown().expect("clean shutdown");
 }

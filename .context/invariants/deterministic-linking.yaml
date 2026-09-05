@@ -15,7 +15,9 @@ statement: >
   artifacts/code already known: an unresolved reference produces no link,
   never a guessed one (PR-LINK-003/004). Extraction never truncates a token
   at a byte that isn't a real UTF-8 character boundary and never treats a
-  ticket-like substring inside a longer identifier as a match.
+  ticket-like substring inside a longer identifier as a match. Changed-file
+  attribution emits no links for changesets wider than 10% of the indexed
+  files, floored at 20 files, because broad sweeps are not useful evidence.
 implementation:
   - symbol: ctx_core.linking.extract_references
   - symbol: ctx_core.linking.text_reference_links

@@ -16,12 +16,14 @@ statement: >
   transition is actually modifying, renaming, or deleting, so a brand-new
   file can never steal an untouched file's still-live symbol identity merely
   by sharing its name, kind, and structural shape. A file whose analyzer
-  fails is excluded from that transition rather than aborting reconciliation
-  of the rest, and stays
-  outside the stored snapshot so it is re-surfaced as needing analysis on
-  every subsequent index until it succeeds or leaves scope (REQ-INDEX-002).
+  fails contributes no current derived analysis rather than aborting
+  reconciliation of the rest; any prior snapshot entry is retired so the
+  failed current file stays outside the stored snapshot and is re-surfaced
+  as needing analysis on every subsequent index until it succeeds or leaves
+  scope (REQ-INDEX-002).
 implementation:
   - symbol: ctx_app.index.IndexRunner.run
+  - symbol: ctx_app.index.changes_after_analysis
   - symbol: ctx_core.indexing.plan_incremental_index
   - symbol: ctx_core.indexing.reconcile_analysis_versions
   - symbol: ctx_adapters.sqlite.index.persist_edge
@@ -34,4 +36,3 @@ tests:
   - symbol: ctx_core.indexing.tests.same_named_same_shaped_symbols_claim_distinct_identities_regardless_of_file_order
   - symbol: ctx_core.indexing.tests.a_new_files_same_shaped_symbol_does_not_steal_an_unrelated_unchanged_files_identity
   - symbol: ctx_core.indexing.tests.database_entities_and_facts_follow_the_current_symbol_snapshot
-

@@ -87,11 +87,11 @@ implementation:
   - symbol: ctx_adapters.git.GitRepo.GitArtifactSource.branch_artifacts
   - symbol: ctx_app.ingest.GitIngestRunner.run
   - symbol: ctx_core.codedoc.extract_code_docs
-  - symbol: ctx_app.ingest.CodeDocIngestRunner.run
+  - symbol: ctx_app.ingest.CodeDocIngestRunner.run_with_reconcile
   - symbol: ctx_adapters.gitlab.GitLabClient.fetch_issue_and_mr_artifacts
-  - symbol: ctx_app.ingest.GitLabIngestRunner.run
+  - symbol: ctx_app.ingest.GitLabIngestRunner.run_scoped
   - symbol: ctx_adapters.jira.JiraClient.fetch_issue_artifacts_for_keys
-  - symbol: ctx_app.ingest.JiraIngestRunner.run
+  - symbol: ctx_app.ingest.JiraIngestRunner.run_scoped
   - symbol: ctx_adapters.http_retry.run
 tests:
   - symbol: ctx_adapters.git.tests.parses_commit_artifacts_from_real_git_log_record_output

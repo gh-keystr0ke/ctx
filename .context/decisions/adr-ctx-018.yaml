@@ -9,4 +9,3 @@ implementation:
   - symbol: ctx_core.context_pack.truncate_to_tokens
 tests:
   - symbol: ctx_core.neighborhood.tests.render_truncates_to_the_token_budget_and_reports_it
-  - symbol: ctx_core.neighborhood.tests.zero_token_budget_is_rejected

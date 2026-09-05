@@ -14,7 +14,6 @@ statement: >
   excluded that exact path.
 implementation:
   - symbol: ctx_adapters.git.normalize_path_entries
-  - symbol: ctx_adapters.git.PathFilter.allows
 tests:
   - symbol: ctx_adapters.git.tests.trailing_slash_on_configured_exclude_still_excludes
   - symbol: ctx_adapters.git.tests.configured_boundaries_include_only_selected_sources

@@ -1,7 +1,11 @@
 use std::collections::BTreeMap;
 
-use ctx_core::indexing::{
-    IndexStats, plan_incremental_index, reconcile_analysis_versions, reconcile_source_scope,
+use ctx_core::{
+    indexing::{
+        FileChange, IndexStats, plan_incremental_index, reconcile_analysis_versions,
+        reconcile_source_scope,
+    },
+    ir::FileAnalysis,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -137,14 +141,7 @@ where
             });
         }
         let (analyses, failed_files) = self.analyze_sources(&changes);
-        let changes = changes
-            .into_iter()
-            .filter(|change| {
-                change
-                    .current_path()
-                    .is_none_or(|path| analyses.contains_key(path))
-            })
-            .collect::<Vec<_>>();
+        let changes = changes_after_analysis(changes, &analyses);
         let plan = plan_incremental_index(&snapshot, &analyses, &changes)?;
         tracing::debug!(stats = ?plan.stats, "index persistence started");
         self.store
@@ -193,4 +190,27 @@ where
         }
         (analyses, failed_files)
     }
+}
+
+fn changes_after_analysis(
+    changes: Vec<FileChange>,
+    analyses: &BTreeMap<String, FileAnalysis>,
+) -> Vec<FileChange> {
+    changes
+        .into_iter()
+        .filter_map(|change| match change {
+            FileChange::Added { ref path } | FileChange::Modified { ref path }
+                if analyses.contains_key(path) =>
+            {
+                Some(change)
+            }
+            FileChange::Renamed { ref new_path, .. } if analyses.contains_key(new_path) => {
+                Some(change)
+            }
+            FileChange::Modified { path } => Some(FileChange::Deleted { path }),
+            FileChange::Renamed { old_path, .. } => Some(FileChange::Deleted { path: old_path }),
+            FileChange::Added { .. } => None,
+            FileChange::Deleted { .. } => Some(change),
+        })
+        .collect()
 }

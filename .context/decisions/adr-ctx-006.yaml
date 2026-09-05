@@ -1,8 +1,12 @@
 id: ADR-CTX-006
 type: decision
 status: active
-title: Changed-symbol linking uses file-level attribution to every indexed symbol in th…
-decision: Changed-symbol linking uses file-level attribution to every indexed symbol in the changed-path set and does not infer which entity changed within a file.
+title: Changed-symbol linking uses bounded file-level attribution.
+decision: >
+  Changed-symbol linking uses file-level attribution to every indexed symbol
+  in the changed-path set and does not infer which entity changed within a
+  file. Changesets wider than 10% of the indexed files, floored at 20 files,
+  emit no changed-symbol links because broad sweeps are not useful evidence.
 implementation:
   - symbol: ctx_core.linking.changed_symbol_links
 tests:

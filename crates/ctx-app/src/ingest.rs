@@ -696,23 +696,27 @@ where
             .store
             .load_graph(repository_id)
             .map_err(IngestError::Store)?;
-        let mut candidates: BTreeMap<String, Vec<StableKey>> = BTreeMap::new();
-        for node in graph.nodes.values() {
-            if node.kind == NodeKind::CodeSymbol {
-                candidates
-                    .entry(node.identifier().to_owned())
-                    .or_default()
-                    .push(node.stable_key.clone());
-            }
-        }
-        Ok(candidates
-            .into_iter()
-            .filter_map(|(path, keys)| match keys.as_slice() {
-                [key] => Some((path, key.clone())),
-                _ => None,
-            })
-            .collect())
+        Ok(unambiguous_code_symbols(&graph))
     }
+}
+
+fn unambiguous_code_symbols(graph: &GraphSnapshot) -> BTreeMap<String, StableKey> {
+    let mut candidates: BTreeMap<String, Vec<StableKey>> = BTreeMap::new();
+    for node in graph.nodes.values() {
+        if node.kind == NodeKind::CodeSymbol {
+            candidates
+                .entry(node.identifier().to_owned())
+                .or_default()
+                .push(node.stable_key.clone());
+        }
+    }
+    candidates
+        .into_iter()
+        .filter_map(|(path, keys)| match keys.as_slice() {
+            [key] => Some((path, key.clone())),
+            _ => None,
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -1086,6 +1090,57 @@ mod tests {
             changed_symbol_links[0].target,
             ArtifactLinkTarget::CodeSymbol(touched.stable_key)
         );
+    }
+
+    #[test]
+    fn ambiguous_canonical_paths_are_excluded_from_code_comment_links() {
+        use ctx_core::graph::GraphNode;
+        use ctx_core::indexing::PlannedNodeAttributes;
+        use ctx_core::ir::{SourceRange, SymbolKind};
+
+        fn symbol_node(key: &str, file_path: &str, canonical_path: &str) -> GraphNode {
+            GraphNode {
+                stable_key: StableKey::new(key).expect("stable key"),
+                kind: NodeKind::CodeSymbol,
+                name: canonical_path.to_owned(),
+                content_hash: "hash".to_owned(),
+                attributes: PlannedNodeAttributes::Symbol {
+                    file_path: file_path.to_owned(),
+                    canonical_path: canonical_path.to_owned(),
+                    symbol_kind: SymbolKind::Function,
+                    range: SourceRange {
+                        start_byte: 0,
+                        end_byte: 1,
+                        start_line: 1,
+                        end_line: 1,
+                    },
+                    signature: None,
+                    structural_fingerprint: "shape".to_owned(),
+                    calls: Vec::new(),
+                    database_accesses: Vec::new(),
+                    orm_accesses: Vec::new(),
+                    schema_tables: Vec::new(),
+                    api_endpoints: Vec::new(),
+                    external_calls: Vec::new(),
+                },
+            }
+        }
+
+        let rust = symbol_node("rust-cancel", "src/billing.rs", "billing.cancel");
+        let python = symbol_node("python-cancel", "src/billing.py", "billing.cancel");
+        let unique = symbol_node("rust-refund", "src/refund.rs", "billing.refund");
+        let graph = GraphSnapshot {
+            nodes: [rust, python, unique.clone()]
+                .into_iter()
+                .map(|node| (node.stable_key.clone(), node))
+                .collect(),
+            edges: Vec::new(),
+        };
+
+        let index = unambiguous_code_symbols(&graph);
+
+        assert!(!index.contains_key("billing.cancel"));
+        assert_eq!(index.get("billing.refund"), Some(&unique.stable_key));
     }
 
     #[test]

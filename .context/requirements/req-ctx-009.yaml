@@ -5,4 +5,6 @@ statement: Each extracted code-documentation artifact is attributed to the neare
 implementation:
   - symbol: ctx_core.codedoc.nearest_symbol
 tests:
-  - symbol: crates.ctx-cli.tests.e2e.ingest_code_comments_attaches_a_doc_comment_to_its_nearest_symbol
+  - symbol: ctx_core.codedoc.tests.groups_consecutive_doc_comment_lines_into_one_block_attached_to_the_following_symbol
+  - symbol: ctx_core.codedoc.tests.python_docstring_attaches_to_its_enclosing_function_not_only_the_file
+  - symbol: ctx_core.codedoc.tests.nearest_symbol_prefers_the_smaller_enclosing_scope_over_a_larger_one

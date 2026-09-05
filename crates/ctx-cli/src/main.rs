@@ -123,6 +123,13 @@ enum Command {
         /// Pyright Type Server executable. It must implement the Type Server Protocol.
         #[arg(long, default_value = "pyright-typeserver")]
         pyright: PathBuf,
+        /// Python interpreter to analyze with (defaults to autodetected
+        /// project venv). Need not belong to a conventional venv layout.
+        #[arg(long)]
+        python: Option<PathBuf>,
+        /// Project virtualenv directory (defaults to `<repo>/.venv` or `<repo>/venv`).
+        #[arg(long)]
+        venv: Option<PathBuf>,
         /// Stable epistemic confidence for the resulting Inference edges.
         #[arg(
             long,
@@ -525,11 +532,7 @@ fn run(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
     match &cli.command {
         Command::Init => initialize(cli, git),
         Command::Index => index(cli, git),
-        Command::InferTypes {
-            pyright,
-            confidence,
-            timeout_ms,
-        } => infer_types(cli, git, pyright, *confidence, *timeout_ms),
+        command @ Command::InferTypes { .. } => infer_types_command(cli, git, command),
         Command::Status => status(cli, git),
         Command::Impact { target } => impact(cli, git, target),
         Command::Explain { target, trace } => explain(cli, git, target, *trace),
@@ -1556,6 +1559,28 @@ fn enrich_command(cli: &Cli, git: &GitRepo, command: &Command) -> Result<(), Cli
     )
 }
 
+fn infer_types_command(cli: &Cli, git: &GitRepo, command: &Command) -> Result<(), CliError> {
+    let Command::InferTypes {
+        pyright,
+        python,
+        venv,
+        confidence,
+        timeout_ms,
+    } = command
+    else {
+        unreachable!("infer_types_command is called only for Command::InferTypes")
+    };
+    infer_types(
+        cli,
+        git,
+        pyright,
+        python.as_deref(),
+        venv.as_deref(),
+        *confidence,
+        *timeout_ms,
+    )
+}
+
 fn print_claims(claims: Vec<ctx_core::explain::ClaimExplanation>) {
     for claim in claims {
         println!("- {}", claim.claim);
@@ -1731,6 +1756,8 @@ mod tests {
         let cli = Cli::try_parse_from(["ctx", "infer-types"]).expect("parse infer-types");
         let Command::InferTypes {
             pyright,
+            python,
+            venv,
             confidence,
             timeout_ms,
         } = cli.command
@@ -1738,8 +1765,28 @@ mod tests {
             panic!("expected infer-types command");
         };
         assert_eq!(pyright, PathBuf::from("pyright-typeserver"));
+        assert_eq!(python, None);
+        assert_eq!(venv, None);
         assert!((confidence - DEFAULT_TYPE_INFERENCE_CONFIDENCE).abs() < f32::EPSILON);
         assert_eq!(timeout_ms, 30_000);
+    }
+
+    #[test]
+    fn infer_types_cli_accepts_explicit_python_and_venv() {
+        let cli = Cli::try_parse_from([
+            "ctx",
+            "infer-types",
+            "--python",
+            "/opt/python/bin/python",
+            "--venv",
+            "/repo/.venv",
+        ])
+        .expect("parse infer-types with explicit environment");
+        let Command::InferTypes { python, venv, .. } = cli.command else {
+            panic!("expected infer-types command");
+        };
+        assert_eq!(python, Some(PathBuf::from("/opt/python/bin/python")));
+        assert_eq!(venv, Some(PathBuf::from("/repo/.venv")));
     }
 
     #[test]

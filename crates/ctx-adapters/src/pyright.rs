@@ -23,6 +23,107 @@ use thiserror::Error;
 const SUPPORTED_PROTOCOL_MINOR: u32 = 4;
 const STDERR_LIMIT: usize = 16 * 1024;
 
+/// The Python interpreter/venv Pyright should analyze against. Both fields
+/// are independently optional: a caller may supply a bare interpreter
+/// (`--python /opt/python/bin/python`) that belongs to no conventional venv
+/// layout, so this type never derives one field from the other.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PythonEnvironment {
+    pub interpreter: Option<PathBuf>,
+    pub venv_dir: Option<PathBuf>,
+}
+
+impl PythonEnvironment {
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
+        self.interpreter.is_none() && self.venv_dir.is_none()
+    }
+}
+
+/// Resolves the Python environment Pyright should be told about, in order:
+/// 1. explicit `--python`/`--venv` flags;
+/// 2. an existing project Pyright configuration (`pyrightconfig.json` or a
+///    `[tool.pyright]` table in `pyproject.toml`) -- left entirely to
+///    Pyright itself rather than layering a guessed venv on top of a
+///    decision the project already made;
+/// 3. the `VIRTUAL_ENV` environment variable;
+/// 4. `<root>/.venv`, then `<root>/venv`, if either exists;
+/// 5. otherwise `None`.
+#[must_use]
+pub fn resolve_python_environment(
+    cli_python: Option<PathBuf>,
+    cli_venv: Option<PathBuf>,
+    root: &Path,
+) -> Option<PythonEnvironment> {
+    resolve_python_environment_with(
+        cli_python,
+        cli_venv,
+        root,
+        std::env::var_os("VIRTUAL_ENV").map(PathBuf::from),
+    )
+}
+
+/// Pure precedence logic split out from [`resolve_python_environment`] so it
+/// is unit-testable without mutating the process-global `VIRTUAL_ENV`
+/// (`std::env::set_var`/`remove_var` require `unsafe` since Rust 2024, which
+/// this workspace forbids, and would be racy across parallel tests anyway).
+fn resolve_python_environment_with(
+    cli_python: Option<PathBuf>,
+    cli_venv: Option<PathBuf>,
+    root: &Path,
+    virtual_env: Option<PathBuf>,
+) -> Option<PythonEnvironment> {
+    if cli_python.is_some() || cli_venv.is_some() {
+        let interpreter = cli_python.or_else(|| cli_venv.as_deref().map(default_interpreter));
+        return Some(PythonEnvironment {
+            interpreter,
+            venv_dir: cli_venv,
+        });
+    }
+    if has_explicit_pyright_config(root) {
+        return None;
+    }
+    if let Some(venv_dir) = virtual_env {
+        return Some(PythonEnvironment {
+            interpreter: Some(default_interpreter(&venv_dir)),
+            venv_dir: Some(venv_dir),
+        });
+    }
+    for candidate in [".venv", "venv"] {
+        let venv_dir = root.join(candidate);
+        if venv_dir.is_dir() {
+            return Some(PythonEnvironment {
+                interpreter: Some(default_interpreter(&venv_dir)),
+                venv_dir: Some(venv_dir),
+            });
+        }
+    }
+    None
+}
+
+fn default_interpreter(venv_dir: &Path) -> PathBuf {
+    if cfg!(windows) {
+        venv_dir.join("Scripts").join("python.exe")
+    } else {
+        venv_dir.join("bin").join("python")
+    }
+}
+
+fn has_explicit_pyright_config(root: &Path) -> bool {
+    if root.join("pyrightconfig.json").is_file() {
+        return true;
+    }
+    let Ok(content) = fs::read_to_string(root.join("pyproject.toml")) else {
+        return false;
+    };
+    toml::from_str::<toml::Value>(&content).is_ok_and(|document| {
+        document
+            .get("tool")
+            .and_then(|tool| tool.get("pyright"))
+            .is_some()
+    })
+}
+
 #[derive(Debug, Error)]
 pub enum PyrightError {
     #[error("Pyright Type Server executable '{executable}' was not found")]
@@ -76,10 +177,22 @@ pub struct PyrightTypeServer {
     open_files: BTreeSet<PathBuf>,
     stopped: bool,
     failed: bool,
+    python_env: Option<PythonEnvironment>,
 }
 
 impl PyrightTypeServer {
     /// Starts and initializes `pyright-typeserver --stdio` for one workspace.
+    ///
+    /// `python_env`, when given, is answered back to Pyright's own
+    /// `workspace/configuration` request for the `"python"` section so it
+    /// can resolve third-party imports (e.g. `sqlalchemy`) against that
+    /// interpreter/venv instead of its default (dependency-free)
+    /// environment. Verified empirically against the pinned Type Server:
+    /// only the `pythonPath` key is consumed this way (there is no LSP
+    /// equivalent for pyrightconfig.json's paired `venvPath`+`venv`, and
+    /// `initializationOptions` is not read for this at all), and Pyright
+    /// requires a real, executable interpreter at that path -- a synthetic
+    /// file layout with no working binary does not resolve.
     ///
     /// # Errors
     /// Returns [`PyrightError`] for process, protocol, timeout, and version
@@ -87,6 +200,7 @@ impl PyrightTypeServer {
     pub fn start(
         executable: &Path,
         workspace_root: &Path,
+        python_env: Option<&PythonEnvironment>,
         timeout: Duration,
     ) -> Result<Self, PyrightError> {
         let executable_label = executable.display().to_string();
@@ -137,6 +251,7 @@ impl PyrightTypeServer {
             open_files: BTreeSet::new(),
             stopped: false,
             failed: false,
+            python_env: python_env.cloned(),
         };
         let root_uri = file_uri(workspace_root)?;
         server.request(
@@ -146,7 +261,10 @@ impl PyrightTypeServer {
                 "clientInfo": {"name": "ctx", "version": env!("CARGO_PKG_VERSION")},
                 "rootUri": root_uri,
                 "workspaceFolders": [{"uri": root_uri, "name": "workspace"}],
-                "capabilities": {},
+                // Pyright gates its own workspace/configuration requests on
+                // this capability; without it, it never asks and silently
+                // keeps its dependency-free default environment.
+                "capabilities": {"workspace": {"configuration": true}},
             })),
         )?;
         server.notify("initialized", &json!({}))?;
@@ -338,11 +456,17 @@ impl PyrightTypeServer {
         let method = request.get("method").and_then(Value::as_str).unwrap_or("");
         let result = match method {
             "workspace/configuration" => {
-                let count = request
+                let items = request
                     .pointer("/params/items")
                     .and_then(Value::as_array)
-                    .map_or(0, Vec::len);
-                Value::Array(vec![Value::Null; count])
+                    .cloned()
+                    .unwrap_or_default();
+                Value::Array(
+                    items
+                        .iter()
+                        .map(|item| self.configuration_response(item))
+                        .collect(),
+                )
             }
             "workspace/workspaceFolders" => Value::Array(Vec::new()),
             _ => Value::Null,
@@ -352,6 +476,26 @@ impl PyrightTypeServer {
             "id": request["id"],
             "result": result,
         }))
+    }
+
+    /// Answers one `workspace/configuration` item. Only the `"python"`
+    /// section's `pythonPath` key is populated -- confirmed against the
+    /// pinned 1.1.413 Type Server to be both necessary and sufficient to
+    /// resolve third-party imports against a venv; every other section (and
+    /// `venvPath`, which has no effect without a paired `venv` name that
+    /// this LSP channel cannot deliver) is left `null`.
+    fn configuration_response(&self, item: &Value) -> Value {
+        let section = item.get("section").and_then(Value::as_str);
+        let Some(env) = self.python_env.as_ref().filter(|env| !env.is_empty()) else {
+            return Value::Null;
+        };
+        if section != Some("python") {
+            return Value::Null;
+        }
+        let Some(interpreter) = env.interpreter.as_deref() else {
+            return Value::Null;
+        };
+        json!({ "pythonPath": interpreter })
     }
 
     fn exited_error(&mut self) -> PyrightError {
@@ -950,11 +1094,116 @@ while True:
         let error = PyrightTypeServer::start(
             &temporary.path().join("missing-pyright-typeserver"),
             temporary.path(),
+            None,
             Duration::from_millis(50),
         )
         .err()
         .expect("missing executable");
         assert!(error.is_not_found());
+    }
+
+    #[test]
+    fn python_environment_precedence_favors_explicit_flags_then_project_config_then_virtualenv_then_dot_venv()
+     {
+        let temporary = tempfile::tempdir().expect("temporary directory");
+        let root = temporary.path();
+
+        // Explicit flags win over everything, including an existing venv.
+        fs::create_dir_all(root.join(".venv/bin")).expect(".venv directory");
+        let resolved = resolve_python_environment_with(
+            Some(PathBuf::from("/opt/python/bin/python")),
+            None,
+            root,
+            Some(PathBuf::from("/should/be/ignored")),
+        );
+        assert_eq!(
+            resolved,
+            Some(PythonEnvironment {
+                interpreter: Some(PathBuf::from("/opt/python/bin/python")),
+                venv_dir: None,
+            })
+        );
+
+        // --venv alone derives the interpreter and keeps venv_dir; --python
+        // alone leaves venv_dir unset rather than guessing it back from the
+        // interpreter's parent directories.
+        let resolved =
+            resolve_python_environment_with(None, Some(PathBuf::from("/repo/.venv")), root, None);
+        assert_eq!(
+            resolved,
+            Some(PythonEnvironment {
+                interpreter: Some(PathBuf::from("/repo/.venv/bin/python")),
+                venv_dir: Some(PathBuf::from("/repo/.venv")),
+            })
+        );
+        let resolved = resolve_python_environment_with(
+            Some(PathBuf::from("/opt/python/bin/python")),
+            None,
+            root,
+            None,
+        );
+        assert_eq!(resolved.expect("explicit python only").venv_dir, None);
+
+        // An existing project Pyright configuration outranks every
+        // autodetection heuristic below it, even when a .venv is present --
+        // the project already made an explicit choice.
+        fs::write(root.join("pyrightconfig.json"), "{}").expect("pyrightconfig.json");
+        assert_eq!(
+            resolve_python_environment_with(
+                None,
+                None,
+                root,
+                Some(PathBuf::from("/should/be/ignored"))
+            ),
+            None
+        );
+        fs::remove_file(root.join("pyrightconfig.json")).expect("remove pyrightconfig.json");
+        fs::write(
+            root.join("pyproject.toml"),
+            "[tool.pyright]\nvenvPath = \".\"\n",
+        )
+        .expect("pyproject.toml with [tool.pyright]");
+        assert_eq!(
+            resolve_python_environment_with(
+                None,
+                None,
+                root,
+                Some(PathBuf::from("/should/be/ignored"))
+            ),
+            None
+        );
+        fs::remove_file(root.join("pyproject.toml")).expect("remove pyproject.toml");
+
+        // VIRTUAL_ENV is honored only once no flags and no project config
+        // are present.
+        let resolved =
+            resolve_python_environment_with(None, None, root, Some(PathBuf::from("/opt/venv")));
+        assert_eq!(
+            resolved,
+            Some(PythonEnvironment {
+                interpreter: Some(PathBuf::from("/opt/venv/bin/python")),
+                venv_dir: Some(PathBuf::from("/opt/venv")),
+            })
+        );
+
+        // With no flags, no project config, and no VIRTUAL_ENV, <root>/.venv
+        // is preferred over <root>/venv.
+        fs::create_dir_all(root.join("venv/bin")).expect("venv directory");
+        let resolved = resolve_python_environment_with(None, None, root, None);
+        assert_eq!(
+            resolved,
+            Some(PythonEnvironment {
+                interpreter: Some(root.join(".venv/bin/python")),
+                venv_dir: Some(root.join(".venv")),
+            })
+        );
+
+        // Neither directory exists -> no autodetected environment.
+        let bare = tempfile::tempdir().expect("bare directory");
+        assert_eq!(
+            resolve_python_environment_with(None, None, bare.path(), None),
+            None
+        );
     }
 
     #[cfg(unix)]
@@ -965,7 +1214,7 @@ while True:
         fs::write(&source_path, "row = Model()\n").expect("source fixture");
         let executable = executable_fixture(temporary.path(), "server.py", FAKE_TYPE_SERVER);
         let mut server =
-            PyrightTypeServer::start(&executable, temporary.path(), Duration::from_secs(1))
+            PyrightTypeServer::start(&executable, temporary.path(), None, Duration::from_secs(1))
                 .expect("type server starts");
         let probe = TypeProbe {
             expression: "row".to_owned(),
@@ -1009,10 +1258,14 @@ while True:
     fn server_crash_aborts_startup() {
         let temporary = tempfile::tempdir().expect("temporary directory");
         let executable = executable_fixture(temporary.path(), "crash.py", "raise SystemExit(3)\n");
-        let error =
-            PyrightTypeServer::start(&executable, temporary.path(), Duration::from_millis(200))
-                .err()
-                .expect("server crash");
+        let error = PyrightTypeServer::start(
+            &executable,
+            temporary.path(),
+            None,
+            Duration::from_millis(200),
+        )
+        .err()
+        .expect("server crash");
         assert!(matches!(error, PyrightError::Exited { .. }));
     }
 
@@ -1025,10 +1278,14 @@ while True:
             "malformed.py",
             "import sys\nsys.stdout.buffer.write(b'Content-Length: 1\\r\\n\\r\\n{')\nsys.stdout.buffer.flush()\n",
         );
-        let error =
-            PyrightTypeServer::start(&executable, temporary.path(), Duration::from_millis(200))
-                .err()
-                .expect("malformed response");
+        let error = PyrightTypeServer::start(
+            &executable,
+            temporary.path(),
+            None,
+            Duration::from_millis(200),
+        )
+        .err()
+        .expect("malformed response");
         assert!(matches!(error, PyrightError::Protocol(_)));
     }
 
@@ -1041,10 +1298,14 @@ while True:
             "timeout.py",
             "import time\ntime.sleep(10)\n",
         );
-        let error =
-            PyrightTypeServer::start(&executable, temporary.path(), Duration::from_millis(30))
-                .err()
-                .expect("timeout");
+        let error = PyrightTypeServer::start(
+            &executable,
+            temporary.path(),
+            None,
+            Duration::from_millis(30),
+        )
+        .err()
+        .expect("timeout");
         assert!(
             matches!(error, PyrightError::Timeout { .. }),
             "expected timeout, got {error:?}"

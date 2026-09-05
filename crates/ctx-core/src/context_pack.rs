@@ -84,6 +84,51 @@ struct Candidate {
     score: usize,
 }
 
+/// Active database entities grouped by their source symbol. Building this
+/// once keeps context rendering and lexical scoring linear in the graph size
+/// instead of rescanning every edge twice for every symbol.
+#[derive(Default)]
+struct DatabaseEdgeIndex {
+    reads: BTreeMap<StableKey, BTreeSet<String>>,
+    writes: BTreeMap<StableKey, BTreeSet<String>>,
+}
+
+impl DatabaseEdgeIndex {
+    fn from_graph(graph: &GraphSnapshot) -> Self {
+        let mut index = Self::default();
+        for edge in &graph.edges {
+            if edge.status != ClaimStatus::Active {
+                continue;
+            }
+            let entities = match edge.kind {
+                RelationKind::ReadsFrom => &mut index.reads,
+                RelationKind::WritesTo => &mut index.writes,
+                _ => continue,
+            };
+            let Some(target) = graph
+                .nodes
+                .get(&edge.target)
+                .filter(|target| target.kind == NodeKind::DbEntity)
+            else {
+                continue;
+            };
+            entities
+                .entry(edge.source.clone())
+                .or_default()
+                .insert(target.name.clone());
+        }
+        index
+    }
+
+    fn entities(&self, source: &StableKey, relation: RelationKind) -> Option<&BTreeSet<String>> {
+        match relation {
+            RelationKind::ReadsFrom => self.reads.get(source),
+            RelationKind::WritesTo => self.writes.get(source),
+            _ => None,
+        }
+    }
+}
+
 /// Compiles a bounded task-oriented context pack using typed graph traversal.
 ///
 /// # Errors
@@ -97,12 +142,13 @@ pub fn compile_context_pack(
     if request.token_budget == 0 {
         return Err(ContextCompileError::EmptyBudget);
     }
+    let database_edges = DatabaseEdgeIndex::from_graph(graph);
     let task_terms = terms(&request.task);
-    let seed_keys = detect_seeds(graph, request, &task_terms);
+    let seed_keys = detect_seeds(graph, &database_edges, request, &task_terms);
     if seed_keys.is_empty() {
         return Err(ContextCompileError::NoSeeds);
     }
-    let candidates = expand_candidates(graph, &seed_keys, &task_terms);
+    let candidates = expand_candidates(graph, &database_edges, &seed_keys, &task_terms);
     let task_tokens = estimate_tokens(&request.task).max(1);
     let mut used = task_tokens.min(request.token_budget);
     let evidence_reserve = if request.token_budget >= 100 {
@@ -123,7 +169,7 @@ pub fn compile_context_pack(
             truncated = true;
             break;
         }
-        let mut item = context_item(graph, node, &seed_keys, candidate.distance);
+        let mut item = context_item(&database_edges, node, &seed_keys, candidate.distance);
         if item.estimated_tokens > remaining {
             if items.is_empty() || matches!(item.priority, ContextPriority::Invariant) {
                 item.content = truncate_to_tokens(&item.content, remaining.saturating_sub(4));
@@ -179,6 +225,7 @@ pub fn compile_context_pack(
 
 fn detect_seeds(
     graph: &GraphSnapshot,
+    database_edges: &DatabaseEdgeIndex,
     request: &ContextRequest,
     task_terms: &BTreeSet<String>,
 ) -> BTreeSet<StableKey> {
@@ -211,7 +258,7 @@ fn detect_seeds(
         .values()
         .filter(|node| !node.is_test())
         .filter_map(|node| {
-            let score = lexical_score(graph, node, task_terms);
+            let score = lexical_score(database_edges, node, task_terms);
             (score > 0).then_some((score, node.stable_key.clone()))
         })
         .collect::<Vec<_>>();
@@ -224,6 +271,7 @@ fn detect_seeds(
 
 fn expand_candidates(
     graph: &GraphSnapshot,
+    database_edges: &DatabaseEdgeIndex,
     seeds: &BTreeSet<StableKey>,
     task_terms: &BTreeSet<String>,
 ) -> Vec<Candidate> {
@@ -287,7 +335,13 @@ fn expand_candidates(
             let node = graph.nodes.get(&key)?;
             Some(Candidate {
                 direct: seeds.contains(&key),
-                score: candidate_score(graph, node, task_terms, distance, seeds.contains(&key)),
+                score: candidate_score(
+                    database_edges,
+                    node,
+                    task_terms,
+                    distance,
+                    seeds.contains(&key),
+                ),
                 key,
                 distance,
             })
@@ -347,31 +401,35 @@ fn touches(edge: &GraphEdge, key: &StableKey) -> bool {
     edge.source == *key || edge.target == *key
 }
 
-fn lexical_score(graph: &GraphSnapshot, node: &GraphNode, task_terms: &BTreeSet<String>) -> usize {
+fn lexical_score(
+    database_edges: &DatabaseEdgeIndex,
+    node: &GraphNode,
+    task_terms: &BTreeSet<String>,
+) -> usize {
     let searchable = format!(
         "{} {} {}",
         node.identifier(),
         node.name,
-        node_content(graph, node)
+        node_content(database_edges, node)
     );
     let node_terms = terms(&searchable);
     task_terms.intersection(&node_terms).count()
 }
 
 fn candidate_score(
-    graph: &GraphSnapshot,
+    database_edges: &DatabaseEdgeIndex,
     node: &GraphNode,
     task_terms: &BTreeSet<String>,
     distance: usize,
     direct: bool,
 ) -> usize {
     usize::from(direct) * 1_000
-        + lexical_score(graph, node, task_terms) * 100
+        + lexical_score(database_edges, node, task_terms) * 100
         + (3 - distance) * 10
 }
 
 fn context_item(
-    graph: &GraphSnapshot,
+    database_edges: &DatabaseEdgeIndex,
     node: &GraphNode,
     seeds: &BTreeSet<StableKey>,
     distance: usize,
@@ -381,7 +439,7 @@ fn context_item(
         kind: node.kind,
         identifier: node.identifier().to_owned(),
         title: node.name.trim().to_owned(),
-        content: node_content(graph, node),
+        content: node_content(database_edges, node),
         estimated_tokens: 0,
     };
     item.estimated_tokens = estimate_item_tokens(&item);
@@ -408,7 +466,7 @@ fn priority(node: &GraphNode, direct: bool, distance: usize) -> ContextPriority 
     }
 }
 
-fn node_content(graph: &GraphSnapshot, node: &GraphNode) -> String {
+fn node_content(database_edges: &DatabaseEdgeIndex, node: &GraphNode) -> String {
     match &node.attributes {
         PlannedNodeAttributes::Business { body, status, .. } => {
             format!("Status: {status}\n{}", body.trim())
@@ -424,20 +482,12 @@ fn node_content(graph: &GraphSnapshot, node: &GraphNode) -> String {
             external_calls,
             ..
         } => {
-            let mut reads = database_entities(database_accesses, crate::ir::DatabaseAccessKind::Read);
+            let mut reads =
+                database_entities(database_accesses, crate::ir::DatabaseAccessKind::Read);
             let mut writes =
                 database_entities(database_accesses, crate::ir::DatabaseAccessKind::Write);
-            // ReadsFrom/WritesTo edges are the graph's semantic record of DB
-            // access -- static ORM verbs and typeinference (`session.add`)
-            // writes both land here, not in `database_accesses` (raw SQL
-            // only). Rendering must consume these edges rather than
-            // reaching back into an analyzer-specific extraction artifact.
-            for entity in edge_database_entities(graph, node, RelationKind::ReadsFrom) {
-                reads.entry(entity).or_default();
-            }
-            for entity in edge_database_entities(graph, node, RelationKind::WritesTo) {
-                writes.entry(entity).or_default();
-            }
+            merge_edge_entities(&mut reads, database_edges, node, RelationKind::ReadsFrom);
+            merge_edge_entities(&mut writes, database_edges, node, RelationKind::WritesTo);
             let schema_line = if schema_tables.is_empty() {
                 String::new()
             } else {
@@ -510,43 +560,39 @@ fn node_content(graph: &GraphSnapshot, node: &GraphNode) -> String {
     }
 }
 
-/// Entity names reached by this node's own active `ReadsFrom`/`WritesTo`
-/// edges, across every provenance (static ORM verbs and typeinference
-/// unit-of-work writes alike). Column detail is not available from an edge
-/// alone; callers merge this into the static, column-carrying map instead of
-/// treating it as a replacement.
-fn edge_database_entities<'a>(
-    graph: &'a GraphSnapshot,
+/// Adds entities reached only through an edge (no column detail available)
+/// into a map already populated from static, column-carrying accesses.
+/// ReadsFrom/WritesTo edges are the graph's semantic record of DB access --
+/// static ORM verbs and typeinference (`session.add`) writes both land here,
+/// not in `database_accesses` (raw SQL only) -- so rendering must consume
+/// these edges rather than reaching back into an analyzer-specific
+/// extraction artifact.
+fn merge_edge_entities(
+    map: &mut BTreeMap<String, BTreeSet<String>>,
+    database_edges: &DatabaseEdgeIndex,
     node: &GraphNode,
     relation: RelationKind,
-) -> BTreeSet<&'a str> {
-    graph
-        .edges
-        .iter()
-        .filter(|edge| {
-            edge.source == node.stable_key
-                && edge.kind == relation
-                && edge.status == ClaimStatus::Active
-        })
-        .filter_map(|edge| graph.nodes.get(&edge.target))
-        .filter(|target| target.kind == NodeKind::DbEntity)
-        .map(|target| target.name.as_str())
-        .collect()
+) {
+    if let Some(entities) = database_edges.entities(&node.stable_key, relation) {
+        for entity in entities {
+            map.entry(entity.clone()).or_default();
+        }
+    }
 }
 
 fn database_entities(
     accesses: &[crate::ir::DatabaseAccess],
     kind: crate::ir::DatabaseAccessKind,
-) -> BTreeMap<&str, BTreeSet<&str>> {
-    let mut entities = BTreeMap::<&str, BTreeSet<&str>>::new();
+) -> BTreeMap<String, BTreeSet<String>> {
+    let mut entities = BTreeMap::<String, BTreeSet<String>>::new();
     for access in accesses.iter().filter(|access| access.kind == kind) {
-        let columns = entities.entry(access.entity.as_str()).or_default();
-        columns.extend(access.columns.iter().map(String::as_str));
+        let columns = entities.entry(access.entity.clone()).or_default();
+        columns.extend(access.columns.iter().cloned());
     }
     entities
 }
 
-fn render_entities(entities: &BTreeMap<&str, BTreeSet<&str>>) -> String {
+fn render_entities(entities: &BTreeMap<String, BTreeSet<String>>) -> String {
     if entities.is_empty() {
         return "none".to_owned();
     }
@@ -554,11 +600,15 @@ fn render_entities(entities: &BTreeMap<&str, BTreeSet<&str>>) -> String {
         .iter()
         .map(|(entity, columns)| {
             if columns.is_empty() {
-                (*entity).to_owned()
+                entity.clone()
             } else {
                 format!(
                     "{entity}({})",
-                    columns.iter().copied().collect::<Vec<_>>().join(", ")
+                    columns
+                        .iter()
+                        .map(String::as_str)
+                        .collect::<Vec<_>>()
+                        .join(", ")
                 )
             }
         })
@@ -1100,7 +1150,8 @@ mod tests {
             ],
         );
 
-        let content = node_content(&graph, &function);
+        let database_edges = DatabaseEdgeIndex::from_graph(&graph);
+        let content = node_content(&database_edges, &function);
 
         assert!(
             content.contains("DB writes: billing_subs"),
@@ -1115,9 +1166,10 @@ mod tests {
     #[test]
     fn node_content_still_reports_none_for_a_model_that_only_defines_schema() {
         let model = symbol_node("model", "app.models.PaymentDB");
-        let graph = graph_with(&[model.clone()], Vec::new());
+        let graph = graph_with(std::slice::from_ref(&model), Vec::new());
 
-        let content = node_content(&graph, &model);
+        let database_edges = DatabaseEdgeIndex::from_graph(&graph);
+        let content = node_content(&database_edges, &model);
 
         assert!(content.contains("DB reads: none"));
         assert!(content.contains("DB writes: none"));

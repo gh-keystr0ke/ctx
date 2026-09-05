@@ -106,3 +106,22 @@ fn production_functions_and_cli_roots_stay_bounded() {
         "CLI composition root grew beyond 1800 lines: {main_lines}"
     );
 }
+
+#[test]
+fn pyright_installer_uses_only_locked_dependency_trees() {
+    let workspace = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let installer = fs::read_to_string(workspace.join("install.sh")).expect("read installer");
+    let locked_installs = installer
+        .lines()
+        .filter(|line| line.contains("npm ci \\"))
+        .count();
+
+    assert_eq!(
+        locked_installs, 3,
+        "the Pyright root and both subpackages must install from their lockfiles"
+    );
+    assert!(
+        !installer.contains("--no-package-lock"),
+        "the installer must never bypass the checksum-verified source lockfiles"
+    );
+}

@@ -99,25 +99,29 @@ install_pyright_typeserver() {
     say "note: npm configuration could not be prepared; ctx remains installed without Pyright Type Server"
     return
   fi
-  build_helpers="$work_dir/pyright-build-helpers"
-  mkdir -p "$build_helpers"
-
   say "building Pyright Type Server (one-time npm dependency download)..."
+  build_log="$work_dir/pyright-build.log"
   if ! (
-    NPM_CONFIG_USERCONFIG="$npm_build_config" npm install \
-      --prefix "$build_helpers" --ignore-scripts --no-save --no-audit --no-fund \
-      glob@11.1.0 jsonc-parser@3.3.1
+    # The checksum-verified source archive includes lockfiles for the root
+    # build helpers and both subpackages. npm ci consumes those exact trees
+    # and refuses to proceed if any manifest ever drifts out of sync,
+    # preserving reproducibility instead of silently resolving newer
+    # versions from semver ranges.
+    NPM_CONFIG_USERCONFIG="$npm_build_config" npm ci \
+      --prefix "$source_dir" --ignore-scripts --no-audit --no-fund
     NPM_CONFIG_USERCONFIG="$npm_build_config" npm ci \
       --prefix "$source_dir/packages/pyright-internal" \
       --ignore-scripts --no-audit --no-fund
     NPM_CONFIG_USERCONFIG="$npm_build_config" npm ci \
       --prefix "$source_dir/packages/pyright-typeserver" \
       --ignore-scripts --no-audit --no-fund
-    NODE_PATH="$build_helpers/node_modules" \
+    NODE_PATH="$source_dir/node_modules" \
       NPM_CONFIG_USERCONFIG="$npm_build_config" \
       npm --prefix "$source_dir/packages/pyright-typeserver" run build
-  ); then
+  ) >"$build_log" 2>&1; then
     say "note: Pyright Type Server build failed; ctx is installed, but 'ctx infer-types' requires --pyright <path>"
+    say "note: last 20 lines of the build log follow; set CTX_INSTALL_PYRIGHT=0 to skip this step next time"
+    tail -n 20 "$build_log" >&2 || true
     return
   fi
 

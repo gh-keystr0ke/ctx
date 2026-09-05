@@ -1816,6 +1816,38 @@ def wrapped(session):
     }
 
     #[test]
+    fn unit_of_work_session_add_is_not_a_static_orm_access() {
+        // session.add(Model()) is a unit-of-work write: only Pyright type
+        // inference can prove the receiver is a SQLAlchemy Session (defect
+        // A/C boundary). The static extractor only recognizes SQL-expression
+        // verbs (select/insert/update/delete); this test locks in that a
+        // syntactic `.add`/`.add_all` call is deliberately NOT treated as a
+        // static ORM access, so a future change can't silently start
+        // guessing it from the method name alone.
+        let source = r#"
+from sqlalchemy.ext.asyncio import AsyncSession
+
+class Model(Base):
+    __tablename__ = "models"
+    id = Column(String)
+
+async def create(session: AsyncSession) -> None:
+    row = Model()
+    session.add(row)
+    session.add_all([row])
+"#;
+        let analysis =
+            PythonAnalyzer::analyze_source("models.py", source).expect("unit-of-work write");
+        let create = analysis
+            .symbols
+            .iter()
+            .find(|symbol| symbol.name == "create")
+            .expect("create function");
+        assert!(create.orm_accesses.is_empty());
+        assert!(create.database_accesses.is_empty());
+    }
+
+    #[test]
     fn extracts_fastapi_router_and_flask_endpoint_contracts_without_guessing_dynamic_paths() {
         let source = r#"
 router = APIRouter(prefix="/v1")

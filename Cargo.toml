@@ -24,7 +24,7 @@ base64 = "0.23"
 blake3 = "1.8.2"
 chrono = { version = "0.4.41", default-features = false, features = ["clock", "serde"] }
 clap = { version = "4.5.45", features = ["derive"] }
-rusqlite = { version = "0.37.0", features = ["bundled"] }
+rusqlite = { version = "0.40.2", features = ["bundled"] }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.142"
 yaml_serde = "0.10.7"

@@ -1062,7 +1062,7 @@ mod tests {
     /// test covers.
     #[test]
     fn lexical_seed_detection_never_auto_seeds_a_test() {
-        let code = symbol_node("code", "billing.subscription.cancel");
+        let code = symbol_node("code", "billing.workflow.cancel");
         let shared_test = symbol_node_with_kind("test", "tests.workflow", SymbolKind::Test);
         let unrelated = intent_node("unrelated", NodeKind::Requirement, "REQ-REFUND-001");
         let graph = graph_with(
@@ -1077,7 +1077,7 @@ mod tests {
         let request = ContextRequest {
             task: "workflow".to_owned(),
             files: Vec::new(),
-            symbols: vec!["billing.subscription.cancel".to_owned()],
+            symbols: Vec::new(),
             token_budget: 1_000,
         };
 

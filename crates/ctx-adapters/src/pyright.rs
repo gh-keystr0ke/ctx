@@ -1039,13 +1039,16 @@ while True:
         let executable = executable_fixture(
             temporary.path(),
             "timeout.py",
-            "import time\ntime.sleep(1)\n",
+            "import time\ntime.sleep(10)\n",
         );
         let error =
             PyrightTypeServer::start(&executable, temporary.path(), Duration::from_millis(30))
                 .err()
                 .expect("timeout");
-        assert!(matches!(error, PyrightError::Timeout { .. }));
+        assert!(
+            matches!(error, PyrightError::Timeout { .. }),
+            "expected timeout, got {error:?}"
+        );
     }
 
     #[cfg(unix)]

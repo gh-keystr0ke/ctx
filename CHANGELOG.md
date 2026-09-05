@@ -8,6 +8,10 @@ All notable changes to `ctx` are documented here. The project follows semantic v
 
 - Added the optional `ctx infer-types` phase backed by Pyright's structured Type Server Protocol. It recovers SQLAlchemy ORM writes whose model is provable from static Python types—including typed attribute mutations and receiver-gated `Session.add`/`add_all`/`merge`/`delete` calls—while recording every result as a provenance-bearing `Inference`, never a `Fact`. Missing Pyright is a graph-safe no-op, ambiguous types and non-column attributes are dropped, and persistence is a transactional full recompute independent of `ctx index`.
 
+### Changed
+
+- The release installer now builds a checksum-verified, pinned Pyright Type Server when Node.js 18.12+ and `npm` are available, so `ctx infer-types` works after the standard one-line installation without relying on an as-yet unpublished npm package. The optional oracle step can be disabled with `CTX_INSTALL_PYRIGHT=0` and never blocks installing the core `ctx` binary.
+
 ## 0.7.6 — 2026-09-03
 
 ### Added

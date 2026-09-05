@@ -63,12 +63,12 @@ fn print_missing_pyright(cli: &Cli, pyright: &Path) {
                 "status": "skipped",
                 "reason": "pyright_typeserver_not_found",
                 "executable": pyright,
-                "message": "Pyright Type Server was not found; install `pyright-typeserver` on PATH or pass --pyright <path>",
+                "message": "Pyright Type Server was not found; rerun install.sh with Node.js 18.12+ and npm available or pass --pyright <path>",
             })
         );
     } else {
         println!(
-            "Type inference skipped: '{}' was not found. Install Pyright Type Server or pass --pyright <path>.",
+            "Type inference skipped: '{}' was not found. Rerun install.sh with Node.js 18.12+ and npm available or pass --pyright <path>.",
             pyright.display()
         );
     }

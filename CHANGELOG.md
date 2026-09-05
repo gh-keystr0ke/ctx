@@ -4,6 +4,22 @@ All notable changes to `ctx` are documented here. The project follows semantic v
 
 ## Unreleased
 
+## 0.8.1 — 2026-09-05
+
+### Added
+
+- `ctx infer-types` now resolves the project's Python environment with precedence `--python`/`--venv` → an existing Pyright configuration → `VIRTUAL_ENV` → `.venv` → `venv`, allowing the Type Server to prove SQLAlchemy unit-of-work writes against project dependencies. If environment resolution degrades after an earlier successful run, existing inference edges are preserved and the skipped reconciliation is reported explicitly.
+
+### Changed
+
+- The optional Pyright installer now builds the pinned Type Server strictly from its checksum-verified npm lockfiles and fails closed on manifest drift, while remaining non-blocking for installation of the core `ctx` binaries.
+
+### Fixed
+
+- Context Packs now include active database reads and writes derived from ORM analysis and type inference, retain static column details, and reuse a deterministic edge index instead of rescanning the full graph for every symbol.
+- A modified or renamed file whose analyzer fails is removed from the indexed snapshot and retried on every subsequent `ctx index`, including repeated runs at the same commit; other valid files continue to index normally.
+- Repository-scale changed-symbol sweep coverage and ambiguous code-comment symbol matching now have direct regression tests, and stale first-party `.context` mappings point at the implementations that actually own each behavior.
+
 ## 0.8.0 — 2026-09-05
 
 ### Added

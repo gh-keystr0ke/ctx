@@ -153,7 +153,7 @@ fn count_public_documents(
     connection: &rusqlite::Connection,
     repository_row: i64,
 ) -> Result<usize, PortError> {
-    connection
+    let count = connection
         .query_row(
             "SELECT COUNT(*)
              FROM nodes n
@@ -162,9 +162,10 @@ fn count_public_documents(
                AND n.kind IN ('feature', 'requirement', 'invariant', 'decision')
                AND nv.visibility = 'public'",
             [repository_row],
-            |row| row.get(0),
+            |row| row.get::<_, i64>(0),
         )
-        .map_err(database_error)
+        .map_err(database_error)?;
+    usize::try_from(count).map_err(|error| PortError::new(error.to_string()))
 }
 
 impl SqliteStore {

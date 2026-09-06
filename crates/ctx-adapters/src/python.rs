@@ -76,7 +76,7 @@ impl PythonAnalyzer {
         Ok(FileAnalysis {
             path: relative_path.to_owned(),
             language: "python".to_owned(),
-            analysis_version: "python-tree-sitter-v7".to_owned(),
+            analysis_version: "python-tree-sitter-v8".to_owned(),
             content_hash: blake3::hash(source.as_bytes()).to_hex().to_string(),
             symbols,
         })
@@ -269,7 +269,7 @@ fn type_position(source: &str, byte: usize, row: usize) -> TypePosition {
 
 impl LanguageAnalyzer for PythonAnalyzer {
     fn analysis_version(&self, _relative_path: &str) -> Result<String, PortError> {
-        Ok("python-tree-sitter-v7".to_owned())
+        Ok("python-tree-sitter-v8".to_owned())
     }
 
     fn analyze(&self, relative_path: &str) -> Result<FileAnalysis, PortError> {
@@ -353,7 +353,14 @@ impl SqlAlchemyVerb {
 #[derive(Default)]
 struct PythonBindings {
     router_prefixes: BTreeMap<String, String>,
-    httpx_clients: BTreeSet<String>,
+    /// Variables bound to an `httpx`/`aiohttp` client whose HTTP verb is the
+    /// method name (`client.post(url)`), by either plain assignment or a
+    /// `with <constructor>() as name:` context manager.
+    http_client_bindings: BTreeSet<String>,
+    /// Variables bound to a `urllib3`/`http.client` connection whose HTTP
+    /// verb is a string literal passed to `.request(verb, url)`, tracked
+    /// the same two ways as `http_client_bindings`.
+    request_style_bindings: BTreeSet<String>,
     sqlalchemy_expr_names: BTreeMap<String, SqlAlchemyVerb>,
     sqlalchemy_module_aliases: BTreeSet<String>,
     imported_symbols: BTreeMap<String, String>,
@@ -411,9 +418,21 @@ fn visit_python_bindings(node: Node<'_>, source: &[u8], bindings: &mut PythonBin
         {
             bindings.router_prefixes.insert(name.to_owned(), prefix);
         }
-        if matches!(callee, "httpx.Client" | "httpx.AsyncClient") {
-            bindings.httpx_clients.insert(name.to_owned());
+        register_http_binding(bindings, name, callee);
+    }
+    if node.kind() == "as_pattern"
+        && let Some(alias) = node.child_by_field_name("alias")
+        && let Some(name_node) = first_descendant_of_kind(alias, "identifier")
+        && let Ok(name) = name_node.utf8_text(source)
+        && let Some(call) = {
+            let mut cursor = node.walk();
+            node.named_children(&mut cursor)
+                .find(|child| child.kind() == "call")
         }
+        && let Some(function) = call.child_by_field_name("function")
+        && let Ok(callee) = function.utf8_text(source)
+    {
+        register_http_binding(bindings, name, callee);
     }
     let mut cursor = node.walk();
     for child in node.named_children(&mut cursor) {
@@ -581,10 +600,15 @@ fn first_descendant_of_kind<'a>(node: Node<'a>, kind: &str) -> Option<Node<'a>> 
 }
 
 fn first_positional_argument(arguments: Node<'_>) -> Option<Node<'_>> {
+    positional_argument(arguments, 0)
+}
+
+fn positional_argument(arguments: Node<'_>, index: usize) -> Option<Node<'_>> {
     let mut cursor = arguments.walk();
     arguments
         .named_children(&mut cursor)
-        .find(|argument| argument.kind() != "keyword_argument")
+        .filter(|argument| argument.kind() != "keyword_argument")
+        .nth(index)
 }
 
 fn keyword_argument<'a>(arguments: Node<'a>, name: &str, source: &[u8]) -> Option<Node<'a>> {
@@ -777,6 +801,29 @@ fn visit_external_calls(
             response_fields: response_fields(node, source),
         });
     }
+    if node.kind() == "call"
+        && let Some(function) = node.child_by_field_name("function")
+        && let Ok(callee) = function.utf8_text(source)
+        && let Some((owner, "request")) = callee.rsplit_once('.')
+        && bindings.request_style_bindings.contains(owner)
+        && let Some(arguments) = node.child_by_field_name("arguments")
+        && let Some(method_node) = first_positional_argument(arguments)
+        && method_node.kind() == "string"
+        && let Ok(method_text) = method_node.utf8_text(source)
+        && let Some(method_literal) = static_string_content(method_text)
+        && let Some(method) = http_method(&method_literal)
+        && let Some(url_node) = positional_argument(arguments, 1)
+        && let Some((url, host_expr)) = resolve_call_url(url_node, source)
+    {
+        calls.push(ExternalCall {
+            method,
+            url,
+            range: source_range(node),
+            host_expr,
+            request_fields: Vec::new(),
+            response_fields: Vec::new(),
+        });
+    }
     if cursor.goto_first_child() {
         loop {
             visit_external_calls(cursor, source, bindings, calls, false);
@@ -788,12 +835,28 @@ fn visit_external_calls(
     }
 }
 
+/// Records `name` as a client-like binding when `callee` is a recognized
+/// HTTP-client constructor, whether reached by plain assignment
+/// (`name = httpx.Client()`) or a `with ... as name:` context manager.
+fn register_http_binding(bindings: &mut PythonBindings, name: &str, callee: &str) {
+    if matches!(callee, "httpx.Client" | "httpx.AsyncClient" | "aiohttp.ClientSession") {
+        bindings.http_client_bindings.insert(name.to_owned());
+    }
+    if matches!(
+        callee,
+        "urllib3.PoolManager" | "http.client.HTTPSConnection" | "http.client.HTTPConnection"
+    ) {
+        bindings.request_style_bindings.insert(name.to_owned());
+    }
+}
+
 fn is_http_client(owner: &str, bindings: &PythonBindings) -> bool {
     owner == "requests"
         || owner == "httpx"
         || owner == "httpx.Client()"
         || owner == "httpx.AsyncClient()"
-        || bindings.httpx_clients.contains(owner)
+        || owner == "aiohttp.ClientSession()"
+        || bindings.http_client_bindings.contains(owner)
 }
 
 fn static_url_template(node: Node<'_>, source: &[u8]) -> Option<String> {
@@ -2002,7 +2065,7 @@ def access():
 "#;
         let analysis =
             PythonAnalyzer::analyze_source("src/app/service.py", source).expect("import aliases");
-        assert_eq!(analysis.analysis_version, "python-tree-sitter-v7");
+        assert_eq!(analysis.analysis_version, "python-tree-sitter-v8");
         let access = analysis
             .symbols
             .iter()
@@ -2211,6 +2274,82 @@ def notify(subscription_id, dynamic_url):
                 ),
             ]
         );
+    }
+
+    #[test]
+    fn recognizes_aiohttp_session_calls_from_plain_assignment_and_with_as() {
+        let source = r#"
+async def notify_a():
+    session = aiohttp.ClientSession()
+    await session.post("https://billing.internal/events")
+
+async def notify_b():
+    async with aiohttp.ClientSession() as session:
+        await session.get("https://billing.internal/health")
+"#;
+        let analysis = PythonAnalyzer::analyze_source("src/caller.py", source).expect("caller");
+        let calls = analysis
+            .symbols
+            .iter()
+            .flat_map(|symbol| &symbol.external_calls)
+            .map(|call| (call.method, call.url.as_str()))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            calls,
+            vec![
+                (HttpMethod::Post, "https://billing.internal/events"),
+                (HttpMethod::Get, "https://billing.internal/health"),
+            ]
+        );
+    }
+
+    #[test]
+    fn recognizes_httpx_client_bound_via_with_as() {
+        let source = r#"
+def notify():
+    with httpx.Client() as client:
+        client.post("https://billing.internal/events")
+"#;
+        let analysis = PythonAnalyzer::analyze_source("src/caller.py", source).expect("caller");
+        assert_eq!(
+            analysis.symbols[0].external_calls[0].url,
+            "https://billing.internal/events"
+        );
+    }
+
+    #[test]
+    fn recognizes_urllib3_pool_manager_request_calls() {
+        let source = r#"
+def notify():
+    http = urllib3.PoolManager()
+    http.request("POST", "https://billing.internal/events")
+"#;
+        let analysis = PythonAnalyzer::analyze_source("src/caller.py", source).expect("caller");
+        let call = &analysis.symbols[0].external_calls[0];
+        assert_eq!(call.method, HttpMethod::Post);
+        assert_eq!(call.url, "https://billing.internal/events");
+    }
+
+    #[test]
+    fn recognizes_http_client_connection_request_calls() {
+        let source = r#"
+def notify():
+    conn = http.client.HTTPSConnection("billing.internal")
+    conn.request("GET", "/health")
+"#;
+        let analysis = PythonAnalyzer::analyze_source("src/caller.py", source).expect("caller");
+        assert!(analysis.symbols[0].external_calls.is_empty());
+    }
+
+    #[test]
+    fn urllib3_request_with_a_non_literal_verb_produces_no_fact() {
+        let source = r#"
+def notify(verb):
+    http = urllib3.PoolManager()
+    http.request(verb, "https://billing.internal/events")
+"#;
+        let analysis = PythonAnalyzer::analyze_source("src/caller.py", source).expect("caller");
+        assert!(analysis.symbols[0].external_calls.is_empty());
     }
 
     #[test]

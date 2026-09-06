@@ -38,6 +38,15 @@ requests.delete(dynamic_url)
 
 The first three are recognized, with the interpolated segment normalized to `{param}` the same way a path parameter is. `requests.delete(dynamic_url)` — a call whose URL is a bare variable with no static template at all — produces no fact.
 
+`aiohttp.ClientSession` is recognized the same way `httpx.Client` is (verb-named methods, tracked whether bound by assignment or `with ... as`). `urllib3.PoolManager` and `http.client.HTTPSConnection`/`HTTPConnection` use `.request("POST", url)` instead — recognized only when the verb is a string literal:
+
+```python
+http = urllib3.PoolManager()
+http.request("POST", "https://billing.internal/events")
+```
+
+`http.request(verb, url)` where `verb` is a variable produces no fact, the same as a dynamic URL would.
+
 ```python
 resp = requests.post("https://billing.internal/events", json={"kind": "renewed", "amount": amount})
 status = resp.json()["status"]

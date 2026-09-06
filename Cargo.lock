@@ -231,7 +231,7 @@ dependencies = [
 
 [[package]]
 name = "ctx-adapters"
-version = "0.8.2"
+version = "0.8.3"
 dependencies = [
  "base64",
  "blake3",
@@ -255,7 +255,7 @@ dependencies = [
 
 [[package]]
 name = "ctx-app"
-version = "0.8.2"
+version = "0.8.3"
 dependencies = [
  "blake3",
  "ctx-core",
@@ -266,7 +266,7 @@ dependencies = [
 
 [[package]]
 name = "ctx-cli"
-version = "0.8.2"
+version = "0.8.3"
 dependencies = [
  "chrono",
  "clap",
@@ -285,7 +285,7 @@ dependencies = [
 
 [[package]]
 name = "ctx-core"
-version = "0.8.2"
+version = "0.8.3"
 dependencies = [
  "serde",
  "thiserror",
@@ -293,7 +293,7 @@ dependencies = [
 
 [[package]]
 name = "ctx-eval"
-version = "0.8.2"
+version = "0.8.3"
 dependencies = [
  "chrono",
  "ctx-adapters",
@@ -307,7 +307,7 @@ dependencies = [
 
 [[package]]
 name = "ctx-mcp"
-version = "0.8.2"
+version = "0.8.3"
 dependencies = [
  "ctx-adapters",
  "ctx-app",
@@ -320,7 +320,7 @@ dependencies = [
 
 [[package]]
 name = "ctx-report"
-version = "0.8.2"
+version = "0.8.3"
 dependencies = [
  "blake3",
  "ctx-app",

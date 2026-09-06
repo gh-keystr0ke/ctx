@@ -4,6 +4,16 @@ All notable changes to `ctx` are documented here. The project follows semantic v
 
 ## Unreleased
 
+## 0.8.3 — 2026-09-06
+
+### Security
+
+- Refreshed the bundled SQLite stack, TOML parser, Tree-sitter core, hashing dependencies, and GitHub Actions to current maintained releases; the lockfile keeps `tree-sitter-language` on the newest release compatible with the Rust 1.88 MSRV.
+
+### Fixed
+
+- Adapted SQLite public-document status counting to `rusqlite` 0.40 with an explicit checked conversion, preserving visibility reporting without unchecked integer casts.
+
 ## 0.8.2 — 2026-09-06
 
 ### Added

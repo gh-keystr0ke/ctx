@@ -10,8 +10,8 @@ readme.workspace = true
 
 [dependencies]
 blake3.workspace = true
-ctx-app = { path = "../ctx-app", version = "0.8.2" }
-ctx-core = { path = "../ctx-core", version = "0.8.2" }
+ctx-app = { path = "../ctx-app", version = "0.8.3" }
+ctx-core = { path = "../ctx-core", version = "0.8.3" }
 serde.workspace = true
 serde_json.workspace = true
 tempfile.workspace = true

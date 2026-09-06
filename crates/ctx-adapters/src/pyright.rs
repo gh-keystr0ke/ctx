@@ -1084,8 +1084,9 @@ while True:
         let temporary = tempfile::tempdir().expect("temporary directory");
         let path = temporary.path().join("space π.py");
         fs::write(&path, "").expect("fixture");
+        let canonical = path.canonicalize().expect("canonical fixture path");
         let uri = file_uri(&path).expect("file URI");
-        assert_eq!(file_uri_path(&uri).as_deref(), path.to_str());
+        assert_eq!(file_uri_path(&uri).as_deref(), canonical.to_str());
     }
 
     #[test]

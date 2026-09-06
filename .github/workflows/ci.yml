@@ -38,10 +38,10 @@ jobs:
         if: failure() && steps.workspace-tests.outcome == 'failure'
         shell: bash
         run: |
-          summary="$(tail -n 120 cargo-test.log)"
-          summary="${summary//'%'/'%25'}"
-          summary="${summary//$'\r'/'%0D'}"
-          summary="${summary//$'\n'/'%0A'}"
+          summary="$(tail -n 30 cargo-test.log)"
+          summary="${summary//'%'/%25}"
+          summary="${summary//$'\r'/%0D}"
+          summary="${summary//$'\n'/%0A}"
           echo "::error title=cargo test failure::$summary"
       - run: cargo run --locked -p ctx-eval
 

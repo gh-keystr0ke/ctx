@@ -14,9 +14,10 @@ use ctx_adapters::{
     context_registry,
     federation::{
         ExportManifest, ExportedDocument, ExportedEndpoint, ExternalCallContract,
-        FEDERATION_SCHEMA_VERSION, FederatedRepositoryData, FederationError, FederationSyncState,
-        NeighborRegistry, RegistryNeighbor, default_export_path, matching_resolutions,
-        neighbor_head, path_template, require_service_name,
+        FEDERATION_SCHEMA_VERSION, FederatedRepositoryData,
+        FederationError, FederationSyncState, NeighborRegistry, RegistryNeighbor,
+        ambiguous_call_shapes, default_export_path, matching_resolutions, neighbor_head,
+        path_template, require_service_name,
     },
     git::{GitRepo, ensure_repository},
     pyright::PyrightError,
@@ -68,8 +69,8 @@ mod verify_command;
 use agent_dispatch::ConfiguredAgent;
 use artifacts_command::{ArtifactsCommand, artifacts};
 use federation_command::{
-    CliFederationResolver, attach_product_context, federation, federation_binary,
-    print_endpoint_trace, sync, trace,
+    CliFederationResolver, FederationCommand, attach_product_context, federation,
+    federation_binary, print_endpoint_trace, sync, trace,
 };
 use ingest_command::{IngestOptions, IngestScopeArg, ingest};
 use report_command::{ReportCommand, report};
@@ -380,14 +381,6 @@ enum ContextStoreCommand {
     Show,
 }
 
-#[derive(Debug, Subcommand)]
-enum FederationCommand {
-    /// List neighbor synchronization and staleness state.
-    List,
-    /// Show one neighbor's imported public contracts and local resolutions.
-    Show { name: String },
-}
-
 #[derive(Debug, Error)]
 enum CliError {
     #[error(transparent)]
@@ -458,6 +451,14 @@ enum CliError {
     FederationIdentityMismatch { name: String, exported: String },
     #[error("no synchronized data for neighbor '{0}'; run 'ctx sync' first")]
     NoFederationData(String),
+    #[error("'ctx federation resolve' requires a call shape, e.g. \"POST /v1/items\" (or --list)")]
+    FederationResolveMissingCall,
+    #[error(
+        "'{0}' is not a valid call shape; expected \"METHOD /path\", e.g. \"POST /v1/items\""
+    )]
+    FederationResolveInvalidCall(String),
+    #[error("'ctx federation resolve' requires exactly one of --neighbor <name> or --external")]
+    FederationResolveRequiresChoice,
     #[error(
         "ctx export requires an index at HEAD {head}; the current index is {indexed}. Run 'ctx index' first"
     )]

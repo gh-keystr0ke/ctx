@@ -31,6 +31,10 @@ const MIGRATIONS: &[(i64, &str)] = &[
         10,
         include_str!("../migrations/010_artifact_reconciliation.sql"),
     ),
+    (
+        11,
+        include_str!("../migrations/011_federation_call_overrides.sql"),
+    ),
 ];
 
 #[derive(Debug, Error)]

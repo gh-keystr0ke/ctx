@@ -60,6 +60,22 @@ ctx federation show billing  # that neighbor's imported documents, endpoints, re
 
 `stale` in `federation list` means the neighbor's own checkout has moved past the commit `ctx sync` last imported from it — run `ctx sync` again to catch up.
 
+## Resolving ambiguous matches
+
+Matching is by `(method, normalized path template)` only — a third-party host (Stripe, say) and a real registered neighbor can easily expose the same shape (`GET /health`, `POST /v1/items/{id}`). When `ctx sync` finds a call matching more than one neighbor, it never silently picks one:
+
+```
+Ambiguous: POST /v1/items matches billing, inventory -- run `ctx federation resolve "POST /v1/items" --neighbor <name>` (or --external) to disambiguate
+```
+
+```bash
+ctx federation resolve "POST /v1/items" --neighbor billing   # this call really is billing's
+ctx federation resolve "POST /v1/items" --external           # this call is a genuine third party, not any local neighbor
+ctx federation resolve --list                                 # every decision recorded so far
+```
+
+The decision is recorded once, keyed by the `(method, path_template)` shape itself (not by any one neighbor's synchronized snapshot), so it survives every later `ctx sync` rather than being re-asked. Until it is recorded, `ctx trace` stops at that call and reports it as `AmbiguousMatch` (with the candidate neighbor names) rather than crossing into an arbitrary one; `--external` stops it as `KnownExternal` instead, distinct from the plain "never synced anything matching" `NoNeighborMatch`.
+
 ## Tracing a request across services
 
 ```bash

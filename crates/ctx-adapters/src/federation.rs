@@ -1,4 +1,5 @@
 use std::{
+    collections::{BTreeMap, BTreeSet},
     fs,
     path::{Path, PathBuf},
     process::Command,
@@ -500,6 +501,40 @@ pub fn matching_resolutions(
     matches
 }
 
+/// A human decision resolving one `(method, path_template)` call shape that
+/// matched more than one registered neighbor. `resolved_neighbor: None`
+/// means the shape was explicitly confirmed as not any local neighbor (a
+/// genuine third party, e.g. Stripe) rather than left unresolved.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct FederatedCallOverride {
+    pub method: HttpMethod,
+    pub path_template: String,
+    pub resolved_neighbor: Option<String>,
+    pub decided_by: String,
+    pub decided_at: String,
+}
+
+/// Groups `(neighbor_name, call)` matches by `(method, path_template)` shape
+/// and returns only the shapes matched by more than one distinct neighbor.
+/// Silently picking one of several structurally-matching neighbors would
+/// misattribute the call (a third-party host and a real neighbor can easily
+/// share a path like `/health` or `/v1/items/{id}`), so these stay
+/// unresolved until `ctx federation resolve` records a human decision.
+#[must_use]
+pub fn ambiguous_call_shapes(
+    all_neighbor_matches: &[(String, ExternalCallContract)],
+) -> BTreeMap<(HttpMethod, String), BTreeSet<String>> {
+    let mut grouped = BTreeMap::<(HttpMethod, String), BTreeSet<String>>::new();
+    for (neighbor, call) in all_neighbor_matches {
+        grouped
+            .entry((call.method, call.path_template.clone()))
+            .or_default()
+            .insert(neighbor.clone());
+    }
+    grouped.retain(|_, neighbors| neighbors.len() > 1);
+    grouped
+}
+
 fn canonical_neighbor(root: &Path, requested: &Path) -> Result<PathBuf, FederationError> {
     let path = if requested.is_absolute() {
         requested.to_path_buf()
@@ -539,6 +574,44 @@ mod tests {
             Some("/subscriptions/{param}".to_owned())
         );
         assert_eq!(path_template("dynamic_url"), None);
+    }
+
+    fn contract(path_template: &str) -> ExternalCallContract {
+        ExternalCallContract {
+            stable_key: format!("external:{path_template}"),
+            handler: "caller.charge".to_owned(),
+            method: HttpMethod::Post,
+            url: format!("https://example{path_template}"),
+            path_template: path_template.to_owned(),
+        }
+    }
+
+    #[test]
+    fn a_shape_matched_by_one_neighbor_is_not_ambiguous() {
+        let matches = vec![("billing".to_owned(), contract("/v1/items"))];
+        assert!(ambiguous_call_shapes(&matches).is_empty());
+    }
+
+    #[test]
+    fn a_shape_matched_by_two_distinct_neighbors_is_ambiguous() {
+        let matches = vec![
+            ("billing".to_owned(), contract("/v1/items")),
+            ("inventory".to_owned(), contract("/v1/items")),
+        ];
+        let ambiguous = ambiguous_call_shapes(&matches);
+        assert_eq!(
+            ambiguous.get(&(HttpMethod::Post, "/v1/items".to_owned())),
+            Some(&BTreeSet::from(["billing".to_owned(), "inventory".to_owned()]))
+        );
+    }
+
+    #[test]
+    fn the_same_neighbor_matching_twice_is_not_ambiguous() {
+        let matches = vec![
+            ("billing".to_owned(), contract("/v1/items")),
+            ("billing".to_owned(), contract("/v1/items")),
+        ];
+        assert!(ambiguous_call_shapes(&matches).is_empty());
     }
 
     #[test]

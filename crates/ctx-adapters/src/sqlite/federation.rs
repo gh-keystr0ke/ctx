@@ -1,9 +1,10 @@
 use ctx_app::ports::PortError;
+use ctx_core::ir::HttpMethod;
 use rusqlite::{OptionalExtension, params};
 
 use crate::federation::{
-    ExportManifest, ExportedDocument, ExportedEndpoint, FederatedRepositoryData,
-    FederatedResolution, FederationSyncState,
+    ExportManifest, ExportedDocument, ExportedEndpoint, FederatedCallOverride,
+    FederatedRepositoryData, FederatedResolution, FederationSyncState,
 };
 
 use super::SqliteStore;
@@ -220,6 +221,124 @@ impl SqliteStore {
         rows.collect::<Result<Vec<_>, _>>().map_err(database_error)
     }
 
+    /// Records (or replaces) the human decision for one ambiguous
+    /// `(method, path_template)` call shape. `resolved_neighbor: None`
+    /// records an explicit "not any local neighbor" decision, distinct from
+    /// no decision existing at all. Never touched by
+    /// [`Self::replace_federated_repository`]'s per-neighbor wipe, so this
+    /// survives every later `ctx sync`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the database write fails.
+    pub fn set_federated_call_override(
+        &mut self,
+        method: HttpMethod,
+        path_template: &str,
+        resolved_neighbor: Option<&str>,
+        decided_by: &str,
+        decided_at: &str,
+    ) -> Result<(), PortError> {
+        self.connection
+            .execute(
+                "INSERT INTO federated_call_overrides(
+                    method, path_template, resolved_neighbor, decided_by, decided_at
+                 ) VALUES (?1, ?2, ?3, ?4, ?5)
+                 ON CONFLICT(method, path_template) DO UPDATE SET
+                    resolved_neighbor = excluded.resolved_neighbor,
+                    decided_by = excluded.decided_by,
+                    decided_at = excluded.decided_at",
+                params![
+                    serialize(&method)?,
+                    path_template,
+                    resolved_neighbor,
+                    decided_by,
+                    decided_at
+                ],
+            )
+            .map_err(database_error)?;
+        Ok(())
+    }
+
+    /// The recorded human decision for one `(method, path_template)` call
+    /// shape, if any.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the database read or stored JSON is invalid.
+    pub fn federated_call_override(
+        &self,
+        method: HttpMethod,
+        path_template: &str,
+    ) -> Result<Option<FederatedCallOverride>, PortError> {
+        self.connection
+            .query_row(
+                "SELECT resolved_neighbor, decided_by, decided_at
+                 FROM federated_call_overrides
+                 WHERE method = ?1 AND path_template = ?2",
+                params![serialize(&method)?, path_template],
+                |row| {
+                    Ok((
+                        row.get::<_, Option<String>>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                    ))
+                },
+            )
+            .optional()
+            .map_err(database_error)?
+            .map(|(resolved_neighbor, decided_by, decided_at)| {
+                Ok(FederatedCallOverride {
+                    method,
+                    path_template: path_template.to_owned(),
+                    resolved_neighbor,
+                    decided_by,
+                    decided_at,
+                })
+            })
+            .transpose()
+    }
+
+    /// Lists every recorded call-shape override, for `ctx federation
+    /// resolve --list`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the database read or stored JSON is invalid.
+    pub fn list_federated_call_overrides(&self) -> Result<Vec<FederatedCallOverride>, PortError> {
+        let mut statement = self
+            .connection
+            .prepare(
+                "SELECT method, path_template, resolved_neighbor, decided_by, decided_at
+                 FROM federated_call_overrides ORDER BY path_template, method",
+            )
+            .map_err(database_error)?;
+        let rows = statement
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, Option<String>>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, String>(4)?,
+                ))
+            })
+            .map_err(database_error)?;
+        let mut overrides = Vec::new();
+        for row in rows {
+            let (method, path_template, resolved_neighbor, decided_by, decided_at) =
+                row.map_err(database_error)?;
+            overrides.push(FederatedCallOverride {
+                method: deserialize(&method)?,
+                path_template,
+                resolved_neighbor,
+                decided_by,
+                decided_at,
+            });
+        }
+        Ok(overrides)
+    }
+
     /// Removes one neighbor's isolated cached data without touching local graph tables.
     ///
     /// # Errors
@@ -356,5 +475,88 @@ mod tests {
             .query_row("SELECT COUNT(*) FROM nodes", [], |row| row.get(0))
             .expect("local node count");
         assert_eq!(local_nodes, 0);
+    }
+
+    #[test]
+    fn call_overrides_round_trip_and_survive_unrelated_neighbor_replacement() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let mut store = SqliteStore::open(&directory.path().join("ctx.db"), directory.path())
+            .expect("database");
+
+        assert_eq!(
+            store
+                .federated_call_override(HttpMethod::Post, "/v1/items")
+                .expect("lookup"),
+            None
+        );
+
+        store
+            .set_federated_call_override(
+                HttpMethod::Post,
+                "/v1/items",
+                Some("billing"),
+                "alice",
+                "2026-09-06T00:00:00Z",
+            )
+            .expect("record override");
+
+        let loaded = store
+            .federated_call_override(HttpMethod::Post, "/v1/items")
+            .expect("lookup")
+            .expect("override recorded");
+        assert_eq!(loaded.resolved_neighbor.as_deref(), Some("billing"));
+        assert_eq!(loaded.decided_by, "alice");
+
+        // Replacing an unrelated neighbor's snapshot must never touch the
+        // override -- it is keyed by call shape, not by source_repo, and
+        // must outlive every later `ctx sync`.
+        let manifest = ExportManifest::new(
+            "inventory".to_owned(),
+            "inventory-commit".to_owned(),
+            Vec::new(),
+            Vec::new(),
+        );
+        let state = FederationSyncState {
+            source_repo: "inventory".to_owned(),
+            source_path: "/work/inventory".to_owned(),
+            source_commit: "inventory-commit".to_owned(),
+            synced_at: "2026-09-06T00:00:01Z".to_owned(),
+            schema_version: FEDERATION_SCHEMA_VERSION,
+        };
+        store
+            .replace_federated_repository(&state, &manifest, &[])
+            .expect("replace unrelated neighbor");
+
+        let still_there = store
+            .federated_call_override(HttpMethod::Post, "/v1/items")
+            .expect("lookup")
+            .expect("override survives");
+        assert_eq!(still_there.resolved_neighbor.as_deref(), Some("billing"));
+
+        // Re-recording the same shape replaces the prior decision rather
+        // than erroring or duplicating.
+        store
+            .set_federated_call_override(
+                HttpMethod::Post,
+                "/v1/items",
+                None,
+                "bob",
+                "2026-09-06T00:00:02Z",
+            )
+            .expect("overwrite decision");
+        let overwritten = store
+            .federated_call_override(HttpMethod::Post, "/v1/items")
+            .expect("lookup")
+            .expect("override still recorded");
+        assert_eq!(overwritten.resolved_neighbor, None);
+        assert_eq!(overwritten.decided_by, "bob");
+
+        assert_eq!(
+            store
+                .list_federated_call_overrides()
+                .expect("list overrides")
+                .len(),
+            1
+        );
     }
 }

@@ -1,13 +1,45 @@
+use clap::Subcommand;
+
 use super::{
     ApiParam, BTreeMap, BTreeSet, CallResolution, Cli, CliError, Deserialize, EndpointTrace,
     ExportManifest, ExportedDocument, ExportedEndpoint, ExternalCallContract,
-    FEDERATION_SCHEMA_VERSION, FederatedRepositoryData, FederationCommand, FederationError,
-    FederationSyncState, GitRepo, GitRepository, GraphStore, LocalCall, NeighborRegistry,
-    ParamSource, Path, PathBuf, PlannedNodeAttributes, ProcessCommand, RegistryNeighbor,
-    RelationKind, Serialize, SqliteStore, TerminalReason, TraceBudget, TraceResolver, Utc,
-    VisitedKey, database_path, env, json, matching_resolutions, neighbor_head, parse_method_path,
+    FEDERATION_SCHEMA_VERSION, FederatedRepositoryData, FederationError, FederationSyncState,
+    GitRepo, GitRepository, GraphStore, LocalCall, NeighborRegistry, ParamSource, Path, PathBuf,
+    PlannedNodeAttributes, ProcessCommand, RegistryNeighbor, RelationKind, Serialize, SqliteStore,
+    TerminalReason, TraceBudget, TraceResolver, Utc, VisitedKey, ambiguous_call_shapes,
+    database_path, env, json, matching_resolutions, neighbor_head, parse_method_path,
     path_template, require_service_name, resolve_endpoint_seeds, short_oid, trace_endpoint,
 };
+use ctx_core::ir::HttpMethod;
+
+#[derive(Debug, Subcommand)]
+pub enum FederationCommand {
+    /// List neighbor synchronization and staleness state.
+    List,
+    /// Show one neighbor's imported public contracts and local resolutions.
+    Show { name: String },
+    /// Record a human decision for one `(method, path_template)` call shape
+    /// that `ctx sync` reported as ambiguous (matched by more than one
+    /// registered neighbor). Persists independently of any single
+    /// neighbor's synchronized snapshot, so it is never re-asked by a later
+    /// `ctx sync`.
+    Resolve {
+        /// The ambiguous shape, exactly as `ctx sync` printed it, e.g.
+        /// "POST /v1/items". Required unless `--list`.
+        call: Option<String>,
+        /// Which registered neighbor this call actually targets.
+        #[arg(long, conflicts_with = "external")]
+        neighbor: Option<String>,
+        /// Record that this call shape is not any registered neighbor (a
+        /// genuine third party).
+        #[arg(long, conflicts_with = "neighbor")]
+        external: bool,
+        /// List every previously recorded decision instead of recording a
+        /// new one.
+        #[arg(long, conflicts_with_all = ["neighbor", "external"])]
+        list: bool,
+    },
+}
 
 #[derive(Serialize)]
 struct NeighborSyncSuccess {
@@ -26,11 +58,22 @@ struct NeighborSyncFailure {
     error: String,
 }
 
+/// One `(method, path_template)` call shape matched by more than one
+/// registered neighbor during this sync, with no recorded human decision --
+/// `ctx federation resolve` disambiguates it.
+#[derive(Serialize)]
+struct AmbiguousCall {
+    method: HttpMethod,
+    path_template: String,
+    candidate_neighbors: Vec<String>,
+}
+
 #[derive(Serialize)]
 struct SyncReport {
     synced: Vec<NeighborSyncSuccess>,
     errors: Vec<NeighborSyncFailure>,
     unresolved_calls: Vec<ExternalCallContract>,
+    ambiguous_calls: Vec<AmbiguousCall>,
 }
 
 pub(super) fn sync(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
@@ -65,17 +108,44 @@ pub(super) fn sync(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
             }),
         }
     }
-    let all_endpoints = registry
+    let all_repo_data = registry
         .neighbors
         .iter()
         .filter_map(|neighbor| store.federated_repository(&neighbor.name).ok())
-        .flat_map(|data| data.endpoints)
+        .collect::<Vec<_>>();
+    let all_endpoints = all_repo_data
+        .iter()
+        .flat_map(|data| data.endpoints.clone())
         .collect::<Vec<_>>();
     let unresolved_calls = unresolved_calls(&calls, &all_endpoints);
+    let all_matches = all_repo_data
+        .iter()
+        .flat_map(|data| {
+            data.resolutions
+                .iter()
+                .map(|resolution| (resolution.source_repo.clone(), resolution.call.clone()))
+        })
+        .collect::<Vec<_>>();
+    let mut ambiguous_calls = Vec::new();
+    for ((method, path_template), neighbors) in ambiguous_call_shapes(&all_matches) {
+        let already_decided = store
+            .federated_call_override(method, &path_template)
+            .ok()
+            .flatten()
+            .is_some();
+        if !already_decided {
+            ambiguous_calls.push(AmbiguousCall {
+                method,
+                path_template,
+                candidate_neighbors: neighbors.into_iter().collect(),
+            });
+        }
+    }
     let report = SyncReport {
         synced: successes,
         errors: failures,
         unresolved_calls,
+        ambiguous_calls,
     };
     print_sync_report(cli, &report)?;
     Ok(())
@@ -157,6 +227,16 @@ fn print_sync_report(cli: &Cli, report: &SyncReport) -> Result<(), CliError> {
                 call.method.as_str(),
                 call.path_template,
                 call.handler
+            );
+        }
+        for ambiguous in &report.ambiguous_calls {
+            println!(
+                "Ambiguous: {} {} matches {} -- run `ctx federation resolve \"{} {}\" --neighbor <name>` (or --external) to disambiguate",
+                ambiguous.method.as_str(),
+                ambiguous.path_template,
+                ambiguous.candidate_neighbors.join(", "),
+                ambiguous.method.as_str(),
+                ambiguous.path_template
             );
         }
     }
@@ -264,11 +344,75 @@ pub(super) fn federation(
 ) -> Result<(), CliError> {
     let registry = NeighborRegistry::load(git.root())?;
     let database_path = database_path(git.root())?;
-    let store = SqliteStore::open(&database_path, git.context_root())?;
+    let mut store = SqliteStore::open(&database_path, git.context_root())?;
     match command {
         FederationCommand::List => federation_list(cli, &registry, &store),
         FederationCommand::Show { name } => federation_show(cli, git, &registry, &store, name),
+        FederationCommand::Resolve {
+            call,
+            neighbor,
+            external,
+            list,
+        } => federation_resolve(cli, &mut store, call.as_deref(), neighbor.as_deref(), *external, *list),
     }
+}
+
+fn federation_resolve(
+    cli: &Cli,
+    store: &mut SqliteStore,
+    call: Option<&str>,
+    neighbor: Option<&str>,
+    external: bool,
+    list: bool,
+) -> Result<(), CliError> {
+    if list {
+        let overrides = store.list_federated_call_overrides()?;
+        if cli.json {
+            println!("{}", serde_json::to_string_pretty(&overrides)?);
+        } else if overrides.is_empty() {
+            println!("No call-shape decisions recorded.");
+        } else {
+            println!("METHOD\tPATH\tRESOLVED_NEIGHBOR\tDECIDED_BY\tDECIDED_AT");
+            for entry in &overrides {
+                println!(
+                    "{}\t{}\t{}\t{}\t{}",
+                    entry.method.as_str(),
+                    entry.path_template,
+                    entry.resolved_neighbor.as_deref().unwrap_or("(external)"),
+                    entry.decided_by,
+                    entry.decided_at
+                );
+            }
+        }
+        return Ok(());
+    }
+    let Some(call) = call else {
+        return Err(CliError::FederationResolveMissingCall);
+    };
+    let Some((method, path_template)) = parse_method_path(call) else {
+        return Err(CliError::FederationResolveInvalidCall(call.to_owned()));
+    };
+    let resolved_neighbor = match (neighbor, external) {
+        (Some(name), false) => Some(name),
+        (None, true) => None,
+        _ => return Err(CliError::FederationResolveRequiresChoice),
+    };
+    let decided_by = env::var("USER").unwrap_or_else(|_| "local-user".to_owned());
+    let decided_at = Utc::now().to_rfc3339();
+    store.set_federated_call_override(
+        method,
+        &path_template,
+        resolved_neighbor,
+        &decided_by,
+        &decided_at,
+    )?;
+    println!(
+        "Recorded: {} {} -> {}",
+        method.as_str(),
+        path_template,
+        resolved_neighbor.unwrap_or("(external, not any local neighbor)")
+    );
+    Ok(())
 }
 
 fn federation_list(
@@ -490,32 +634,67 @@ impl TraceResolver for CliFederationResolver<'_> {
         let Some(call_template) = path_template(&call.url) else {
             return CallResolution::Unresolved(TerminalReason::NoNeighborMatch);
         };
+        let mut matches = Vec::new();
         for neighbor in &self.registry.neighbors {
             let Ok(data) = self.store.federated_repository(&neighbor.name) else {
                 continue;
             };
-            let Some(state) = &data.state else {
+            let Some(state) = data.state.clone() else {
                 continue;
             };
-            let Some(endpoint) = data.endpoints.iter().find(|endpoint| {
-                endpoint.method == call.method
-                    && path_template(&endpoint.path).as_deref() == Some(call_template.as_str())
-            }) else {
+            let Some(endpoint) = data
+                .endpoints
+                .iter()
+                .find(|endpoint| {
+                    endpoint.method == call.method
+                        && path_template(&endpoint.path).as_deref() == Some(call_template.as_str())
+                })
+                .cloned()
+            else {
                 continue;
             };
-            let Some(current_head) = neighbor_head(Path::new(&neighbor.path)) else {
-                return CallResolution::Unresolved(TerminalReason::NeighborUnavailable {
-                    service: neighbor.name.clone(),
-                });
-            };
-            if current_head != state.source_commit {
-                return CallResolution::Unresolved(TerminalReason::NeighborStale {
-                    service: neighbor.name.clone(),
-                });
-            }
-            return self.cross(neighbor, endpoint, budget, visited);
+            matches.push((neighbor, state, endpoint));
         }
-        CallResolution::Unresolved(TerminalReason::NoNeighborMatch)
+        if matches.is_empty() {
+            return CallResolution::Unresolved(TerminalReason::NoNeighborMatch);
+        }
+        let chosen = if matches.len() == 1 {
+            matches.into_iter().next()
+        } else {
+            let override_ = self
+                .store
+                .federated_call_override(call.method, &call_template)
+                .ok()
+                .flatten();
+            let Some(override_) = override_ else {
+                let candidates = matches
+                    .iter()
+                    .map(|(neighbor, _, _)| neighbor.name.clone())
+                    .collect();
+                return CallResolution::Unresolved(TerminalReason::AmbiguousMatch { candidates });
+            };
+            let Some(name) = override_.resolved_neighbor else {
+                return CallResolution::Unresolved(TerminalReason::KnownExternal);
+            };
+            matches
+                .into_iter()
+                .find(|(neighbor, _, _)| neighbor.name == name)
+        };
+        let Some((neighbor, state, endpoint)) = chosen else {
+            // An override named a neighbor no longer registered.
+            return CallResolution::Unresolved(TerminalReason::NoNeighborMatch);
+        };
+        let Some(current_head) = neighbor_head(Path::new(&neighbor.path)) else {
+            return CallResolution::Unresolved(TerminalReason::NeighborUnavailable {
+                service: neighbor.name.clone(),
+            });
+        };
+        if current_head != state.source_commit {
+            return CallResolution::Unresolved(TerminalReason::NeighborStale {
+                service: neighbor.name.clone(),
+            });
+        }
+        self.cross(neighbor, &endpoint, budget, visited)
     }
 }
 
@@ -777,6 +956,14 @@ fn describe_terminal(reason: &TerminalReason) -> String {
         }
         TerminalReason::BranchCapReached => {
             format!("reached the {}-branch limit", ctx_core::trace::MAX_BRANCHES)
+        }
+        TerminalReason::AmbiguousMatch { candidates } => format!(
+            "matches more than one registered neighbor ({}); run `ctx federation resolve` to disambiguate",
+            candidates.join(", ")
+        ),
+        TerminalReason::KnownExternal => {
+            "explicitly recorded as not any local neighbor (ctx federation resolve --external)"
+                .to_owned()
         }
     }
 }

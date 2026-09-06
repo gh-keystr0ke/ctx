@@ -87,6 +87,15 @@ pub enum TerminalReason {
     NodeCapReached,
     /// The trace has already used its full `MAX_BRANCHES` budget.
     BranchCapReached,
+    /// This call's `(method, path)` shape structurally matches endpoints
+    /// exported by more than one registered neighbor, and no human decision
+    /// (`ctx federation resolve`) picks one -- crossing into an arbitrary
+    /// one would misattribute the call.
+    AmbiguousMatch { candidates: Vec<String> },
+    /// A human explicitly recorded (`ctx federation resolve --external`)
+    /// that this call's shape is not any registered neighbor -- distinct
+    /// from [`Self::NoNeighborMatch`], which means this was never decided.
+    KnownExternal,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

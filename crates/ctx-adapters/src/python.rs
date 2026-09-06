@@ -839,7 +839,10 @@ fn visit_external_calls(
 /// HTTP-client constructor, whether reached by plain assignment
 /// (`name = httpx.Client()`) or a `with ... as name:` context manager.
 fn register_http_binding(bindings: &mut PythonBindings, name: &str, callee: &str) {
-    if matches!(callee, "httpx.Client" | "httpx.AsyncClient" | "aiohttp.ClientSession") {
+    if matches!(
+        callee,
+        "httpx.Client" | "httpx.AsyncClient" | "aiohttp.ClientSession"
+    ) {
         bindings.http_client_bindings.insert(name.to_owned());
     }
     if matches!(
@@ -994,7 +997,9 @@ fn normalize_path_segments(path: &str) -> Option<String> {
         let field = &remaining[open + 1..close];
         let next = remaining.as_bytes().get(close + 1).copied();
         let previous = remaining.as_bytes().get(open.wrapping_sub(1)).copied();
-        if previous != Some(b'/') || !matches!(next, None | Some(b'/' | b'?' | b'#')) || field.contains(['!', ':'])
+        if previous != Some(b'/')
+            || !matches!(next, None | Some(b'/' | b'?' | b'#'))
+            || field.contains(['!', ':'])
         {
             return None;
         }

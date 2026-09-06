@@ -353,7 +353,14 @@ pub(super) fn federation(
             neighbor,
             external,
             list,
-        } => federation_resolve(cli, &mut store, call.as_deref(), neighbor.as_deref(), *external, *list),
+        } => federation_resolve(
+            cli,
+            &mut store,
+            call.as_deref(),
+            neighbor.as_deref(),
+            *external,
+            *list,
+        ),
     }
 }
 

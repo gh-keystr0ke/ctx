@@ -601,7 +601,10 @@ mod tests {
         let ambiguous = ambiguous_call_shapes(&matches);
         assert_eq!(
             ambiguous.get(&(HttpMethod::Post, "/v1/items".to_owned())),
-            Some(&BTreeSet::from(["billing".to_owned(), "inventory".to_owned()]))
+            Some(&BTreeSet::from([
+                "billing".to_owned(),
+                "inventory".to_owned()
+            ]))
         );
     }
 

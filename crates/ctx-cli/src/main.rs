@@ -14,10 +14,9 @@ use ctx_adapters::{
     context_registry,
     federation::{
         ExportManifest, ExportedDocument, ExportedEndpoint, ExternalCallContract,
-        FEDERATION_SCHEMA_VERSION, FederatedRepositoryData,
-        FederationError, FederationSyncState, NeighborRegistry, RegistryNeighbor,
-        ambiguous_call_shapes, default_export_path, matching_resolutions, neighbor_head,
-        path_template, require_service_name,
+        FEDERATION_SCHEMA_VERSION, FederatedRepositoryData, FederationError, FederationSyncState,
+        NeighborRegistry, RegistryNeighbor, ambiguous_call_shapes, default_export_path,
+        matching_resolutions, neighbor_head, path_template, require_service_name,
     },
     git::{GitRepo, ensure_repository},
     pyright::PyrightError,
@@ -453,9 +452,7 @@ enum CliError {
     NoFederationData(String),
     #[error("'ctx federation resolve' requires a call shape, e.g. \"POST /v1/items\" (or --list)")]
     FederationResolveMissingCall,
-    #[error(
-        "'{0}' is not a valid call shape; expected \"METHOD /path\", e.g. \"POST /v1/items\""
-    )]
+    #[error("'{0}' is not a valid call shape; expected \"METHOD /path\", e.g. \"POST /v1/items\"")]
     FederationResolveInvalidCall(String),
     #[error("'ctx federation resolve' requires exactly one of --neighbor <name> or --external")]
     FederationResolveRequiresChoice,

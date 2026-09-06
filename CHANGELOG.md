@@ -4,6 +4,17 @@ All notable changes to `ctx` are documented here. The project follows semantic v
 
 ## Unreleased
 
+## 0.8.2 — 2026-09-06
+
+### Added
+
+- Python outbound HTTP facts now retain statically provable request-body and response-field names, recognize configuration-injected opaque host expressions without evaluating them, and cover `aiohttp.ClientSession`, `urllib3.PoolManager`, and `http.client` connection call shapes alongside `requests` and `httpx`.
+- Federation synchronization now reports call shapes matched by multiple neighbors, while `ctx federation resolve "METHOD /path" --neighbor <name>` and `--external` persist a human disambiguation decision for subsequent traces and synchronization runs.
+
+### Fixed
+
+- GitHub Actions failure annotations now bound and encode captured test output so long failure tails stay within GitHub's annotation-size limit.
+
 ## 0.8.1 — 2026-09-05
 
 ### Added

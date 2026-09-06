@@ -126,12 +126,37 @@ pub struct ApiEndpoint {
 
 /// One statically recognizable outbound HTTP request. `url` may be a full
 /// literal URL or a normalized template whose dynamic path segment is
-/// represented as `{param}`; a wholly dynamic URL never reaches this IR.
+/// represented as `{param}`; a wholly dynamic URL never reaches this IR
+/// unless its authority resolves via `host_expr` below.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ExternalCall {
     pub method: HttpMethod,
     pub url: String,
     pub range: SourceRange,
+    /// Raw source text of an unresolved authority expression (for example
+    /// `self._host`), when the call's URL is built from a single opaque
+    /// dotted-identifier prefix followed by a literal path (`url` then holds
+    /// only that literal path). `None` means the whole URL in `url` is
+    /// already fully known. This is never evaluated to a runtime value —
+    /// only its source text is kept, for evidence and stable-key
+    /// disambiguation between different unresolved authorities that
+    /// happen to route to the same path.
+    #[serde(default)]
+    pub host_expr: Option<String>,
+    /// Field names statically named by a request-body dict literal passed
+    /// directly at the call site (for example `json={"a": 1}`). Empty means
+    /// the body's field-level detail is unknown, not that it sends zero
+    /// fields — a non-literal body, or a literal with a non-string-literal
+    /// key, never populates this rather than guess.
+    #[serde(default)]
+    pub request_fields: Vec<String>,
+    /// Field names statically read from the response, either chained
+    /// directly off the call (`...post(...).json()["field"]`) or through
+    /// exactly one local variable assigned directly from the call and never
+    /// reassigned before the read, within the same function. Empty means
+    /// unknown, not that no fields are read.
+    #[serde(default)]
+    pub response_fields: Vec<String>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]

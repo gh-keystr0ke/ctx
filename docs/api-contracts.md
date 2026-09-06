@@ -38,6 +38,13 @@ requests.delete(dynamic_url)
 
 The first three are recognized, with the interpolated segment normalized to `{param}` the same way a path parameter is. `requests.delete(dynamic_url)` — a call whose URL is a bare variable with no static template at all — produces no fact.
 
+```python
+resp = requests.post("https://billing.internal/events", json={"kind": "renewed", "amount": amount})
+status = resp.json()["status"]
+```
+
+`request_fields` becomes `["kind", "amount"]` (both keys are string literals in a dict literal passed directly as `json=`) and `response_fields` becomes `["status"]` (read through `resp`, which is assigned directly from the call and never reassigned before the read, in the same function). Passing the body as a variable (`json=payload`) or reading the response through a second function leaves the respective list empty rather than guessing.
+
 ## OpenAPI specifications
 
 Conventional `openapi.yaml`, `openapi.yml`, and `openapi.json` files are discovered automatically during `ctx index` regardless of configured `languages` or source include paths — normal excludes still apply. Every OpenAPI 3.0/3.1 path operation for `GET`/`POST`/`PUT`/`DELETE`/`PATCH`/`HEAD`/`OPTIONS`/`TRACE` becomes its own `ApiEndpoint`, retaining `operationId`, summary/description, deprecation, tags, effective security and servers, path/query/header/cookie parameters, request-body content and schema, and response content/schema metadata; local `$ref` values are followed. An invalid or unsupported specification (not OpenAPI 3.x, missing `paths`) is reported as a failed file with an explicit reason, never partially parsed.

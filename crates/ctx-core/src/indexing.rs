@@ -1603,6 +1603,9 @@ mod tests {
             method: crate::ir::HttpMethod::Post,
             url: "https://audit.internal/events".to_owned(),
             range: range(),
+            host_expr: None,
+            request_fields: Vec::new(),
+            response_fields: Vec::new(),
         });
         let analyses = BTreeMap::from([(
             "billing.py".to_owned(),

@@ -76,7 +76,7 @@ impl PythonAnalyzer {
         Ok(FileAnalysis {
             path: relative_path.to_owned(),
             language: "python".to_owned(),
-            analysis_version: "python-tree-sitter-v5".to_owned(),
+            analysis_version: "python-tree-sitter-v6".to_owned(),
             content_hash: blake3::hash(source.as_bytes()).to_hex().to_string(),
             symbols,
         })
@@ -269,7 +269,7 @@ fn type_position(source: &str, byte: usize, row: usize) -> TypePosition {
 
 impl LanguageAnalyzer for PythonAnalyzer {
     fn analysis_version(&self, _relative_path: &str) -> Result<String, PortError> {
-        Ok("python-tree-sitter-v5".to_owned())
+        Ok("python-tree-sitter-v6".to_owned())
     }
 
     fn analyze(&self, relative_path: &str) -> Result<FileAnalysis, PortError> {
@@ -769,6 +769,9 @@ fn visit_external_calls(
             method,
             url,
             range: source_range(node),
+            host_expr: None,
+            request_fields: request_body_fields(arguments, source),
+            response_fields: response_fields(node, source),
         });
     }
     if cursor.goto_first_child() {
@@ -854,6 +857,157 @@ fn normalize_dynamic_url(value: &str) -> Option<String> {
 
 fn is_absolute_http_url(value: &str) -> bool {
     value.starts_with("http://") || value.starts_with("https://")
+}
+
+/// Field names of a request body passed as a `json=`/`data=` keyword
+/// argument dict literal directly at the call site. Empty when the body is
+/// not a keyword argument, not a dict literal, or has any non-string-literal
+/// key -- never inspected past the call site itself.
+fn request_body_fields(arguments: Node<'_>, source: &[u8]) -> Vec<String> {
+    for name in ["json", "data"] {
+        if let Some(value) = keyword_argument(arguments, name, source) {
+            let fields = dictionary_string_keys(value, source);
+            if !fields.is_empty() {
+                return fields;
+            }
+        }
+    }
+    Vec::new()
+}
+
+/// Response field names statically read from an HTTP call: either chained
+/// directly off it (`...post(...).json()["field"]`), or through exactly one
+/// local variable assigned directly from the call and never reassigned
+/// before the read, within the same function. Empty when neither shape
+/// matches -- never traced through more than this one local hop.
+fn response_fields(call: Node<'_>, source: &[u8]) -> Vec<String> {
+    if let Some(field) = json_subscript_key(call, source) {
+        return vec![field];
+    }
+    let Some(assignment) = call.parent().filter(|parent| {
+        parent.kind() == "assignment" && parent.child_by_field_name("right") == Some(call)
+    }) else {
+        return Vec::new();
+    };
+    let Some(target) = assignment.child_by_field_name("left") else {
+        return Vec::new();
+    };
+    if target.kind() != "identifier" {
+        return Vec::new();
+    }
+    let Ok(name) = target.utf8_text(source) else {
+        return Vec::new();
+    };
+    let Some(body) = enclosing_function_body(assignment) else {
+        return Vec::new();
+    };
+    if is_rebound_elsewhere(body, name, assignment, source) {
+        return Vec::new();
+    }
+    let mut fields = Vec::new();
+    collect_identifier_json_reads(body, name, source, &mut fields);
+    fields.sort();
+    fields.dedup();
+    fields
+}
+
+/// `<node>.json()["key"]` chained directly off `node` -- one call, one
+/// attribute, one subscript, nothing more.
+fn json_subscript_key(node: Node<'_>, source: &[u8]) -> Option<String> {
+    let attribute = node.parent()?;
+    if attribute.kind() != "attribute" || attribute.child_by_field_name("object") != Some(node) {
+        return None;
+    }
+    let is_json = attribute
+        .child_by_field_name("attribute")
+        .and_then(|name| name.utf8_text(source).ok())
+        == Some("json");
+    if !is_json {
+        return None;
+    }
+    let outer_call = attribute.parent()?;
+    if outer_call.kind() != "call" || outer_call.child_by_field_name("function") != Some(attribute)
+    {
+        return None;
+    }
+    let subscript = outer_call.parent()?;
+    if subscript.kind() != "subscript" || subscript.child_by_field_name("value") != Some(outer_call)
+    {
+        return None;
+    }
+    let key = subscript.child_by_field_name("subscript")?;
+    if key.kind() != "string" {
+        return None;
+    }
+    static_string_content(key.utf8_text(source).ok()?)
+}
+
+fn enclosing_function_body(node: Node<'_>) -> Option<Node<'_>> {
+    let mut current = node.parent();
+    while let Some(candidate) = current {
+        if candidate.kind() == "function_definition" {
+            return candidate.child_by_field_name("body");
+        }
+        current = candidate.parent();
+    }
+    None
+}
+
+/// Whether `name` is bound to anything else within `scope` (an assignment,
+/// augmented assignment, `for` target, or `as`-pattern target other than
+/// `exclude`), stopping at any nested function/class boundary -- a binding
+/// inside a closure is a distinct local, not a rebinding of this one.
+fn is_rebound_elsewhere(scope: Node<'_>, name: &str, exclude: Node<'_>, source: &[u8]) -> bool {
+    fn walk(node: Node<'_>, name: &str, exclude: Node<'_>, source: &[u8], root: bool) -> bool {
+        if !root && matches!(node.kind(), "function_definition" | "class_definition") {
+            return false;
+        }
+        let is_target = match node.kind() {
+            "assignment" | "augmented_assignment" => {
+                node.child_by_field_name("left").is_some_and(|left| {
+                    left.kind() == "identifier" && left.utf8_text(source) == Ok(name)
+                })
+            }
+            "for_statement" => node.child_by_field_name("left").is_some_and(|left| {
+                left.kind() == "identifier" && left.utf8_text(source) == Ok(name)
+            }),
+            "as_pattern_target" => node.utf8_text(source) == Ok(name),
+            _ => false,
+        };
+        if is_target && node != exclude {
+            return true;
+        }
+        let mut cursor = node.walk();
+        node.named_children(&mut cursor)
+            .any(|child| walk(child, name, exclude, source, false))
+    }
+    walk(scope, name, exclude, source, true)
+}
+
+/// Every `name.json()["key"]` read within `scope`, stopping at any nested
+/// function/class boundary.
+fn collect_identifier_json_reads(
+    scope: Node<'_>,
+    name: &str,
+    source: &[u8],
+    fields: &mut Vec<String>,
+) {
+    fn walk(node: Node<'_>, name: &str, source: &[u8], fields: &mut Vec<String>, root: bool) {
+        if !root && matches!(node.kind(), "function_definition" | "class_definition") {
+            return;
+        }
+        if node.kind() == "identifier"
+            && node.utf8_text(source) == Ok(name)
+            && let Some(field) = json_subscript_key(node, source)
+        {
+            fields.push(field);
+        }
+        let mut cursor = node.walk();
+        for child in node.named_children(&mut cursor) {
+            walk(child, name, source, fields, false);
+        }
+    }
+    walk(scope, name, source, fields, true);
 }
 
 fn collect_definitions(
@@ -1305,6 +1459,14 @@ fn values_columns(arguments: Node<'_>, source: &[u8]) -> Vec<String> {
     let [dictionary] = arguments.as_slice() else {
         return Vec::new();
     };
+    dictionary_string_keys(*dictionary, source)
+}
+
+/// String keys of a dict literal, when every entry is a plain `key: value`
+/// pair keyed by a static string literal. Empty for a non-dictionary node,
+/// or when any entry has a non-literal or non-string key — never a partial
+/// list, since a partial list would misrepresent which fields are known.
+fn dictionary_string_keys(dictionary: Node<'_>, source: &[u8]) -> Vec<String> {
     if dictionary.kind() != "dictionary" {
         return Vec::new();
     }
@@ -1756,7 +1918,7 @@ def access():
 "#;
         let analysis =
             PythonAnalyzer::analyze_source("src/app/service.py", source).expect("import aliases");
-        assert_eq!(analysis.analysis_version, "python-tree-sitter-v5");
+        assert_eq!(analysis.analysis_version, "python-tree-sitter-v6");
         let access = analysis
             .symbols
             .iter()
@@ -1965,6 +2127,90 @@ def notify(subscription_id, dynamic_url):
                 ),
             ]
         );
+    }
+
+    #[test]
+    fn extracts_request_fields_from_static_dict_literal_body() {
+        let source = r#"
+def notify():
+    requests.post("https://billing.internal/events", json={"kind": "renewed", "amount": 10})
+"#;
+        let analysis = PythonAnalyzer::analyze_source("src/caller.py", source).expect("caller");
+        let call = &analysis.symbols[0].external_calls[0];
+        assert_eq!(call.request_fields, vec!["kind", "amount"]);
+    }
+
+    #[test]
+    fn request_fields_stay_empty_for_non_literal_or_mixed_key_body() {
+        let source = r#"
+def notify(payload):
+    requests.post("https://billing.internal/events", json=payload)
+    requests.post("https://billing.internal/events", json={"kind": "renewed", 1: "x"})
+"#;
+        let analysis = PythonAnalyzer::analyze_source("src/caller.py", source).expect("caller");
+        for call in &analysis.symbols[0].external_calls {
+            assert!(call.request_fields.is_empty());
+        }
+    }
+
+    #[test]
+    fn extracts_response_fields_chained_directly_off_the_call() {
+        let source = r#"
+def notify():
+    requests.post("https://billing.internal/events").json()["status"]
+"#;
+        let analysis = PythonAnalyzer::analyze_source("src/caller.py", source).expect("caller");
+        let call = &analysis.symbols[0].external_calls[0];
+        assert_eq!(call.response_fields, vec!["status"]);
+    }
+
+    #[test]
+    fn extracts_response_fields_through_one_unreassigned_local_variable() {
+        let source = r#"
+def notify():
+    resp = requests.post("https://billing.internal/events")
+    status = resp.json()["status"]
+    reason = resp.json()["reason"]
+    return status, reason
+"#;
+        let analysis = PythonAnalyzer::analyze_source("src/caller.py", source).expect("caller");
+        let call = &analysis.symbols[0].external_calls[0];
+        assert_eq!(call.response_fields, vec!["reason", "status"]);
+    }
+
+    #[test]
+    fn response_fields_stay_empty_when_the_local_variable_is_reassigned() {
+        let source = r#"
+def notify():
+    resp = requests.post("https://billing.internal/events")
+    resp = other_call()
+    status = resp.json()["status"]
+"#;
+        let analysis = PythonAnalyzer::analyze_source("src/caller.py", source).expect("caller");
+        let call = &analysis.symbols[0].external_calls[0];
+        assert!(call.response_fields.is_empty());
+    }
+
+    #[test]
+    fn response_fields_stay_empty_when_the_local_variable_is_passed_elsewhere() {
+        let source = r#"
+def notify():
+    resp = requests.post("https://billing.internal/events")
+    handle(resp)
+"#;
+        let analysis = PythonAnalyzer::analyze_source("src/caller.py", source).expect("caller");
+        let call = &analysis.symbols[0].external_calls[0];
+        assert!(call.response_fields.is_empty());
+    }
+
+    #[test]
+    fn old_format_external_call_json_without_new_fields_still_deserializes() {
+        let old = r#"{"method":"post","url":"https://billing.internal/events","range":{"start_byte":0,"end_byte":1,"start_line":0,"end_line":0}}"#;
+        let call: ctx_core::ir::ExternalCall =
+            serde_json::from_str(old).expect("old-format ExternalCall still deserializes");
+        assert_eq!(call.host_expr, None);
+        assert!(call.request_fields.is_empty());
+        assert!(call.response_fields.is_empty());
     }
 
     #[test]

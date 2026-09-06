@@ -623,6 +623,9 @@ mod tests {
                     method,
                     url: url.to_owned(),
                     range: SourceRange::default(),
+                    host_expr: None,
+                    request_fields: Vec::new(),
+                    response_fields: Vec::new(),
                 },
             },
         }

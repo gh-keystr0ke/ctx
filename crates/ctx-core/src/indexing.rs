@@ -1282,8 +1282,16 @@ fn api_endpoint_identifier(endpoint: &ApiEndpoint) -> String {
     format!("{} {}", endpoint.method.as_str(), endpoint.path)
 }
 
+/// Identifies one distinct external call for grouping/versioning. Includes
+/// `host_expr` so two calls with an opaque, unresolved authority that
+/// happen to route to the same literal path (different clients, different
+/// config-injected hosts) are never conflated into one call -- `url` alone
+/// is only a unique target when the authority is fully known.
 fn external_call_identifier(call: &ExternalCall) -> String {
-    format!("{} {}", call.method.as_str(), call.url)
+    match &call.host_expr {
+        Some(host_expr) => format!("{} {} host={host_expr}", call.method.as_str(), call.url),
+        None => format!("{} {}", call.method.as_str(), call.url),
+    }
 }
 
 fn api_endpoint_key(endpoint: &ApiEndpoint) -> Result<StableKey, IndexPlanError> {
@@ -1295,12 +1303,18 @@ fn api_endpoint_key(endpoint: &ApiEndpoint) -> Result<StableKey, IndexPlanError>
     .map_err(|error| IndexPlanError::InvalidStableKey(error.to_string()))
 }
 
+/// Stable key for one external call's graph node. Qualified by `host_expr`
+/// for the same reason [`external_call_identifier`] is: an opaque authority
+/// only disambiguates calls by its source text, never by a resolved value.
 fn external_call_key(call: &ExternalCall) -> Result<StableKey, IndexPlanError> {
-    StableKey::new(format!(
-        "external_http:{}:{}",
-        call.method.as_str(),
-        call.url
-    ))
+    StableKey::new(match &call.host_expr {
+        Some(host_expr) => format!(
+            "external_http:{}:{}:host={host_expr}",
+            call.method.as_str(),
+            call.url
+        ),
+        None => format!("external_http:{}:{}", call.method.as_str(), call.url),
+    })
     .map_err(|error| IndexPlanError::InvalidStableKey(error.to_string()))
 }
 
@@ -1678,6 +1692,64 @@ mod tests {
                 .nodes_to_retire
                 .iter()
                 .any(|key| { key.as_str() == "external_http:POST:https://audit.internal/events" })
+        );
+    }
+
+    #[test]
+    fn external_calls_with_different_opaque_hosts_and_the_same_path_stay_distinct() {
+        let mut stripe = definition("charge", "clients.StripeClient.charge", "body-a", "shape-a");
+        stripe.external_calls.push(ExternalCall {
+            method: crate::ir::HttpMethod::Post,
+            url: "/v1/items".to_owned(),
+            range: range(),
+            host_expr: Some("self._stripe_host".to_owned()),
+            request_fields: Vec::new(),
+            response_fields: Vec::new(),
+        });
+        let mut inventory = definition(
+            "charge",
+            "clients.InventoryClient.charge",
+            "body-b",
+            "shape-b",
+        );
+        inventory.external_calls.push(ExternalCall {
+            method: crate::ir::HttpMethod::Post,
+            url: "/v1/items".to_owned(),
+            range: range(),
+            host_expr: Some("self._inventory_host".to_owned()),
+            request_fields: Vec::new(),
+            response_fields: Vec::new(),
+        });
+        let analyses = BTreeMap::from([(
+            "clients.py".to_owned(),
+            FileAnalysis {
+                path: "clients.py".to_owned(),
+                language: "python".to_owned(),
+                analysis_version: "python-tree-sitter-v7".to_owned(),
+                content_hash: "file".to_owned(),
+                symbols: vec![stripe, inventory],
+            },
+        )]);
+        let plan = plan_incremental_index(
+            &RepositorySnapshot::default(),
+            &analyses,
+            &[FileChange::Added {
+                path: "clients.py".to_owned(),
+            }],
+        )
+        .expect("plan");
+        let external_system_keys = plan
+            .nodes_to_write
+            .iter()
+            .filter(|node| node.kind == NodeKind::ExternalSystem)
+            .map(|node| node.stable_key.as_str())
+            .collect::<BTreeSet<_>>();
+        assert_eq!(
+            external_system_keys,
+            BTreeSet::from([
+                "external_http:POST:/v1/items:host=self._stripe_host",
+                "external_http:POST:/v1/items:host=self._inventory_host",
+            ])
         );
     }
 

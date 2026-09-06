@@ -45,6 +45,17 @@ status = resp.json()["status"]
 
 `request_fields` becomes `["kind", "amount"]` (both keys are string literals in a dict literal passed directly as `json=`) and `response_fields` becomes `["status"]` (read through `resp`, which is assigned directly from the call and never reassigned before the read, in the same function). Passing the body as a variable (`json=payload`) or reading the response through a second function leaves the respective list empty rather than guessing.
 
+```python
+class StripeClient:
+    def __init__(self, host):
+        self._host = host  # injected via config/environment, not a literal
+
+    def charge(self):
+        requests.post(f"{self._host}/v1/charges")
+```
+
+`self._host` is never resolved to a value — it can't be, since it only exists at runtime — but the call is still recognized: `url` becomes `/v1/charges` and `host_expr` becomes `"self._host"`. A more complex prefix (`self._build_host()`, `self._host + suffix`) produces no fact, matching the rule against guessing from a dynamic expression.
+
 ## OpenAPI specifications
 
 Conventional `openapi.yaml`, `openapi.yml`, and `openapi.json` files are discovered automatically during `ctx index` regardless of configured `languages` or source include paths — normal excludes still apply. Every OpenAPI 3.0/3.1 path operation for `GET`/`POST`/`PUT`/`DELETE`/`PATCH`/`HEAD`/`OPTIONS`/`TRACE` becomes its own `ApiEndpoint`, retaining `operationId`, summary/description, deprecation, tags, effective security and servers, path/query/header/cookie parameters, request-body content and schema, and response content/schema metadata; local `$ref` values are followed. An invalid or unsupported specification (not OpenAPI 3.x, missing `paths`) is reported as a failed file with an explicit reason, never partially parsed.

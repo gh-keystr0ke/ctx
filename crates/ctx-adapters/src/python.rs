@@ -76,7 +76,7 @@ impl PythonAnalyzer {
         Ok(FileAnalysis {
             path: relative_path.to_owned(),
             language: "python".to_owned(),
-            analysis_version: "python-tree-sitter-v6".to_owned(),
+            analysis_version: "python-tree-sitter-v7".to_owned(),
             content_hash: blake3::hash(source.as_bytes()).to_hex().to_string(),
             symbols,
         })
@@ -269,7 +269,7 @@ fn type_position(source: &str, byte: usize, row: usize) -> TypePosition {
 
 impl LanguageAnalyzer for PythonAnalyzer {
     fn analysis_version(&self, _relative_path: &str) -> Result<String, PortError> {
-        Ok("python-tree-sitter-v6".to_owned())
+        Ok("python-tree-sitter-v7".to_owned())
     }
 
     fn analyze(&self, relative_path: &str) -> Result<FileAnalysis, PortError> {
@@ -738,9 +738,12 @@ fn collect_external_calls(
         left.method
             .cmp(&right.method)
             .then_with(|| left.url.cmp(&right.url))
+            .then_with(|| left.host_expr.cmp(&right.host_expr))
             .then_with(|| left.range.start_byte.cmp(&right.range.start_byte))
     });
-    calls.dedup_by(|left, right| left.method == right.method && left.url == right.url);
+    calls.dedup_by(|left, right| {
+        left.method == right.method && left.url == right.url && left.host_expr == right.host_expr
+    });
     calls
 }
 
@@ -763,13 +766,13 @@ fn visit_external_calls(
         && is_http_client(owner, bindings)
         && let Some(arguments) = node.child_by_field_name("arguments")
         && let Some(url_node) = first_positional_argument(arguments)
-        && let Some(url) = static_url_template(url_node, source)
+        && let Some((url, host_expr)) = resolve_call_url(url_node, source)
     {
         calls.push(ExternalCall {
             method,
             url,
             range: source_range(node),
-            host_expr: None,
+            host_expr,
             request_fields: request_body_fields(arguments, source),
             response_fields: response_fields(node, source),
         });
@@ -857,6 +860,87 @@ fn normalize_dynamic_url(value: &str) -> Option<String> {
 
 fn is_absolute_http_url(value: &str) -> bool {
     value.starts_with("http://") || value.starts_with("https://")
+}
+
+/// Resolves a call's URL argument, additionally trying an opaque-authority
+/// shape (`f"{self._host}/v1/charges"`, typical of a config/environment-
+/// injected client host) when [`static_url_template`] finds no fully
+/// literal-or-known-authority URL. Returns the URL (a literal path when the
+/// authority is opaque) and, when the authority was opaque, the raw source
+/// text of the expression that supplied it -- never its resolved value.
+fn resolve_call_url(node: Node<'_>, source: &[u8]) -> Option<(String, Option<String>)> {
+    if let Some(url) = static_url_template(node, source) {
+        return Some((url, None));
+    }
+    if node.kind() != "string" {
+        return None;
+    }
+    let text = node.utf8_text(source).ok()?;
+    let inner = python_string_inner(text)?;
+    let (host_expr, path) = resolve_opaque_host_url(inner)?;
+    Some((path, Some(host_expr)))
+}
+
+/// Whether `text` is a dotted-identifier chain (`self._host`, `cls.HOST`)
+/// and nothing else -- no call, subscript, or operator. This is the only
+/// expression shape trusted as an opaque, unresolved authority; anything
+/// else risks silently mischaracterizing a call's target.
+fn is_dotted_identifier_chain(text: &str) -> bool {
+    !text.is_empty()
+        && text.split('.').all(|segment| {
+            let mut chars = segment.chars();
+            chars
+                .next()
+                .is_some_and(|first| first == '_' || first.is_ascii_alphabetic())
+                && chars.all(|rest| rest == '_' || rest.is_ascii_alphanumeric())
+        })
+}
+
+/// Resolves an f-string interpolation body (already stripped of its quotes)
+/// shaped as `{<dotted-expr>}/literal/path`. Returns the raw expression text
+/// and the normalized path, or `None` when the leading interpolation is not
+/// exactly one dotted-identifier expression, when anything but `/` follows
+/// it immediately, or when a later path-segment interpolation is malformed.
+fn resolve_opaque_host_url(inner: &str) -> Option<(String, String)> {
+    let rest = inner.strip_prefix('{')?;
+    let close = rest.find('}')?;
+    let host_expr = &rest[..close];
+    if !is_dotted_identifier_chain(host_expr) {
+        return None;
+    }
+    let path = &rest[close + 1..];
+    if !path.starts_with('/') {
+        return None;
+    }
+    let normalized_path = normalize_path_segments(path)?;
+    Some((host_expr.to_owned(), normalized_path))
+}
+
+/// Rewrites every well-formed `{field}` path-segment interpolation in
+/// `path` (immediately preceded by `/`, immediately followed by `/`, `?`,
+/// `#`, or the end, and containing neither `!` nor `:`) to the literal
+/// placeholder `{param}`. Unlike a "does this URL have any dynamic part"
+/// check, an all-literal `path` is a valid result on its own, so this
+/// returns `Some` even when it replaces nothing -- only a malformed
+/// interpolation returns `None`.
+fn normalize_path_segments(path: &str) -> Option<String> {
+    let mut normalized = String::new();
+    let mut remaining = path;
+    while let Some(open) = remaining.find('{') {
+        let close = remaining[open + 1..].find('}')? + open + 1;
+        let field = &remaining[open + 1..close];
+        let next = remaining.as_bytes().get(close + 1).copied();
+        let previous = remaining.as_bytes().get(open.wrapping_sub(1)).copied();
+        if previous != Some(b'/') || !matches!(next, None | Some(b'/' | b'?' | b'#')) || field.contains(['!', ':'])
+        {
+            return None;
+        }
+        normalized.push_str(&remaining[..open]);
+        normalized.push_str("{param}");
+        remaining = &remaining[close + 1..];
+    }
+    normalized.push_str(remaining);
+    Some(normalized)
 }
 
 /// Field names of a request body passed as a `json=`/`data=` keyword
@@ -1918,7 +2002,7 @@ def access():
 "#;
         let analysis =
             PythonAnalyzer::analyze_source("src/app/service.py", source).expect("import aliases");
-        assert_eq!(analysis.analysis_version, "python-tree-sitter-v6");
+        assert_eq!(analysis.analysis_version, "python-tree-sitter-v7");
         let access = analysis
             .symbols
             .iter()
@@ -2126,6 +2210,84 @@ def notify(subscription_id, dynamic_url):
                     "https://billing.internal/subscriptions/{param}"
                 ),
             ]
+        );
+    }
+
+    #[test]
+    fn resolves_opaque_host_prefix_with_a_literal_path_suffix() {
+        let source = r#"
+class StripeClient:
+    def __init__(self):
+        self._host = "https://api.stripe.com"
+
+    def charge(self):
+        requests.post(f"{self._host}/v1/charges")
+"#;
+        let analysis = PythonAnalyzer::analyze_source("clients.py", source).expect("client");
+        let charge = analysis
+            .symbols
+            .iter()
+            .find(|symbol| symbol.name == "charge")
+            .expect("charge method");
+        let call = &charge.external_calls[0];
+        assert_eq!(call.url, "/v1/charges");
+        assert_eq!(call.host_expr.as_deref(), Some("self._host"));
+    }
+
+    #[test]
+    fn resolves_opaque_host_prefix_with_a_dynamic_path_segment() {
+        let source = r#"
+def notify(subscription_id):
+    requests.get(f"{self._host}/v1/subscriptions/{subscription_id}")
+"#;
+        let analysis = PythonAnalyzer::analyze_source("clients.py", source).expect("client");
+        let call = &analysis.symbols[0].external_calls[0];
+        assert_eq!(call.url, "/v1/subscriptions/{param}");
+        assert_eq!(call.host_expr.as_deref(), Some("self._host"));
+    }
+
+    #[test]
+    fn opaque_host_prefix_produces_no_fact_when_not_a_dotted_identifier() {
+        let source = r#"
+def notify():
+    requests.post(f"{self._build_host()}/v1/charges")
+"#;
+        let analysis = PythonAnalyzer::analyze_source("clients.py", source).expect("client");
+        assert!(analysis.symbols[0].external_calls.is_empty());
+    }
+
+    #[test]
+    fn opaque_host_prefix_produces_no_fact_when_anything_follows_before_the_slash() {
+        let source = r#"
+def notify():
+    requests.post(f"{self._host}.example.com/v1/charges")
+"#;
+        let analysis = PythonAnalyzer::analyze_source("clients.py", source).expect("client");
+        assert!(analysis.symbols[0].external_calls.is_empty());
+    }
+
+    #[test]
+    fn different_opaque_hosts_with_the_same_path_get_distinct_host_expr() {
+        let source = r#"
+class StripeClient:
+    def charge(self):
+        requests.post(f"{self._stripe_host}/v1/items")
+
+class InventoryClient:
+    def charge(self):
+        requests.post(f"{self._inventory_host}/v1/items")
+"#;
+        let analysis = PythonAnalyzer::analyze_source("clients.py", source).expect("client");
+        let mut host_exprs = analysis
+            .symbols
+            .iter()
+            .flat_map(|symbol| &symbol.external_calls)
+            .map(|call| call.host_expr.as_deref())
+            .collect::<Vec<_>>();
+        host_exprs.sort_unstable();
+        assert_eq!(
+            host_exprs,
+            vec![Some("self._inventory_host"), Some("self._stripe_host")]
         );
     }
 

@@ -1,6 +1,6 @@
 # HTTP API contracts
 
-Alongside database interactions ([docs/architecture.md](architecture.md#static-database-interactions)), `ctx` deterministically recognizes HTTP endpoints a symbol exposes and outbound HTTP calls it makes, from Python source (FastAPI, Flask, `requests`, `httpx`) and from OpenAPI 3.0/3.1 specifications (language-neutral). Recognized syntax becomes a normal `EXPOSES`/`CALLS_EXTERNAL` `FACT` edge with source evidence, retired like any other fact when the syntax disappears; unrecognized or wholly dynamic syntax produces no fact rather than a guess.
+Alongside database interactions ([docs/architecture.md](architecture.md#static-database-interactions)), `ctx` deterministically recognizes HTTP endpoints a symbol exposes and outbound HTTP calls it makes, from Python source (FastAPI, Flask, `requests`, `httpx`, `aiohttp.ClientSession`, `urllib3.PoolManager`, and `http.client.HTTP(S)Connection`) and from OpenAPI 3.0/3.1 specifications (language-neutral). Recognized syntax becomes a normal `EXPOSES`/`CALLS_EXTERNAL` `FACT` edge with source evidence, retired like any other fact when the syntax disappears; unrecognized or wholly dynamic syntax produces no fact rather than a guess.
 
 ## Endpoints (`EXPOSES`)
 
@@ -65,6 +65,17 @@ class StripeClient:
 
 `self._host` is never resolved to a value — it can't be, since it only exists at runtime — but the call is still recognized: `url` becomes `/v1/charges` and `host_expr` becomes `"self._host"`. A more complex prefix (`self._build_host()`, `self._host + suffix`) produces no fact, matching the rule against guessing from a dynamic expression.
 
+```python
+class StripeClient:
+    def _request(self, method, url):
+        return requests.request(method, url)
+
+    def charge(self, charge_id):
+        return self._request("POST", f"{self._host}/v1/charges/{charge_id}")
+```
+
+`_request` is recognized as an HTTP-wrapper method because its one direct call forwards the verb and URL untouched from its own ordinary parameters. The call in `charge` therefore becomes `POST /v1/charges/{param}` with `host_expr == Some("self._host")`, exactly as if the resolved direct request had appeared in `charge`. A bare URL variable at that call site remains unknown. Wrapper recognition is limited to one hop through `self.`/`cls.` inside the same class, one direct HTTP call expression or return (apart from a docstring and optional `await`), and fixed or bare-parameter verb/URL forwarding without transformation.
+
 ## OpenAPI specifications
 
 Conventional `openapi.yaml`, `openapi.yml`, and `openapi.json` files are discovered automatically during `ctx index` regardless of configured `languages` or source include paths — normal excludes still apply. Every OpenAPI 3.0/3.1 path operation for `GET`/`POST`/`PUT`/`DELETE`/`PATCH`/`HEAD`/`OPTIONS`/`TRACE` becomes its own `ApiEndpoint`, retaining `operationId`, summary/description, deprecation, tags, effective security and servers, path/query/header/cookie parameters, request-body content and schema, and response content/schema metadata; local `$ref` values are followed. An invalid or unsupported specification (not OpenAPI 3.x, missing `paths`) is reported as a failed file with an explicit reason, never partially parsed.
@@ -85,7 +96,8 @@ Endpoints and outbound calls appear in `ctx impact`/`ctx explain`/`ctx context` 
 
 ## Current limits
 
-- From code: Python only; FastAPI and Flask are the only recognized frameworks, `requests`/`httpx` the only recognized outbound clients. `GET`/`POST`/`PUT`/`DELETE`/`PATCH` are the only recognized HTTP methods.
+- From code: Python only; FastAPI and Flask are the only recognized frameworks. Outbound calls recognize `requests`, `httpx`, `aiohttp.ClientSession`, `urllib3.PoolManager`, and `http.client.HTTP(S)Connection`. `GET`/`POST`/`PUT`/`DELETE`/`PATCH` are the only recognized HTTP methods.
 - From OpenAPI: 3.0 and 3.1 documents only (Swagger 2.0 and earlier are rejected, not down-converted); only local `$ref`s are followed, an external/remote `$ref` is left as-is rather than fetched.
 - Path/query/body parameter classification from code is heuristic (path-segment name match, then a "looks like a request-body type" check, then query as the default) — not a full FastAPI/Pydantic type-system evaluation.
 - A dynamic route or call URL (anything not a string literal or a literal with simple interpolation) yields no fact instead of a guess.
+- An HTTP-wrapper method is recognized only one hop deep, only via `self.`/`cls.` within the same class (never a base class, mixin, another class in the file, a module-level function, or an imported wrapper). `self.` is accepted only for an undecorated method led by `self`; `cls.` is accepted only for an exact bare `@classmethod` led by `cls`; static methods and other decorated methods are excluded. Apart from an optional docstring, its body must be exactly one direct HTTP call expression or a return of that call (optionally awaited), and its verb/URL inputs must be fixed literals/method names or ordinary positional-or-keyword parameters forwarded as bare identifiers into the direct client's existing positional verb/URL slots. Dynamic call-site URLs, transformed or reassigned parameters, positional-only/keyword-only/variadic signatures, larger bodies, and multiple HTTP-shaped calls produce no wrapper fact rather than a guess. Request/response field lists on wrapper-derived calls remain unknown because verb/URL forwarding does not prove payload forwarding or response pass-through.

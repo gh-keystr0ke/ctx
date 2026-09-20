@@ -42,7 +42,7 @@ A run where session-module resolution fails everywhere it was needed is reported
 
 ## HTTP contracts
 
-See [docs/api-contracts.md](api-contracts.md#current-limits) for the full list: from code, Python-only with FastAPI/Flask/`requests`/`httpx`-only and five HTTP methods with heuristic parameter classification; from OpenAPI, 3.0/3.1 documents only with local `$ref`s only; and no fact for a dynamic route or call URL either way.
+See [docs/api-contracts.md](api-contracts.md#current-limits) for the full list: from code, Python-only with FastAPI/Flask and the documented Python HTTP clients, plus five HTTP methods with heuristic parameter classification; from OpenAPI, 3.0/3.1 documents only with local `$ref`s only; and no fact for a dynamic route or call URL or for an HTTP call made through more than one hop of method indirection.
 
 ## Federation
 

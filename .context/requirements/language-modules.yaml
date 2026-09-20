@@ -4,8 +4,8 @@ feature: FEAT-INDEXING
 status: active
 statement: >
   Every enabled source language must be selected by one registered module and
-  normalize symbols, calls, and supported static database interactions into the
-  shared IR; language-specific parser types must not leak into indexing,
+  normalize symbols, calls, and supported static database and HTTP interactions
+  into the shared IR; language-specific parser types must not leak into indexing,
   review, persistence, CLI, or MCP, and dynamic SQL must not be guessed.
   Because every language normalizes into the same `GraphNode`/stable-key
   shape, a short symbol name colliding across languages (Python, Rust, and
@@ -24,5 +24,5 @@ tests:
   - symbol: ctx_adapters.rust.tests.extracts_rust_items_methods_tests_and_calls
   - symbol: ctx_adapters.go.tests.extracts_go_functions_methods_types_tests_and_calls
   - symbol: ctx_adapters.python.tests.extracts_static_sql_reads_and_writes_only_from_execution_calls
+  - symbol: ctx_adapters.python.tests.wrapper_method_with_verb_from_parameter_resolves_when_call_site_passes_a_literal_verb
   - symbol: ctx_adapters.rust.tests.extracts_sqlx_and_rusqlite_static_database_accesses
-

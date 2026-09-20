@@ -70,13 +70,14 @@ impl PythonAnalyzer {
             &module,
             None,
             &bindings,
+            &BTreeMap::new(),
             &mut symbols,
         );
         symbols.sort_by(|left, right| left.canonical_path.cmp(&right.canonical_path));
         Ok(FileAnalysis {
             path: relative_path.to_owned(),
             language: "python".to_owned(),
-            analysis_version: "python-tree-sitter-v8".to_owned(),
+            analysis_version: "python-tree-sitter-v9".to_owned(),
             content_hash: blake3::hash(source.as_bytes()).to_hex().to_string(),
             symbols,
         })
@@ -269,7 +270,7 @@ fn type_position(source: &str, byte: usize, row: usize) -> TypePosition {
 
 impl LanguageAnalyzer for PythonAnalyzer {
     fn analysis_version(&self, _relative_path: &str) -> Result<String, PortError> {
-        Ok("python-tree-sitter-v8".to_owned())
+        Ok("python-tree-sitter-v9".to_owned())
     }
 
     fn analyze(&self, relative_path: &str) -> Result<FileAnalysis, PortError> {
@@ -365,6 +366,56 @@ struct PythonBindings {
     sqlalchemy_module_aliases: BTreeSet<String>,
     imported_symbols: BTreeMap<String, String>,
     same_file_classes: BTreeMap<String, String>,
+}
+
+/// How a detected HTTP-wrapper method's verb is supplied.
+#[derive(Debug, Clone)]
+enum WrapperVerb {
+    /// The wrapper always issues this fixed verb (a verb-named client method,
+    /// or a string-literal verb passed to `.request`).
+    Fixed(HttpMethod),
+    /// The wrapper forwards one of its own ordinary parameters as the verb.
+    Param { name: String, index: usize },
+}
+
+/// Which descriptor binding was structurally proven for an HTTP wrapper.
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+enum WrapperReceiver {
+    /// An undecorated method whose first parameter is exactly `self`.
+    Instance,
+    /// A method with one bare `@classmethod` decorator led by `cls`.
+    Class,
+}
+
+/// A same-class, single-hop HTTP wrapper with proven verb and URL forwarding.
+#[derive(Debug, Clone)]
+struct HttpWrapperSpec {
+    receiver: WrapperReceiver,
+    verb: WrapperVerb,
+    url_param: String,
+    url_index: usize,
+}
+
+/// An HTTP-shaped call found while scanning a candidate wrapper body.
+enum WrapperCandidate<'tree> {
+    OwnerVerb {
+        call_node: Node<'tree>,
+        method: HttpMethod,
+        url_node: Node<'tree>,
+    },
+    RequestStyle {
+        call_node: Node<'tree>,
+        verb_node: Node<'tree>,
+        url_node: Node<'tree>,
+    },
+}
+
+impl<'tree> WrapperCandidate<'tree> {
+    fn call_node(&self) -> Node<'tree> {
+        match self {
+            Self::OwnerVerb { call_node, .. } | Self::RequestStyle { call_node, .. } => *call_node,
+        }
+    }
 }
 
 fn collect_python_bindings(root: Node<'_>, source: &[u8], module: &str) -> PythonBindings {
@@ -754,10 +805,18 @@ fn collect_external_calls(
     node: Node<'_>,
     source: &[u8],
     bindings: &PythonBindings,
+    wrapper_specs: &BTreeMap<String, HttpWrapperSpec>,
 ) -> Vec<ExternalCall> {
     let mut calls = Vec::new();
     let mut cursor = node.walk();
-    visit_external_calls(&mut cursor, source, bindings, &mut calls, true);
+    visit_external_calls(
+        &mut cursor,
+        source,
+        bindings,
+        wrapper_specs,
+        &mut calls,
+        true,
+    );
     calls.sort_by(|left, right| {
         left.method
             .cmp(&right.method)
@@ -775,6 +834,7 @@ fn visit_external_calls(
     cursor: &mut TreeCursor<'_>,
     source: &[u8],
     bindings: &PythonBindings,
+    wrapper_specs: &BTreeMap<String, HttpWrapperSpec>,
     calls: &mut Vec<ExternalCall>,
     root: bool,
 ) {
@@ -786,6 +846,7 @@ fn visit_external_calls(
         && let Some(function) = node.child_by_field_name("function")
         && let Ok(callee) = function.utf8_text(source)
         && let Some((owner, operation)) = callee.rsplit_once('.')
+        && !matches!(owner, "self" | "cls")
         && let Some(method) = http_method(operation)
         && is_http_client(owner, bindings)
         && let Some(arguments) = node.child_by_field_name("arguments")
@@ -805,7 +866,8 @@ fn visit_external_calls(
         && let Some(function) = node.child_by_field_name("function")
         && let Ok(callee) = function.utf8_text(source)
         && let Some((owner, "request")) = callee.rsplit_once('.')
-        && bindings.request_style_bindings.contains(owner)
+        && !matches!(owner, "self" | "cls")
+        && is_request_client(owner, bindings)
         && let Some(arguments) = node.child_by_field_name("arguments")
         && let Some(method_node) = first_positional_argument(arguments)
         && method_node.kind() == "string"
@@ -824,14 +886,320 @@ fn visit_external_calls(
             response_fields: Vec::new(),
         });
     }
+    if node.kind() == "call"
+        && let Some(function) = node.child_by_field_name("function")
+        && let Ok(callee) = function.utf8_text(source)
+        && let Some((owner, name)) = callee.rsplit_once('.')
+        && matches!(owner, "self" | "cls")
+        && let Some(spec) = wrapper_specs.get(name)
+        && wrapper_receiver_matches(owner, spec.receiver)
+        && let Some(arguments) = node.child_by_field_name("arguments")
+    {
+        let method = match &spec.verb {
+            WrapperVerb::Fixed(method) => Some(*method),
+            WrapperVerb::Param { name, index } => keyword_argument(arguments, name, source)
+                .or_else(|| positional_argument(arguments, *index))
+                .filter(|node| node.kind() == "string")
+                .and_then(|node| node.utf8_text(source).ok())
+                .and_then(static_string_content)
+                .and_then(|literal| http_method(&literal)),
+        };
+        if let Some(method) = method
+            && let Some(url_node) = keyword_argument(arguments, &spec.url_param, source)
+                .or_else(|| positional_argument(arguments, spec.url_index))
+            && let Some((url, host_expr)) = resolve_call_url(url_node, source)
+        {
+            calls.push(ExternalCall {
+                method,
+                url,
+                range: source_range(node),
+                host_expr,
+                request_fields: Vec::new(),
+                response_fields: Vec::new(),
+            });
+        }
+    }
     if cursor.goto_first_child() {
         loop {
-            visit_external_calls(cursor, source, bindings, calls, false);
+            visit_external_calls(cursor, source, bindings, wrapper_specs, calls, false);
             if !cursor.goto_next_sibling() {
                 break;
             }
         }
         cursor.goto_parent();
+    }
+}
+
+fn collect_wrapper_candidates<'tree>(
+    cursor: &mut TreeCursor<'tree>,
+    source: &[u8],
+    bindings: &PythonBindings,
+    candidates: &mut Vec<WrapperCandidate<'tree>>,
+    root: bool,
+) {
+    let node = cursor.node();
+    if !root && matches!(node.kind(), "function_definition" | "class_definition") {
+        return;
+    }
+    if node.kind() == "call"
+        && let Some(function) = node.child_by_field_name("function")
+        && let Ok(callee) = function.utf8_text(source)
+        && let Some((owner, operation)) = callee.rsplit_once('.')
+        && !matches!(owner, "self" | "cls")
+        && let Some(method) = http_method(operation)
+        && is_http_client(owner, bindings)
+        && let Some(arguments) = node.child_by_field_name("arguments")
+        && let Some(url_node) = first_positional_argument(arguments)
+    {
+        candidates.push(WrapperCandidate::OwnerVerb {
+            call_node: node,
+            method,
+            url_node,
+        });
+    }
+    if node.kind() == "call"
+        && let Some(function) = node.child_by_field_name("function")
+        && let Ok(callee) = function.utf8_text(source)
+        && let Some((owner, "request")) = callee.rsplit_once('.')
+        && !matches!(owner, "self" | "cls")
+        && is_request_client(owner, bindings)
+        && let Some(arguments) = node.child_by_field_name("arguments")
+        && let Some(verb_node) = positional_argument(arguments, 0)
+        && let Some(url_node) = positional_argument(arguments, 1)
+    {
+        candidates.push(WrapperCandidate::RequestStyle {
+            call_node: node,
+            verb_node,
+            url_node,
+        });
+    }
+    if cursor.goto_first_child() {
+        loop {
+            collect_wrapper_candidates(cursor, source, bindings, candidates, false);
+            if !cursor.goto_next_sibling() {
+                break;
+            }
+        }
+        cursor.goto_parent();
+    }
+}
+
+fn wrapper_receiver_matches(owner: &str, receiver: WrapperReceiver) -> bool {
+    matches!(
+        (owner, receiver),
+        ("self", WrapperReceiver::Instance) | ("cls", WrapperReceiver::Class)
+    )
+}
+
+fn detect_http_wrappers(
+    class_body: Node<'_>,
+    source: &[u8],
+    bindings: &PythonBindings,
+) -> BTreeMap<String, HttpWrapperSpec> {
+    let mut wrappers = BTreeMap::new();
+    let mut cursor = class_body.walk();
+    for original_child in class_body.named_children(&mut cursor) {
+        let function = unwrap_decorated(original_child);
+        if function.kind() != "function_definition" {
+            continue;
+        }
+        let Some((receiver, params)) = wrapper_parameters(original_child, function, source) else {
+            continue;
+        };
+        let Some(body) = function.child_by_field_name("body") else {
+            continue;
+        };
+        let mut candidates = Vec::new();
+        let mut body_cursor = body.walk();
+        collect_wrapper_candidates(&mut body_cursor, source, bindings, &mut candidates, true);
+        if candidates.len() != 1 {
+            continue;
+        }
+        let candidate = &candidates[0];
+        if !is_single_wrapper_call(body, candidate.call_node(), source) {
+            continue;
+        }
+        let Some(spec) = resolve_wrapper_spec(candidate, &params, receiver, source) else {
+            continue;
+        };
+        let Some(name) = function
+            .child_by_field_name("name")
+            .and_then(|name| name.utf8_text(source).ok())
+        else {
+            continue;
+        };
+        wrappers.insert(name.to_owned(), spec);
+    }
+    wrappers
+}
+
+/// Proves a supported descriptor/receiver and returns ordinary parameter
+/// names in declaration order, excluding exactly the leading receiver.
+fn wrapper_parameters(
+    original_child: Node<'_>,
+    function: Node<'_>,
+    source: &[u8],
+) -> Option<(WrapperReceiver, Vec<String>)> {
+    let receiver = if original_child.kind() == "function_definition" {
+        WrapperReceiver::Instance
+    } else if original_child.kind() == "decorated_definition" {
+        let mut cursor = original_child.walk();
+        let decorators = original_child
+            .named_children(&mut cursor)
+            .filter(|child| child.kind() == "decorator")
+            .collect::<Vec<_>>();
+        if decorators.len() != 1 || decorators[0].utf8_text(source).ok()?.trim() != "@classmethod" {
+            return None;
+        }
+        WrapperReceiver::Class
+    } else {
+        return None;
+    };
+    let parameters = function.child_by_field_name("parameters")?;
+    let mut cursor = parameters.walk();
+    let mut names = Vec::new();
+    for parameter in parameters.named_children(&mut cursor) {
+        if matches!(
+            parameter.kind(),
+            "positional_separator"
+                | "keyword_separator"
+                | "list_splat"
+                | "list_splat_pattern"
+                | "dictionary_splat"
+                | "dictionary_splat_pattern"
+        ) {
+            return None;
+        }
+        if !matches!(
+            parameter.kind(),
+            "identifier" | "typed_parameter" | "default_parameter" | "typed_default_parameter"
+        ) {
+            return None;
+        }
+        let name_node = parameter
+            .child_by_field_name("name")
+            .or_else(|| first_descendant_of_kind(parameter, "identifier"))?;
+        names.push(name_node.utf8_text(source).ok()?.to_owned());
+    }
+    let expected_receiver = match receiver {
+        WrapperReceiver::Instance => "self",
+        WrapperReceiver::Class => "cls",
+    };
+    if names.first().map(String::as_str) != Some(expected_receiver) {
+        return None;
+    }
+    names.remove(0);
+    Some((receiver, names))
+}
+
+/// Requires a wrapper body to be exactly one direct call expression or return,
+/// apart from one optional leading static-string docstring and one optional
+/// `await` between the statement and the call.
+fn is_single_wrapper_call(body: Node<'_>, candidate_call: Node<'_>, source: &[u8]) -> bool {
+    let mut cursor = body.walk();
+    let mut statements = body.named_children(&mut cursor).collect::<Vec<_>>();
+    if statements.first().is_some_and(|statement| {
+        if statement.kind() != "expression_statement" {
+            return false;
+        }
+        let mut cursor = statement.walk();
+        let children = statement.named_children(&mut cursor).collect::<Vec<_>>();
+        children.len() == 1
+            && children[0].kind() == "string"
+            && children[0]
+                .utf8_text(source)
+                .ok()
+                .and_then(static_string_content)
+                .is_some()
+    }) {
+        statements.remove(0);
+    }
+    if statements.len() != 1 {
+        return false;
+    }
+    let statement = statements[0];
+    if !matches!(
+        statement.kind(),
+        "expression_statement" | "return_statement"
+    ) {
+        return false;
+    }
+    let mut cursor = statement.walk();
+    let children = statement.named_children(&mut cursor).collect::<Vec<_>>();
+    if children.len() != 1 {
+        return false;
+    }
+    let expression = children[0];
+    if expression == candidate_call {
+        return true;
+    }
+    if expression.kind() != "await" {
+        return false;
+    }
+    let mut cursor = expression.walk();
+    let awaited = expression.named_children(&mut cursor).collect::<Vec<_>>();
+    awaited.len() == 1 && awaited[0] == candidate_call
+}
+
+fn matches_own_parameter<'a>(
+    node: Node<'_>,
+    params: &'a [String],
+    source: &[u8],
+) -> Option<(usize, &'a str)> {
+    if node.kind() != "identifier" {
+        return None;
+    }
+    let name = node.utf8_text(source).ok()?;
+    params
+        .iter()
+        .position(|param| param == name)
+        .map(|index| (index, params[index].as_str()))
+}
+
+fn resolve_wrapper_spec(
+    candidate: &WrapperCandidate<'_>,
+    params: &[String],
+    receiver: WrapperReceiver,
+    source: &[u8],
+) -> Option<HttpWrapperSpec> {
+    match candidate {
+        WrapperCandidate::OwnerVerb {
+            method, url_node, ..
+        } => {
+            let (url_index, url_param) = matches_own_parameter(*url_node, params, source)?;
+            Some(HttpWrapperSpec {
+                receiver,
+                verb: WrapperVerb::Fixed(*method),
+                url_param: url_param.to_owned(),
+                url_index,
+            })
+        }
+        WrapperCandidate::RequestStyle {
+            verb_node,
+            url_node,
+            ..
+        } => {
+            let (url_index, url_param) = matches_own_parameter(*url_node, params, source)?;
+            let verb = if verb_node.kind() == "string" {
+                let literal = verb_node
+                    .utf8_text(source)
+                    .ok()
+                    .and_then(static_string_content)?;
+                WrapperVerb::Fixed(http_method(&literal)?)
+            } else {
+                let (index, name) = matches_own_parameter(*verb_node, params, source)?;
+                WrapperVerb::Param {
+                    name: name.to_owned(),
+                    index,
+                }
+            };
+            Some(HttpWrapperSpec {
+                receiver,
+                verb,
+                url_param: url_param.to_owned(),
+                url_index,
+            })
+        }
     }
 }
 
@@ -860,6 +1228,10 @@ fn is_http_client(owner: &str, bindings: &PythonBindings) -> bool {
         || owner == "httpx.AsyncClient()"
         || owner == "aiohttp.ClientSession()"
         || bindings.http_client_bindings.contains(owner)
+}
+
+fn is_request_client(owner: &str, bindings: &PythonBindings) -> bool {
+    is_http_client(owner, bindings) || bindings.request_style_bindings.contains(owner)
 }
 
 fn static_url_template(node: Node<'_>, source: &[u8]) -> Option<String> {
@@ -1168,6 +1540,7 @@ fn collect_definitions(
     module: &str,
     parent: Option<&str>,
     bindings: &PythonBindings,
+    wrapper_specs: &BTreeMap<String, HttpWrapperSpec>,
     symbols: &mut Vec<SymbolDefinition>,
 ) {
     let mut cursor = node.walk();
@@ -1178,17 +1551,42 @@ fn collect_definitions(
             "function_definition" | "class_definition"
         ) {
             let decorated = (child.kind() == "decorated_definition").then_some(child);
-            if let Some(symbol) =
-                parse_definition(definition, decorated, source, module, parent, bindings)
-            {
+            if let Some(symbol) = parse_definition(
+                definition,
+                decorated,
+                source,
+                module,
+                parent,
+                bindings,
+                wrapper_specs,
+            ) {
                 let canonical = symbol.canonical_path.clone();
                 symbols.push(symbol);
                 if let Some(body) = definition.child_by_field_name("body") {
-                    collect_definitions(body, source, module, Some(&canonical), bindings, symbols);
+                    let class_wrappers = (definition.kind() == "class_definition")
+                        .then(|| detect_http_wrappers(body, source, bindings));
+                    let active = class_wrappers.as_ref().unwrap_or(wrapper_specs);
+                    collect_definitions(
+                        body,
+                        source,
+                        module,
+                        Some(&canonical),
+                        bindings,
+                        active,
+                        symbols,
+                    );
                 }
             }
         } else {
-            collect_definitions(child, source, module, parent, bindings, symbols);
+            collect_definitions(
+                child,
+                source,
+                module,
+                parent,
+                bindings,
+                wrapper_specs,
+                symbols,
+            );
         }
     }
 }
@@ -1211,6 +1609,7 @@ fn parse_definition(
     module: &str,
     parent: Option<&str>,
     bindings: &PythonBindings,
+    wrapper_specs: &BTreeMap<String, HttpWrapperSpec>,
 ) -> Option<SymbolDefinition> {
     let name_node = node.child_by_field_name("name")?;
     let name = name_node.utf8_text(source).ok()?.to_owned();
@@ -1264,7 +1663,7 @@ fn parse_definition(
     let external_calls = if is_class {
         Vec::new()
     } else {
-        collect_external_calls(body, source, bindings)
+        collect_external_calls(body, source, bindings, wrapper_specs)
     };
     Some(SymbolDefinition {
         name,
@@ -2070,7 +2469,7 @@ def access():
 "#;
         let analysis =
             PythonAnalyzer::analyze_source("src/app/service.py", source).expect("import aliases");
-        assert_eq!(analysis.analysis_version, "python-tree-sitter-v8");
+        assert_eq!(analysis.analysis_version, "python-tree-sitter-v9");
         let access = analysis
             .symbols
             .iter()
@@ -2278,6 +2677,395 @@ def notify(subscription_id, dynamic_url):
                     "https://billing.internal/subscriptions/{param}"
                 ),
             ]
+        );
+    }
+
+    #[test]
+    fn direct_requests_request_with_literal_verb_is_recognized() {
+        let source = r#"
+def notify():
+    requests.request("POST", "https://billing.internal/x")
+"#;
+        let analysis = PythonAnalyzer::analyze_source("src/caller.py", source).expect("caller");
+        let call = &analysis.symbols[0].external_calls[0];
+        assert_eq!(call.method, HttpMethod::Post);
+        assert_eq!(call.url, "https://billing.internal/x");
+    }
+
+    #[test]
+    fn wrapper_method_with_fixed_verb_and_pass_through_url_resolves_at_call_site() {
+        let source = r#"
+class Client:
+    def _post(self, url):
+        return requests.post(url)
+
+    def notify(self):
+        return self._post("https://billing.internal/x")
+"#;
+        let analysis = PythonAnalyzer::analyze_source("src/client.py", source).expect("client");
+        let notify = analysis
+            .symbols
+            .iter()
+            .find(|symbol| symbol.name == "notify")
+            .expect("caller");
+        assert_eq!(notify.external_calls.len(), 1);
+        assert_eq!(notify.external_calls[0].method, HttpMethod::Post);
+        assert_eq!(notify.external_calls[0].url, "https://billing.internal/x");
+    }
+
+    #[test]
+    fn wrapper_method_with_verb_from_parameter_resolves_when_call_site_passes_a_literal_verb() {
+        let source = r#"
+class Client:
+    def _request(self, method, url):
+        return requests.request(method, url)
+
+    def remove(self):
+        return self._request("DELETE", "https://billing.internal/x")
+"#;
+        let analysis = PythonAnalyzer::analyze_source("src/client.py", source).expect("client");
+        let remove = analysis
+            .symbols
+            .iter()
+            .find(|symbol| symbol.name == "remove")
+            .expect("caller");
+        assert_eq!(remove.external_calls.len(), 1);
+        assert_eq!(remove.external_calls[0].method, HttpMethod::Delete);
+    }
+
+    #[test]
+    fn wrapper_method_with_fixed_request_style_verb_resolves_at_call_site() {
+        let source = r#"
+class Client:
+    def _post(self, url):
+        return requests.request("POST", url)
+
+    def notify(self):
+        return self._post("https://billing.internal/x")
+"#;
+        let analysis = PythonAnalyzer::analyze_source("src/client.py", source).expect("client");
+        let notify = analysis
+            .symbols
+            .iter()
+            .find(|symbol| symbol.name == "notify")
+            .expect("caller");
+        assert_eq!(notify.external_calls.len(), 1);
+        assert_eq!(notify.external_calls[0].method, HttpMethod::Post);
+    }
+
+    #[test]
+    fn wrapper_allows_a_docstring_typed_parameters_and_one_await() {
+        let source = r#"
+class Client:
+    async def _request(self, method: str, url: str = ""):
+        """Issue one request."""
+        return await httpx.request(method, url)
+
+    async def notify(self):
+        return await self._request("PATCH", "https://billing.internal/x")
+"#;
+        let analysis = PythonAnalyzer::analyze_source("src/client.py", source).expect("client");
+        let notify = analysis
+            .symbols
+            .iter()
+            .find(|symbol| symbol.name == "notify")
+            .expect("caller");
+        assert_eq!(notify.external_calls.len(), 1);
+        assert_eq!(notify.external_calls[0].method, HttpMethod::Patch);
+    }
+
+    #[test]
+    fn wrapper_call_site_using_keyword_arguments_resolves_the_same_as_positional() {
+        let source = r#"
+class Client:
+    def _request(self, method, url):
+        return requests.request(method, url)
+
+    def notify(self):
+        return self._request(url="https://billing.internal/x", method="POST")
+"#;
+        let analysis = PythonAnalyzer::analyze_source("src/client.py", source).expect("client");
+        let notify = analysis
+            .symbols
+            .iter()
+            .find(|symbol| symbol.name == "notify")
+            .expect("caller");
+        assert_eq!(notify.external_calls.len(), 1);
+        assert_eq!(notify.external_calls[0].method, HttpMethod::Post);
+        assert_eq!(notify.external_calls[0].url, "https://billing.internal/x");
+    }
+
+    #[test]
+    fn wrapper_call_site_url_resolves_through_the_opaque_host_prefix_shape() {
+        let source = r#"
+class Client:
+    def _request(self, method, url):
+        return requests.request(method, url)
+
+    def items(self):
+        return self._request("GET", f"{self._host}/v1/items")
+"#;
+        let analysis = PythonAnalyzer::analyze_source("src/client.py", source).expect("client");
+        let items = analysis
+            .symbols
+            .iter()
+            .find(|symbol| symbol.name == "items")
+            .expect("caller");
+        let call = &items.external_calls[0];
+        assert_eq!(call.method, HttpMethod::Get);
+        assert_eq!(call.url, "/v1/items");
+        assert_eq!(call.host_expr.as_deref(), Some("self._host"));
+    }
+
+    #[test]
+    fn classmethod_wrapper_resolves_only_through_cls() {
+        let source = r#"
+class Client:
+    @classmethod
+    def _request(cls, method, url):
+        return requests.request(method, url)
+
+    def wrong_instance_receiver(self):
+        return self._request("GET", "https://billing.internal/wrong-instance")
+
+    @classmethod
+    def works(cls):
+        return cls._request("GET", "https://billing.internal/x")
+
+    @staticmethod
+    def _static(method, url):
+        return requests.request(method, url)
+
+    def static_caller(self):
+        return self._static("GET", "https://billing.internal/static")
+
+    @trace
+    def _decorated(self, method, url):
+        return requests.request(method, url)
+
+    def decorated_caller(self):
+        return self._decorated("GET", "https://billing.internal/decorated")
+
+    def _instance(self, url):
+        return requests.get(url)
+
+    @classmethod
+    def wrong_class_receiver(cls):
+        return cls._instance("https://billing.internal/wrong-class")
+"#;
+        let analysis = PythonAnalyzer::analyze_source("src/client.py", source).expect("client");
+        let calls_for = |name: &str| {
+            analysis
+                .symbols
+                .iter()
+                .find(|symbol| symbol.name == name)
+                .expect("method")
+                .external_calls
+                .len()
+        };
+        assert_eq!(calls_for("works"), 1);
+        assert_eq!(calls_for("wrong_instance_receiver"), 0);
+        assert_eq!(calls_for("static_caller"), 0);
+        assert_eq!(calls_for("decorated_caller"), 0);
+        assert_eq!(calls_for("wrong_class_receiver"), 0);
+    }
+
+    #[test]
+    fn wrapper_call_site_with_a_bare_url_identifier_produces_no_fact() {
+        let source = r#"
+class Client:
+    def _request(self, method, url):
+        return requests.request(method, url)
+
+    def notify(self, path):
+        return self._request("GET", path)
+"#;
+        let analysis = PythonAnalyzer::analyze_source("src/client.py", source).expect("client");
+        let notify = analysis
+            .symbols
+            .iter()
+            .find(|symbol| symbol.name == "notify")
+            .expect("caller");
+        assert!(notify.external_calls.is_empty());
+    }
+
+    #[test]
+    fn wrapper_parameter_embedded_in_an_fstring_is_not_recognized_as_pass_through() {
+        let source = r#"
+class Client:
+    def _request(self, method, url):
+        return requests.request(method, f"{url}")
+
+    def notify(self):
+        return self._request("GET", "https://billing.internal/x")
+"#;
+        let analysis = PythonAnalyzer::analyze_source("src/client.py", source).expect("client");
+        assert!(
+            analysis
+                .symbols
+                .iter()
+                .all(|symbol| symbol.external_calls.is_empty())
+        );
+    }
+
+    #[test]
+    fn wrapper_body_with_parameter_reassignment_is_not_recognized() {
+        let source = r#"
+class Client:
+    def _post(self, url):
+        url = normalize(url)
+        return requests.post(url)
+
+    def notify(self):
+        return self._post("https://billing.internal/x")
+"#;
+        let analysis = PythonAnalyzer::analyze_source("src/client.py", source).expect("client");
+        let notify = analysis
+            .symbols
+            .iter()
+            .find(|symbol| symbol.name == "notify")
+            .expect("caller");
+        assert!(notify.external_calls.is_empty());
+    }
+
+    #[test]
+    fn wrapper_signature_with_nonordinary_parameters_is_not_recognized() {
+        let source = r#"
+class Client:
+    def _varargs(self, *args):
+        return requests.get(args)
+
+    def varargs_caller(self):
+        return self._varargs("https://billing.internal/args")
+
+    def _keyword(self, *, url):
+        return requests.get(url)
+
+    def keyword_caller(self):
+        return self._keyword(url="https://billing.internal/keyword")
+"#;
+        let analysis = PythonAnalyzer::analyze_source("src/client.py", source).expect("client");
+        for name in ["varargs_caller", "keyword_caller"] {
+            let caller = analysis
+                .symbols
+                .iter()
+                .find(|symbol| symbol.name == name)
+                .expect("caller");
+            assert!(caller.external_calls.is_empty());
+        }
+    }
+
+    #[test]
+    fn wrapper_method_of_a_different_or_base_class_is_not_recognized_via_self() {
+        let source = r#"
+class ClientA:
+    def _request(self, method, url):
+        return requests.request(method, url)
+
+class ClientB:
+    def notify(self):
+        return self._request("GET", "https://billing.internal/different")
+
+class ClientC(ClientA):
+    def notify_inherited(self):
+        return self._request("GET", "https://billing.internal/inherited")
+"#;
+        let analysis = PythonAnalyzer::analyze_source("src/client.py", source).expect("client");
+        for name in ["notify", "notify_inherited"] {
+            let caller = analysis
+                .symbols
+                .iter()
+                .find(|symbol| symbol.name == name)
+                .expect("caller");
+            assert!(caller.external_calls.is_empty());
+        }
+    }
+
+    #[test]
+    fn wrapper_body_with_two_http_shaped_calls_produces_no_wrapper_spec() {
+        let source = r#"
+class Client:
+    def _request(self, method, url):
+        requests.get(url)
+        return requests.request(method, url)
+
+    def notify(self):
+        return self._request("GET", "https://billing.internal/x")
+"#;
+        let analysis = PythonAnalyzer::analyze_source("src/client.py", source).expect("client");
+        let notify = analysis
+            .symbols
+            .iter()
+            .find(|symbol| symbol.name == "notify")
+            .expect("caller");
+        assert!(notify.external_calls.is_empty());
+    }
+
+    #[test]
+    fn wrapper_chain_deeper_than_one_hop_produces_no_fact_at_the_outer_caller() {
+        let source = r#"
+class Client:
+    def _raw(self, method, url):
+        return requests.request(method, url)
+
+    def _request(self, method, url):
+        return self._raw(method, url)
+
+    def charge(self):
+        return self._request("POST", "https://billing.internal/x")
+"#;
+        let analysis = PythonAnalyzer::analyze_source("src/client.py", source).expect("client");
+        let charge = analysis
+            .symbols
+            .iter()
+            .find(|symbol| symbol.name == "charge")
+            .expect("caller");
+        assert!(charge.external_calls.is_empty());
+    }
+
+    #[test]
+    fn wrapper_derived_fields_remain_unknown() {
+        let source = r#"
+class Client:
+    def _request(self, method, url, json=None):
+        return requests.request(method, url)
+
+    def notify(self):
+        response = self._request(
+            "POST",
+            "https://billing.internal/x",
+            json={"kind": "renewed"},
+        )
+        return response.json()["status"]
+"#;
+        let analysis = PythonAnalyzer::analyze_source("src/client.py", source).expect("client");
+        let notify = analysis
+            .symbols
+            .iter()
+            .find(|symbol| symbol.name == "notify")
+            .expect("caller");
+        let call = &notify.external_calls[0];
+        assert!(call.request_fields.is_empty());
+        assert!(call.response_fields.is_empty());
+    }
+
+    #[test]
+    fn bare_module_level_function_is_not_treated_as_a_wrapper() {
+        // Module-level wrappers are deliberately outside the same-class,
+        // self/cls-only wrapper contract.
+        let source = r#"
+def _request(method, url):
+    return requests.request(method, url)
+
+def notify():
+    return _request("GET", "https://billing.internal/x")
+"#;
+        let analysis = PythonAnalyzer::analyze_source("src/client.py", source).expect("client");
+        assert!(
+            analysis
+                .symbols
+                .iter()
+                .all(|symbol| symbol.external_calls.is_empty())
         );
     }
 

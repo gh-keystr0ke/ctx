@@ -6,3 +6,4 @@ implementation:
   - symbol: ctx_app.ingest.GitIngestRunner.run
 tests:
   - symbol: crates.ctx-cli.tests.e2e.ingest_git_reads_commits_and_branches_and_links_a_referenced_ticket
+  - symbol: ctx_app.ingest.tests.git_ingest_links_a_new_commit_to_an_already_local_jira_issue

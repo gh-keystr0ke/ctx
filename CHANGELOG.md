@@ -4,6 +4,8 @@ All notable changes to `ctx` are documented here. The project follows semantic v
 
 ## Unreleased
 
+## 0.8.5 — 2026-09-21
+
 ### Added
 
 - `ctx ingest jira --refresh` and `ctx ingest gitlab --refresh` explicitly revalidate provider state, bypassing Jira's local/negative cache, GitLab business-linked local MR skips, or the GitLab all-scope cursor. Local-only Git and code-comment ingestion reject the flag.

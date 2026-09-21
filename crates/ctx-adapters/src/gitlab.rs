@@ -8,7 +8,7 @@
 //! HTTP access goes through [`GitLabTransport`] so the client can be tested
 //! against canned responses instead of a live GitLab instance.
 
-use std::{fs, path::Path};
+use std::{collections::BTreeSet, fs, path::Path};
 
 use ctx_app::ports::{
     ExternalArtifactBatch, ExternalArtifactRequest, ExternalArtifactSource, PortError,
@@ -105,7 +105,9 @@ impl GitLabTransport for UreqTransport {
             path: path.to_owned(),
             message: match error {
                 RetryError::Request(message) => message,
-                RetryError::Status { status, attempts } => {
+                RetryError::Status {
+                    status, attempts, ..
+                } => {
                     format!("HTTP {status} after {attempts} attempt(s)")
                 }
             },
@@ -450,7 +452,11 @@ impl<T: GitLabTransport> ExternalArtifactSource for GitLabClient<T> {
             }
         };
         let (artifacts, links) = result.map_err(|error| PortError::new(error.to_string()))?;
-        Ok(ExternalArtifactBatch { artifacts, links })
+        Ok(ExternalArtifactBatch {
+            artifacts,
+            links,
+            unavailable_keys: BTreeSet::new(),
+        })
     }
 }
 

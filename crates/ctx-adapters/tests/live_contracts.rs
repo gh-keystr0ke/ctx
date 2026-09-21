@@ -49,11 +49,39 @@ fn jira_live_api_still_matches_the_ingestion_contract() {
         base_url,
     );
 
-    let (artifacts, _links) = client
+    let batch = client
         .fetch_issue_artifacts_for_keys(&BTreeSet::from([issue]))
         .expect("live Jira response must match the normalized contract");
 
-    assert!(!artifacts.is_empty());
+    assert!(!batch.artifacts.is_empty());
+}
+
+#[test]
+#[ignore = "requires CTX_LIVE_JIRA_* credentials and a known unavailable issue key"]
+fn jira_live_api_reports_an_inaccessible_key_without_losing_an_accessible_one() {
+    let base_url = required("CTX_LIVE_JIRA_BASE_URL");
+    let project = required("CTX_LIVE_JIRA_PROJECT");
+    let issue = required("CTX_LIVE_JIRA_ISSUE");
+    let unavailable = required("CTX_LIVE_JIRA_UNAVAILABLE_ISSUE");
+    let email = required("CTX_JIRA_EMAIL");
+    let token = required("CTX_JIRA_TOKEN");
+    let client = JiraClient::new(
+        JiraTransport::new(&base_url, &email, &token),
+        project,
+        base_url,
+    );
+
+    let batch = client
+        .fetch_issue_artifacts_for_keys(&BTreeSet::from([issue.clone(), unavailable.clone()]))
+        .expect("an unavailable Jira key must not fail the live batch");
+
+    assert!(
+        batch
+            .artifacts
+            .iter()
+            .any(|artifact| artifact.identity.external_id == issue)
+    );
+    assert!(batch.unavailable_keys.contains(&unavailable));
 }
 
 fn assert_cli_version(binary: &str) {

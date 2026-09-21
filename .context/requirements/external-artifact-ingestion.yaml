@@ -63,7 +63,8 @@ statement: >
   project routinely spans many unrelated repositories, so fetching the
   whole project into each one would be mostly noise. Instead it scans every
   artifact this repository already knows about for ticket-key-shaped
-  references, fetches only the ones under its own configured project, plus
+  references, fetches those keys across projects on the configured Jira
+  Cloud site, plus
   one hop of whatever Jira's own `issuelinks`/`parent` fields report as
   directly related to one of those (never recursing further), and
   normalizes both into artifacts plus the deterministic `CommentsOn` link
@@ -75,7 +76,10 @@ statement: >
   requirement decides which issues are even candidates to fetch. Jira
   Server/Data Center, changelog/worklog/attachments, classic-project
   custom-field epic links are explicitly out of scope for this requirement's
-  current implementation. Every GitLab list (issues, merge requests, notes,
+  current implementation. Jira search omissions and isolated 403/404
+  responses are reported as unavailable keys without discarding accessible
+  issues, while authentication, server, transport, JSON, and pagination
+  failures remain fatal. Every GitLab list (issues, merge requests, notes,
   and MR commits) and both Jira lists (search results and comments) must be
   fully paginated. Both HTTP transports must honor both standard forms of
   `Retry-After` (delay-seconds and HTTP-date) on 429 responses and apply a
@@ -116,7 +120,9 @@ tests:
   - symbol: ctx_adapters.gitlab.tests.every_gitlab_collection_reads_more_than_one_page
   - symbol: ctx_app.ingest.tests.gitlab_ingest_persists_provider_reported_links_and_stays_idempotent
   - symbol: crates.ctx-cli.tests.e2e.ingest_gitlab_without_configuration_fails_clearly_before_any_network_call
-  - symbol: ctx_adapters.jira.tests.fetches_only_the_referenced_issues_not_the_whole_project
+  - symbol: ctx_adapters.jira.tests.fetches_referenced_issues_across_projects
+  - symbol: ctx_adapters.jira.tests.a_successful_search_reports_a_probe_404_as_unavailable
+  - symbol: ctx_adapters.jira.tests.a_singleton_search_400_is_not_misreported_when_the_probe_also_fails
   - symbol: ctx_adapters.jira.tests.expands_one_hop_through_jira_reported_issue_links_but_no_further
   - symbol: ctx_adapters.jira.tests.jira_search_and_comments_read_every_page
   - symbol: ctx_adapters.jira.tests.a_search_that_never_stops_paginating_fails_loudly_instead_of_hanging

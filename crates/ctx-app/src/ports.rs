@@ -371,6 +371,7 @@ pub struct RepositoryArtifactRefs {
 pub struct ExternalArtifactBatch {
     pub artifacts: Vec<Artifact>,
     pub links: Vec<ArtifactLink>,
+    pub unavailable_keys: BTreeSet<String>,
 }
 
 /// Reads provider artifacts behind one normalized application port.

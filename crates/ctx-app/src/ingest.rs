@@ -45,6 +45,7 @@ pub struct IngestReport {
     pub artifacts_ingested: usize,
     pub links_created: usize,
     pub artifacts_removed: usize,
+    pub unavailable_keys: BTreeSet<String>,
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -133,6 +134,7 @@ where
             artifacts_ingested: artifacts.len(),
             links_created: links.len(),
             artifacts_removed: 0,
+            unavailable_keys: BTreeSet::new(),
         })
     }
 }
@@ -284,6 +286,7 @@ where
             artifacts_ingested: artifacts.len(),
             links_created: links.len(),
             artifacts_removed: 0,
+            unavailable_keys: BTreeSet::new(),
         })
     }
 }
@@ -394,6 +397,7 @@ where
             }
         };
         let batch = self.source.fetch(request).map_err(IngestError::Source)?;
+        let unavailable_keys = batch.unavailable_keys;
         let artifacts = batch.artifacts;
         let mut links = batch.links;
         for artifact in &artifacts {
@@ -424,6 +428,7 @@ where
             artifacts_ingested: artifacts.len(),
             links_created: links.len(),
             artifacts_removed: 0,
+            unavailable_keys,
         })
     }
 }
@@ -560,6 +565,7 @@ where
             artifacts_ingested: artifacts.len(),
             links_created: links.len(),
             artifacts_removed,
+            unavailable_keys: BTreeSet::new(),
         })
     }
 
@@ -1198,6 +1204,7 @@ mod tests {
             Ok(crate::ports::ExternalArtifactBatch {
                 artifacts: self.artifacts.clone(),
                 links: self.links.clone(),
+                unavailable_keys: BTreeSet::new(),
             })
         }
     }
@@ -1367,6 +1374,7 @@ mod tests {
     struct FakeJiraSource {
         artifacts: Vec<Artifact>,
         links: Vec<ArtifactLink>,
+        unavailable_keys: BTreeSet<String>,
         received_candidate_keys: RefCell<Vec<BTreeSet<String>>>,
         received_related_depths: RefCell<Vec<usize>>,
     }
@@ -1395,6 +1403,7 @@ mod tests {
             Ok(crate::ports::ExternalArtifactBatch {
                 artifacts: self.artifacts.clone(),
                 links: self.links.clone(),
+                unavailable_keys: self.unavailable_keys.clone(),
             })
         }
     }
@@ -1444,6 +1453,7 @@ mod tests {
         let source = FakeJiraSource {
             artifacts: vec![issue.clone(), comment.clone()],
             links: vec![comments_on.clone()],
+            unavailable_keys: BTreeSet::from(["OPS-404".to_owned()]),
             ..FakeJiraSource::default()
         };
         let mut store = FakeStore::default();
@@ -1453,6 +1463,10 @@ mod tests {
             .run(&repository, "2026-08-21T00:00:00Z")
             .expect("first run");
         assert_eq!(report.artifacts_ingested, 2);
+        assert_eq!(
+            report.unavailable_keys,
+            BTreeSet::from(["OPS-404".to_owned()])
+        );
         assert!(store.links.borrow().contains(&comments_on));
 
         JiraIngestRunner::new(&source, &mut store)

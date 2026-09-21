@@ -6,8 +6,8 @@ statement: >
   The opt-in business-linked artifact scope must retain only development
   evidence with a deterministic path from this repository's Git artifacts
   to a Jira business-context issue, directly or through a repository-linked
-  merge request. Jira project membership is only an admissibility check and
-  is never repository-relevance evidence: Jira artifacts already stored in
+  merge request. Jira project membership is neither an admissibility check
+  nor repository-relevance evidence: Jira artifacts already stored in
   the repository cannot seed or perpetuate the scoped set. Merge requests
   without a Jira anchor, and branches or commits without a direct Jira
   anchor or an anchored merge-request relationship, are outside the final

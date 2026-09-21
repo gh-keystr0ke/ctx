@@ -91,9 +91,13 @@ pub struct Attempt<T> {
 }
 
 #[derive(Debug, Eq, PartialEq)]
-pub enum RetryError<E> {
+pub enum RetryError<E, T> {
     Request(E),
-    Status { status: u16, attempts: usize },
+    Status {
+        status: u16,
+        attempts: usize,
+        value: T,
+    },
 }
 
 /// Executes `attempt` until it succeeds, returns a non-retryable status, or
@@ -107,7 +111,7 @@ pub fn run<T, E>(
     policy: RetryPolicy,
     sleeper: &impl Sleeper,
     mut attempt: impl FnMut() -> Result<Attempt<T>, E>,
-) -> Result<T, RetryError<E>> {
+) -> Result<T, RetryError<E, T>> {
     let mut retries_used = 0;
     loop {
         tracing::debug!(attempt = retries_used + 1, "HTTP attempt started");
@@ -127,6 +131,7 @@ pub fn run<T, E>(
             return Err(RetryError::Status {
                 status: response.status,
                 attempts: retries_used + 1,
+                value: response.value,
             });
         }
         let delay = policy.delay(retries_used, response.retry_after.as_deref());
@@ -213,7 +218,8 @@ mod tests {
             error,
             RetryError::Status {
                 status: 429,
-                attempts: 2
+                attempts: 2,
+                value: (),
             }
         );
     }

@@ -21,8 +21,10 @@ decision: >
   artifact this repository already knows about -- commits, branches,
   GitLab issues/MRs, prior Jira issues -- for ticket-key-shaped references
   via the same `ReferenceKind::TicketKey` scanner the deterministic linker
-  already uses), keeps only the ones under its own configured project, and
-  fetches exactly those. This is also the identity decision specific to
+  already uses), and fetches exactly those from the configured Jira Cloud
+  site even when a key belongs to a different project. The required
+  `[jira].project` value remains for configuration compatibility, not as an
+  admissibility filter. This is also the identity decision specific to
   Jira: an issue artifact's `external_id` is Jira's human-readable issue
   key (`"PSI-1122"`), never its internal numeric id, which is what lets a
   ticket key already recognized by the linker double as the fetch-scoping
@@ -91,6 +93,15 @@ decision: >
   `key in (...)` query is already bounded to `KEY_BATCH_SIZE` (50) keys,
   well under the endpoint's `maxResults` (100), so a well-behaved response
   always fits on one page.
+
+  Jira search applies issue visibility to results and can return HTTP 200
+  while omitting inaccessible keys. Missing results are checked through the
+  per-issue endpoint; 403/404 keys are reported as unavailable while
+  accessible issues continue. Batch-level 400/403/404 responses are
+  bisected, but a singleton is unavailable only after its per-issue request
+  confirms 403/404. Authentication, retry-exhaustion, server, transport,
+  JSON, and pagination failures remain fatal. Issue and comment artifact
+  projects come from `fields.project.key`, never from configuration.
 implementation:
   - symbol: ctx_adapters.jira.JiraTransport
   - symbol: ctx_adapters.jira.UreqTransport
@@ -104,9 +115,12 @@ implementation:
   - symbol: ctx_app.ingest.JiraIngestRunner.run_scoped
   - symbol: ctx_adapters.http_retry.run
 tests:
-  - symbol: ctx_adapters.jira.tests.fetches_only_the_referenced_issues_not_the_whole_project
+  - symbol: ctx_adapters.jira.tests.fetches_referenced_issues_across_projects
+  - symbol: ctx_adapters.jira.tests.a_successful_search_probes_and_ingests_an_omitted_key
+  - symbol: ctx_adapters.jira.tests.a_failed_batch_is_bisected_and_only_the_inaccessible_key_is_reported
+  - symbol: ctx_adapters.jira.tests.an_observed_401_stays_fatal
   - symbol: ctx_adapters.jira.tests.expands_one_hop_through_jira_reported_issue_links_but_no_further
-  - symbol: ctx_adapters.jira.tests.a_related_issue_already_among_the_seeds_gets_no_duplicate_related_link
+  - symbol: ctx_adapters.jira.tests.a_related_issue_already_among_the_seeds_keeps_the_reported_link
   - symbol: ctx_adapters.jira.tests.no_referenced_keys_means_no_request_at_all
   - symbol: ctx_adapters.jira.tests.adf_description_is_flattened_to_plain_text
   - symbol: ctx_adapters.jira.tests.missing_email_or_token_env_var_is_a_config_error

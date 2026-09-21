@@ -79,11 +79,23 @@ pub(super) fn ingest(
         artifacts = report.artifacts_ingested,
         links = report.links_created,
         removed = report.artifacts_removed,
+        unavailable = report.unavailable_keys.len(),
         "ingest completed"
     );
     if cli.json {
         println!("{}", serde_json::to_string_pretty(&report)?);
     } else {
+        if !report.unavailable_keys.is_empty() {
+            eprintln!(
+                "Warning: unavailable Jira issue key(s): {}",
+                report
+                    .unavailable_keys
+                    .iter()
+                    .map(String::as_str)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            );
+        }
         println!(
             "Ingested {} artifact(s), {} link(s) created, {} artifact(s) removed",
             report.artifacts_ingested, report.links_created, report.artifacts_removed

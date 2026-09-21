@@ -28,6 +28,11 @@ statement: >
   references (ctx_core.linking) to every other artifact already known for
   the repository, and a References link is persisted for each one that
   resolves to a real, already-known target — never a guessed one.
+  A newly ingested Git commit can therefore link to an already-local Jira
+  issue without another Jira request. Network connector responses persist
+  their normalized artifacts and deterministic links atomically, and local
+  skip decisions compare the complete provider/kind/external-id identity,
+  never a bare provider ID.
   Ingestion registers its own repository row and does not require `ctx
   index` to have run first, since prompt3.md's own acceptance scenario
   starts from a project with no prior `.context`. Code-comment/docstring
@@ -87,6 +92,8 @@ statement: >
   gateway/service failures; exhausting that budget is an explicit error.
 implementation:
   - symbol: ctx_app.ports.ExternalArtifactSource.fetch
+  - symbol: ctx_app.ports.ExternalArtifactBatchStore.persist_external_artifact_batch
+  - symbol: ctx_adapters.sqlite.artifacts.SqliteStore.ExternalArtifactBatchStore.persist_external_artifact_batch
   - symbol: ctx_adapters.git.GitRepo.GitArtifactSource.commit_artifacts
   - symbol: ctx_adapters.git.GitRepo.GitArtifactSource.branch_artifacts
   - symbol: ctx_app.ingest.GitIngestRunner.run
@@ -109,6 +116,7 @@ tests:
   - symbol: ctx_adapters.gitlab.tests.a_merge_request_links_to_its_source_branch_by_the_api_field_not_a_text_match
   - symbol: ctx_adapters.git.tests.commit_artifacts_report_each_commits_own_changed_files_not_a_cumulative_range
   - symbol: ctx_app.ingest.tests.git_ingest_links_a_commit_to_the_symbols_in_the_files_it_changed
+  - symbol: ctx_app.ingest.tests.git_ingest_links_a_new_commit_to_an_already_local_jira_issue
   - symbol: ctx_core.linking.tests.an_oversized_changeset_attributes_no_symbols_rather_than_an_arbitrary_subset
   - symbol: ctx_core.linking.tests.the_sweep_threshold_scales_with_repository_size_rather_than_a_fixed_count
   - symbol: crates.ctx-cli.tests.e2e.ingest_git_reads_commits_and_branches_and_links_a_referenced_ticket
@@ -131,4 +139,6 @@ tests:
   - symbol: ctx_adapters.http_retry.tests.a_rate_limit_after_the_retry_budget_is_an_explicit_error
   - symbol: ctx_app.ingest.tests.jira_ingest_persists_provider_reported_links_and_stays_idempotent
   - symbol: ctx_app.ingest.tests.jira_ingest_derives_candidate_keys_from_already_known_artifact_text
+  - symbol: ctx_app.ingest.tests.jira_skip_uses_the_complete_identity_not_a_bare_external_id
+  - symbol: ctx_adapters.sqlite.artifacts.tests.external_batch_rolls_back_artifacts_when_a_link_write_fails
   - symbol: crates.ctx-cli.tests.e2e.ingest_jira_without_configuration_fails_clearly_before_any_network_call

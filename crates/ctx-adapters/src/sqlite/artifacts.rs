@@ -1,6 +1,6 @@
 use ctx_app::ports::{
     ArtifactLinkStore, ArtifactMaintenanceStore, ArtifactReconcileReport, ArtifactRepository,
-    IngestCursorStore, KnowledgeCandidateStore, PortError,
+    ExternalArtifactBatchStore, IngestCursorStore, KnowledgeCandidateStore, PortError,
 };
 use ctx_core::{
     artifact::{
@@ -25,48 +25,13 @@ impl ArtifactRepository for SqliteStore {
     ) -> Result<(), PortError> {
         let transaction = self.connection.transaction().map_err(database_error)?;
         let repository_row = repository_row(&transaction, repository)?;
-        transaction
-            .execute(
-                "INSERT INTO artifacts(
-                    repository_id, provider, kind, external_id, project, title, body,
-                    author, external_created_at, external_updated_at, source_locator,
-                    content_hash, ingested_at, ingest_version
-                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
-                 ON CONFLICT(repository_id, provider, kind, external_id) DO UPDATE SET
-                    project = excluded.project,
-                    title = excluded.title,
-                    body = excluded.body,
-                    author = excluded.author,
-                    external_created_at = excluded.external_created_at,
-                    external_updated_at = excluded.external_updated_at,
-                    source_locator = excluded.source_locator,
-                    content_hash = excluded.content_hash,
-                    ingested_at = excluded.ingested_at,
-                    ingest_version = excluded.ingest_version",
-                params![
-                    repository_row,
-                    provider_str(artifact.identity.provider),
-                    artifact_kind_str(artifact.identity.kind),
-                    artifact.identity.external_id,
-                    artifact.project.as_str(),
-                    artifact.title,
-                    artifact.body,
-                    artifact.author,
-                    artifact
-                        .external_created_at
-                        .as_ref()
-                        .map(ctx_core::domain::Timestamp::as_str),
-                    artifact
-                        .external_updated_at
-                        .as_ref()
-                        .map(ctx_core::domain::Timestamp::as_str),
-                    artifact.source_locator.as_str(),
-                    artifact.content_hash,
-                    ingested_at,
-                    ingest_version,
-                ],
-            )
-            .map_err(database_error)?;
+        upsert_artifact_row(
+            &transaction,
+            repository_row,
+            artifact,
+            ingested_at,
+            ingest_version,
+        )?;
         transaction.commit().map_err(database_error)
     }
 
@@ -254,6 +219,31 @@ impl ArtifactLinkStore for SqliteStore {
             });
         }
         Ok(links)
+    }
+}
+
+impl ExternalArtifactBatchStore for SqliteStore {
+    fn persist_external_artifact_batch(
+        &mut self,
+        repository: &RepositoryId,
+        artifacts: &[Artifact],
+        links: &[ArtifactLink],
+        ingested_at: &str,
+        ingest_version: &str,
+    ) -> Result<(), PortError> {
+        let transaction = self.connection.transaction().map_err(database_error)?;
+        let repository_row = repository_row(&transaction, repository)?;
+        for artifact in artifacts {
+            upsert_artifact_row(
+                &transaction,
+                repository_row,
+                artifact,
+                ingested_at,
+                ingest_version,
+            )?;
+        }
+        persist_link_rows(&transaction, repository_row, links)?;
+        transaction.commit().map_err(database_error)
     }
 }
 
@@ -484,6 +474,58 @@ fn persist_link_rows(
                 .map_err(database_error)?;
         }
     }
+    Ok(())
+}
+
+fn upsert_artifact_row(
+    transaction: &Transaction<'_>,
+    repository_row: i64,
+    artifact: &Artifact,
+    ingested_at: &str,
+    ingest_version: &str,
+) -> Result<(), PortError> {
+    transaction
+        .execute(
+            "INSERT INTO artifacts(
+                repository_id, provider, kind, external_id, project, title, body,
+                author, external_created_at, external_updated_at, source_locator,
+                content_hash, ingested_at, ingest_version
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
+             ON CONFLICT(repository_id, provider, kind, external_id) DO UPDATE SET
+                project = excluded.project,
+                title = excluded.title,
+                body = excluded.body,
+                author = excluded.author,
+                external_created_at = excluded.external_created_at,
+                external_updated_at = excluded.external_updated_at,
+                source_locator = excluded.source_locator,
+                content_hash = excluded.content_hash,
+                ingested_at = excluded.ingested_at,
+                ingest_version = excluded.ingest_version",
+            params![
+                repository_row,
+                provider_str(artifact.identity.provider),
+                artifact_kind_str(artifact.identity.kind),
+                artifact.identity.external_id,
+                artifact.project.as_str(),
+                artifact.title,
+                artifact.body,
+                artifact.author,
+                artifact
+                    .external_created_at
+                    .as_ref()
+                    .map(ctx_core::domain::Timestamp::as_str),
+                artifact
+                    .external_updated_at
+                    .as_ref()
+                    .map(ctx_core::domain::Timestamp::as_str),
+                artifact.source_locator.as_str(),
+                artifact.content_hash,
+                ingested_at,
+                ingest_version,
+            ],
+        )
+        .map_err(database_error)?;
     Ok(())
 }
 
@@ -877,6 +919,53 @@ mod tests {
 
         let links = store.list_links(&repository).expect("links");
         assert_eq!(links, vec![link]);
+    }
+
+    #[test]
+    fn external_batch_rolls_back_artifacts_when_a_link_write_fails() {
+        let directory = tempdir().expect("temporary directory");
+        let (mut store, repository) = open_repository(directory.path());
+        store
+            .connection
+            .execute_batch(
+                "CREATE TRIGGER fail_artifact_link
+                 BEFORE INSERT ON artifact_links
+                 BEGIN
+                   SELECT RAISE(ABORT, 'injected link failure');
+                 END;",
+            )
+            .expect("failure injection trigger");
+        let issue = artifact_with(ArtifactProvider::Jira, ArtifactKind::Issue, "PSI-1122");
+        let merge_request = sample_artifact("842", "References PSI-1122");
+        let link = ArtifactLink {
+            source: merge_request.identity.clone(),
+            target: ArtifactLinkTarget::Artifact(issue.identity.clone()),
+            kind: ArtifactLinkKind::References,
+            evidence_locator: "test".to_owned(),
+        };
+
+        let result = store.persist_external_artifact_batch(
+            &repository,
+            &[issue, merge_request],
+            &[link],
+            "2026-08-21T00:00:00Z",
+            "test",
+        );
+
+        assert!(result.is_err());
+        assert!(
+            store
+                .list_artifacts(&repository)
+                .expect("artifacts after rollback")
+                .is_empty(),
+            "the artifact rows must roll back with the failed link insert"
+        );
+        assert!(
+            store
+                .list_links(&repository)
+                .expect("links after rollback")
+                .is_empty()
+        );
     }
 
     #[test]

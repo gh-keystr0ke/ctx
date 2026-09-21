@@ -6,3 +6,4 @@ implementation:
   - symbol: ctx_app.ingest.GitLabIngestRunner.run_scoped
 tests:
   - symbol: ctx_app.ingest.tests.gitlab_ingest_advances_its_sync_cursor_and_passes_it_to_the_next_run
+  - symbol: ctx_app.ingest.tests.a_failed_external_batch_persists_neither_artifacts_links_nor_cursor

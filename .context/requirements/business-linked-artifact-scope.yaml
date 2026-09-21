@@ -21,7 +21,12 @@ statement: >
   fetched in this mode. `ctx ingest jira --scope business-linked` derives
   keys only from current Git plus those repository-linked MRs and their
   comments, never from old Jira artifacts or unrelated GitLab issues, and
-  `--related-depth` controls the bounded Jira expansion. `ctx ingest
+  `--related-depth` controls the bounded Jira expansion. Business-linked
+  GitLab and Jira ingestion skip artifacts whose complete
+  provider/kind/external-id identity is already stored locally; an equal
+  bare external ID from another provider or kind never suppresses a fetch.
+  A Jira relationship targeting an already-local Jira issue still produces
+  its deterministic `RelatedIssue` link without refetching the target. `ctx ingest
   code-comments --reconcile` treats HEAD as a complete snapshot and removes
   comments/docstrings no longer present only after the new snapshot was read
   successfully. `ctx enrich --scope business-linked` then creates exactly one
@@ -55,9 +60,12 @@ tests:
   - symbol: ctx_core.artifact_scope.tests.repository_linked_mr_without_jira_is_not_business_context
   - symbol: ctx_core.artifact_scope.tests.jira_related_issue_expansion_is_bounded_by_depth
   - symbol: ctx_adapters.gitlab.tests.repository_linked_mode_fetches_details_only_for_selected_merge_requests
+  - symbol: ctx_adapters.gitlab.tests.repository_linked_mode_skips_only_the_exact_known_merge_request_identity
   - symbol: ctx_app.ingest.tests.business_linked_gitlab_scope_builds_refs_only_from_current_git
   - symbol: ctx_app.ingest.tests.business_linked_jira_scope_cannot_be_seeded_by_old_jira_or_gitlab_issues
   - symbol: ctx_app.ingest.tests.business_linked_jira_scope_accepts_a_repository_linked_mr_as_evidence
+  - symbol: ctx_app.ingest.tests.jira_skip_uses_the_complete_identity_not_a_bare_external_id
+  - symbol: ctx_adapters.jira.tests.a_related_issue_already_stored_locally_is_linked_without_refetching_it
   - symbol: crates.ctx-cli.tests.e2e.ingest_code_comments_attaches_a_doc_comment_to_its_nearest_symbol
   - symbol: ctx_adapters.sqlite.artifacts.tests.reconciling_a_snapshot_removes_absent_artifacts_and_all_dependencies
   - symbol: ctx_app.enrich.tests.business_linked_enrich_sends_one_jira_anchored_bundle_not_standalone_git

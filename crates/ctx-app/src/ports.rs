@@ -346,16 +346,23 @@ pub enum ExternalArtifactRequest<'a> {
     UpdatedSince(Option<&'a str>),
     /// Fetch the explicitly referenced tracker keys and provider-linked
     /// neighbors allowed by that connector's bounded traversal policy.
-    ReferencedKeys(&'a BTreeSet<String>),
+    ReferencedKeys {
+        keys: &'a BTreeSet<String>,
+        known_artifacts: &'a HashSet<ArtifactIdentity>,
+    },
     /// Fetch only merge requests deterministically connected to the current
     /// repository's Git evidence. Connectors must select summaries before
     /// fetching expensive comments/commit details.
-    RepositoryLinked(&'a RepositoryArtifactRefs),
+    RepositoryLinked {
+        repository_refs: &'a RepositoryArtifactRefs,
+        known_artifacts: &'a HashSet<ArtifactIdentity>,
+    },
     /// Fetch exactly the repository-backed Jira keys with an explicitly
     /// bounded tracker-reported relationship expansion.
     BusinessLinkedKeys {
         keys: &'a BTreeSet<String>,
         related_depth: usize,
+        known_artifacts: &'a HashSet<ArtifactIdentity>,
     },
 }
 
@@ -486,6 +493,26 @@ pub trait ArtifactLinkStore {
     /// # Errors
     /// Returns [`PortError`] when stored links cannot be read.
     fn list_links(&self, repository: &RepositoryId) -> Result<Vec<ArtifactLink>, PortError>;
+}
+
+/// Persists one provider response as a single unit so links never observe a
+/// partially written artifact batch and a failed link write cannot leave the
+/// batch's artifacts committed.
+pub trait ExternalArtifactBatchStore {
+    /// Idempotently persists every artifact and deterministic link in one
+    /// transaction.
+    ///
+    /// # Errors
+    /// Returns [`PortError`] and leaves the stored batch unchanged when any
+    /// artifact or link cannot be persisted.
+    fn persist_external_artifact_batch(
+        &mut self,
+        repository: &RepositoryId,
+        artifacts: &[Artifact],
+        links: &[ArtifactLink],
+        ingested_at: &str,
+        ingest_version: &str,
+    ) -> Result<(), PortError>;
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]

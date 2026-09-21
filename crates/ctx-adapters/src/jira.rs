@@ -28,7 +28,11 @@
 //! Cloud is supported (Basic auth via an account email + API token, REST
 //! API v3); Jira Server/Data Center is out of scope.
 
-use std::{collections::BTreeSet, fs, path::Path};
+use std::{
+    collections::{BTreeSet, HashSet},
+    fs,
+    path::Path,
+};
 
 use base64::Engine as _;
 use ctx_app::ports::{
@@ -360,15 +364,41 @@ impl<T: JiraTransport> JiraClient<T> {
         candidate_keys: &BTreeSet<String>,
         related_depth: usize,
     ) -> Result<ExternalArtifactBatch, JiraError> {
-        if candidate_keys.is_empty() {
+        self.fetch_issue_artifacts_for_keys_with_depth_and_known(
+            candidate_keys,
+            related_depth,
+            &HashSet::new(),
+        )
+    }
+
+    fn fetch_issue_artifacts_for_keys_with_depth_and_known(
+        &self,
+        candidate_keys: &BTreeSet<String>,
+        related_depth: usize,
+        known_artifacts: &HashSet<ArtifactIdentity>,
+    ) -> Result<ExternalArtifactBatch, JiraError> {
+        let known_issue_keys: BTreeSet<_> = known_artifacts
+            .iter()
+            .filter(|identity| {
+                identity.provider == ArtifactProvider::Jira && identity.kind == ArtifactKind::Issue
+            })
+            .map(|identity| identity.external_id.clone())
+            .collect();
+        let mut frontier_keys: BTreeSet<_> = candidate_keys
+            .difference(&known_issue_keys)
+            .cloned()
+            .collect();
+        if frontier_keys.is_empty() {
             return Ok(ExternalArtifactBatch::default());
         }
 
         let mut artifacts = Vec::new();
         let mut links = Vec::new();
         let mut unavailable_keys = BTreeSet::new();
-        let mut frontier_keys = candidate_keys.clone();
-        let mut visited_keys = candidate_keys.clone();
+        let mut visited_keys = candidate_keys
+            .union(&known_issue_keys)
+            .cloned()
+            .collect::<BTreeSet<_>>();
         let mut pending_related = Vec::new();
         for depth in 0..=related_depth {
             let resolution = self.fetch_issues_by_keys(&frontier_keys)?;
@@ -399,13 +429,14 @@ impl<T: JiraTransport> JiraClient<T> {
             frontier_keys = next_frontier;
         }
 
-        let fetched_issue_keys: BTreeSet<_> = artifacts
+        let mut available_issue_keys: BTreeSet<_> = artifacts
             .iter()
             .filter(|artifact| artifact.identity.kind == ArtifactKind::Issue)
             .map(|artifact| artifact.identity.external_id.clone())
             .collect();
+        available_issue_keys.extend(known_issue_keys);
         for (source, target_key) in pending_related {
-            if fetched_issue_keys.contains(&target_key) {
+            if available_issue_keys.contains(&target_key) {
                 links.push(ArtifactLink {
                     evidence_locator: format!("jira issuelinks/parent: {}", source.external_id),
                     source,
@@ -646,13 +677,19 @@ impl<T: JiraTransport> ExternalArtifactSource for JiraClient<T> {
         request: ExternalArtifactRequest<'_>,
     ) -> Result<ExternalArtifactBatch, PortError> {
         match request {
-            ExternalArtifactRequest::ReferencedKeys(candidate_keys) => {
-                self.fetch_issue_artifacts_for_keys(candidate_keys)
-            }
+            ExternalArtifactRequest::ReferencedKeys {
+                keys,
+                known_artifacts,
+            } => self.fetch_issue_artifacts_for_keys_with_depth_and_known(keys, 1, known_artifacts),
             ExternalArtifactRequest::BusinessLinkedKeys {
                 keys,
                 related_depth,
-            } => self.fetch_issue_artifacts_for_keys_with_depth(keys, related_depth),
+                known_artifacts,
+            } => self.fetch_issue_artifacts_for_keys_with_depth_and_known(
+                keys,
+                related_depth,
+                known_artifacts,
+            ),
             _ => {
                 return Err(PortError::new(
                     "Jira accepts only referenced-key artifact requests",
@@ -1180,6 +1217,53 @@ mod tests {
                         kind: ArtifactKind::Issue,
                         external_id: "PSI-3".to_owned(),
                     })
+        }));
+    }
+
+    #[test]
+    fn a_related_issue_already_stored_locally_is_linked_without_refetching_it() {
+        let mut responses = BTreeMap::new();
+        responses.insert(
+            search_key("key in (PSI-1) ORDER BY key ASC", None),
+            r#"{"issues":[{"key":"PSI-1","fields":{"project":{"key":"PSI"},"summary":"Seed","issuelinks":[{"outwardIssue":{"key":"PSI-2"}}]}}]}"#
+                .to_owned(),
+        );
+        responses.extend([empty_comment_page("PSI-1")]);
+        let client = JiraClient::new(
+            FakeTransport {
+                responses,
+                ..FakeTransport::default()
+            },
+            "PSI",
+            "https://example.atlassian.net",
+        );
+        let known = HashSet::from([ArtifactIdentity {
+            provider: ArtifactProvider::Jira,
+            kind: ArtifactKind::Issue,
+            external_id: "PSI-2".to_owned(),
+        }]);
+
+        let batch = client
+            .fetch_issue_artifacts_for_keys_with_depth_and_known(&keys(&["PSI-1"]), 1, &known)
+            .expect("known related issue needs no Jira request");
+
+        assert_eq!(
+            batch
+                .artifacts
+                .iter()
+                .filter(|artifact| artifact.identity.kind == ArtifactKind::Issue)
+                .count(),
+            1
+        );
+        assert!(batch.links.iter().any(|link| {
+            link.source.external_id == "PSI-1"
+                && link.target
+                    == ArtifactLinkTarget::Artifact(ArtifactIdentity {
+                        provider: ArtifactProvider::Jira,
+                        kind: ArtifactKind::Issue,
+                        external_id: "PSI-2".to_owned(),
+                    })
+                && link.kind == ArtifactLinkKind::RelatedIssue
         }));
     }
 

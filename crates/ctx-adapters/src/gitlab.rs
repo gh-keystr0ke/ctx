@@ -8,7 +8,11 @@
 //! HTTP access goes through [`GitLabTransport`] so the client can be tested
 //! against canned responses instead of a live GitLab instance.
 
-use std::{collections::BTreeSet, fs, path::Path};
+use std::{
+    collections::{BTreeSet, HashSet},
+    fs,
+    path::Path,
+};
 
 use ctx_app::ports::{
     ExternalArtifactBatch, ExternalArtifactRequest, ExternalArtifactSource, PortError,
@@ -248,6 +252,7 @@ impl<T: GitLabTransport> GitLabClient<T> {
     fn fetch_repository_linked_merge_requests(
         &self,
         repository_refs: &RepositoryArtifactRefs,
+        known_artifacts: &HashSet<ArtifactIdentity>,
     ) -> Result<(Vec<Artifact>, Vec<ArtifactLink>), GitLabError> {
         let merge_requests = self.get_all_pages::<RawMergeRequest>(&format!(
             "/projects/{}/merge_requests?per_page={PAGE_SIZE}&sort=asc",
@@ -258,6 +263,9 @@ impl<T: GitLabTransport> GitLabClient<T> {
         for merge_request in merge_requests
             .into_iter()
             .filter(|merge_request| merge_request_matches(merge_request, repository_refs))
+            .filter(|merge_request| {
+                !known_artifacts.contains(&Self::merge_request_identity(merge_request.iid))
+            })
         {
             self.push_merge_request(merge_request, &mut artifacts, &mut links)?;
         }
@@ -442,9 +450,10 @@ impl<T: GitLabTransport> ExternalArtifactSource for GitLabClient<T> {
             ExternalArtifactRequest::UpdatedSince(since) => {
                 self.fetch_issue_and_mr_artifacts(since)
             }
-            ExternalArtifactRequest::RepositoryLinked(repository_refs) => {
-                self.fetch_repository_linked_merge_requests(repository_refs)
-            }
+            ExternalArtifactRequest::RepositoryLinked {
+                repository_refs,
+                known_artifacts,
+            } => self.fetch_repository_linked_merge_requests(repository_refs, known_artifacts),
             _ => {
                 return Err(PortError::new(
                     "GitLab accepts only updated-since or repository-linked artifact requests",
@@ -829,7 +838,10 @@ mod tests {
         };
 
         let batch = client
-            .fetch(ExternalArtifactRequest::RepositoryLinked(&repository_refs))
+            .fetch(ExternalArtifactRequest::RepositoryLinked {
+                repository_refs: &repository_refs,
+                known_artifacts: &HashSet::new(),
+            })
             .expect("repository-linked fetch");
 
         assert_eq!(batch.artifacts.len(), 1);
@@ -840,6 +852,58 @@ mod tests {
                 .iter()
                 .all(|artifact| artifact.identity.kind == ArtifactKind::MergeRequest)
         );
+    }
+
+    #[test]
+    fn repository_linked_mode_skips_only_the_exact_known_merge_request_identity() {
+        let mut responses = BTreeMap::new();
+        responses.insert(
+            "/projects/billing%2Fsubscriptions/merge_requests?per_page=100&sort=asc&page=1"
+                .to_owned(),
+            r#"[{"iid":842,"title":"Selected","source_branch":"feature/cancellation"}]"#.to_owned(),
+        );
+        responses.insert(
+            "/projects/billing%2Fsubscriptions/merge_requests/842/notes?per_page=100&page=1"
+                .to_owned(),
+            "[]".to_owned(),
+        );
+        responses.insert(
+            "/projects/billing%2Fsubscriptions/merge_requests/842/commits?per_page=100&page=1"
+                .to_owned(),
+            "[]".to_owned(),
+        );
+        let client = GitLabClient::new(FakeTransport { responses }, "billing/subscriptions");
+        let repository_refs = RepositoryArtifactRefs {
+            branch_names: BTreeSet::from(["feature/cancellation".to_owned()]),
+            ..RepositoryArtifactRefs::default()
+        };
+        let unrelated_identity = ArtifactIdentity {
+            provider: ArtifactProvider::Jira,
+            kind: ArtifactKind::Issue,
+            external_id: "842".to_owned(),
+        };
+
+        let fetched = client
+            .fetch(ExternalArtifactRequest::RepositoryLinked {
+                repository_refs: &repository_refs,
+                known_artifacts: &HashSet::from([unrelated_identity]),
+            })
+            .expect("unrelated identity must not suppress the MR");
+        assert_eq!(fetched.artifacts.len(), 1);
+
+        let known_merge_request = ArtifactIdentity {
+            provider: ArtifactProvider::GitLab,
+            kind: ArtifactKind::MergeRequest,
+            external_id: "842".to_owned(),
+        };
+        let skipped = client
+            .fetch(ExternalArtifactRequest::RepositoryLinked {
+                repository_refs: &repository_refs,
+                known_artifacts: &HashSet::from([known_merge_request]),
+            })
+            .expect("known MR is skipped");
+        assert!(skipped.artifacts.is_empty());
+        assert!(skipped.links.is_empty());
     }
 
     #[test]

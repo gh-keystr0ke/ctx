@@ -22,8 +22,8 @@ use thiserror::Error;
 
 use crate::ports::{
     ArtifactLinkStore, ArtifactMaintenanceStore, ArtifactRepository, BranchArtifact,
-    CommitArtifact, ExternalArtifactRequest, ExternalArtifactSource, GitArtifactSource,
-    GitRepository, GraphStore, IngestCursorStore, LanguageAnalyzer, PortError,
+    CommitArtifact, ExternalArtifactBatchStore, ExternalArtifactRequest, ExternalArtifactSource,
+    GitArtifactSource, GitRepository, GraphStore, IngestCursorStore, LanguageAnalyzer, PortError,
     RepositoryArtifactRefs, ReviewRepository,
 };
 
@@ -202,7 +202,7 @@ pub struct GitLabIngestRunner<'a, G, S> {
 impl<'a, G, S> GitLabIngestRunner<'a, G, S>
 where
     G: ExternalArtifactSource,
-    S: ArtifactRepository + ArtifactLinkStore + IngestCursorStore,
+    S: ArtifactRepository + ArtifactLinkStore + ExternalArtifactBatchStore + IngestCursorStore,
 {
     pub const fn new(source: &'a G, store: &'a mut S) -> Self {
         Self { source, store }
@@ -230,6 +230,10 @@ where
             .store
             .list_artifacts(repository)
             .map_err(IngestError::Store)?;
+        let known_artifacts: HashSet<_> = known_before
+            .iter()
+            .map(|artifact| artifact.identity.clone())
+            .collect();
         let batch = match scope {
             ArtifactIngestScope::All => {
                 let cursor = self
@@ -242,30 +246,27 @@ where
             ArtifactIngestScope::BusinessLinked { .. } => {
                 let request_refs = repository_artifact_refs(&known_before);
                 self.source
-                    .fetch(ExternalArtifactRequest::RepositoryLinked(&request_refs))
+                    .fetch(ExternalArtifactRequest::RepositoryLinked {
+                        repository_refs: &request_refs,
+                        known_artifacts: &known_artifacts,
+                    })
             }
         }
         .map_err(IngestError::Source)?;
         let artifacts = batch.artifacts;
         let mut links = batch.links;
-        for artifact in &artifacts {
-            self.store
-                .upsert_artifact(repository, artifact, ingested_at, GITLAB_INGEST_VERSION)
-                .map_err(IngestError::Store)?;
-        }
-        let known = self
-            .store
-            .list_artifacts(repository)
-            .map_err(IngestError::Store)?;
+        let known = merge_known_artifacts(known_before, &artifacts);
+        let fetched_identities: HashSet<_> = artifacts
+            .iter()
+            .map(|artifact| artifact.identity.clone())
+            .collect();
         let reference_sources: Vec<&Artifact> = match scope {
             ArtifactIngestScope::All => artifacts.iter().collect(),
             ArtifactIngestScope::BusinessLinked { .. } => known
                 .iter()
                 .filter(|artifact| {
                     artifact.identity.provider == ArtifactProvider::Git
-                        || artifacts
-                            .iter()
-                            .any(|new| new.identity == artifact.identity)
+                        || fetched_identities.contains(&artifact.identity)
                 })
                 .collect(),
         };
@@ -275,7 +276,13 @@ where
                 .flat_map(|artifact| text_reference_links(artifact, &known)),
         );
         self.store
-            .persist_links(repository, &links)
+            .persist_external_artifact_batch(
+                repository,
+                &artifacts,
+                &links,
+                ingested_at,
+                GITLAB_INGEST_VERSION,
+            )
             .map_err(IngestError::Store)?;
         if scope == ArtifactIngestScope::All {
             self.store
@@ -319,6 +326,33 @@ fn repository_artifact_refs(artifacts: &[Artifact]) -> RepositoryArtifactRefs {
     references
 }
 
+fn merge_known_artifacts(known: Vec<Artifact>, fetched: &[Artifact]) -> Vec<Artifact> {
+    let mut by_identity: BTreeMap<_, _> = known
+        .into_iter()
+        .map(|artifact| {
+            (
+                (
+                    artifact.identity.provider,
+                    artifact.identity.kind,
+                    artifact.identity.external_id.clone(),
+                ),
+                artifact,
+            )
+        })
+        .collect();
+    for artifact in fetched {
+        by_identity.insert(
+            (
+                artifact.identity.provider,
+                artifact.identity.kind,
+                artifact.identity.external_id.clone(),
+            ),
+            artifact.clone(),
+        );
+    }
+    by_identity.into_values().collect()
+}
+
 /// Bumped when the normalization this runner applies to Jira artifacts
 /// changes.
 const JIRA_INGEST_VERSION: &str = "jira-v2";
@@ -346,7 +380,7 @@ pub struct JiraIngestRunner<'a, J, S> {
 impl<'a, J, S> JiraIngestRunner<'a, J, S>
 where
     J: ExternalArtifactSource,
-    S: ArtifactRepository + ArtifactLinkStore,
+    S: ArtifactRepository + ArtifactLinkStore + ExternalArtifactBatchStore,
 {
     pub const fn new(source: &'a J, store: &'a mut S) -> Self {
         Self { source, store }
@@ -370,7 +404,7 @@ where
         ingested_at: &str,
         scope: ArtifactIngestScope,
     ) -> Result<IngestReport, IngestError> {
-        let known = self
+        let known_before = self
             .store
             .list_artifacts(repository)
             .map_err(IngestError::Store)?;
@@ -378,7 +412,11 @@ where
             .store
             .list_links(repository)
             .map_err(IngestError::Store)?;
-        let candidate_sources = jira_candidate_sources(&known, &known_links, scope);
+        let candidate_sources = jira_candidate_sources(&known_before, &known_links, scope);
+        let known_artifacts: HashSet<_> = known_before
+            .iter()
+            .map(|artifact| artifact.identity.clone())
+            .collect();
         let candidate_keys: BTreeSet<String> = candidate_sources
             .iter()
             .flat_map(|artifact| {
@@ -386,13 +424,24 @@ where
             })
             .filter(|reference| reference.kind == ReferenceKind::TicketKey)
             .map(|reference| reference.value)
+            .filter(|key| {
+                !known_artifacts.contains(&ArtifactIdentity {
+                    provider: ArtifactProvider::Jira,
+                    kind: ArtifactKind::Issue,
+                    external_id: key.clone(),
+                })
+            })
             .collect();
         let request = match scope {
-            ArtifactIngestScope::All => ExternalArtifactRequest::ReferencedKeys(&candidate_keys),
+            ArtifactIngestScope::All => ExternalArtifactRequest::ReferencedKeys {
+                keys: &candidate_keys,
+                known_artifacts: &known_artifacts,
+            },
             ArtifactIngestScope::BusinessLinked { related_jira_depth } => {
                 ExternalArtifactRequest::BusinessLinkedKeys {
                     keys: &candidate_keys,
                     related_depth: related_jira_depth,
+                    known_artifacts: &known_artifacts,
                 }
             }
         };
@@ -400,15 +449,7 @@ where
         let unavailable_keys = batch.unavailable_keys;
         let artifacts = batch.artifacts;
         let mut links = batch.links;
-        for artifact in &artifacts {
-            self.store
-                .upsert_artifact(repository, artifact, ingested_at, JIRA_INGEST_VERSION)
-                .map_err(IngestError::Store)?;
-        }
-        let known = self
-            .store
-            .list_artifacts(repository)
-            .map_err(IngestError::Store)?;
+        let known = merge_known_artifacts(known_before.clone(), &artifacts);
         let reference_sources: Vec<&Artifact> = match scope {
             ArtifactIngestScope::All => artifacts.iter().collect(),
             ArtifactIngestScope::BusinessLinked { .. } => candidate_sources
@@ -422,7 +463,13 @@ where
                 .flat_map(|artifact| text_reference_links(artifact, &known)),
         );
         self.store
-            .persist_links(repository, &links)
+            .persist_external_artifact_batch(
+                repository,
+                &artifacts,
+                &links,
+                ingested_at,
+                JIRA_INGEST_VERSION,
+            )
             .map_err(IngestError::Store)?;
         Ok(IngestReport {
             artifacts_ingested: artifacts.len(),
@@ -760,6 +807,7 @@ mod tests {
         links: RefCell<Vec<ArtifactLink>>,
         cursors: RefCell<BTreeMap<String, String>>,
         graph: RefCell<GraphSnapshot>,
+        fail_external_batch: bool,
     }
 
     impl ArtifactRepository for FakeStore {
@@ -816,6 +864,35 @@ mod tests {
 
         fn list_links(&self, _repository: &RepositoryId) -> Result<Vec<ArtifactLink>, PortError> {
             Ok(self.links.borrow().clone())
+        }
+    }
+
+    impl ExternalArtifactBatchStore for FakeStore {
+        fn persist_external_artifact_batch(
+            &mut self,
+            _repository: &RepositoryId,
+            artifacts: &[Artifact],
+            links: &[ArtifactLink],
+            _ingested_at: &str,
+            _ingest_version: &str,
+        ) -> Result<(), PortError> {
+            if self.fail_external_batch {
+                return Err(PortError::new("external batch failed"));
+            }
+            let mut stored_artifacts = self.artifacts.borrow_mut();
+            for artifact in artifacts {
+                stored_artifacts.insert(
+                    (
+                        artifact.identity.provider,
+                        artifact.identity.kind,
+                        artifact.identity.external_id.clone(),
+                    ),
+                    artifact.clone(),
+                );
+            }
+            drop(stored_artifacts);
+            self.links.borrow_mut().extend_from_slice(links);
+            Ok(())
         }
     }
 
@@ -982,6 +1059,37 @@ mod tests {
         // not defined for branches, so zero links from this fixture is the
         // conservative, correct outcome: no fabricated relation.
         assert_eq!(report.links_created, 0);
+    }
+
+    #[test]
+    fn git_ingest_links_a_new_commit_to_an_already_local_jira_issue() {
+        let source = FakeGitSource {
+            commits: vec![commit_artifact(
+                "abc123",
+                ArtifactKind::Commit,
+                "Fix PSI-1122 cancellation",
+                "",
+            )],
+            branches: Vec::new(),
+        };
+        let mut issue = artifact("PSI-1122", ArtifactKind::Issue, "Cancellation", "");
+        issue.identity.provider = ArtifactProvider::Jira;
+        let mut store = FakeStore::default();
+        let repository = RepositoryId::new("repo:test").expect("repository ID");
+        store
+            .upsert_artifact(&repository, &issue, "2026-08-21T00:00:00Z", "test")
+            .expect("seed Jira issue");
+
+        GitIngestRunner::new(&source, &mut store)
+            .run(&repository, None, "2026-08-21T01:00:00Z")
+            .expect("ingest run");
+
+        assert!(store.links.borrow().iter().any(|link| {
+            link.source.provider == ArtifactProvider::Git
+                && link.source.external_id == "abc123"
+                && link.target == ArtifactLinkTarget::Artifact(issue.identity.clone())
+                && link.kind == ArtifactLinkKind::References
+        }));
     }
 
     #[test]
@@ -1183,6 +1291,7 @@ mod tests {
         links: Vec<ArtifactLink>,
         received_since: RefCell<Vec<Option<String>>>,
         received_repository_refs: RefCell<Vec<RepositoryArtifactRefs>>,
+        received_known_artifacts: RefCell<Vec<HashSet<ArtifactIdentity>>>,
     }
 
     impl ExternalArtifactSource for FakeGitLabSource {
@@ -1195,10 +1304,17 @@ mod tests {
                     .received_since
                     .borrow_mut()
                     .push(since.map(str::to_owned)),
-                ExternalArtifactRequest::RepositoryLinked(repository_refs) => self
-                    .received_repository_refs
-                    .borrow_mut()
-                    .push(repository_refs.clone()),
+                ExternalArtifactRequest::RepositoryLinked {
+                    repository_refs,
+                    known_artifacts,
+                } => {
+                    self.received_repository_refs
+                        .borrow_mut()
+                        .push(repository_refs.clone());
+                    self.received_known_artifacts
+                        .borrow_mut()
+                        .push(known_artifacts.clone());
+                }
                 _ => return Err(PortError::new("unexpected request mode")),
             }
             Ok(crate::ports::ExternalArtifactBatch {
@@ -1309,6 +1425,36 @@ mod tests {
     }
 
     #[test]
+    fn a_failed_external_batch_persists_neither_artifacts_links_nor_cursor() {
+        let mut merge_request = artifact("842", ArtifactKind::MergeRequest, "Selected", "");
+        merge_request.identity.provider = ArtifactProvider::GitLab;
+        let provider_link = ArtifactLink {
+            source: merge_request.identity.clone(),
+            target: ArtifactLinkTarget::Artifact(merge_request.identity.clone()),
+            kind: ArtifactLinkKind::References,
+            evidence_locator: "test".to_owned(),
+        };
+        let source = FakeGitLabSource {
+            artifacts: vec![merge_request],
+            links: vec![provider_link],
+            ..FakeGitLabSource::default()
+        };
+        let mut store = FakeStore {
+            fail_external_batch: true,
+            ..FakeStore::default()
+        };
+        let repository = RepositoryId::new("repo:test").expect("repository ID");
+
+        let result =
+            GitLabIngestRunner::new(&source, &mut store).run(&repository, "2026-08-21T00:00:00Z");
+
+        assert!(matches!(result, Err(IngestError::Store(_))));
+        assert!(store.artifacts.borrow().is_empty());
+        assert!(store.links.borrow().is_empty());
+        assert!(store.cursors.borrow().is_empty());
+    }
+
+    #[test]
     fn business_linked_gitlab_scope_builds_refs_only_from_current_git() {
         let source = FakeGitLabSource::default();
         let mut store = FakeStore::default();
@@ -1377,6 +1523,7 @@ mod tests {
         unavailable_keys: BTreeSet<String>,
         received_candidate_keys: RefCell<Vec<BTreeSet<String>>>,
         received_related_depths: RefCell<Vec<usize>>,
+        received_known_artifacts: RefCell<Vec<HashSet<ArtifactIdentity>>>,
     }
 
     impl ExternalArtifactSource for FakeJiraSource {
@@ -1385,14 +1532,26 @@ mod tests {
             request: ExternalArtifactRequest<'_>,
         ) -> Result<crate::ports::ExternalArtifactBatch, PortError> {
             let candidate_keys = match request {
-                ExternalArtifactRequest::ReferencedKeys(candidate_keys) => candidate_keys,
+                ExternalArtifactRequest::ReferencedKeys {
+                    keys,
+                    known_artifacts,
+                } => {
+                    self.received_known_artifacts
+                        .borrow_mut()
+                        .push(known_artifacts.clone());
+                    keys
+                }
                 ExternalArtifactRequest::BusinessLinkedKeys {
                     keys,
                     related_depth,
+                    known_artifacts,
                 } => {
                     self.received_related_depths
                         .borrow_mut()
                         .push(related_depth);
+                    self.received_known_artifacts
+                        .borrow_mut()
+                        .push(known_artifacts.clone());
                     keys
                 }
                 _ => return Err(PortError::new("unexpected request mode")),
@@ -1516,6 +1675,52 @@ mod tests {
             *source.received_candidate_keys.borrow(),
             vec![BTreeSet::from(["PSI-1122".to_owned()])],
             "the ticket key mentioned in the already-known commit becomes a candidate key"
+        );
+    }
+
+    #[test]
+    fn jira_skip_uses_the_complete_identity_not_a_bare_external_id() {
+        let repository = RepositoryId::new("repo:test").expect("repository ID");
+        let commit = artifact(
+            "abc123",
+            ArtifactKind::Commit,
+            "Fix PSI-1122 cancellation",
+            "",
+        );
+        let mut same_id_other_provider =
+            artifact("PSI-1122", ArtifactKind::MergeRequest, "Same bare ID", "");
+        same_id_other_provider.identity.provider = ArtifactProvider::GitLab;
+        let mut store = FakeStore::default();
+        for known in [&commit, &same_id_other_provider] {
+            store
+                .upsert_artifact(&repository, known, "2026-08-21T00:00:00Z", "test")
+                .expect("seed artifact");
+        }
+        let source = FakeJiraSource::default();
+
+        JiraIngestRunner::new(&source, &mut store)
+            .run(&repository, "2026-08-21T01:00:00Z")
+            .expect("run");
+
+        assert_eq!(
+            *source.received_candidate_keys.borrow(),
+            vec![BTreeSet::from(["PSI-1122".to_owned()])]
+        );
+
+        let mut jira_issue = artifact("PSI-1122", ArtifactKind::Issue, "Known issue", "");
+        jira_issue.identity.provider = ArtifactProvider::Jira;
+        store
+            .upsert_artifact(&repository, &jira_issue, "2026-08-21T01:30:00Z", "test")
+            .expect("seed Jira issue");
+
+        JiraIngestRunner::new(&source, &mut store)
+            .run(&repository, "2026-08-21T02:00:00Z")
+            .expect("second run");
+
+        assert_eq!(
+            source.received_candidate_keys.borrow()[1],
+            BTreeSet::new(),
+            "the exact local Jira issue identity suppresses a refetch"
         );
     }
 

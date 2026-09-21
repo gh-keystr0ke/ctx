@@ -4,6 +4,16 @@ All notable changes to `ctx` are documented here. The project follows semantic v
 
 ## Unreleased
 
+## 0.8.4 — 2026-09-21
+
+### Added
+
+- The Python adapter now recognizes deterministic, single-hop HTTP wrapper methods within the same class. An undecorated `self` method or exact bare `@classmethod` may forward a fixed or bare-parameter verb and URL through one direct recognized client call; literal, template, and opaque-host URLs are then resolved at the wrapper call site while dynamic, transformed, inherited, decorated, multi-statement, and multi-hop shapes remain unknown. Direct `requests.request(...)` and `httpx.request(...)` calls with literal verbs are recognized through the same trusted receiver set.
+
+### Security
+
+- Updated the locked `rustls` dependency to 0.23.45, addressing `RUSTSEC-2026-0285` and restoring clean `cargo deny` and GitHub dependency-audit runs.
+
 ## 0.8.3 — 2026-09-06
 
 ### Security

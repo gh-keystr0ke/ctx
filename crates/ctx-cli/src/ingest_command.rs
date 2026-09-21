@@ -16,7 +16,7 @@ use ctx_app::{
 };
 use ctx_core::domain::CommitOid;
 
-use super::{Cli, CliError, database_path};
+use super::{Cli, CliError, Command, database_path};
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, ValueEnum)]
 pub(super) enum IngestScopeArg {
@@ -34,7 +34,33 @@ pub(super) struct IngestOptions<'a> {
     pub refresh: bool,
 }
 
-pub(super) fn ingest(
+pub(super) fn from_command(cli: &Cli, git: &GitRepo, command: &Command) -> Result<(), CliError> {
+    let Command::Ingest {
+        source,
+        since,
+        scope,
+        related_depth,
+        reconcile,
+        refresh,
+    } = command
+    else {
+        unreachable!("ingest_command::from_command is called only for Command::Ingest")
+    };
+    ingest(
+        cli,
+        git,
+        source,
+        IngestOptions {
+            since: since.as_deref(),
+            scope: *scope,
+            related_depth: *related_depth,
+            reconcile: *reconcile,
+            refresh: *refresh,
+        },
+    )
+}
+
+fn ingest(
     cli: &Cli,
     git: &GitRepo,
     source: &str,

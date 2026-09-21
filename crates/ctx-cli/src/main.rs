@@ -71,7 +71,7 @@ use federation_command::{
     CliFederationResolver, FederationCommand, attach_product_context, federation,
     federation_binary, print_endpoint_trace, sync, trace,
 };
-use ingest_command::{IngestOptions, IngestScopeArg, ingest};
+use ingest_command::IngestScopeArg;
 use report_command::{ReportCommand, report};
 use status_command::status;
 use type_inference_command::{infer_types, parse_inference_confidence};
@@ -546,25 +546,7 @@ fn run(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
         } => trace(cli, git, target, federation_continuation.as_deref()),
         Command::Find { target } => find(cli, git, target),
         Command::Artifacts { command } => artifacts(cli, git, command),
-        Command::Ingest {
-            source,
-            since,
-            scope,
-            related_depth,
-            reconcile,
-            refresh,
-        } => ingest(
-            cli,
-            git,
-            source,
-            IngestOptions {
-                since: since.as_deref(),
-                scope: *scope,
-                related_depth: *related_depth,
-                reconcile: *reconcile,
-                refresh: *refresh,
-            },
-        ),
+        command @ Command::Ingest { .. } => ingest_command::from_command(cli, git, command),
         command @ Command::Enrich { .. } => enrich_command(cli, git, command),
         Command::Review {
             base,

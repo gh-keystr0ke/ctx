@@ -33,7 +33,7 @@ thiserror = "2.0.16"
 toml = "1.1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "json"] }
-tree-sitter = "0.26.13"
+tree-sitter = "0.27.0"
 tree-sitter-python = "0.25.0"
 tree-sitter-rust = "0.24.2"
 tree-sitter-go = "0.25.0"

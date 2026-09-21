@@ -31,6 +31,7 @@ pub(super) struct IngestOptions<'a> {
     pub scope: IngestScopeArg,
     pub related_depth: usize,
     pub reconcile: bool,
+    pub refresh: bool,
 }
 
 pub(super) fn ingest(
@@ -39,12 +40,19 @@ pub(super) fn ingest(
     source: &str,
     options: IngestOptions<'_>,
 ) -> Result<(), CliError> {
+    if !matches!(source, "git" | "code-comments" | "gitlab" | "jira") {
+        return Err(CliError::UnsupportedIngestSource(source.to_owned()));
+    }
+    if options.refresh && !matches!(source, "gitlab" | "jira") {
+        return Err(CliError::UnsupportedRefreshSource);
+    }
     tracing::info!(
         source,
         since = options.since,
         scope = ?options.scope,
         related_depth = options.related_depth,
         reconcile = options.reconcile,
+        refresh = options.refresh,
         "ingest started"
     );
     let database_path = database_path(git.root())?;
@@ -72,7 +80,7 @@ pub(super) fn ingest(
         }
         "gitlab" => ingest_gitlab(git, &mut store, &repository.id, &now, &options)?,
         "jira" => ingest_jira(git, &mut store, &repository.id, &now, &options)?,
-        other => return Err(CliError::UnsupportedIngestSource(other.to_owned())),
+        _ => unreachable!("ingest source was validated before opening the store"),
     };
     tracing::info!(
         source,
@@ -85,16 +93,8 @@ pub(super) fn ingest(
     if cli.json {
         println!("{}", serde_json::to_string_pretty(&report)?);
     } else {
-        if !report.unavailable_keys.is_empty() {
-            eprintln!(
-                "Warning: unavailable Jira issue key(s): {}",
-                report
-                    .unavailable_keys
-                    .iter()
-                    .map(String::as_str)
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            );
+        if let Some(warning) = unavailable_warning(&report.unavailable_keys) {
+            eprintln!("{warning}");
         }
         println!(
             "Ingested {} artifact(s), {} link(s) created, {} artifact(s) removed",
@@ -102,6 +102,18 @@ pub(super) fn ingest(
         );
     }
     Ok(())
+}
+
+fn unavailable_warning(keys: &std::collections::BTreeSet<String>) -> Option<String> {
+    (!keys.is_empty()).then(|| {
+        format!(
+            "Warning: unavailable Jira issue key(s): {}",
+            keys.iter()
+                .map(String::as_str)
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+    })
 }
 
 fn ingest_gitlab(
@@ -117,11 +129,14 @@ fn ingest_gitlab(
         GitLabUreqTransport::new(config.base_url, config.token),
         config.project,
     );
-    Ok(GitLabIngestRunner::new(&client, store).run_scoped(
-        repository,
-        now,
-        ingest_scope(options.scope, options.related_depth),
-    )?)
+    Ok(
+        GitLabIngestRunner::new(&client, store).run_scoped_with_refresh(
+            repository,
+            now,
+            ingest_scope(options.scope, options.related_depth),
+            options.refresh,
+        )?,
+    )
 }
 
 fn ingest_jira(
@@ -138,11 +153,14 @@ fn ingest_jira(
         config.project,
         config.base_url,
     );
-    Ok(JiraIngestRunner::new(&client, store).run_scoped(
-        repository,
-        now,
-        ingest_scope(options.scope, options.related_depth),
-    )?)
+    Ok(
+        JiraIngestRunner::new(&client, store).run_scoped_with_refresh(
+            repository,
+            now,
+            ingest_scope(options.scope, options.related_depth),
+            options.refresh,
+        )?,
+    )
 }
 
 const fn ingest_scope(scope: IngestScopeArg, related_depth: usize) -> ArtifactIngestScope {
@@ -151,5 +169,35 @@ const fn ingest_scope(scope: IngestScopeArg, related_depth: usize) -> ArtifactIn
         IngestScopeArg::BusinessLinked => ArtifactIngestScope::BusinessLinked {
             related_jira_depth: related_depth,
         },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeSet;
+
+    use ctx_app::ingest::IngestReport;
+
+    use super::unavailable_warning;
+
+    #[test]
+    fn unavailable_warning_and_json_report_are_deterministic_and_separate() {
+        let keys = BTreeSet::from(["UTF-8".to_owned(), "OPS-404".to_owned()]);
+        assert_eq!(
+            unavailable_warning(&keys).as_deref(),
+            Some("Warning: unavailable Jira issue key(s): OPS-404, UTF-8")
+        );
+
+        let json = serde_json::to_string(&IngestReport {
+            unavailable_keys: keys,
+            ..IngestReport::default()
+        })
+        .expect("JSON report");
+        let parsed: serde_json::Value = serde_json::from_str(&json).expect("valid JSON document");
+        assert_eq!(
+            parsed["unavailable_keys"],
+            serde_json::json!(["OPS-404", "UTF-8"])
+        );
+        assert!(!json.contains("Warning:"));
     }
 }

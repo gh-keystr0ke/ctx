@@ -35,6 +35,10 @@ const MIGRATIONS: &[(i64, &str)] = &[
         11,
         include_str!("../migrations/011_federation_call_overrides.sql"),
     ),
+    (
+        12,
+        include_str!("../migrations/012_unavailable_external_keys.sql"),
+    ),
 ];
 
 #[derive(Debug, Error)]
@@ -137,13 +141,13 @@ mod tests {
                     'repositories', 'commits', 'nodes', 'node_versions', 'edges',
                     'sources', 'evidence', 'edge_evidence', 'annotations', 'aliases',
                     'derivations', 'artifacts', 'artifact_links',
-                    'artifact_analysis', 'ingest_cursors'
+                    'artifact_analysis', 'ingest_cursors', 'unavailable_external_keys'
                 )",
                 [],
                 |row| row.get(0),
             )
             .expect("query schema");
-        assert_eq!(table_count, 15);
+        assert_eq!(table_count, 16);
 
         drop(store);
         SqliteStore::open(&database, directory.path()).expect("migrations are idempotent");

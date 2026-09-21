@@ -203,6 +203,10 @@ enum Command {
         /// remove stored entries no longer present.
         #[arg(long)]
         reconcile: bool,
+        /// Ignore local provider cursors and skip caches, revalidating Jira
+        /// or GitLab state from scratch.
+        #[arg(long)]
+        refresh: bool,
     },
     /// Analyze ingested artifacts with an AI agent for candidate product
     /// knowledge, queued for human verification via `ctx verify`.
@@ -418,6 +422,8 @@ enum CliError {
     ReportRender(#[from] ctx_report::RenderError),
     #[error("unsupported ingest source '{0}'; supported: git, code-comments, gitlab, jira")]
     UnsupportedIngestSource(String),
+    #[error("--refresh is supported only for Jira and GitLab ingestion")]
+    UnsupportedRefreshSource,
     #[error("unsupported agent '{0}'; supported: claude, codex, antigravity")]
     UnsupportedAgent(String),
     #[error("--knowledge --accept requires --id <STABLE-ID>")]
@@ -546,6 +552,7 @@ fn run(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
             scope,
             related_depth,
             reconcile,
+            refresh,
         } => ingest(
             cli,
             git,
@@ -555,6 +562,7 @@ fn run(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
                 scope: *scope,
                 related_depth: *related_depth,
                 reconcile: *reconcile,
+                refresh: *refresh,
             },
         ),
         command @ Command::Enrich { .. } => enrich_command(cli, git, command),

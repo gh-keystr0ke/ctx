@@ -90,6 +90,11 @@ statement: >
   `Retry-After` (delay-seconds and HTTP-date) on 429 responses and apply a
   finite retry budget to rate limits and transient
   gateway/service failures; exhausting that budget is an explicit error.
+  Routine Jira ingestion skips complete issue identities already stored
+  locally and persisted unavailable keys; `--refresh` bypasses both sets and
+  replaces the unavailable-key cache only after the complete run succeeds.
+  The same flag bypasses GitLab cursor/local skips and is rejected for
+  local-only Git and code-comment ingestion.
 implementation:
   - symbol: ctx_app.ports.ExternalArtifactSource.fetch
   - symbol: ctx_app.ports.ExternalArtifactBatchStore.persist_external_artifact_batch
@@ -104,6 +109,9 @@ implementation:
   - symbol: ctx_adapters.jira.JiraClient.fetch_issue_artifacts_for_keys
   - symbol: ctx_app.ingest.JiraIngestRunner.run_scoped
   - symbol: ctx_adapters.http_retry.run
+  - symbol: ctx_app.ports.UnavailableArtifactStore
+  - symbol: ctx_app.ingest.JiraIngestRunner.run_scoped_with_refresh
+  - symbol: ctx_app.ingest.GitLabIngestRunner.run_scoped_with_refresh
 tests:
   - symbol: ctx_adapters.git.tests.parses_commit_artifacts_from_real_git_log_record_output
   - symbol: ctx_adapters.git.tests.commit_and_branch_artifacts_round_trip_against_a_real_repository
@@ -131,6 +139,9 @@ tests:
   - symbol: ctx_adapters.jira.tests.fetches_referenced_issues_across_projects
   - symbol: ctx_adapters.jira.tests.a_successful_search_reports_a_probe_404_as_unavailable
   - symbol: ctx_adapters.jira.tests.a_singleton_search_400_is_not_misreported_when_the_probe_also_fails
+  - symbol: ctx_adapters.jira.tests.an_entirely_local_candidate_set_makes_no_jira_request
+  - symbol: ctx_adapters.jira.tests.a_partially_local_candidate_set_fetches_only_the_missing_issue
+  - symbol: ctx_adapters.jira.tests.two_new_issues_preserve_both_relations_to_the_same_target
   - symbol: ctx_adapters.jira.tests.expands_one_hop_through_jira_reported_issue_links_but_no_further
   - symbol: ctx_adapters.jira.tests.jira_search_and_comments_read_every_page
   - symbol: ctx_adapters.jira.tests.a_search_that_never_stops_paginating_fails_loudly_instead_of_hanging
@@ -141,4 +152,8 @@ tests:
   - symbol: ctx_app.ingest.tests.jira_ingest_derives_candidate_keys_from_already_known_artifact_text
   - symbol: ctx_app.ingest.tests.jira_skip_uses_the_complete_identity_not_a_bare_external_id
   - symbol: ctx_adapters.sqlite.artifacts.tests.external_batch_rolls_back_artifacts_when_a_link_write_fails
+  - symbol: ctx_app.ingest.tests.jira_refresh_retests_local_and_unavailable_keys_then_replaces_the_cache
+  - symbol: ctx_app.ingest.tests.failed_jira_refresh_preserves_the_previous_negative_cache
+  - symbol: crates.ctx-cli.tests.e2e.ingest_refresh_fails_fast_for_local_only_sources
+  - symbol: ctx_cli.ingest_command.tests.unavailable_warning_and_json_report_are_deterministic_and_separate
   - symbol: crates.ctx-cli.tests.e2e.ingest_jira_without_configuration_fails_clearly_before_any_network_call

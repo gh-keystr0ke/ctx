@@ -13,6 +13,7 @@ decision: >
   their own tables (`artifacts`, `artifact_links`,
   `artifact_analysis` for `ctx enrich`'s per-artifact incremental ledger,
   and `ingest_cursors` for `ctx ingest gitlab`'s per-provider sync cursor,
+  plus `unavailable_external_keys` for Jira's repository-local negative cache,
   REQ-INCR-001) rather than a second storage technology, matching this
   decision's original reasoning. The one exception is the pending
   AI-derived knowledge-candidate queue: it moved out of this database
@@ -22,10 +23,12 @@ decision: >
   needs to survive across checkouts for a team to share it.
 implementation:
   - symbol: ctx_adapters.sqlite.SqliteStore.open
+  - symbol: ctx_adapters.sqlite.artifacts.SqliteStore.UnavailableArtifactStore.list_unavailable_keys
   - symbol: ctx_adapters.sqlite.index.SqliteStore.IndexStore.apply_index
   - symbol: ctx_adapters.sqlite.graph.SqliteStore.GraphStore.load_graph
 tests:
   - symbol: ctx_adapters.sqlite.tests.creates_and_reopens_a_repository_database
+  - symbol: ctx_adapters.sqlite.artifacts.tests.unavailable_key_cache_supports_upsert_clear_and_atomic_replace
   - symbol: ctx_adapters.sqlite.tests.migration_closes_duplicate_current_edges_and_enforces_uniqueness
   - symbol: ctx_adapters.sqlite.index.tests.same_commit_reanalysis_replaces_derived_node_version
   - symbol: ctx_adapters.sqlite.index.tests.same_commit_reanalysis_replaces_derived_edge_and_evidence

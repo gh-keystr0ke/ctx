@@ -349,6 +349,7 @@ pub enum ExternalArtifactRequest<'a> {
     ReferencedKeys {
         keys: &'a BTreeSet<String>,
         known_artifacts: &'a HashSet<ArtifactIdentity>,
+        unavailable_artifacts: &'a HashSet<ArtifactIdentity>,
     },
     /// Fetch only merge requests deterministically connected to the current
     /// repository's Git evidence. Connectors must select summaries before
@@ -363,6 +364,7 @@ pub enum ExternalArtifactRequest<'a> {
         keys: &'a BTreeSet<String>,
         related_depth: usize,
         known_artifacts: &'a HashSet<ArtifactIdentity>,
+        unavailable_artifacts: &'a HashSet<ArtifactIdentity>,
     },
 }
 
@@ -417,6 +419,56 @@ pub trait IngestCursorStore {
         repository: &RepositoryId,
         provider: &str,
         cursor: &str,
+    ) -> Result<(), PortError>;
+}
+
+/// Stores provider objects that were explicitly observed as inaccessible or
+/// nonexistent so routine ingestion does not repeat the same doomed request.
+pub trait UnavailableArtifactStore {
+    /// Lists cached external IDs for one provider in deterministic order.
+    ///
+    /// # Errors
+    /// Returns [`PortError`] when the cache cannot be read.
+    fn list_unavailable_keys(
+        &self,
+        repository: &RepositoryId,
+        provider: &str,
+    ) -> Result<BTreeSet<String>, PortError>;
+
+    /// Adds keys or updates their last successful check timestamp.
+    ///
+    /// # Errors
+    /// Returns [`PortError`] when the cache cannot be updated.
+    fn upsert_unavailable_keys(
+        &mut self,
+        repository: &RepositoryId,
+        provider: &str,
+        keys: &BTreeSet<String>,
+        checked_at: &str,
+    ) -> Result<(), PortError>;
+
+    /// Clears every cached key for one provider.
+    ///
+    /// # Errors
+    /// Returns [`PortError`] when the cache cannot be cleared.
+    fn clear_unavailable_keys(
+        &mut self,
+        repository: &RepositoryId,
+        provider: &str,
+    ) -> Result<(), PortError>;
+
+    /// Atomically replaces the provider cache with one completed refresh
+    /// result.
+    ///
+    /// # Errors
+    /// Returns [`PortError`] without changing the old cache when replacement
+    /// fails.
+    fn replace_unavailable_keys(
+        &mut self,
+        repository: &RepositoryId,
+        provider: &str,
+        keys: &BTreeSet<String>,
+        checked_at: &str,
     ) -> Result<(), PortError>;
 }
 

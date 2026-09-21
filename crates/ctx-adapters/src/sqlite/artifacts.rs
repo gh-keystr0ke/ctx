@@ -1,6 +1,7 @@
 use ctx_app::ports::{
     ArtifactLinkStore, ArtifactMaintenanceStore, ArtifactReconcileReport, ArtifactRepository,
     ExternalArtifactBatchStore, IngestCursorStore, KnowledgeCandidateStore, PortError,
+    UnavailableArtifactStore,
 };
 use ctx_core::{
     artifact::{
@@ -402,6 +403,105 @@ impl IngestCursorStore for SqliteStore {
             .map_err(database_error)?;
         transaction.commit().map_err(database_error)
     }
+}
+
+impl UnavailableArtifactStore for SqliteStore {
+    fn list_unavailable_keys(
+        &self,
+        repository: &RepositoryId,
+        provider: &str,
+    ) -> Result<std::collections::BTreeSet<String>, PortError> {
+        let mut statement = self
+            .connection
+            .prepare(
+                "SELECT ua.external_key
+                 FROM unavailable_external_keys ua
+                 JOIN repositories r ON r.id = ua.repository_id
+                 WHERE r.stable_id = ?1 AND ua.provider = ?2
+                 ORDER BY ua.external_id",
+            )
+            .map_err(database_error)?;
+        let rows = statement
+            .query_map(params![repository.as_str(), provider], |row| row.get(0))
+            .map_err(database_error)?;
+        let mut keys = std::collections::BTreeSet::new();
+        for row in rows {
+            keys.insert(row.map_err(database_error)?);
+        }
+        Ok(keys)
+    }
+
+    fn upsert_unavailable_keys(
+        &mut self,
+        repository: &RepositoryId,
+        provider: &str,
+        keys: &std::collections::BTreeSet<String>,
+        checked_at: &str,
+    ) -> Result<(), PortError> {
+        let transaction = self.connection.transaction().map_err(database_error)?;
+        let repository_row = repository_row(&transaction, repository)?;
+        upsert_unavailable_rows(&transaction, repository_row, provider, keys, checked_at)?;
+        transaction.commit().map_err(database_error)
+    }
+
+    fn clear_unavailable_keys(
+        &mut self,
+        repository: &RepositoryId,
+        provider: &str,
+    ) -> Result<(), PortError> {
+        let transaction = self.connection.transaction().map_err(database_error)?;
+        let repository_row = repository_row(&transaction, repository)?;
+        transaction
+            .execute(
+                "DELETE FROM unavailable_external_keys
+                 WHERE repository_id = ?1 AND provider = ?2",
+                params![repository_row, provider],
+            )
+            .map_err(database_error)?;
+        transaction.commit().map_err(database_error)
+    }
+
+    fn replace_unavailable_keys(
+        &mut self,
+        repository: &RepositoryId,
+        provider: &str,
+        keys: &std::collections::BTreeSet<String>,
+        checked_at: &str,
+    ) -> Result<(), PortError> {
+        let transaction = self.connection.transaction().map_err(database_error)?;
+        let repository_row = repository_row(&transaction, repository)?;
+        transaction
+            .execute(
+                "DELETE FROM unavailable_external_keys
+                 WHERE repository_id = ?1 AND provider = ?2",
+                params![repository_row, provider],
+            )
+            .map_err(database_error)?;
+        upsert_unavailable_rows(&transaction, repository_row, provider, keys, checked_at)?;
+        transaction.commit().map_err(database_error)
+    }
+}
+
+fn upsert_unavailable_rows(
+    transaction: &Transaction<'_>,
+    repository_row: i64,
+    provider: &str,
+    keys: &std::collections::BTreeSet<String>,
+    checked_at: &str,
+) -> Result<(), PortError> {
+    for key in keys {
+        transaction
+            .execute(
+                "INSERT INTO unavailable_external_keys(
+                    repository_id, provider, external_key, checked_at
+                 ) VALUES (?1, ?2, ?3, ?4)
+                 ON CONFLICT(repository_id, provider, external_key) DO UPDATE SET
+                    checked_at = excluded.checked_at",
+                params![repository_row, provider, key, checked_at],
+            )
+            .map_err(database_error)?;
+    }
+    Ok(())
 }
 
 fn persist_link_rows(
@@ -881,6 +981,59 @@ mod tests {
         let artifacts = store.list_artifacts(&repository).expect("artifacts");
         assert_eq!(artifacts.len(), 1);
         assert_eq!(artifacts[0].body, "PAY-317. Updated description.");
+    }
+
+    #[test]
+    fn unavailable_key_cache_supports_upsert_clear_and_atomic_replace() {
+        let directory = tempdir().expect("temporary directory");
+        let (mut store, repository) = open_repository(directory.path());
+        store
+            .upsert_unavailable_keys(
+                &repository,
+                "jira",
+                &std::collections::BTreeSet::from(["OPS-404".to_owned()]),
+                "2026-08-21T00:00:00Z",
+            )
+            .expect("initial unavailable key");
+        store
+            .upsert_unavailable_keys(
+                &repository,
+                "jira",
+                &std::collections::BTreeSet::from(["OPS-404".to_owned(), "PSI-403".to_owned()]),
+                "2026-08-21T01:00:00Z",
+            )
+            .expect("upsert unavailable keys");
+        assert_eq!(
+            store
+                .list_unavailable_keys(&repository, "jira")
+                .expect("cached keys"),
+            std::collections::BTreeSet::from(["OPS-404".to_owned(), "PSI-403".to_owned(),])
+        );
+
+        store
+            .replace_unavailable_keys(
+                &repository,
+                "jira",
+                &std::collections::BTreeSet::from(["UTF-8".to_owned()]),
+                "2026-08-21T02:00:00Z",
+            )
+            .expect("replace unavailable keys");
+        assert_eq!(
+            store
+                .list_unavailable_keys(&repository, "jira")
+                .expect("replaced keys"),
+            std::collections::BTreeSet::from(["UTF-8".to_owned()])
+        );
+
+        store
+            .clear_unavailable_keys(&repository, "jira")
+            .expect("clear unavailable keys");
+        assert!(
+            store
+                .list_unavailable_keys(&repository, "jira")
+                .expect("cleared keys")
+                .is_empty()
+        );
     }
 
     #[test]

@@ -24,7 +24,7 @@ use crate::ports::{
     ArtifactLinkStore, ArtifactMaintenanceStore, ArtifactRepository, BranchArtifact,
     CommitArtifact, ExternalArtifactBatchStore, ExternalArtifactRequest, ExternalArtifactSource,
     GitArtifactSource, GitRepository, GraphStore, IngestCursorStore, LanguageAnalyzer, PortError,
-    RepositoryArtifactRefs, ReviewRepository,
+    RepositoryArtifactRefs, ReviewRepository, UnavailableArtifactStore,
 };
 
 /// Bumped when the normalization this runner applies to Git artifacts
@@ -215,7 +215,7 @@ where
         repository: &RepositoryId,
         ingested_at: &str,
     ) -> Result<IngestReport, IngestError> {
-        self.run_scoped(repository, ingested_at, ArtifactIngestScope::All)
+        self.run_scoped_with_refresh(repository, ingested_at, ArtifactIngestScope::All, false)
     }
 
     /// # Errors
@@ -226,20 +226,39 @@ where
         ingested_at: &str,
         scope: ArtifactIngestScope,
     ) -> Result<IngestReport, IngestError> {
+        self.run_scoped_with_refresh(repository, ingested_at, scope, false)
+    }
+
+    /// Runs a selected scope, optionally bypassing the incremental cursor and
+    /// local business-linked skip set for a full provider revalidation.
+    ///
+    /// # Errors
+    /// Returns [`IngestError`] when artifacts cannot be read or persisted.
+    pub fn run_scoped_with_refresh(
+        &mut self,
+        repository: &RepositoryId,
+        ingested_at: &str,
+        scope: ArtifactIngestScope,
+        refresh: bool,
+    ) -> Result<IngestReport, IngestError> {
         let known_before = self
             .store
             .list_artifacts(repository)
             .map_err(IngestError::Store)?;
-        let known_artifacts: HashSet<_> = known_before
-            .iter()
-            .map(|artifact| artifact.identity.clone())
-            .collect();
+        let known_artifacts = if refresh {
+            HashSet::new()
+        } else {
+            artifact_identities(&known_before)
+        };
         let batch = match scope {
             ArtifactIngestScope::All => {
-                let cursor = self
-                    .store
-                    .sync_cursor(repository, GITLAB_CURSOR_PROVIDER)
-                    .map_err(IngestError::Store)?;
+                let cursor = if refresh {
+                    None
+                } else {
+                    self.store
+                        .sync_cursor(repository, GITLAB_CURSOR_PROVIDER)
+                        .map_err(IngestError::Store)?
+                };
                 self.source
                     .fetch(ExternalArtifactRequest::UpdatedSince(cursor.as_deref()))
             }
@@ -353,9 +372,46 @@ fn merge_known_artifacts(known: Vec<Artifact>, fetched: &[Artifact]) -> Vec<Arti
     by_identity.into_values().collect()
 }
 
+fn artifact_identities(artifacts: &[Artifact]) -> HashSet<ArtifactIdentity> {
+    artifacts
+        .iter()
+        .map(|artifact| artifact.identity.clone())
+        .collect()
+}
+
+fn jira_issue_identities(keys: &BTreeSet<String>) -> HashSet<ArtifactIdentity> {
+    keys.iter()
+        .map(|key| ArtifactIdentity {
+            provider: ArtifactProvider::Jira,
+            kind: ArtifactKind::Issue,
+            external_id: key.clone(),
+        })
+        .collect()
+}
+
+fn jira_candidate_keys(
+    sources: &[&Artifact],
+    known_artifacts: &HashSet<ArtifactIdentity>,
+) -> BTreeSet<String> {
+    sources
+        .iter()
+        .flat_map(|artifact| extract_references(&format!("{}\n{}", artifact.title, artifact.body)))
+        .filter(|reference| reference.kind == ReferenceKind::TicketKey)
+        .map(|reference| reference.value)
+        .filter(|key| {
+            !known_artifacts.contains(&ArtifactIdentity {
+                provider: ArtifactProvider::Jira,
+                kind: ArtifactKind::Issue,
+                external_id: key.clone(),
+            })
+        })
+        .collect()
+}
+
 /// Bumped when the normalization this runner applies to Jira artifacts
 /// changes.
 const JIRA_INGEST_VERSION: &str = "jira-v2";
+const JIRA_UNAVAILABLE_PROVIDER: &str = "jira";
 
 /// Orchestrates Jira issue ingestion: reads artifacts through
 /// [`ExternalArtifactSource`], persists them idempotently, then additionally
@@ -380,7 +436,10 @@ pub struct JiraIngestRunner<'a, J, S> {
 impl<'a, J, S> JiraIngestRunner<'a, J, S>
 where
     J: ExternalArtifactSource,
-    S: ArtifactRepository + ArtifactLinkStore + ExternalArtifactBatchStore,
+    S: ArtifactRepository
+        + ArtifactLinkStore
+        + ExternalArtifactBatchStore
+        + UnavailableArtifactStore,
 {
     pub const fn new(source: &'a J, store: &'a mut S) -> Self {
         Self { source, store }
@@ -393,7 +452,7 @@ where
         repository: &RepositoryId,
         ingested_at: &str,
     ) -> Result<IngestReport, IngestError> {
-        self.run_scoped(repository, ingested_at, ArtifactIngestScope::All)
+        self.run_scoped_with_refresh(repository, ingested_at, ArtifactIngestScope::All, false)
     }
 
     /// # Errors
@@ -404,6 +463,22 @@ where
         ingested_at: &str,
         scope: ArtifactIngestScope,
     ) -> Result<IngestReport, IngestError> {
+        self.run_scoped_with_refresh(repository, ingested_at, scope, false)
+    }
+
+    /// Runs a selected scope. Refresh mode ignores local positive/negative
+    /// skip sets and replaces the negative cache only after the full provider
+    /// fetch and artifact/link batch have succeeded.
+    ///
+    /// # Errors
+    /// Returns [`IngestError`] when artifacts cannot be read or persisted.
+    pub fn run_scoped_with_refresh(
+        &mut self,
+        repository: &RepositoryId,
+        ingested_at: &str,
+        scope: ArtifactIngestScope,
+        refresh: bool,
+    ) -> Result<IngestReport, IngestError> {
         let known_before = self
             .store
             .list_artifacts(repository)
@@ -413,35 +488,32 @@ where
             .list_links(repository)
             .map_err(IngestError::Store)?;
         let candidate_sources = jira_candidate_sources(&known_before, &known_links, scope);
-        let known_artifacts: HashSet<_> = known_before
-            .iter()
-            .map(|artifact| artifact.identity.clone())
-            .collect();
-        let candidate_keys: BTreeSet<String> = candidate_sources
-            .iter()
-            .flat_map(|artifact| {
-                extract_references(&format!("{}\n{}", artifact.title, artifact.body))
-            })
-            .filter(|reference| reference.kind == ReferenceKind::TicketKey)
-            .map(|reference| reference.value)
-            .filter(|key| {
-                !known_artifacts.contains(&ArtifactIdentity {
-                    provider: ArtifactProvider::Jira,
-                    kind: ArtifactKind::Issue,
-                    external_id: key.clone(),
-                })
-            })
-            .collect();
+        let known_artifacts = if refresh {
+            HashSet::new()
+        } else {
+            artifact_identities(&known_before)
+        };
+        let unavailable_keys = if refresh {
+            BTreeSet::new()
+        } else {
+            self.store
+                .list_unavailable_keys(repository, JIRA_UNAVAILABLE_PROVIDER)
+                .map_err(IngestError::Store)?
+        };
+        let unavailable_artifacts = jira_issue_identities(&unavailable_keys);
+        let candidate_keys = jira_candidate_keys(&candidate_sources, &known_artifacts);
         let request = match scope {
             ArtifactIngestScope::All => ExternalArtifactRequest::ReferencedKeys {
                 keys: &candidate_keys,
                 known_artifacts: &known_artifacts,
+                unavailable_artifacts: &unavailable_artifacts,
             },
             ArtifactIngestScope::BusinessLinked { related_jira_depth } => {
                 ExternalArtifactRequest::BusinessLinkedKeys {
                     keys: &candidate_keys,
                     related_depth: related_jira_depth,
                     known_artifacts: &known_artifacts,
+                    unavailable_artifacts: &unavailable_artifacts,
                 }
             }
         };
@@ -471,6 +543,25 @@ where
                 JIRA_INGEST_VERSION,
             )
             .map_err(IngestError::Store)?;
+        if refresh {
+            self.store
+                .replace_unavailable_keys(
+                    repository,
+                    JIRA_UNAVAILABLE_PROVIDER,
+                    &unavailable_keys,
+                    ingested_at,
+                )
+                .map_err(IngestError::Store)?;
+        } else {
+            self.store
+                .upsert_unavailable_keys(
+                    repository,
+                    JIRA_UNAVAILABLE_PROVIDER,
+                    &unavailable_keys,
+                    ingested_at,
+                )
+                .map_err(IngestError::Store)?;
+        }
         Ok(IngestReport {
             artifacts_ingested: artifacts.len(),
             links_created: links.len(),
@@ -806,6 +897,7 @@ mod tests {
         artifacts: RefCell<BTreeMap<(ArtifactProvider, ArtifactKind, String), Artifact>>,
         links: RefCell<Vec<ArtifactLink>>,
         cursors: RefCell<BTreeMap<String, String>>,
+        unavailable: RefCell<BTreeMap<String, BTreeSet<String>>>,
         graph: RefCell<GraphSnapshot>,
         fail_external_batch: bool,
     }
@@ -986,6 +1078,58 @@ mod tests {
             self.cursors
                 .borrow_mut()
                 .insert(provider.to_owned(), cursor.to_owned());
+            Ok(())
+        }
+    }
+
+    impl UnavailableArtifactStore for FakeStore {
+        fn list_unavailable_keys(
+            &self,
+            _repository: &RepositoryId,
+            provider: &str,
+        ) -> Result<BTreeSet<String>, PortError> {
+            Ok(self
+                .unavailable
+                .borrow()
+                .get(provider)
+                .cloned()
+                .unwrap_or_default())
+        }
+
+        fn upsert_unavailable_keys(
+            &mut self,
+            _repository: &RepositoryId,
+            provider: &str,
+            keys: &BTreeSet<String>,
+            _checked_at: &str,
+        ) -> Result<(), PortError> {
+            self.unavailable
+                .borrow_mut()
+                .entry(provider.to_owned())
+                .or_default()
+                .extend(keys.iter().cloned());
+            Ok(())
+        }
+
+        fn clear_unavailable_keys(
+            &mut self,
+            _repository: &RepositoryId,
+            provider: &str,
+        ) -> Result<(), PortError> {
+            self.unavailable.borrow_mut().remove(provider);
+            Ok(())
+        }
+
+        fn replace_unavailable_keys(
+            &mut self,
+            _repository: &RepositoryId,
+            provider: &str,
+            keys: &BTreeSet<String>,
+            _checked_at: &str,
+        ) -> Result<(), PortError> {
+            self.unavailable
+                .borrow_mut()
+                .insert(provider.to_owned(), keys.clone());
             Ok(())
         }
     }
@@ -1425,6 +1569,48 @@ mod tests {
     }
 
     #[test]
+    fn gitlab_refresh_ignores_the_cursor_and_business_linked_local_skip_set() {
+        let source = FakeGitLabSource::default();
+        let mut store = FakeStore::default();
+        let repository = RepositoryId::new("repo:test").expect("repository ID");
+        store
+            .set_sync_cursor(&repository, GITLAB_CURSOR_PROVIDER, "2026-08-20T00:00:00Z")
+            .expect("seed cursor");
+
+        GitLabIngestRunner::new(&source, &mut store)
+            .run_scoped_with_refresh(
+                &repository,
+                "2026-08-21T00:00:00Z",
+                ArtifactIngestScope::All,
+                true,
+            )
+            .expect("full refresh");
+        assert_eq!(*source.received_since.borrow(), vec![None]);
+
+        let mut known_merge_request = artifact("842", ArtifactKind::MergeRequest, "Known", "");
+        known_merge_request.identity.provider = ArtifactProvider::GitLab;
+        store
+            .upsert_artifact(
+                &repository,
+                &known_merge_request,
+                "2026-08-21T00:30:00Z",
+                "test",
+            )
+            .expect("seed MR");
+        GitLabIngestRunner::new(&source, &mut store)
+            .run_scoped_with_refresh(
+                &repository,
+                "2026-08-21T01:00:00Z",
+                ArtifactIngestScope::BusinessLinked {
+                    related_jira_depth: 0,
+                },
+                true,
+            )
+            .expect("business refresh");
+        assert!(source.received_known_artifacts.borrow()[0].is_empty());
+    }
+
+    #[test]
     fn a_failed_external_batch_persists_neither_artifacts_links_nor_cursor() {
         let mut merge_request = artifact("842", ArtifactKind::MergeRequest, "Selected", "");
         merge_request.identity.provider = ArtifactProvider::GitLab;
@@ -1435,8 +1621,8 @@ mod tests {
             evidence_locator: "test".to_owned(),
         };
         let source = FakeGitLabSource {
-            artifacts: vec![merge_request],
-            links: vec![provider_link],
+            artifacts: vec![merge_request.clone()],
+            links: vec![provider_link.clone()],
             ..FakeGitLabSource::default()
         };
         let mut store = FakeStore {
@@ -1452,6 +1638,23 @@ mod tests {
         assert!(store.artifacts.borrow().is_empty());
         assert!(store.links.borrow().is_empty());
         assert!(store.cursors.borrow().is_empty());
+
+        store.fail_external_batch = false;
+        GitLabIngestRunner::new(&source, &mut store)
+            .run(&repository, "2026-08-21T01:00:00Z")
+            .expect("complete retry");
+        assert_eq!(
+            store.list_artifacts(&repository).expect("artifacts"),
+            vec![merge_request]
+        );
+        assert!(store.links.borrow().contains(&provider_link));
+        assert_eq!(*source.received_since.borrow(), vec![None, None]);
+        assert_eq!(
+            store
+                .sync_cursor(&repository, GITLAB_CURSOR_PROVIDER)
+                .expect("cursor"),
+            Some("2026-08-21T01:00:00Z".to_owned())
+        );
     }
 
     #[test]
@@ -1524,6 +1727,8 @@ mod tests {
         received_candidate_keys: RefCell<Vec<BTreeSet<String>>>,
         received_related_depths: RefCell<Vec<usize>>,
         received_known_artifacts: RefCell<Vec<HashSet<ArtifactIdentity>>>,
+        received_unavailable_artifacts: RefCell<Vec<HashSet<ArtifactIdentity>>>,
+        failure: Option<PortError>,
     }
 
     impl ExternalArtifactSource for FakeJiraSource {
@@ -1531,20 +1736,28 @@ mod tests {
             &self,
             request: ExternalArtifactRequest<'_>,
         ) -> Result<crate::ports::ExternalArtifactBatch, PortError> {
+            if let Some(error) = &self.failure {
+                return Err(error.clone());
+            }
             let candidate_keys = match request {
                 ExternalArtifactRequest::ReferencedKeys {
                     keys,
                     known_artifacts,
+                    unavailable_artifacts,
                 } => {
                     self.received_known_artifacts
                         .borrow_mut()
                         .push(known_artifacts.clone());
+                    self.received_unavailable_artifacts
+                        .borrow_mut()
+                        .push(unavailable_artifacts.clone());
                     keys
                 }
                 ExternalArtifactRequest::BusinessLinkedKeys {
                     keys,
                     related_depth,
                     known_artifacts,
+                    unavailable_artifacts,
                 } => {
                     self.received_related_depths
                         .borrow_mut()
@@ -1552,6 +1765,9 @@ mod tests {
                     self.received_known_artifacts
                         .borrow_mut()
                         .push(known_artifacts.clone());
+                    self.received_unavailable_artifacts
+                        .borrow_mut()
+                        .push(unavailable_artifacts.clone());
                     keys
                 }
                 _ => return Err(PortError::new("unexpected request mode")),
@@ -1737,6 +1953,128 @@ mod tests {
         assert_eq!(
             *source.received_candidate_keys.borrow(),
             vec![BTreeSet::new()]
+        );
+    }
+
+    #[test]
+    fn jira_negative_cache_is_passed_as_a_separate_complete_identity_skip_set() {
+        let mut store = FakeStore::default();
+        let repository = RepositoryId::new("repo:test").expect("repository ID");
+        let commit = artifact("abc123", ArtifactKind::Commit, "Fix OPS-404", "");
+        store
+            .upsert_artifact(&repository, &commit, "2026-08-21T00:00:00Z", "test")
+            .expect("seed commit");
+        let first_source = FakeJiraSource {
+            unavailable_keys: BTreeSet::from(["OPS-404".to_owned()]),
+            ..FakeJiraSource::default()
+        };
+        JiraIngestRunner::new(&first_source, &mut store)
+            .run(&repository, "2026-08-21T01:00:00Z")
+            .expect("first run");
+        assert_eq!(
+            store
+                .list_unavailable_keys(&repository, JIRA_UNAVAILABLE_PROVIDER)
+                .expect("negative cache"),
+            BTreeSet::from(["OPS-404".to_owned()])
+        );
+
+        let second_source = FakeJiraSource::default();
+        JiraIngestRunner::new(&second_source, &mut store)
+            .run(&repository, "2026-08-21T02:00:00Z")
+            .expect("second run");
+        assert_eq!(
+            second_source.received_unavailable_artifacts.borrow()[0],
+            HashSet::from([ArtifactIdentity {
+                provider: ArtifactProvider::Jira,
+                kind: ArtifactKind::Issue,
+                external_id: "OPS-404".to_owned(),
+            }])
+        );
+    }
+
+    #[test]
+    fn jira_refresh_retests_local_and_unavailable_keys_then_replaces_the_cache() {
+        let mut store = FakeStore::default();
+        let repository = RepositoryId::new("repo:test").expect("repository ID");
+        let commit = artifact(
+            "abc123",
+            ArtifactKind::Commit,
+            "Fix PSI-1122 and OPS-404",
+            "",
+        );
+        let mut local_issue = artifact("PSI-1122", ArtifactKind::Issue, "Known", "");
+        local_issue.identity.provider = ArtifactProvider::Jira;
+        for known in [&commit, &local_issue] {
+            store
+                .upsert_artifact(&repository, known, "2026-08-21T00:00:00Z", "test")
+                .expect("seed artifact");
+        }
+        store
+            .upsert_unavailable_keys(
+                &repository,
+                JIRA_UNAVAILABLE_PROVIDER,
+                &BTreeSet::from(["OPS-404".to_owned()]),
+                "2026-08-21T00:00:00Z",
+            )
+            .expect("seed negative cache");
+        let source = FakeJiraSource {
+            unavailable_keys: BTreeSet::from(["UTF-8".to_owned()]),
+            ..FakeJiraSource::default()
+        };
+
+        JiraIngestRunner::new(&source, &mut store)
+            .run_scoped_with_refresh(
+                &repository,
+                "2026-08-21T01:00:00Z",
+                ArtifactIngestScope::All,
+                true,
+            )
+            .expect("refresh");
+
+        assert_eq!(
+            source.received_candidate_keys.borrow()[0],
+            BTreeSet::from(["OPS-404".to_owned(), "PSI-1122".to_owned()])
+        );
+        assert!(source.received_known_artifacts.borrow()[0].is_empty());
+        assert!(source.received_unavailable_artifacts.borrow()[0].is_empty());
+        assert_eq!(
+            store
+                .list_unavailable_keys(&repository, JIRA_UNAVAILABLE_PROVIDER)
+                .expect("replaced cache"),
+            BTreeSet::from(["UTF-8".to_owned()])
+        );
+    }
+
+    #[test]
+    fn failed_jira_refresh_preserves_the_previous_negative_cache() {
+        let mut store = FakeStore::default();
+        let repository = RepositoryId::new("repo:test").expect("repository ID");
+        store
+            .upsert_unavailable_keys(
+                &repository,
+                JIRA_UNAVAILABLE_PROVIDER,
+                &BTreeSet::from(["OPS-404".to_owned()]),
+                "2026-08-21T00:00:00Z",
+            )
+            .expect("seed negative cache");
+        let source = FakeJiraSource {
+            failure: Some(PortError::new("refresh failed")),
+            ..FakeJiraSource::default()
+        };
+
+        let result = JiraIngestRunner::new(&source, &mut store).run_scoped_with_refresh(
+            &repository,
+            "2026-08-21T01:00:00Z",
+            ArtifactIngestScope::All,
+            true,
+        );
+
+        assert!(matches!(result, Err(IngestError::Source(_))));
+        assert_eq!(
+            store
+                .list_unavailable_keys(&repository, JIRA_UNAVAILABLE_PROVIDER)
+                .expect("preserved cache"),
+            BTreeSet::from(["OPS-404".to_owned()])
         );
     }
 

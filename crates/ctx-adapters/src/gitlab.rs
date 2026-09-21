@@ -896,7 +896,18 @@ mod tests {
             kind: ArtifactKind::MergeRequest,
             external_id: "842".to_owned(),
         };
-        let skipped = client
+        let skip_client = GitLabClient::new(
+            FakeTransport {
+                responses: BTreeMap::from([(
+                    "/projects/billing%2Fsubscriptions/merge_requests?per_page=100&sort=asc&page=1"
+                        .to_owned(),
+                    r#"[{"iid":842,"title":"Selected","source_branch":"feature/cancellation"}]"#
+                        .to_owned(),
+                )]),
+            },
+            "billing/subscriptions",
+        );
+        let skipped = skip_client
             .fetch(ExternalArtifactRequest::RepositoryLinked {
                 repository_refs: &repository_refs,
                 known_artifacts: &HashSet::from([known_merge_request]),

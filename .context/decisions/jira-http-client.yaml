@@ -30,6 +30,12 @@ decision: >
   ticket key already recognized by the linker double as the fetch-scoping
   key with no second parsing pass.
 
+  Historically this ADR scoped candidates to `[jira].project` and described
+  every run as a full candidate refetch. ADR-EXT-008 supersedes only those
+  two clauses with cross-project resolution and complete-identity local/
+  negative-cache skips plus explicit `--refresh`; this ADR remains accepted
+  for all other decisions below, including the absence of a Jira time cursor.
+
   The opt-in business-linked runner narrows candidate sources further to
   current Git and repository-linked merge requests plus their comments. It
   explicitly excludes prior Jira artifacts and unrelated GitLab issues, so
@@ -51,16 +57,14 @@ decision: >
   implementation deliberately doesn't ask for in v1.
 
   Because the candidate set is already bounded by what a repository's own
-  artifacts actually mention, there is no sync cursor: every `ctx ingest
-  jira` run simply re-fetches the current candidate-plus-one-hop set in
-  full. This trades a cursor's efficiency for simplicity and freshness --
-  re-ingesting an unchanged issue is a no-op upsert, so the only cost is a
-  handful of extra requests, and it sidesteps a real correctness risk a
-  cursor would have introduced here: Jira's JQL date literals carry no
-  timezone marker and are evaluated in the instance's own configured
-  timezone, so a naively time-filtered incremental query could silently
-  miss updates near the boundary. Not having a time filter at all removes
-  that risk entirely rather than working around it with a margin.
+  artifacts actually mention, there is no time cursor. Routine runs instead
+  skip complete Jira issue identities already stored locally and keys in the
+  repository's persisted unavailable-key cache. This avoids repeated detail
+  and known-403/404 requests without introducing Jira JQL timestamp boundary
+  risk. `--refresh` deliberately bypasses both skip sets, fetches the current
+  candidate-plus-bounded-hop set in full, and replaces the negative cache
+  only after the provider fetch and atomic artifact/link persistence succeed.
+  A failed refresh therefore retains the previous cache.
 
   Jira Cloud's `description`/comment `body` fields are Atlassian Document
   Format JSON, not plain text -- `flatten_adf` walks the ADF tree and
@@ -113,6 +117,7 @@ implementation:
   - symbol: ctx_adapters.jira.JiraConfig.load
   - symbol: ctx_app.ingest.JiraIngestRunner.run
   - symbol: ctx_app.ingest.JiraIngestRunner.run_scoped
+  - symbol: ctx_app.ingest.JiraIngestRunner.run_scoped_with_refresh
   - symbol: ctx_adapters.http_retry.run
 tests:
   - symbol: ctx_adapters.jira.tests.fetches_referenced_issues_across_projects
@@ -129,3 +134,7 @@ tests:
   - symbol: ctx_adapters.http_retry.tests.retry_after_is_respected_and_retries_are_bounded
   - symbol: ctx_app.ingest.tests.jira_ingest_derives_candidate_keys_from_already_known_artifact_text
   - symbol: ctx_app.ingest.tests.business_linked_jira_scope_cannot_be_seeded_by_old_jira_or_gitlab_issues
+  - symbol: ctx_adapters.jira.tests.a_negative_cached_key_is_omitted_from_jira_requests
+  - symbol: ctx_app.ingest.tests.jira_negative_cache_is_passed_as_a_separate_complete_identity_skip_set
+  - symbol: ctx_app.ingest.tests.jira_refresh_retests_local_and_unavailable_keys_then_replaces_the_cache
+  - symbol: ctx_app.ingest.tests.failed_jira_refresh_preserves_the_previous_negative_cache

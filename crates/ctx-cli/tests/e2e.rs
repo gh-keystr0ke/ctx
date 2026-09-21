@@ -917,6 +917,23 @@ fn ingest_rejects_an_unsupported_source() {
 }
 
 #[test]
+fn ingest_refresh_fails_fast_for_local_only_sources() {
+    let repository = FixtureRepository::new();
+
+    for source in ["git", "code-comments"] {
+        let error = repository.ctx_failure(&["ingest", source, "--refresh"]);
+        assert_eq!(
+            error["error"].as_str(),
+            Some("--refresh is supported only for Jira and GitLab ingestion")
+        );
+    }
+    assert!(
+        !repository.root().join(".ctx/ctx.db").exists(),
+        "validation must fail before creating or changing the database"
+    );
+}
+
+#[test]
 fn artifacts_prune_is_a_dry_run_until_apply_and_then_is_idempotent() {
     let repository = FixtureRepository::new();
     repository.ctx(&["init"]);

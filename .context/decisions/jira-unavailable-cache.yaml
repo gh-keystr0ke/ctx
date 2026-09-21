@@ -1,0 +1,76 @@
+id: ADR-EXT-008
+type: decision
+feature: FEAT-INDEXING
+title: Make external ingestion incremental by complete identity with atomic batches and explicit refresh
+status: accepted
+decision: >
+  External skip decisions use the complete artifact identity
+  (provider, kind, external ID), never a bare provider-wide string. Routine
+  Jira ingestion skips complete local Jira issues and GitLab
+  business-linked ingestion skips complete local merge requests while still
+  listing summaries needed for deterministic repository matching. GitLab
+  all-scope remains cursor-based. Each network response's artifacts and
+  deterministic links are persisted in one SQLite transaction after text
+  links are computed against the old plus fetched artifact set, so a failed
+  link write cannot expose a root that suppresses a complete retry.
+
+  Jira candidate keys are valid across every project on the configured Cloud
+  site; the backward-compatible `[jira].project` setting is informational,
+  not an admissibility filter or artifact-project source. Search results are
+  fully paginated, missing results are probed by issue key, and isolatable
+  batch errors are bisected. Only confirmed per-key or comment 403/404
+  responses become unavailable; authentication, unexpected HTTP, transport,
+  parsing, and pagination failures remain fatal. Provider-returned
+  `fields.project.key` supplies issue and comment project identity.
+
+  Jira 403/404 results and successful-search omissions confirmed by a
+  per-issue 403/404 are stable enough to skip during routine repository
+  ingestion, but they are not permanent product facts. Store them in the
+  repository-local SQLite `unavailable_external_keys` table, keyed by repository,
+  provider, and external ID with the last successful check time. Normal Jira
+  runs pass this negative cache to the connector separately from complete
+  locally stored artifact identities, so cached keys are neither requested
+  nor treated as available link targets. Newly observed unavailable keys are
+  added only after the provider fetch and atomic artifact/link batch succeed.
+
+  `ctx ingest jira --refresh` is the explicit revalidation boundary: it
+  ignores both positive and negative local skip sets and atomically replaces
+  the provider's negative-cache snapshot only after the complete refresh
+  succeeds. Provider, transport, parsing, or persistence failure leaves the
+  old cache intact. The same flag bypasses GitLab's all-scope cursor or
+  business-linked identity skip set. Local-only `git` and `code-comments`
+  ingestion reject `--refresh` before opening the database because the flag
+  has no coherent provider state to revalidate there.
+
+  This decision supersedes only ADR-EXT-005's historical clauses that every
+  Jira run re-fetches all candidates and that configured-project membership
+  filters accepted keys. ADR-EXT-005 remains accepted for its transport,
+  bounded traversal, no-time-cursor, ADF, pagination, and Jira Cloud scope
+  decisions; in particular, refresh does not introduce time-based Jira JQL.
+implementation:
+  - symbol: ctx_app.ports.ExternalArtifactBatchStore.persist_external_artifact_batch
+  - symbol: ctx_adapters.sqlite.artifacts.SqliteStore.ExternalArtifactBatchStore.persist_external_artifact_batch
+  - symbol: ctx_adapters.jira.JiraClient.fetch_issue_artifacts_for_keys
+  - symbol: ctx_adapters.gitlab.GitLabClient.fetch_repository_linked_merge_requests
+  - symbol: ctx_app.ports.UnavailableArtifactStore
+  - symbol: ctx_adapters.sqlite.artifacts.SqliteStore.UnavailableArtifactStore.list_unavailable_keys
+  - symbol: ctx_adapters.sqlite.artifacts.SqliteStore.UnavailableArtifactStore.replace_unavailable_keys
+  - symbol: ctx_app.ingest.JiraIngestRunner.run_scoped_with_refresh
+  - symbol: ctx_app.ingest.GitLabIngestRunner.run_scoped_with_refresh
+  - symbol: ctx_cli.ingest_command.ingest
+tests:
+  - symbol: ctx_adapters.sqlite.artifacts.tests.external_batch_rolls_back_artifacts_when_a_link_write_fails
+  - symbol: ctx_adapters.jira.tests.fetches_referenced_issues_across_projects
+  - symbol: ctx_adapters.jira.tests.a_successful_search_probes_and_ingests_an_omitted_key
+  - symbol: ctx_adapters.gitlab.tests.repository_linked_mode_skips_only_the_exact_known_merge_request_identity
+  - symbol: ctx_adapters.sqlite.artifacts.tests.unavailable_key_cache_supports_upsert_clear_and_atomic_replace
+  - symbol: ctx_adapters.jira.tests.a_negative_cached_key_is_omitted_from_jira_requests
+  - symbol: ctx_adapters.jira.tests.an_entirely_local_candidate_set_makes_no_jira_request
+  - symbol: ctx_adapters.jira.tests.a_partially_local_candidate_set_fetches_only_the_missing_issue
+  - symbol: ctx_adapters.jira.tests.two_new_issues_preserve_both_relations_to_the_same_target
+  - symbol: ctx_app.ingest.tests.jira_negative_cache_is_passed_as_a_separate_complete_identity_skip_set
+  - symbol: ctx_app.ingest.tests.jira_refresh_retests_local_and_unavailable_keys_then_replaces_the_cache
+  - symbol: ctx_app.ingest.tests.failed_jira_refresh_preserves_the_previous_negative_cache
+  - symbol: ctx_app.ingest.tests.gitlab_refresh_ignores_the_cursor_and_business_linked_local_skip_set
+  - symbol: crates.ctx-cli.tests.e2e.ingest_refresh_fails_fast_for_local_only_sources
+  - symbol: ctx_cli.ingest_command.tests.unavailable_warning_and_json_report_are_deterministic_and_separate

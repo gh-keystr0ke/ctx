@@ -368,6 +368,7 @@ impl<T: JiraTransport> JiraClient<T> {
             candidate_keys,
             related_depth,
             &HashSet::new(),
+            &HashSet::new(),
         )
     }
 
@@ -376,6 +377,7 @@ impl<T: JiraTransport> JiraClient<T> {
         candidate_keys: &BTreeSet<String>,
         related_depth: usize,
         known_artifacts: &HashSet<ArtifactIdentity>,
+        unavailable_artifacts: &HashSet<ArtifactIdentity>,
     ) -> Result<ExternalArtifactBatch, JiraError> {
         let known_issue_keys: BTreeSet<_> = known_artifacts
             .iter()
@@ -384,8 +386,16 @@ impl<T: JiraTransport> JiraClient<T> {
             })
             .map(|identity| identity.external_id.clone())
             .collect();
+        let unavailable_issue_keys: BTreeSet<_> = unavailable_artifacts
+            .iter()
+            .filter(|identity| {
+                identity.provider == ArtifactProvider::Jira && identity.kind == ArtifactKind::Issue
+            })
+            .map(|identity| identity.external_id.clone())
+            .collect();
         let mut frontier_keys: BTreeSet<_> = candidate_keys
             .difference(&known_issue_keys)
+            .filter(|key| !unavailable_issue_keys.contains(*key))
             .cloned()
             .collect();
         if frontier_keys.is_empty() {
@@ -399,6 +409,7 @@ impl<T: JiraTransport> JiraClient<T> {
             .union(&known_issue_keys)
             .cloned()
             .collect::<BTreeSet<_>>();
+        visited_keys.extend(unavailable_issue_keys);
         let mut pending_related = Vec::new();
         for depth in 0..=related_depth {
             let resolution = self.fetch_issues_by_keys(&frontier_keys)?;
@@ -680,15 +691,23 @@ impl<T: JiraTransport> ExternalArtifactSource for JiraClient<T> {
             ExternalArtifactRequest::ReferencedKeys {
                 keys,
                 known_artifacts,
-            } => self.fetch_issue_artifacts_for_keys_with_depth_and_known(keys, 1, known_artifacts),
+                unavailable_artifacts,
+            } => self.fetch_issue_artifacts_for_keys_with_depth_and_known(
+                keys,
+                1,
+                known_artifacts,
+                unavailable_artifacts,
+            ),
             ExternalArtifactRequest::BusinessLinkedKeys {
                 keys,
                 related_depth,
                 known_artifacts,
+                unavailable_artifacts,
             } => self.fetch_issue_artifacts_for_keys_with_depth_and_known(
                 keys,
                 related_depth,
                 known_artifacts,
+                unavailable_artifacts,
             ),
             _ => {
                 return Err(PortError::new(
@@ -1150,6 +1169,96 @@ mod tests {
     }
 
     #[test]
+    fn a_negative_cached_key_is_omitted_from_jira_requests() {
+        let client = JiraClient::new(
+            FakeTransport::default(),
+            "PSI",
+            "https://example.atlassian.net",
+        );
+        let unavailable = HashSet::from([ArtifactIdentity {
+            provider: ArtifactProvider::Jira,
+            kind: ArtifactKind::Issue,
+            external_id: "OPS-404".to_owned(),
+        }]);
+
+        let batch = client
+            .fetch(ExternalArtifactRequest::ReferencedKeys {
+                keys: &keys(&["OPS-404"]),
+                known_artifacts: &HashSet::new(),
+                unavailable_artifacts: &unavailable,
+            })
+            .expect("cached key must need no transport fixture");
+
+        assert_eq!(batch, ExternalArtifactBatch::default());
+    }
+
+    #[test]
+    fn a_partially_local_candidate_set_fetches_only_the_missing_issue() {
+        let mut responses = BTreeMap::new();
+        responses.insert(
+            search_key("key in (PSI-2) ORDER BY key ASC", None),
+            r#"{"issues":[{"key":"PSI-2","fields":{"project":{"key":"PSI"},"summary":"Missing issue"}}]}"#
+                .to_owned(),
+        );
+        responses.extend([empty_comment_page("PSI-2")]);
+        let client = JiraClient::new(
+            FakeTransport {
+                responses,
+                ..FakeTransport::default()
+            },
+            "PSI",
+            "https://example.atlassian.net",
+        );
+        let known = HashSet::from([ArtifactIdentity {
+            provider: ArtifactProvider::Jira,
+            kind: ArtifactKind::Issue,
+            external_id: "PSI-1".to_owned(),
+        }]);
+
+        let batch = client
+            .fetch(ExternalArtifactRequest::ReferencedKeys {
+                keys: &keys(&["PSI-1", "PSI-2"]),
+                known_artifacts: &known,
+                unavailable_artifacts: &HashSet::new(),
+            })
+            .expect("only missing issue is requested");
+
+        assert_eq!(
+            batch
+                .artifacts
+                .iter()
+                .filter(|artifact| artifact.identity.kind == ArtifactKind::Issue)
+                .map(|artifact| artifact.identity.external_id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["PSI-2"]
+        );
+    }
+
+    #[test]
+    fn an_entirely_local_candidate_set_makes_no_jira_request() {
+        let client = JiraClient::new(
+            FakeTransport::default(),
+            "PSI",
+            "https://example.atlassian.net",
+        );
+        let known = HashSet::from([ArtifactIdentity {
+            provider: ArtifactProvider::Jira,
+            kind: ArtifactKind::Issue,
+            external_id: "PSI-1".to_owned(),
+        }]);
+
+        let batch = client
+            .fetch(ExternalArtifactRequest::ReferencedKeys {
+                keys: &keys(&["PSI-1"]),
+                known_artifacts: &known,
+                unavailable_artifacts: &HashSet::new(),
+            })
+            .expect("local issue needs no transport fixture");
+
+        assert_eq!(batch, ExternalArtifactBatch::default());
+    }
+
+    #[test]
     fn expands_one_hop_through_jira_reported_issue_links_but_no_further() {
         let mut responses = BTreeMap::new();
         responses.insert(
@@ -1221,6 +1330,51 @@ mod tests {
     }
 
     #[test]
+    fn two_new_issues_preserve_both_relations_to_the_same_target() {
+        let mut responses = BTreeMap::new();
+        responses.insert(
+            search_key("key in (PSI-1,PSI-2) ORDER BY key ASC", None),
+            r#"{"issues":[{"key":"PSI-1","fields":{"project":{"key":"PSI"},"summary":"First","issuelinks":[{"outwardIssue":{"key":"PSI-3"}}]}},{"key":"PSI-2","fields":{"project":{"key":"PSI"},"summary":"Second","issuelinks":[{"outwardIssue":{"key":"PSI-3"}}]}}]}"#
+                .to_owned(),
+        );
+        responses.extend([empty_comment_page("PSI-1"), empty_comment_page("PSI-2")]);
+        responses.insert(
+            search_key("key in (PSI-3) ORDER BY key ASC", None),
+            r#"{"issues":[{"key":"PSI-3","fields":{"project":{"key":"PSI"},"summary":"Shared target"}}]}"#
+                .to_owned(),
+        );
+        responses.extend([empty_comment_page("PSI-3")]);
+        let client = JiraClient::new(
+            FakeTransport {
+                responses,
+                ..FakeTransport::default()
+            },
+            "PSI",
+            "https://example.atlassian.net",
+        );
+
+        let batch = client
+            .fetch_issue_artifacts_for_keys(&keys(&["PSI-1", "PSI-2"]))
+            .expect("shared target expansion");
+        let mut sources: Vec<_> = batch
+            .links
+            .iter()
+            .filter(|link| {
+                link.kind == ArtifactLinkKind::RelatedIssue
+                    && link.target
+                        == ArtifactLinkTarget::Artifact(ArtifactIdentity {
+                            provider: ArtifactProvider::Jira,
+                            kind: ArtifactKind::Issue,
+                            external_id: "PSI-3".to_owned(),
+                        })
+            })
+            .map(|link| link.source.external_id.as_str())
+            .collect();
+        sources.sort_unstable();
+        assert_eq!(sources, vec!["PSI-1", "PSI-2"]);
+    }
+
+    #[test]
     fn a_related_issue_already_stored_locally_is_linked_without_refetching_it() {
         let mut responses = BTreeMap::new();
         responses.insert(
@@ -1244,7 +1398,12 @@ mod tests {
         }]);
 
         let batch = client
-            .fetch_issue_artifacts_for_keys_with_depth_and_known(&keys(&["PSI-1"]), 1, &known)
+            .fetch_issue_artifacts_for_keys_with_depth_and_known(
+                &keys(&["PSI-1"]),
+                1,
+                &known,
+                &HashSet::new(),
+            )
             .expect("known related issue needs no Jira request");
 
         assert_eq!(

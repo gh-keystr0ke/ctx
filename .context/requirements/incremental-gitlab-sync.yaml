@@ -22,16 +22,21 @@ statement: >
   repository relevance can change because local Git changed even when a
   merge request's GitLab updated_at did not. It re-lists lightweight MR
   summaries for selection while still fetching expensive detail only for
-  repository-linked MRs.
+  repository-linked MRs. `--refresh` bypasses the all-scope cursor and the
+  business-linked local identity skip set for an explicit full
+  revalidation; a successful all-scope refresh resumes cursor advancement
+  from the refresh timestamp.
 implementation:
   - symbol: ctx_app.ports.IngestCursorStore
   - symbol: ctx_app.ingest.GitLabIngestRunner.run
   - symbol: ctx_app.ingest.GitLabIngestRunner.run_scoped
+  - symbol: ctx_app.ingest.GitLabIngestRunner.run_scoped_with_refresh
   - symbol: ctx_adapters.gitlab.GitLabClient.fetch_issue_and_mr_artifacts
   - symbol: ctx_adapters.sqlite.artifacts.SqliteStore.IngestCursorStore.sync_cursor
   - symbol: ctx_adapters.sqlite.artifacts.SqliteStore.IngestCursorStore.set_sync_cursor
 tests:
   - symbol: ctx_app.ingest.tests.gitlab_ingest_advances_its_sync_cursor_and_passes_it_to_the_next_run
   - symbol: ctx_app.ingest.tests.business_linked_gitlab_scope_builds_refs_only_from_current_git
+  - symbol: ctx_app.ingest.tests.gitlab_refresh_ignores_the_cursor_and_business_linked_local_skip_set
   - symbol: ctx_adapters.gitlab.tests.a_sync_cursor_becomes_an_updated_after_query_parameter
   - symbol: ctx_adapters.sqlite.artifacts.tests.sync_cursor_round_trips_and_advances_in_place

@@ -418,7 +418,7 @@ impl UnavailableArtifactStore for SqliteStore {
                  FROM unavailable_external_keys ua
                  JOIN repositories r ON r.id = ua.repository_id
                  WHERE r.stable_id = ?1 AND ua.provider = ?2
-                 ORDER BY ua.external_id",
+                 ORDER BY ua.external_key",
             )
             .map_err(database_error)?;
         let rows = statement

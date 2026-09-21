@@ -4,6 +4,20 @@ All notable changes to `ctx` are documented here. The project follows semantic v
 
 ## Unreleased
 
+### Added
+
+- `ctx ingest jira --refresh` and `ctx ingest gitlab --refresh` explicitly revalidate provider state, bypassing Jira's local/negative cache, GitLab business-linked local MR skips, or the GitLab all-scope cursor. Local-only Git and code-comment ingestion reject the flag.
+- Jira ingestion resolves deterministic ticket keys across projects on the configured Cloud site, reports inaccessible/nonexistent keys without discarding accessible issues, and persists those keys in a repository-local negative cache until a successful refresh replaces it.
+
+### Changed
+
+- Routine Jira ingestion and business-linked GitLab ingestion skip complete local issue/MR identities. This reduces provider calls but deliberately leaves those artifacts unchanged until refresh; GitLab all-scope remains cursor-based and update-aware.
+- External provider batches now persist artifacts and deterministic links in one SQLite transaction, preventing a partial root from suppressing a complete retry. A refresh can repair suspected partial data written by an older release.
+
+### Fixed
+
+- Jira issue/comment projects now come from `fields.project.key`, partial visibility-filtered searches probe missing keys individually, isolatable failing batches are bisected, and comment-level 403/404 responses no longer fail unrelated accessible issues.
+
 ## 0.8.4 — 2026-09-21
 
 ### Added

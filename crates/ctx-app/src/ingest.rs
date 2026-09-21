@@ -193,7 +193,9 @@ const GITLAB_CURSOR_PROVIDER: &str = "gitlab";
 /// repository's stored GitLab sync cursor first and asks the source for only
 /// what changed since then, then advances the cursor to `ingested_at` once
 /// the run succeeds -- a failed run leaves the old cursor in place so the
-/// same window is retried next time rather than silently skipped.
+/// same window is retried next time rather than silently skipped. The
+/// business-linked scope skips complete local merge-request identities; an
+/// explicit refresh bypasses either the cursor or that skip set.
 pub struct GitLabIngestRunner<'a, G, S> {
     source: &'a G,
     store: &'a mut S,
@@ -424,10 +426,11 @@ const JIRA_UNAVAILABLE_PROVIDER: &str = "jira";
 /// knows about (commits, branches, GitLab issues/MRs, prior Jira issues)
 /// for ticket-key-shaped references, and passes that candidate set to
 /// [`ExternalArtifactSource`], which fetches only the ones under its own
-/// configured project plus one hop of Jira-reported related issues. There
-/// is deliberately no sync cursor here: the candidate set is what keeps
-/// this bounded, not a time filter, so every run simply re-fetches the
-/// current candidate set in full (a cheap, idempotent upsert either way).
+/// configured Jira Cloud site plus one hop of Jira-reported related issues.
+/// There is deliberately no sync cursor here: the candidate set is what
+/// keeps this bounded, not a time filter. Routine runs skip complete local
+/// Jira issue identities and persisted unavailable keys; an explicit refresh
+/// bypasses both skip sets and replaces the negative cache after success.
 pub struct JiraIngestRunner<'a, J, S> {
     source: &'a J,
     store: &'a mut S,

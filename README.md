@@ -84,6 +84,7 @@ Add `-v` for lower-confidence diagnostics and suppressed-change counts. See [doc
 ctx ingest git
 ctx ingest gitlab --scope business-linked    # if GitLab is configured
 ctx ingest jira --scope business-linked      # Jira keys found in Git/selected MRs only
+# add --refresh to revalidate complete/negative-cached Jira or GitLab data
 ctx ingest code-comments --reconcile         # remove comments/docstrings gone from HEAD
 ctx artifacts prune --scope business-linked  # dry run; add --apply after review
 ctx enrich --scope business-linked --agent claude  # or codex / antigravity
@@ -148,7 +149,7 @@ exclude = ["generated", "vendor", "build", "dist", "target", ".venv"]
 | `ctx review [--base REV]` | Review a branch or working diff against product, schema, and API contracts |
 | `ctx context <task>` | Compile a bounded Context Pack; accepts repeated `--file`/`--symbol` seeds |
 | `ctx report <html\|markdown>` | Generate a complete internal static report under `.ctx/report/<format>/` or `--out DIR` |
-| `ctx ingest <source>` | Ingest external artifacts (`git`, `code-comments`, `gitlab`, `jira`) as separately stored source material |
+| `ctx ingest <source> [--refresh]` | Ingest external artifacts (`git`, `code-comments`, `gitlab`, `jira`) as separately stored source material; refresh is Jira/GitLab-only |
 | `ctx artifacts prune [--apply]` | Dry-run or apply removal of artifacts without a deterministic repository→Jira business anchor |
 | `ctx enrich [--agent NAME] [--scope business-linked]` | Propose typed knowledge candidates; strict scope sends one Jira-anchored MR/commit/code bundle per agent call |
 | `ctx verify [--knowledge] [--auto]` | Decide heuristic or AI-derived candidates, by hand or via a review agent |

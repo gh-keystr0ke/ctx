@@ -52,7 +52,7 @@ See [docs/mining-knowledge.md](mining-knowledge.md) for the full workflow.
 
 | Command | Flags | Purpose |
 | --- | --- | --- |
-| `ctx ingest <source>` | `--since <OID>`, `--scope <all\|business-linked>`, `--related-depth <N>`, `--reconcile` | Normalize external artifacts into their own store. Strict scope selects GitLab MRs from Git and Jira keys from Git/selected MRs; `--reconcile` applies to `code-comments`. |
+| `ctx ingest <source>` | `--since <OID>`, `--scope <all\|business-linked>`, `--related-depth <N>`, `--reconcile`, `--refresh` | Normalize external artifacts into their own store. Strict scope selects GitLab MRs from Git and Jira keys from Git/selected MRs; `--reconcile` applies to `code-comments`. `--refresh` bypasses Jira/GitLab cursors and local skip caches and is rejected for local-only sources. |
 | `ctx artifacts prune` | `--scope business-linked`, `--related-depth <N>`, `--apply` | Explain the keep/prune plan. Dry-run by default; `--apply` atomically removes the prune set. `-v` groups reasons, `-vv` lists identities. |
 | `ctx enrich` | `--agent <claude\|codex\|antigravity>` (default `claude`), `--model <NAME>`, `--allow-ungrounded-symbols`, `--scope <all\|business-linked>`, `--related-depth <N>` | Ask an AI agent to propose typed knowledge candidates. Strict scope sends one Jira-anchored bundle at a time and never sends a branch, commit, or MR alone. |
 | `ctx verify` | `--accept <FINGERPRINT>` \| `--reject <FINGERPRINT>`, `--author <NAME>` (default `local-user`) | List or decide heuristic implementation-link candidates (the deterministic relation suggestions from indexing, not AI-derived). |

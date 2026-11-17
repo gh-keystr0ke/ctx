@@ -34,7 +34,7 @@ pub fn evaluate_case(case: &EvaluationCase) -> CaseReport {
                             report::ContextSymbolTokens::default(),
                             |mut totals, item| {
                                 totals.symbols += 1;
-                                totals.estimated_tokens += item.estimated_tokens;
+                                totals.estimated_tokens += item.content.chars().count().div_ceil(4);
                                 totals
                             },
                         ),

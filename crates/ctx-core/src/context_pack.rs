@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::fmt::Write as _;
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -109,7 +110,7 @@ impl ContextEdgeIndex {
                         .calls
                         .entry(edge.source.clone())
                         .or_default()
-                        .insert(target.identifier().to_owned());
+                        .insert(target.name.clone());
                 }
                 continue;
             }
@@ -161,18 +162,7 @@ pub fn compile_context_pack(
     if seed_keys.is_empty() {
         return Err(ContextCompileError::NoSeeds);
     }
-    for edge in &graph.edges {
-        if edge.kind == RelationKind::Implements
-            && edge.status == ClaimStatus::Active
-            && seed_keys.contains(&edge.target)
-            && graph
-                .nodes
-                .get(&edge.target)
-                .is_some_and(|node| node.kind == NodeKind::Requirement)
-        {
-            *scores.entry(edge.source.clone()).or_default() += 150;
-        }
-    }
+    boost_linked_implementation(graph, &seed_keys, &mut scores);
     let mut candidates = expand_candidates(graph, &seed_keys, &scores);
     candidates.sort_by_key(|candidate| graph.nodes[&candidate.key].kind == NodeKind::File);
     let task_tokens = estimate_tokens(&request.task).max(1);
@@ -430,6 +420,25 @@ fn touches(edge: &GraphEdge, key: &StableKey) -> bool {
     edge.source == *key || edge.target == *key
 }
 
+fn boost_linked_implementation(
+    graph: &GraphSnapshot,
+    seeds: &BTreeSet<StableKey>,
+    scores: &mut BTreeMap<StableKey, usize>,
+) {
+    for edge in &graph.edges {
+        if edge.kind == RelationKind::Implements
+            && edge.status == ClaimStatus::Active
+            && seeds.contains(&edge.target)
+            && graph
+                .nodes
+                .get(&edge.target)
+                .is_some_and(|node| node.kind == NodeKind::Requirement)
+        {
+            *scores.entry(edge.source.clone()).or_default() += 150;
+        }
+    }
+}
+
 fn lexical_scores(graph: &GraphSnapshot, task: &BTreeSet<String>) -> BTreeMap<StableKey, usize> {
     let mut frequencies = BTreeMap::<String, usize>::new();
     let mut matches = Vec::new();
@@ -569,13 +578,15 @@ fn node_content(database_edges: &ContextEdgeIndex, node: &GraphNode) -> String {
                         .join(", ")
                 )
             };
-            let mut content = format!(
-                "{}:{}-{}\nSignature: {}",
-                file_path,
-                range.start_line,
-                range.end_line,
-                signature.as_deref().unwrap_or("unknown")
-            );
+            let mut content = format!("{file_path}:{}-{}", range.start_line, range.end_line);
+            if let Some(signature) = signature
+                .as_deref()
+                .map(|signature| compact_signature(signature, &node.name))
+                && !signature.is_empty()
+            {
+                content.push('\n');
+                content.push_str(signature);
+            }
             if let Some(calls) = database_edges.calls.get(&node.stable_key) {
                 content.push_str("\nCalls: ");
                 content.push_str(
@@ -586,11 +597,7 @@ fn node_content(database_edges: &ContextEdgeIndex, node: &GraphNode) -> String {
                         .join(", "),
                 );
             }
-            for (label, entities) in [("DB reads", reads), ("DB writes", writes)] {
-                if !entities.is_empty() {
-                    content.push_str(&format!("\n{label}: {}", render_entities(&entities)));
-                }
-            }
+            render_database_accesses(&mut content, reads, writes);
             content.push_str(&schema_line);
             content.push_str(&api_line);
             content.push_str(&external_line);
@@ -628,6 +635,32 @@ fn node_content(database_edges: &ContextEdgeIndex, node: &GraphNode) -> String {
 /// not in `database_accesses` (raw SQL only) -- so rendering must consume
 /// these edges rather than reaching back into an analyzer-specific
 /// extraction artifact.
+fn compact_signature<'a>(signature: &'a str, name: &str) -> &'a str {
+    let signature = signature.trim();
+    for prefix in ["def ", "fn ", "func ", "class "] {
+        if let Some(tail) = signature
+            .strip_prefix(prefix)
+            .and_then(|tail| tail.strip_prefix(name))
+            && (tail.is_empty() || tail.starts_with(['(', ':', '<', '[']))
+        {
+            return tail.strip_suffix(':').unwrap_or(tail);
+        }
+    }
+    signature
+}
+
+fn render_database_accesses(
+    content: &mut String,
+    reads: BTreeMap<String, BTreeSet<String>>,
+    writes: BTreeMap<String, BTreeSet<String>>,
+) {
+    for (label, entities) in [("DB reads", reads), ("DB writes", writes)] {
+        if !entities.is_empty() {
+            let _ = write!(content, "\n{label}: {}", render_entities(&entities));
+        }
+    }
+}
+
 fn merge_edge_entities(
     map: &mut BTreeMap<String, BTreeSet<String>>,
     database_edges: &ContextEdgeIndex,

@@ -41,7 +41,7 @@ Use `"always"` to enable automatic refresh for CLI queries too.
 Use `--refresh` to request a one-time refresh from the CLI.
 
 Tool results include an `index` object with `commit`, `head`, and `state`.
-Tools that return a list put the list in `matches`.
+Tools that return a list preserve the list in `structuredContent`.
 
 ## Configure a coding agent
 

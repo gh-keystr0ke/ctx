@@ -120,6 +120,10 @@ pub trait GitRepository {
     fn head_oid(&self) -> Result<CommitOid, PortError> {
         self.head().map(|commit| commit.oid)
     }
+    /// Counts commits reachable from HEAD but absent from the indexed revision.
+    fn commits_behind(&self, _indexed: &CommitOid, _head: &CommitOid) -> Option<usize> {
+        None
+    }
     /// Lists supported source files in deterministic order.
     ///
     /// # Errors

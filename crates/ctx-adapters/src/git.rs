@@ -635,6 +635,15 @@ impl GitRepository for GitRepo {
         CommitOid::new(oid).map_err(|error| PortError::new(error.to_string()))
     }
 
+    fn commits_behind(&self, indexed: &CommitOid, head: &CommitOid) -> Option<usize> {
+        let range = format!("{indexed}..{head}");
+        self.optional_text(&["rev-list", "--count", &range, "--"])
+            .ok()
+            .flatten()?
+            .parse()
+            .ok()
+    }
+
     fn all_source_files(&self) -> Result<Vec<String>, PortError> {
         let bytes = self
             .output(&[

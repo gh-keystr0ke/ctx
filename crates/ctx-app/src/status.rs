@@ -25,6 +25,8 @@ pub struct IndexFreshness {
     pub state: FreshnessState,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub commits_behind: Option<usize>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -53,8 +55,18 @@ impl IndexFreshness {
             )),
             FreshnessState::Behind => {
                 let commit = self.commit.as_ref().map_or("unknown", short_commit);
+                let distance = self.commits_behind.map_or_else(String::new, |count| {
+                    if count == 0 {
+                        "different Git history; ".to_owned()
+                    } else {
+                        format!(
+                            "{count} commit{} behind; ",
+                            if count == 1 { "" } else { "s" }
+                        )
+                    }
+                });
                 Some(format!(
-                    "warning: index is at {commit}, HEAD is {head} ({reason}); run 'ctx index'"
+                    "warning: index is at {commit}, HEAD is {head} ({distance}{reason}); run 'ctx index'"
                 ))
             }
         }
@@ -97,11 +109,16 @@ pub fn index_freshness(
         IndexState::Current if dirty => FreshnessState::Dirty,
         IndexState::Current => FreshnessState::Current,
     };
+    let commits_behind = commit
+        .as_ref()
+        .filter(|indexed| state == FreshnessState::Behind && !indexed.is_worktree())
+        .and_then(|indexed| git.commits_behind(indexed, &head));
     Ok(IndexFreshness {
         commit,
         head,
         state,
         reason: dirty.then(|| "working tree has uncommitted index inputs".to_owned()),
+        commits_behind,
     })
 }
 

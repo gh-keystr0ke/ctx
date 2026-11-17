@@ -112,6 +112,7 @@ impl<'a> McpServer<'a> {
                     |error| tool_error(&error),
                     |value| tool_result(value, &freshness),
                 );
+                result["index"] = json!(freshness);
                 if let Some(warning) = freshness.warning()
                     && let Some(content) = result["content"].as_array_mut()
                 {
@@ -296,10 +297,9 @@ fn rpc_error(id: Value, code: i64, message: String) -> Value {
 }
 
 fn tool_result(mut value: Value, freshness: &IndexFreshness) -> Value {
-    if value.is_array() {
-        value = json!({"matches": value});
+    if let Some(object) = value.as_object_mut() {
+        object.insert("index".to_owned(), json!(freshness));
     }
-    value["index"] = json!(freshness);
     let text = serde_json::to_string_pretty(&value).unwrap_or_else(|_| value.to_string());
     let mut result = serde_json::Map::new();
     result.insert(
@@ -558,17 +558,14 @@ mod tests {
         fs::write(&source, "def cancel():\n    return 1\n").expect("next source");
         run_git(directory.path(), &["commit", "-am", "next"]);
         let response = server.handle(&request).expect("refreshed response");
-        let index = &response["result"]["structuredContent"]["index"];
+        let index = &response["result"]["index"];
         assert_eq!(index["state"], "current");
         assert_eq!(index["head"], index["commit"]);
         fs::write(&source, "def cancel():\n    return 2\n").expect("new source");
         run_git(directory.path(), &["commit", "-am", "new"]);
         fs::write(&source, "def cancel():\n    return 3\n").expect("dirty source");
         let response = server.handle(&request).expect("stale response");
-        assert_eq!(
-            response["result"]["structuredContent"]["index"]["state"],
-            "behind"
-        );
+        assert_eq!(response["result"]["index"]["state"], "behind");
         let warning = response["result"]["content"][0]["text"]
             .as_str()
             .expect("warning");
@@ -604,12 +601,15 @@ mod tests {
             .collect();
         assert_eq!(responses.len(), requests.len());
         for response in responses {
+            if matches!(response["id"].as_u64(), Some(2..=4)) {
+                assert!(
+                    response["result"]["structuredContent"].is_array(),
+                    "{response}"
+                );
+            }
             assert!(response.get("error").is_none(), "{response}");
             assert_eq!(response["result"]["isError"], false, "{response}");
-            assert_eq!(
-                response["result"]["structuredContent"]["index"]["state"],
-                "current"
-            );
+            assert_eq!(response["result"]["index"]["state"], "current");
         }
     }
 }

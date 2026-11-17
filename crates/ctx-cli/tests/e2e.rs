@@ -2146,19 +2146,20 @@ fn verify_stale_reactivates_an_accepted_claim_and_leaves_a_rejected_one_as_a_sug
     assert_eq!(before["knowledge"]["stale_semantic_edges"], 1);
     assert_eq!(before["health"], "needs_attention");
 
-    // One fake `claude` script stands in for the review agent: it always
-    // accepts, since this test's own scenario has exactly one stale claim
-    // that genuinely still holds -- the reject path is exercised directly
-    // against `agent_contract::review_stale_claims` and `VerificationService`
-    // unit tests, which is where a deliberately-wrong verdict belongs.
+    // The fake `claude` script first only records that it was called. With
+    // HEAD past the index, `verify --stale` must stop before any agent call,
+    // since every reactivation is recorded against HEAD. It used to call the
+    // agent for every batch and then fail on the first reactivation.
     let script_path = billing.path().join("fake-claude.sh");
+    let calls_log = billing.path().join("agent-calls.log");
     fs::write(
         &script_path,
-        "#!/bin/sh\n\
-         claim=$(echo \"$3\" | grep '^- claim:' | head -1 | sed 's/^- claim: //')\n\
-         echo \"{\\\"decisions\\\":[{\\\"claim\\\":\\\"$claim\\\",\\\"verdict\\\":\\\"accept\\\",\\\"reasoning\\\":\\\"cancel still preserves paid access; it only gained an optional reason parameter\\\"}]}\"\n",
+        format!(
+            "#!/bin/sh\necho called >> '{}'\nexit 1\n",
+            calls_log.display()
+        ),
     )
-    .expect("write fake claude script");
+    .expect("write recording fake claude script");
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -2172,6 +2173,38 @@ fn verify_stale_reactivates_an_accepted_claim_and_leaves_a_rejected_one_as_a_sug
         "CTX_CLAUDE_CLI_BINARY",
         script_path.to_str().expect("utf8 path"),
     )];
+    run_git(
+        billing.path(),
+        &[
+            "commit",
+            "--quiet",
+            "--allow-empty",
+            "-m",
+            "not indexed yet",
+        ],
+    );
+    let outdated = ctx_failure_at_with_env(billing.path(), &["verify", "--stale"], &env);
+    assert!(
+        outdated["error"]
+            .as_str()
+            .is_some_and(|message| message.contains("Run 'ctx index' first")),
+        "{outdated}"
+    );
+    assert!(!calls_log.exists(), "the agent must not be called");
+    ctx_json_at(billing.path(), &["index"]);
+
+    // Now the script always accepts, since this test's own scenario has
+    // exactly one stale claim that genuinely still holds -- the reject path
+    // is exercised directly against `agent_contract::review_stale_claims`
+    // and `VerificationService` unit tests, which is where a
+    // deliberately-wrong verdict belongs.
+    fs::write(
+        &script_path,
+        "#!/bin/sh\n\
+         claim=$(echo \"$3\" | grep '^- claim:' | head -1 | sed 's/^- claim: //')\n\
+         echo \"{\\\"decisions\\\":[{\\\"claim\\\":\\\"$claim\\\",\\\"verdict\\\":\\\"accept\\\",\\\"reasoning\\\":\\\"cancel still preserves paid access; it only gained an optional reason parameter\\\"}]}\"\n",
+    )
+    .expect("write accepting fake claude script");
 
     let review = ctx_json_at_with_env(billing.path(), &["verify", "--stale"], &env);
     assert_eq!(review["report"]["claims_reviewed"], 1);
@@ -3060,8 +3093,13 @@ fn ctx_json_at_with_env(root: &Path, arguments: &[&str], env: &[(&str, &str)]) -
 }
 
 fn ctx_failure_at(root: &Path, arguments: &[&str]) -> Value {
+    ctx_failure_at_with_env(root, arguments, &[])
+}
+
+fn ctx_failure_at_with_env(root: &Path, arguments: &[&str], env: &[(&str, &str)]) -> Value {
     let output = Command::new(env!("CARGO_BIN_EXE_ctx"))
         .current_dir(root)
+        .envs(env.iter().copied())
         .arg("--json")
         .args(arguments)
         .output()

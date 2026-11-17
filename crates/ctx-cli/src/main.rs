@@ -27,7 +27,7 @@ use ctx_app::{
     enrich::{EnrichError, EnrichRunner},
     index::{IndexError, IndexReport, IndexRunner},
     ingest::IngestError,
-    ports::{GitRepository, GraphStore, IndexStore, PortError},
+    ports::{CommitMetadata, GitRepository, GraphStore, IndexStore, PortError},
     query::{QueryError, QueryService},
     report::ReportError,
     review::{ReviewError, ReviewRunner},
@@ -40,7 +40,7 @@ use ctx_app::{
 };
 use ctx_core::business::{BusinessKind, ContextImportStats, Visibility};
 use ctx_core::context_pack::ContextRequest;
-use ctx_core::domain::{ClaimStatus, NodeKind, RelationKind};
+use ctx_core::domain::{ClaimStatus, NodeKind, RelationKind, RepositoryId};
 use ctx_core::graph::{GraphEvidence, GraphSnapshot};
 use ctx_core::indexing::PlannedNodeAttributes;
 use ctx_core::ir::{ApiEndpoint, ApiParam, ParamSource};
@@ -75,7 +75,9 @@ use ingest_command::IngestScopeArg;
 use report_command::{ReportCommand, report};
 use status_command::status;
 use type_inference_command::{infer_types, parse_inference_confidence};
-use verify_command::{verify, verify_knowledge, verify_knowledge_auto, verify_stale};
+use verify_command::{
+    require_current_index, verify, verify_knowledge, verify_knowledge_auto, verify_stale,
+};
 
 const DEFAULT_CONFIG: &str = r#"languages = ["python", "rust", "go"]
 
@@ -463,9 +465,13 @@ enum CliError {
     #[error("'ctx federation resolve' requires exactly one of --neighbor <name> or --external")]
     FederationResolveRequiresChoice,
     #[error(
-        "ctx export requires an index at HEAD {head}; the current index is {indexed}. Run 'ctx index' first"
+        "ctx {command} requires an index at HEAD {head}; the current index is {indexed}. Run 'ctx index' first"
     )]
-    ExportRequiresCurrentIndex { head: String, indexed: String },
+    RequiresCurrentIndex {
+        command: &'static str,
+        head: String,
+        indexed: String,
+    },
     #[error(transparent)]
     Trace(#[from] ctx_core::trace::TraceError),
     #[error("--federation-continuation is not valid JSON: {0}")]
@@ -834,14 +840,7 @@ fn build_export_manifest(git: &GitRepo) -> Result<ExportManifest, CliError> {
     let store = SqliteStore::open(&database_path, git.context_root())?;
     let repository = git.descriptor()?;
     let head = git.head()?;
-    let indexed = store.latest_commit(&repository.id)?;
-    if indexed.as_ref().map(|commit| &commit.oid) != Some(&head.oid) {
-        return Err(CliError::ExportRequiresCurrentIndex {
-            head: head.oid.to_string(),
-            indexed: indexed
-                .map_or_else(|| "not indexed".to_owned(), |commit| commit.oid.to_string()),
-        });
-    }
+    require_current_index(&store, &repository.id, &head, "export")?;
     let graph = store.load_graph(&repository.id)?;
     let documents = graph
         .nodes

@@ -1,10 +1,31 @@
 use super::{
-    CandidateOutcome, Cli, CliError, ConfiguredAgent, GitRepo, GitRepository, GraphStore,
-    IsTerminal, KnowledgeVerificationService, NodeKind, Path, PlannedNodeAttributes,
-    ReviewedCandidate, SqliteStore, StaleClaim, StaleClaimOutcome, Utc, VerificationDecision,
-    VerificationError, VerificationService, Write, YamlBusinessContextReader, database_path, io,
-    json, tab_title,
+    CandidateOutcome, Cli, CliError, CommitMetadata, ConfiguredAgent, GitRepo, GitRepository,
+    GraphStore, IndexStore, IsTerminal, KnowledgeVerificationService, NodeKind, Path,
+    PlannedNodeAttributes, RepositoryId, ReviewedCandidate, SqliteStore, StaleClaim,
+    StaleClaimOutcome, Utc, VerificationDecision, VerificationError, VerificationService, Write,
+    YamlBusinessContextReader, database_path, io, json, tab_title,
 };
+
+/// Fails unless the last indexed commit is `head`. Commands that write
+/// decisions against `head`, or that read the index as a picture of the
+/// checkout, call this before any expensive work, so an outdated index is
+/// reported up front rather than after minutes of agent calls.
+pub(super) fn require_current_index(
+    store: &SqliteStore,
+    repository: &RepositoryId,
+    head: &CommitMetadata,
+    command: &'static str,
+) -> Result<(), CliError> {
+    let indexed = store.latest_commit(repository)?;
+    if indexed.as_ref().map(|commit| &commit.oid) == Some(&head.oid) {
+        return Ok(());
+    }
+    Err(CliError::RequiresCurrentIndex {
+        command,
+        head: head.oid.to_string(),
+        indexed: indexed.map_or_else(|| "not indexed".to_owned(), |commit| commit.oid.to_string()),
+    })
+}
 
 pub(super) fn verify(
     cli: &Cli,
@@ -18,11 +39,16 @@ pub(super) fn verify(
     let repository = git.descriptor()?;
     let head = git.head()?;
     let now = Utc::now().to_rfc3339();
-    let mut service = VerificationService::new(&mut store);
-    if let Some((fingerprint, decision)) = accept
+    let decision = accept
         .map(|value| (value, VerificationDecision::Accept))
-        .or_else(|| reject.map(|value| (value, VerificationDecision::Reject)))
-    {
+        .or_else(|| reject.map(|value| (value, VerificationDecision::Reject)));
+    if decision.is_some() {
+        // A decision is recorded against HEAD, which must be an indexed
+        // commit; listing candidates works from any index.
+        require_current_index(&store, &repository.id, &head, "verify")?;
+    }
+    let mut service = VerificationService::new(&mut store);
+    if let Some((fingerprint, decision)) = decision {
         service.decide(&repository.id, &head, fingerprint, decision, author, &now)?;
         if cli.json {
             println!(
@@ -344,6 +370,11 @@ pub(super) fn verify_stale(
     let repository = git.descriptor()?;
     let head = git.head()?;
     let now = Utc::now().to_rfc3339();
+    // Checked before any agent call: stale claims and their code ranges come
+    // from the index, and every reactivation is recorded against HEAD. With
+    // HEAD past the index, the old order spent minutes on agent calls and
+    // then failed on the first reactivation, losing every verdict.
+    require_current_index(&store, &repository.id, &head, "verify --stale")?;
 
     let mut claims = VerificationService::new(&mut store).stale_claims(&repository.id)?;
     if claims.is_empty() {

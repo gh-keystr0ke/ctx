@@ -4,6 +4,10 @@ All notable changes to `ctx` are documented here. The project follows semantic v
 
 ## Unreleased
 
+### Fixed
+
+- `ctx verify --stale` stops before it calls the agent when HEAD is not indexed, and tells you to run `ctx index`. Before, it reviewed every batch and then failed on the first reactivation with `Query returned no rows`, so all verdicts were lost. `ctx verify --accept` and `--reject` do the same check.
+
 ## 0.8.6 — 2026-11-17
 
 ### Security

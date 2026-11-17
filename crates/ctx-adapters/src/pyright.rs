@@ -20,6 +20,8 @@ use ctx_core::type_inference::{
 use serde_json::{Value, json};
 use thiserror::Error;
 
+use crate::agent_contract::retry_executable_busy;
+
 const SUPPORTED_PROTOCOL_MINOR: u32 = 4;
 const STDERR_LIMIT: usize = 16 * 1024;
 
@@ -204,14 +206,15 @@ impl PyrightTypeServer {
         timeout: Duration,
     ) -> Result<Self, PyrightError> {
         let executable_label = executable.display().to_string();
-        let mut child = Command::new(executable)
+        let mut command = Command::new(executable);
+        command
             .arg("--stdio")
             .current_dir(workspace_root)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .map_err(|source| {
+            .stderr(Stdio::piped());
+        let mut child =
+            retry_executable_busy(&executable_label, || command.spawn()).map_err(|source| {
                 if source.kind() == io::ErrorKind::NotFound {
                     PyrightError::NotFound {
                         executable: executable_label.clone(),

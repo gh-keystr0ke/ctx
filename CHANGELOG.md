@@ -19,6 +19,7 @@ All notable changes to `ctx` are documented here. The project follows semantic v
 
 ### Fixed
 
+- Starting the Pyright type server retries briefly when Linux reports the executable as busy (`ETXTBSY`), as agent CLIs already did, instead of failing when the executable was written just before.
 - `ctx verify --stale` no longer aborts the whole run, discarding every verdict, when the review agent mislabels, repeats, or skips one claim. Claims are now labelled `C1..Cn` in the prompt instead of by full fingerprint, bad decisions are dropped, undecided claims are asked once more, and any claim still undecided stays stale and is reported.
 - OpenAPI operations now cover only their own block in the specification, so a stale review shows the reviewer the operation itself instead of the first 6 KB of the file. Operation hashes no longer depend on file position, so an edit to one operation no longer marks claims on every other operation stale. The analyzer version is now `openapi-v2`, and the next `ctx index` re-analyzes specifications once.
 - An incomplete or invalid JSON answer from the agent no longer aborts `ctx enrich`, `ctx verify --auto`, or `ctx verify --stale`. The request is asked once more. If the answer is still unusable, only that unit of work is deferred: the artifact is not marked analyzed, the cluster's candidates stay pending, or the batch's claims stay stale. The run continues, and the deferred count is reported so the next run can retry them. An agent that cannot start or exits with a failure still stops the run.

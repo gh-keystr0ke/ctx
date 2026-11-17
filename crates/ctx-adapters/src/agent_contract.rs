@@ -36,7 +36,7 @@ use thiserror::Error;
 /// bounded neighborhood, not a whole-repository prompt (PR-AGENT-003).
 pub(crate) const DEFAULT_TOKEN_BUDGET: usize = 6000;
 
-const MAX_SUBPROCESS_SPAWN_ATTEMPTS: usize = 3;
+const MAX_SUBPROCESS_SPAWN_ATTEMPTS: usize = 5;
 const EXECUTABLE_BUSY_RETRY_DELAY: Duration = Duration::from_millis(10);
 
 const SYSTEM_PROMPT: &str = r#"You are analyzing one bounded artifact neighborhood from a software repository to decide whether it states new product knowledge -- a Feature, Requirement, Invariant, or Decision -- that is not already covered by the "Already-known related product knowledge" section below, if present.
@@ -133,7 +133,13 @@ pub(crate) fn run_subprocess(
         .map_err(|error| AgentContractError::Spawn(format!("{binary}: {error}")))
 }
 
-fn retry_executable_busy<T>(
+/// Retries `operation` (a process spawn) while it fails with
+/// `ExecutableFileBusy`. On Linux, `exec` of a file that was just written
+/// fails with `ETXTBSY` while any process still holds a write descriptor to
+/// it -- including a child another thread forked during the write, until that
+/// child execs. The window is short, so a few brief retries clear it. Shared
+/// by every adapter that starts a subprocess.
+pub(crate) fn retry_executable_busy<T>(
     binary: &str,
     mut operation: impl FnMut() -> io::Result<T>,
 ) -> io::Result<T> {
@@ -148,7 +154,7 @@ fn retry_executable_busy<T>(
                     binary,
                     attempt,
                     max_attempts = MAX_SUBPROCESS_SPAWN_ATTEMPTS,
-                    "agent executable is busy; retrying subprocess spawn"
+                    "executable is busy; retrying subprocess spawn"
                 );
                 std::thread::sleep(EXECUTABLE_BUSY_RETRY_DELAY);
             }

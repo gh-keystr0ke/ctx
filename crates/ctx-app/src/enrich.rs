@@ -54,6 +54,11 @@ pub struct EnrichReport {
     pub artifacts_skipped_covered_by_parent: usize,
     pub artifacts_skipped_already_pending: usize,
     pub artifacts_skipped_unchanged: usize,
+    /// Artifacts whose agent answer was unusable (incomplete or invalid
+    /// JSON) even after a retry. They are not marked analyzed, so the next
+    /// `ctx enrich` picks them up again; the run carries on meanwhile.
+    #[serde(default)]
+    pub artifacts_deferred: usize,
 }
 
 #[derive(Debug, Error)]
@@ -157,14 +162,18 @@ where
                 continue;
             }
             on_progress(index + 1, total, subject);
-            let proposed = self.analyze_one(
+            let Some(proposed) = self.analyze_one(
                 repository,
                 subject,
                 &neighborhood,
                 &input_fingerprint,
                 produced_at,
                 allow_ungrounded_symbols,
-            )?;
+            )?
+            else {
+                report.artifacts_deferred += 1;
+                continue;
+            };
             report.neighborhoods_analyzed += 1;
             report.candidates_proposed += proposed;
         }
@@ -228,14 +237,18 @@ where
                 continue;
             }
             on_progress(index + 1, anchors.len(), subject);
-            let proposed = self.analyze_one(
+            let Some(proposed) = self.analyze_one(
                 repository,
                 subject,
                 &neighborhood,
                 &input_fingerprint,
                 produced_at,
                 allow_ungrounded_symbols,
-            )?;
+            )?
+            else {
+                report.artifacts_deferred += 1;
+                continue;
+            };
             report.neighborhoods_analyzed += 1;
             report.candidates_proposed += proposed;
         }
@@ -284,11 +297,22 @@ where
         input_fingerprint: &str,
         produced_at: &str,
         allow_ungrounded_symbols: bool,
-    ) -> Result<usize, EnrichError> {
-        let outcome = self
+    ) -> Result<Option<usize>, EnrichError> {
+        let outcome = match self
             .agent
             .analyze(neighborhood, produced_at, allow_ungrounded_symbols)
-            .map_err(EnrichError::Agent)?;
+        {
+            Ok(outcome) => outcome,
+            Err(error) if error.is_unusable_agent_response() => {
+                tracing::warn!(
+                    artifact = ?subject.identity,
+                    %error,
+                    "agent answer unusable; artifact deferred to the next enrich run"
+                );
+                return Ok(None);
+            }
+            Err(error) => return Err(EnrichError::Agent(error)),
+        };
         let proposed = if let AgentOutcome::Relevant(candidates) = outcome {
             self.store
                 .upsert_candidates(repository, &candidates)
@@ -306,7 +330,7 @@ where
                 produced_at,
             )
             .map_err(EnrichError::Store)?;
-        Ok(proposed)
+        Ok(Some(proposed))
     }
 }
 
@@ -486,6 +510,7 @@ mod tests {
 
     struct FailingSecondAgent {
         calls: RefCell<usize>,
+        unusable_answer: bool,
     }
 
     impl SemanticAgent for FailingSecondAgent {
@@ -506,7 +531,11 @@ mod tests {
             let mut calls = self.calls.borrow_mut();
             *calls += 1;
             if *calls == 2 {
-                return Err(PortError::new("second agent call failed"));
+                return Err(if self.unusable_answer {
+                    PortError::unusable_agent_response("second answer was cut short")
+                } else {
+                    PortError::new("second agent call failed")
+                });
             }
             Ok(AgentOutcome::Relevant(vec![candidate(
                 &neighborhood.subject.identity,
@@ -631,6 +660,7 @@ mod tests {
         };
         let agent = FailingSecondAgent {
             calls: RefCell::new(0),
+            unusable_answer: false,
         };
         let repository = RepositoryId::new("repo:test").expect("repository ID");
 
@@ -646,6 +676,40 @@ mod tests {
         );
         assert!(store.analyzed.borrow().contains_key(&first.identity));
         assert!(!store.analyzed.borrow().contains_key(&second.identity));
+    }
+
+    #[test]
+    fn an_unusable_answer_defers_that_artifact_and_the_run_carries_on() {
+        let first = artifact("1");
+        let second = artifact("2");
+        let third = artifact("3");
+        let mut store = FakeStore {
+            artifacts: vec![first.clone(), second.clone(), third.clone()],
+            ..FakeStore::default()
+        };
+        let agent = FailingSecondAgent {
+            calls: RefCell::new(0),
+            unusable_answer: true,
+        };
+        let repository = RepositoryId::new("repo:test").expect("repository ID");
+
+        let report = EnrichRunner::new(&agent, &mut store)
+            .run(&repository, "2026-08-21T00:00:00Z", false)
+            .expect("an unusable answer never aborts the run");
+
+        assert_eq!(report.neighborhoods_analyzed, 2);
+        assert_eq!(report.artifacts_deferred, 1);
+        assert_eq!(*agent.calls.borrow(), 3);
+        let analyzed = store.analyzed.borrow();
+        let deferred: Vec<_> = [&first, &second, &third]
+            .into_iter()
+            .filter(|artifact| !analyzed.contains_key(&artifact.identity))
+            .collect();
+        assert_eq!(
+            deferred.len(),
+            1,
+            "exactly one artifact is left for the next run"
+        );
     }
 
     #[test]

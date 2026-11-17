@@ -126,14 +126,14 @@ impl<T: AgentTransport> SemanticAgent for CodexAgent<T> {
         allow_ungrounded_symbols: bool,
     ) -> Result<AgentOutcome, PortError> {
         self.analyze_neighborhood(neighborhood, produced_at, allow_ungrounded_symbols)
-            .map_err(|error| PortError::new(error.to_string()))
+            .map_err(AgentContractError::into_port_error)
     }
 }
 
 impl<T: AgentTransport> KnowledgeReviewAgent for CodexAgent<T> {
     fn review(&self, candidates: &[KnowledgeCandidate]) -> Result<ClusterReview, PortError> {
         agent_contract::review(&self.transport, candidates)
-            .map_err(|error| PortError::new(error.to_string()))
+            .map_err(AgentContractError::into_port_error)
     }
 }
 
@@ -143,7 +143,7 @@ impl<T: AgentTransport> StaleClaimReviewAgent for CodexAgent<T> {
         claims: &[StaleClaim],
     ) -> Result<Vec<StaleClaimVerdict>, PortError> {
         agent_contract::review_stale_claims(&self.transport, claims)
-            .map_err(|error| PortError::new(error.to_string()))
+            .map_err(AgentContractError::into_port_error)
     }
 }
 

@@ -1519,6 +1519,12 @@ fn enrich(
             report.artifacts_skipped_already_pending,
             report.artifacts_skipped_covered_by_parent
         );
+        if report.artifacts_deferred > 0 {
+            println!(
+                "{} artifact(s) got an unusable agent answer and were deferred; run `ctx enrich` again to retry them",
+                report.artifacts_deferred
+            );
+        }
     }
     Ok(())
 }

@@ -25,13 +25,32 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PortError {
     message: String,
+    unusable_agent_response: bool,
 }
 
 impl PortError {
     pub fn new(message: impl Into<String>) -> Self {
         Self {
             message: message.into(),
+            unusable_agent_response: false,
         }
+    }
+
+    /// An agent ran, but its answer could not be used: incomplete or
+    /// invalid JSON, or JSON that breaks the response contract. Unlike an
+    /// agent that cannot be started or exits with a failure, this is
+    /// specific to one request, so a caller defers that one unit of work
+    /// (it is retried on the next run) and carries on with the rest.
+    pub fn unusable_agent_response(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            unusable_agent_response: true,
+        }
+    }
+
+    #[must_use]
+    pub const fn is_unusable_agent_response(&self) -> bool {
+        self.unusable_agent_response
     }
 }
 

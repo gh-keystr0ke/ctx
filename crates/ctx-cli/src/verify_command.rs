@@ -236,6 +236,9 @@ pub(super) fn verify_knowledge_auto(
                 CandidateOutcome::SkippedPossibleDuplicate { existing_id } => {
                     eprintln!("    -> skipped (possible duplicate of {existing_id}): {summary}");
                 }
+                CandidateOutcome::Deferred => {
+                    eprintln!("    -> deferred (unusable agent answer, still pending): {summary}");
+                }
             }
         }
     };
@@ -263,6 +266,12 @@ pub(super) fn verify_knowledge_auto(
             report.candidates_rejected,
             report.candidates_skipped_possible_duplicate
         );
+        if report.clusters_deferred > 0 {
+            println!(
+                "{} cluster(s) got an unusable answer from {agent} and stay pending; run `ctx verify --auto` again to retry them",
+                report.clusters_deferred
+            );
+        }
     }
     Ok(())
 }

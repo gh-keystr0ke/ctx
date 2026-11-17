@@ -18,6 +18,7 @@ use std::ops::Range;
 use std::process::{Command, Output};
 use std::time::Duration;
 
+use ctx_app::ports::PortError;
 use ctx_core::{
     artifact::{ArtifactIdentity, ArtifactKind, ArtifactProvider},
     business::BusinessKind,
@@ -76,6 +77,39 @@ pub enum AgentContractError {
     InvalidJson(String),
     #[error("agent prompt exceeds its configured byte budget: {0}")]
     PromptBudget(String),
+}
+
+impl AgentContractError {
+    /// Maps this error onto the application port boundary, keeping an
+    /// unusable answer (incomplete, invalid, or contract-breaking JSON)
+    /// distinguishable from an agent that could not run at all, so callers
+    /// can defer just that request instead of aborting the whole run.
+    #[must_use]
+    pub fn into_port_error(self) -> PortError {
+        match self {
+            Self::InvalidJson(_) => PortError::unusable_agent_response(self.to_string()),
+            Self::Spawn(_) | Self::ExitFailure(_) | Self::PromptBudget(_) => {
+                PortError::new(self.to_string())
+            }
+        }
+    }
+}
+
+/// Runs one agent request, asking once more when the first answer is
+/// unusable (incomplete or invalid JSON, or JSON breaking the contract).
+/// Models occasionally cut an answer short or splice it; a second attempt
+/// usually succeeds. Process failures are never retried here.
+fn with_one_retry<R>(
+    contract: &str,
+    mut request: impl FnMut() -> Result<R, AgentContractError>,
+) -> Result<R, AgentContractError> {
+    match request() {
+        Err(AgentContractError::InvalidJson(reason)) => {
+            tracing::warn!(contract, %reason, "agent answer unusable; asking once more");
+            request()
+        }
+        other => other,
+    }
 }
 
 /// Minimal process boundary every vendor's `SubprocessTransport` implements:
@@ -145,8 +179,10 @@ pub fn analyze<T: AgentTransport>(
 ) -> Result<AgentOutcome, AgentContractError> {
     let (known_ids, prompt) = extraction_prompt(neighborhood, allow_ungrounded_symbols);
     let fingerprint = blake3::hash(prompt.as_bytes()).to_hex().to_string();
-    let raw = run_agent_contract(transport, "knowledge extraction", &prompt)?;
-    let parsed: RawAgentOutput = parse_json_response(&raw, "knowledge extraction")?;
+    let parsed: RawAgentOutput = with_one_retry("knowledge extraction", || {
+        let raw = run_agent_contract(transport, "knowledge extraction", &prompt)?;
+        parse_json_response(&raw, "knowledge extraction")
+    })?;
     let provenance = AgentProvenance {
         producer: producer.to_owned(),
         model,
@@ -499,7 +535,17 @@ pub fn review<T: AgentTransport>(
     candidates: &[KnowledgeCandidate],
 ) -> Result<ClusterReview, AgentContractError> {
     let prompt = format!("{REVIEW_SYSTEM_PROMPT}\n\n{}", render_cluster(candidates));
-    let raw = run_agent_contract(transport, "candidate review", &prompt)?;
+    with_one_retry("candidate review", || {
+        review_once(transport, candidates, &prompt)
+    })
+}
+
+fn review_once<T: AgentTransport>(
+    transport: &T,
+    candidates: &[KnowledgeCandidate],
+    prompt: &str,
+) -> Result<ClusterReview, AgentContractError> {
+    let raw = run_agent_contract(transport, "candidate review", prompt)?;
     let parsed: RawReviewOutput = parse_json_response(&raw, "candidate review")?;
 
     let known: BTreeSet<&str> = candidates
@@ -607,13 +653,14 @@ impl Default for StaleClaimReviewBudget {
 /// contract from both extraction and knowledge-candidate review. Never
 /// trusts a claim label the agent didn't see: unknown, malformed, or
 /// conflicting decisions are dropped, undecided claims are asked about once
-/// more, and a claim that still gets no usable verdict is left out of the
+/// more, and a claim that still gets no usable verdict -- including every
+/// claim of an answer that is not valid JSON at all -- is left out of the
 /// result (it stays stale) rather than failing every other verdict.
 ///
 /// # Errors
 /// Returns [`AgentContractError`] when a claim cannot fit the prompt
-/// budget, the transport fails, or a response isn't the expected JSON
-/// object at all.
+/// budget or the transport fails. An unusable answer only leaves its
+/// claims undecided.
 pub fn review_stale_claims<T: AgentTransport>(
     transport: &T,
     claims: &[StaleClaim],
@@ -629,8 +676,8 @@ pub fn review_stale_claims<T: AgentTransport>(
 /// CLI argument or silently truncating evidence.
 ///
 /// # Errors
-/// Returns [`AgentContractError`] when a prompt cannot fit its budget, the
-/// transport fails, or a batch response isn't the expected JSON object.
+/// Returns [`AgentContractError`] when a prompt cannot fit its budget or
+/// the transport fails.
 pub fn review_stale_claims_with_budget<T: AgentTransport>(
     transport: &T,
     claims: &[StaleClaim],
@@ -655,7 +702,7 @@ fn review_stale_claim_batch<T: AgentTransport>(
     claims: &[StaleClaim],
 ) -> Result<Vec<StaleClaimVerdict>, AgentContractError> {
     let all: Vec<&StaleClaim> = claims.iter().collect();
-    let mut verdicts = request_stale_claim_verdicts(transport, &all)?;
+    let mut verdicts = undecided_when_unusable(request_stale_claim_verdicts(transport, &all))?;
     let undecided: Vec<&StaleClaim> = claims
         .iter()
         .filter(|claim| {
@@ -672,7 +719,9 @@ fn review_stale_claim_batch<T: AgentTransport>(
         batch = claims.len(),
         "stale-claim review left claims undecided; asking again for just those"
     );
-    verdicts.extend(request_stale_claim_verdicts(transport, &undecided)?);
+    verdicts.extend(undecided_when_unusable(request_stale_claim_verdicts(
+        transport, &undecided,
+    ))?);
     let still_undecided = claims.len() - verdicts.len();
     if still_undecided > 0 {
         tracing::warn!(
@@ -681,6 +730,21 @@ fn review_stale_claim_batch<T: AgentTransport>(
         );
     }
     Ok(verdicts)
+}
+
+/// An answer that is not the expected JSON object at all (cut short,
+/// invalid, or prose) decides nothing: its claims stay undecided -- asked
+/// once more, then left stale -- instead of failing the whole run.
+fn undecided_when_unusable(
+    result: Result<Vec<StaleClaimVerdict>, AgentContractError>,
+) -> Result<Vec<StaleClaimVerdict>, AgentContractError> {
+    match result {
+        Err(AgentContractError::InvalidJson(reason)) => {
+            tracing::warn!(%reason, "stale-claim review answer unusable; its claims stay undecided");
+            Ok(Vec::new())
+        }
+        other => other,
+    }
 }
 
 /// One agent round-trip over `claims`, labelled `C1..Cn` in the prompt.
@@ -1524,12 +1588,81 @@ mod tests {
     }
 
     #[test]
-    fn a_response_that_is_not_the_review_object_still_fails_explicitly() {
-        let claims = vec![stale_claim("fp1")];
-        let transport = FakeTransport {
-            response: "I could not review these claims.".to_owned(),
+    fn an_unusable_answer_leaves_its_claims_stale_and_later_batches_still_run() {
+        let claims: Vec<_> = (1..=4)
+            .map(|index| stale_claim(&format!("fp{index}")))
+            .collect();
+        let transport = ScriptedTransport::new(&[
+            r#"{"decisions":[{"claim":"C1","verdict":"accept","reasoning":"holds"}"#,
+            "I could not review these claims.",
+            r#"{"decisions":[
+                {"claim":"C1","verdict":"accept","reasoning":"holds"},
+                {"claim":"C2","verdict":"reject","reasoning":"gone"}
+            ]}"#,
+        ]);
+        let budget = StaleClaimReviewBudget {
+            max_prompt_bytes: 64 * 1024,
+            max_claims: 2,
         };
 
-        assert!(review_stale_claims(&transport, &claims).is_err());
+        let result = review_stale_claims_with_budget(&transport, &claims, budget)
+            .expect("an unusable answer never fails the run");
+
+        let fingerprints: Vec<_> = result.iter().map(|v| v.fingerprint.as_str()).collect();
+        assert_eq!(fingerprints, ["fp3", "fp4"]);
+        assert_eq!(transport.prompts.borrow().len(), 3);
+    }
+
+    fn sample_neighborhood() -> ArtifactNeighborhood {
+        let subject = issue();
+        build_neighborhood(
+            &subject,
+            &[],
+            std::slice::from_ref(&subject),
+            &ctx_core::graph::GraphSnapshot::default(),
+        )
+    }
+
+    #[test]
+    fn an_unusable_extraction_answer_is_asked_once_more() {
+        let transport = ScriptedTransport::new(&[
+            r#"{"outcome":"relevant","candidates":[{"kind":"#,
+            r#"{"outcome":"not_relevant"}"#,
+        ]);
+
+        let outcome = analyze(
+            &transport,
+            &sample_neighborhood(),
+            "2026-11-17T00:00:00Z",
+            "test",
+            None,
+            false,
+        )
+        .expect("second answer is usable");
+
+        assert!(matches!(outcome, AgentOutcome::NotRelevant));
+        assert_eq!(transport.prompts.borrow().len(), 2);
+    }
+
+    #[test]
+    fn an_answer_unusable_twice_maps_to_an_unusable_port_error() {
+        let transport = ScriptedTransport::new(&["not json", "still not json"]);
+
+        let error = analyze(
+            &transport,
+            &sample_neighborhood(),
+            "2026-11-17T00:00:00Z",
+            "test",
+            None,
+            false,
+        )
+        .expect_err("both answers unusable");
+
+        assert!(error.into_port_error().is_unusable_agent_response());
+        assert!(
+            !AgentContractError::ExitFailure("boom".to_owned())
+                .into_port_error()
+                .is_unusable_agent_response()
+        );
     }
 }

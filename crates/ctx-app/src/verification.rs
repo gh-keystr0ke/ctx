@@ -47,6 +47,10 @@ pub struct AutoVerifyReport {
     pub candidates_accepted: usize,
     pub candidates_rejected: usize,
     pub candidates_skipped_possible_duplicate: usize,
+    /// Clusters whose review answer was unusable (incomplete or invalid
+    /// JSON) even after a retry. Their candidates stay pending for the next
+    /// `ctx verify --auto`; the run carries on with the other clusters.
+    pub clusters_deferred: usize,
 }
 
 /// What the review agent's verdict on one [`KnowledgeCandidate`] actually
@@ -61,9 +65,16 @@ pub struct AutoVerifyReport {
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(tag = "verdict", rename_all = "snake_case")]
 pub enum CandidateOutcome {
-    Accepted { document_id: String },
+    Accepted {
+        document_id: String,
+    },
     Rejected,
-    SkippedPossibleDuplicate { existing_id: String },
+    SkippedPossibleDuplicate {
+        existing_id: String,
+    },
+    /// The review answer for this candidate's cluster was unusable; the
+    /// candidate is left pending, untouched, for the next run.
+    Deferred,
 }
 
 /// One reviewed candidate's statement and its resulting
@@ -552,8 +563,26 @@ where
                     .cloned()
             })
             .collect();
+        let review = match agent.review(&members) {
+            Ok(review) => review,
+            Err(error) if error.is_unusable_agent_response() => {
+                tracing::warn!(
+                    %error,
+                    candidates = members.len(),
+                    "review answer unusable; cluster left pending for the next run"
+                );
+                state.report.clusters_deferred += 1;
+                return Ok(members
+                    .into_iter()
+                    .map(|candidate| ReviewedCandidate {
+                        statement: candidate.statement,
+                        outcome: CandidateOutcome::Deferred,
+                    })
+                    .collect());
+            }
+            Err(error) => return Err(VerificationError::Store(error)),
+        };
         state.report.clusters_reviewed += 1;
-        let review = agent.review(&members).map_err(VerificationError::Store)?;
 
         let mut outcomes: Vec<ReviewedCandidate> = Vec::new();
         let mut accepted = Vec::new();
@@ -1170,6 +1199,79 @@ mod knowledge_tests {
 
         assert_eq!(report.documents_written, 1);
         assert_eq!(writer.written.borrow()[0].id, "REQ-SUB-002");
+    }
+
+    /// Answers unusably for any cluster holding a statement containing
+    /// `garbled`, and rejects every other cluster.
+    struct GarbledClusterAgent {
+        garbled: &'static str,
+    }
+
+    impl KnowledgeReviewAgent for GarbledClusterAgent {
+        fn review(&self, candidates: &[KnowledgeCandidate]) -> Result<ClusterReview, PortError> {
+            if candidates
+                .iter()
+                .any(|candidate| candidate.statement.contains(self.garbled))
+            {
+                return Err(PortError::unusable_agent_response("answer was cut short"));
+            }
+            Ok(ClusterReview {
+                decisions: candidates
+                    .iter()
+                    .map(|candidate| CandidateReviewDecision {
+                        fingerprint: candidate.fingerprint.clone(),
+                        verdict: ReviewVerdict::Reject,
+                    })
+                    .collect(),
+                merged_statement: None,
+            })
+        }
+    }
+
+    #[test]
+    fn auto_leaves_a_cluster_with_an_unusable_answer_pending_and_reviews_the_rest() {
+        let garbled = candidate(BusinessKind::Requirement, "Invoices round totals to cents.");
+        let fine = candidate(
+            BusinessKind::Decision,
+            "Webhooks retry with exponential backoff.",
+        );
+        let mut store = FakeStore {
+            pending: vec![garbled.clone(), fine.clone()],
+            ..FakeStore::default()
+        };
+        let writer = FakeWriter::default();
+        let repository = RepositoryId::new("repo:test").expect("repository ID");
+        let mut outcomes = Vec::new();
+
+        let report = KnowledgeVerificationService::new(&mut store, &writer)
+            .auto_with_progress(
+                &repository,
+                "SUB",
+                "auto-claude",
+                "2026-08-23T00:00:00Z",
+                false,
+                &GarbledClusterAgent {
+                    garbled: "Invoices",
+                },
+                &mut |_, _, _| {},
+                &mut |_, _, reviewed| outcomes.extend(reviewed.iter().cloned()),
+            )
+            .expect("an unusable answer never aborts the run");
+
+        assert_eq!(report.clusters_deferred, 1);
+        assert_eq!(report.clusters_reviewed, 1);
+        assert_eq!(report.candidates_rejected, 1);
+        assert!(outcomes.contains(&ReviewedCandidate {
+            statement: garbled.statement.clone(),
+            outcome: CandidateOutcome::Deferred,
+        }));
+        let decided: Vec<_> = store
+            .decisions
+            .borrow()
+            .iter()
+            .map(|(fingerprint, _)| fingerprint.clone())
+            .collect();
+        assert_eq!(decided, vec![fine.fingerprint]);
     }
 
     #[test]

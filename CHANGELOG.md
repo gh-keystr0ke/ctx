@@ -10,6 +10,7 @@ All notable changes to `ctx` are documented here. The project follows semantic v
 
 - Bundled SQLite is updated to 3.54 through `rusqlite` 0.42, fixing CVE-2026-119375 (RUSTSEC-2026-0459): a crafted database and `-wal` file pair could return uninitialized process memory.
 - `rustls` 0.23.46, `rustls-webpki` 0.103.17, and `webpki-roots` 1.0.12 fix RUSTSEC-2026-0346, -0347, -0348, -0349, -0381, and -0382 in the HTTPS client used for Jira and GitLab ingestion.
+- `rustix` 1.1.6 fixes the unsound xattr handling reported as RUSTSEC-2026-0486.
 
 ### Changed
 

@@ -66,9 +66,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: rustsec/audit-check@v2
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+      # cargo-audit directly rather than rustsec/audit-check: the action
+      # publishes its result as a check run, which a read-only token (this
+      # workflow's, and every Dependabot PR's) cannot create, so it failed even
+      # with no vulnerability found. Vulnerabilities fail the job; unmaintained
+      # and unsound advisories are printed as warnings. The chrono ignore
+      # mirrors deny.toml.
+      - uses: taiki-e/install-action@cargo-audit
+      - run: cargo audit --ignore RUSTSEC-2026-0543
 
   dependencies:
     runs-on: ubuntu-latest

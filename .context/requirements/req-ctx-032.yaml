@@ -1,7 +1,7 @@
 id: REQ-CTX-032
 type: requirement
 status: active
-statement: For impact, explain, and find queries, CLI text output must section multiple matches as `[i/N]`, while JSON output must return a query and matches array rather than a combined result object.
+statement: For impact and explain, CLI text output sections multiple matches as `[i/N]`. The find command prints one line per match. In JSON, all three commands return the query and a matches array.
 implementation:
   - symbol: ctx_cli.impact
   - symbol: ctx_cli.explain

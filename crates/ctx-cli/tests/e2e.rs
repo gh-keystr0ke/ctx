@@ -844,13 +844,9 @@ fn mixed_python_rust_and_go_repository_indexes_and_reviews_through_one_registry(
     let find = repository.ctx(&["find", "helper"]);
     assert_eq!(find["matches"].as_array().expect("find matches").len(), 3);
 
-    // REQ-CTX-032: text output sections multiple matches as `[i/N]`, same as
-    // impact/explain.
     let find_text = repository.ctx_text(&["find", "helper"]);
-    assert!(find_text.starts_with("3 symbols found\n"));
-    assert!(find_text.contains("[1/3]"));
-    assert!(find_text.contains("[2/3]"));
-    assert!(find_text.contains("[3/3]"));
+    assert_eq!(find_text.lines().count(), 3);
+    assert!(find_text.lines().all(|line| line.ends_with(".helper")));
 
     let find_unique_text = repository.ctx_text(&["find", "Run"]);
     assert!(
@@ -3349,4 +3345,162 @@ fn worktree_check_and_preview_leave_the_committed_database_intact() {
             .contains("PREVIEW: uncommitted working tree")
     );
     assert_eq!(fs::read(&database).expect("committed index"), base);
+}
+
+#[test]
+fn background_hooks_preserve_user_hooks_and_refresh_commits() {
+    let repository = FixtureRepository::new();
+    let root = repository.root();
+    repository.ctx(&["init"]);
+    repository.ctx(&["index"]);
+    run_git(root, &["config", "core.hooksPath", ".githooks"]);
+    let hook_dir = root.join(".githooks");
+    fs::create_dir(&hook_dir).expect("hooks directory");
+    let custom = hook_dir.join("post-commit");
+    let original =
+        "#!/usr/bin/env python3\nfrom pathlib import Path\nPath('user-hook-ran').touch()\n";
+    fs::write(&custom, original).expect("write custom hook");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        fs::set_permissions(&custom, fs::Permissions::from_mode(0o755))
+            .expect("make hook executable");
+    }
+    let installed = repository.ctx(&["hooks", "install"]);
+    assert_eq!(
+        installed["changed_files"].as_array().expect("hooks").len(),
+        4
+    );
+    assert_eq!(
+        repository.ctx(&["hooks", "install"])["changed_files"],
+        json!([])
+    );
+    run_git(
+        root,
+        &[
+            "commit",
+            "--quiet",
+            "--allow-empty",
+            "-m",
+            "refresh from hook",
+        ],
+    );
+    assert!(root.join("user-hook-ran").is_file());
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    loop {
+        if repository.ctx(&["status"])["index_state"] == "current" {
+            break;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "background indexing timed out"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(30));
+    }
+    repository.ctx(&["hooks", "uninstall"]);
+    assert_eq!(fs::read_to_string(custom).expect("restored hook"), original);
+    assert_eq!(
+        repository.ctx(&["hooks", "uninstall"])["changed_files"],
+        json!([])
+    );
+}
+
+#[test]
+fn auto_review_base_includes_branch_commits() {
+    let repository = FixtureRepository::new();
+    let root = repository.root();
+    repository.ctx(&["init"]);
+    repository.ctx(&["index"]);
+    run_git(root, &["branch", "ctx-trunk"]);
+    let path = root.join(".ctx/config.toml");
+    let mut config = fs::read_to_string(&path).expect("read config");
+    config.push_str("\n[git]\ndefault_branch = \"ctx-trunk\"\n");
+    fs::write(path, config).expect("configure default branch");
+    run_git(root, &["switch", "-c", "ctx-feature"]);
+    repository.introduce_entitlement_regression();
+    run_git(root, &["commit", "-am", "commit the feature diff"]);
+    assert_eq!(
+        repository.ctx(&["review", "--base", "HEAD"])["findings"],
+        json!([])
+    );
+    let report = repository.ctx(&["review", "--base", "auto"]);
+    assert!(
+        report["findings"]
+            .as_array()
+            .expect("feature diff")
+            .iter()
+            .any(|finding| finding["affected_intent"]["identifier"] == "INV-SUB-003")
+    );
+}
+
+#[test]
+fn review_exit_policy_blocks_a_destructive_migration_only_when_requested() {
+    let repository = FixtureRepository::new();
+    let root = repository.root();
+    repository.ctx(&["init"]);
+    fs::write(
+        root.join(".ctx/config.toml"),
+        "languages = ['goose']\n[paths]\ninclude = ['migrations']\n",
+    )
+    .expect("configure migration analyzer");
+    fs::create_dir(root.join("migrations")).expect("migrations directory");
+    fs::write(
+        root.join("migrations/001_subscriptions.sql"),
+        "-- +goose Up\nCREATE TABLE subscriptions (id INT PRIMARY KEY, status TEXT);\n",
+    )
+    .expect("write baseline migration");
+    run_git(root, &["add", "migrations"]);
+    run_git(root, &["commit", "-m", "add subscriptions table"]);
+    repository.ctx(&["index"]);
+    fs::write(
+        root.join("migrations/002_drop_status.sql"),
+        "-- +goose Up\nALTER TABLE subscriptions DROP COLUMN status;\n",
+    )
+    .expect("write destructive migration");
+    assert_eq!(
+        repository.ctx(&["review"])["schema_findings"][0]["destructive"],
+        true
+    );
+    let output = Command::new(env!("CARGO_BIN_EXE_ctx"))
+        .current_dir(root)
+        .args(["review", "--fail-on", "destructive", "--format", "json"])
+        .output()
+        .expect("run blocking review");
+    assert_eq!(output.status.code(), Some(1));
+    let error = Command::new(env!("CARGO_BIN_EXE_ctx"))
+        .current_dir(root)
+        .args(["review", "--base", "missing-revision"])
+        .output()
+        .expect("run invalid review");
+    assert_eq!(error.status.code(), Some(2));
+}
+
+#[test]
+fn context_can_be_checked_before_the_first_commit() {
+    let directory = tempfile::tempdir().expect("temporary repository");
+    run_git(directory.path(), &["init", "--quiet"]);
+    let output = Command::new(env!("CARGO_BIN_EXE_ctx"))
+        .current_dir(directory.path())
+        .args(["check", "--json"])
+        .output()
+        .expect("check repository with no HEAD");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(!directory.path().join(".ctx/ctx.db").exists());
+}
+
+#[test]
+fn index_process_exits_cleanly_while_another_writer_holds_the_lock() {
+    let repository = FixtureRepository::new();
+    repository.ctx(&["init"]);
+    let path = repository.root().join(".ctx/index.lock");
+    let lock = fs::File::create(path).expect("open index lock");
+    lock.lock().expect("take index lock");
+    let failed = repository.ctx_failure(&["index"]);
+    assert_eq!(failed["error"], "indexing is already in progress");
+    drop(lock);
+    assert_eq!(repository.ctx(&["index"])["already_current"], false);
 }

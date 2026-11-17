@@ -1,7 +1,7 @@
 use super::{
-    CandidateOutcome, Cli, CliError, CommitMetadata, ConfiguredAgent, GitRepo, GitRepository,
-    GraphStore, IndexStore, IsTerminal, KnowledgeVerificationService, NodeKind, Path,
-    PlannedNodeAttributes, RepositoryId, ReviewedCandidate, SqliteStore, StaleClaim,
+    CandidateOutcome, Cli, CliError, Command, CommitMetadata, ConfiguredAgent, GitRepo,
+    GitRepository, GraphStore, IndexStore, IsTerminal, KnowledgeVerificationService, NodeKind,
+    Path, PlannedNodeAttributes, RepositoryId, ReviewedCandidate, SqliteStore, StaleClaim,
     StaleClaimOutcome, Utc, VerificationDecision, VerificationError, VerificationService, Write,
     YamlBusinessContextReader, database_path, io, json, tab_title,
 };
@@ -588,5 +588,50 @@ fn print_candidates(candidates: &[ctx_core::verification::SemanticCandidate]) {
             candidate.target_identifier,
             candidate.score.total
         );
+    }
+}
+
+pub(super) fn from_command(cli: &Cli, git: &GitRepo, command: &Command) -> Result<(), CliError> {
+    let Command::Verify {
+        accept,
+        reject,
+        author,
+        knowledge,
+        id,
+        force,
+        auto,
+        agent,
+        model,
+        id_prefix,
+        stale,
+        ..
+    } = command
+    else {
+        unreachable!("verify_from_command handles the verify command");
+    };
+    if *stale {
+        verify_stale(cli, git, agent, model.clone(), author)
+    } else if *auto {
+        verify_knowledge_auto(
+            cli,
+            git,
+            agent,
+            model.clone(),
+            id_prefix.as_deref().expect("clap requires id_prefix"),
+            author,
+            *force,
+        )
+    } else if *knowledge {
+        verify_knowledge(
+            cli,
+            git,
+            accept.as_deref(),
+            reject.as_deref(),
+            id.as_deref(),
+            author,
+            *force,
+        )
+    } else {
+        verify(cli, git, accept.as_deref(), reject.as_deref(), author)
     }
 }

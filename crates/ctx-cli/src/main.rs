@@ -82,9 +82,7 @@ use ingest_command::IngestScopeArg;
 use report_command::{ReportCommand, report};
 use status_command::status;
 use type_inference_command::{infer_types, parse_inference_confidence};
-use verify_command::{
-    require_current_index, verify, verify_knowledge, verify_knowledge_auto, verify_stale,
-};
+use verify_command::require_current_index;
 
 const DEFAULT_CONFIG: &str = r#"languages = ["python", "rust", "go"]
 
@@ -696,46 +694,7 @@ fn run(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
         Command::Report { command } => report(cli, git, command),
         Command::Sync => sync(cli, git),
         Command::Federation { command } => federation(cli, git, command),
-        Command::Verify {
-            accept,
-            reject,
-            author,
-            knowledge,
-            id,
-            force,
-            auto,
-            agent,
-            model,
-            id_prefix,
-            stale,
-            ..
-        } => {
-            if *stale {
-                verify_stale(cli, git, agent, model.clone(), author)
-            } else if *auto {
-                verify_knowledge_auto(
-                    cli,
-                    git,
-                    agent,
-                    model.clone(),
-                    id_prefix.as_deref().expect("clap requires id_prefix"),
-                    author,
-                    *force,
-                )
-            } else if *knowledge {
-                verify_knowledge(
-                    cli,
-                    git,
-                    accept.as_deref(),
-                    reject.as_deref(),
-                    id.as_deref(),
-                    author,
-                    *force,
-                )
-            } else {
-                verify(cli, git, accept.as_deref(), reject.as_deref(), author)
-            }
-        }
+        command @ Command::Verify { .. } => verify_command::from_command(cli, git, command),
         Command::Setup {
             agent,
             hooks,
@@ -1793,49 +1752,5 @@ impl From<serde_json::Error> for CliError {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn infer_types_cli_uses_sound_defaults() {
-        let cli = Cli::try_parse_from(["ctx", "infer-types"]).expect("parse infer-types");
-        let Command::InferTypes {
-            pyright,
-            python,
-            venv,
-            confidence,
-            timeout_ms,
-        } = cli.command
-        else {
-            panic!("expected infer-types command");
-        };
-        assert_eq!(pyright, PathBuf::from("pyright-typeserver"));
-        assert_eq!(python, None);
-        assert_eq!(venv, None);
-        assert!((confidence - DEFAULT_TYPE_INFERENCE_CONFIDENCE).abs() < f32::EPSILON);
-        assert_eq!(timeout_ms, 30_000);
-    }
-
-    #[test]
-    fn infer_types_cli_accepts_explicit_python_and_venv() {
-        let cli = Cli::try_parse_from([
-            "ctx",
-            "infer-types",
-            "--python",
-            "/opt/python/bin/python",
-            "--venv",
-            "/repo/.venv",
-        ])
-        .expect("parse infer-types with explicit environment");
-        let Command::InferTypes { python, venv, .. } = cli.command else {
-            panic!("expected infer-types command");
-        };
-        assert_eq!(python, Some(PathBuf::from("/opt/python/bin/python")));
-        assert_eq!(venv, Some(PathBuf::from("/repo/.venv")));
-    }
-
-    #[test]
-    fn infer_types_cli_rejects_fact_confidence() {
-        assert!(Cli::try_parse_from(["ctx", "infer-types", "--confidence", "1"]).is_err());
-    }
-}
+#[path = "parse_tests.rs"]
+mod tests;

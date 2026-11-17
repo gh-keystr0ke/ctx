@@ -72,7 +72,6 @@ where
         )
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn analyze_diff(
         &self,
         repository: &RepositoryId,

@@ -81,6 +81,15 @@ fn group_findings(findings: &[ReviewFinding]) -> Vec<IntentFinding> {
         group.signals.push(finding.clone());
     }
     let mut groups = groups.into_values().collect::<Vec<_>>();
+    for group in &mut groups {
+        group.signals.sort_by(|left, right| {
+            right
+                .severity
+                .cmp(&left.severity)
+                .then_with(|| right.confidence.total_cmp(&left.confidence))
+                .then_with(|| left.uncertainty.is_some().cmp(&right.uncertainty.is_some()))
+        });
+    }
     groups.sort_by_key(|group| {
         (
             std::cmp::Reverse(group.severity),

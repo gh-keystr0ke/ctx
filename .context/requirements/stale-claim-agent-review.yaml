@@ -42,9 +42,9 @@ statement: >
   knowledge" and "should this already-extracted candidate be accepted," with its own input (claims,
   not artifacts or candidates) and output (a verdict plus reasoning, keyed by fingerprint, never a
   position/index -- the same discipline ctx_core.knowledge.CandidateReviewDecision already follows).
-  Every response is validated the same way `review()` already is: a decision naming an unknown or
-  duplicate fingerprint, or a response that doesn't cover every input claim exactly once, is rejected
-  outright rather than guessed at.
+  The review discards decisions with unknown or duplicate claim identifiers.
+  It retries undecided claims once. Claims without a valid decision after
+  the retry stay stale.
 
   A repository may have enough stale claims to exceed both a model context window and the operating
   system's command-line argument limit. `review_stale_claims` must therefore partition the complete
@@ -88,8 +88,8 @@ tests:
   - symbol: ctx_adapters.sqlite.verification.stale_claim_tests.reactivating_an_unknown_fingerprint_is_reported_honestly_rather_than_erroring
   - symbol: ctx_adapters.agent_contract.tests.review_stale_claims_accepts_when_the_agent_confirms_the_mapping_still_holds
   - symbol: ctx_adapters.agent_contract.tests.review_stale_claims_can_reject_a_mapping_that_no_longer_holds
-  - symbol: ctx_adapters.agent_contract.tests.review_stale_claims_rejects_an_invented_fingerprint_not_trusted
-  - symbol: ctx_adapters.agent_contract.tests.review_stale_claims_rejects_a_decision_list_missing_a_claim
+  - symbol: ctx_adapters.agent_contract.tests.an_invented_claim_is_dropped_and_the_real_claim_is_asked_again
+  - symbol: ctx_adapters.agent_contract.tests.a_claim_the_agent_never_decides_stays_out_of_the_result_without_failing_the_rest
   - symbol: ctx_adapters.agent_contract.tests.stale_claim_review_batches_without_dropping_claims
   - symbol: ctx_adapters.agent_contract.tests.one_claim_larger_than_the_prompt_budget_fails_explicitly
   - symbol: ctx_app.verification.stale_claim_tests.stale_claims_lists_every_stale_semantic_edge_from_the_graph

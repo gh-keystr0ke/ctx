@@ -13,7 +13,7 @@ statement: >-
 implementation:
   - symbol: ctx_cli.diagnostics.init
   - symbol: ctx_cli.execute
-  - symbol: ctx_cli.ingest
+  - symbol: ctx_cli.ingest_command.ingest
   - symbol: ctx_adapters.git.GitRepo.ignore_local_state
   - symbol: ctx_adapters.git.run_git
   - symbol: ctx_adapters.http_retry.run

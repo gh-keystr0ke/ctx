@@ -4,6 +4,11 @@ All notable changes to `ctx` are documented here. The project follows semantic v
 
 ## Unreleased
 
+### Fixed
+
+- `ctx verify --stale` no longer aborts the whole run, discarding every verdict, when the review agent mislabels, repeats, or skips one claim. Claims are now labelled `C1..Cn` in the prompt instead of by full fingerprint, bad decisions are dropped, undecided claims are asked once more, and any claim still undecided stays stale and is reported.
+- OpenAPI operations now cover only their own block in the specification, so a stale review shows the reviewer the operation itself instead of the first 6 KB of the file. Operation hashes no longer depend on file position, so an edit to one operation no longer marks claims on every other operation stale. The analyzer version is now `openapi-v2`, and the next `ctx index` re-analyzes specifications once.
+
 ## 0.8.5 — 2026-09-21
 
 ### Added

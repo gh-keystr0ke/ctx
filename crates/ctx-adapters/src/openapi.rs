@@ -105,7 +105,7 @@ impl OpenApiAnalyzer {
         Ok(FileAnalysis {
             path: relative_path.to_owned(),
             language: "openapi".to_owned(),
-            analysis_version: "openapi-v1".to_owned(),
+            analysis_version: "openapi-v2".to_owned(),
             content_hash: blake3::hash(source.as_bytes()).to_hex().to_string(),
             symbols,
         })
@@ -114,7 +114,7 @@ impl OpenApiAnalyzer {
 
 impl LanguageAnalyzer for OpenApiAnalyzer {
     fn analysis_version(&self, _relative_path: &str) -> Result<String, PortError> {
-        Ok("openapi-v1".to_owned())
+        Ok("openapi-v2".to_owned())
     }
 
     fn analyze(&self, relative_path: &str) -> Result<FileAnalysis, PortError> {
@@ -249,7 +249,16 @@ fn operation_symbol(namespace: &str, endpoint: ApiEndpoint) -> SymbolDefinition 
     );
     let local_name = operation_id.clone().unwrap_or(fallback);
     let canonical_path = format!("openapi.{namespace}.{}", slug(&local_name));
-    let normalized = serde_json::to_vec(&endpoint).expect("ApiEndpoint serialization cannot fail");
+    // The contract hash must not depend on where the operation sits in the
+    // file: an edit to one operation (or to the document header) would
+    // otherwise change every other operation's hash and mark every claim
+    // mapped to this specification stale at once.
+    let positionless = ApiEndpoint {
+        range: SourceRange::default(),
+        ..endpoint.clone()
+    };
+    let normalized =
+        serde_json::to_vec(&positionless).expect("ApiEndpoint serialization cannot fail");
     let body_hash = blake3::hash(&normalized).to_hex().to_string();
     SymbolDefinition {
         name: operation_id
@@ -514,39 +523,97 @@ fn dereference<'a>(root: &'a Value, value: &'a Value) -> &'a Value {
     current
 }
 
+/// Locates one operation's own block inside a pretty-printed YAML or JSON
+/// specification: from the `method:` key line through the last line nested
+/// under it (plus, for JSON, the closing brace at the key's own indent). The
+/// byte range is what `ctx verify --stale` shows a reviewer as the
+/// operation's current code, so it must never span the whole document. A
+/// document whose layout this line scan cannot follow (for example minified
+/// JSON) falls back to the whole file rather than guessing a block.
 fn operation_range(source: &str, path: &str, method: &str) -> SourceRange {
+    let lines: Vec<(usize, &str)> = source
+        .split_inclusive('\n')
+        .scan(0usize, |offset, raw| {
+            let start = *offset;
+            *offset += raw.len();
+            Some((start, raw.trim_end_matches(['\n', '\r'])))
+        })
+        .collect();
     let mut path_indent = None;
-    for (index, line) in source.lines().enumerate() {
+    for (index, &(start, line)) in lines.iter().enumerate() {
         let trimmed = line.trim();
-        if path_indent.is_none()
-            && (trimmed == format!("{path}:") || trimmed == format!("\"{path}\":"))
-        {
-            path_indent = Some(line.len() - line.trim_start().len());
+        if path_indent.is_none() && opens_key(trimmed, path) {
+            path_indent = Some(indentation(line));
             continue;
         }
-        if let Some(indent) = path_indent {
-            let line_indent = line.len() - line.trim_start().len();
-            if line_indent <= indent && !trimmed.is_empty() && !trimmed.starts_with('#') {
+        let Some(indent) = path_indent else {
+            continue;
+        };
+        if is_blank_or_comment(trimmed) {
+            continue;
+        }
+        if indentation(line) <= indent {
+            break;
+        }
+        if !opens_key(trimmed, method) {
+            continue;
+        }
+        let method_indent = indentation(line);
+        let mut end_index = index;
+        for (next, &(_, next_line)) in lines.iter().enumerate().skip(index + 1) {
+            let next_trimmed = next_line.trim();
+            if is_blank_or_comment(next_trimmed) {
+                continue;
+            }
+            let next_indent = indentation(next_line);
+            if next_indent < method_indent {
                 break;
             }
-            if trimmed.starts_with(&format!("{method}:"))
-                || trimmed.starts_with(&format!("\"{method}\":"))
-            {
-                return SourceRange {
-                    start_byte: 0,
-                    end_byte: source.len(),
-                    start_line: index + 1,
-                    end_line: index + 1,
-                };
+            if next_indent == method_indent {
+                if next_trimmed.starts_with('}') {
+                    end_index = next;
+                }
+                break;
             }
+            end_index = next;
         }
+        let (end_start, end_line) = lines[end_index];
+        return SourceRange {
+            start_byte: start,
+            end_byte: end_start + end_line.len(),
+            start_line: index + 1,
+            end_line: end_index + 1,
+        };
     }
     SourceRange {
         start_byte: 0,
         end_byte: source.len(),
         start_line: 1,
-        end_line: 1,
+        end_line: source.lines().count().max(1),
     }
+}
+
+/// Whether `trimmed` is the line declaring mapping key `key`, in YAML
+/// (`key:`) or JSON (`"key": {`) form -- never a longer key sharing a prefix.
+fn opens_key(trimmed: &str, key: &str) -> bool {
+    let rest = trimmed
+        .strip_prefix('"')
+        .and_then(|quoted| quoted.strip_prefix(key))
+        .and_then(|after| after.strip_prefix("\":"))
+        .or_else(|| {
+            trimmed
+                .strip_prefix(key)
+                .and_then(|after| after.strip_prefix(':'))
+        });
+    rest.is_some_and(|value| value.is_empty() || value.starts_with([' ', '\t']))
+}
+
+fn indentation(line: &str) -> usize {
+    line.len() - line.trim_start().len()
+}
+
+fn is_blank_or_comment(trimmed: &str) -> bool {
+    trimmed.is_empty() || trimmed.starts_with('#')
 }
 
 fn specification_namespace(relative_path: &str) -> String {
@@ -690,6 +757,100 @@ components:
                 && parameter.required
                 && parameter.type_hint.as_deref() == Some("SubscriptionPatch")
         }));
+    }
+
+    fn operation_text<'a>(source: &'a str, analysis: &FileAnalysis, name: &str) -> &'a str {
+        let symbol = analysis
+            .symbols
+            .iter()
+            .find(|symbol| symbol.name == name)
+            .expect("operation symbol");
+        &source[symbol.range.start_byte..symbol.range.end_byte]
+    }
+
+    #[test]
+    fn a_yaml_operation_range_covers_only_that_operation_block() {
+        let analysis = OpenApiAnalyzer::analyze_source("openapi.yaml", SPEC).expect("analysis");
+
+        let get = operation_text(SPEC, &analysis, "getSubscription");
+        assert!(get.starts_with("    get:\n      operationId: getSubscription"));
+        assert!(get.ends_with("schema: {$ref: '#/components/schemas/Subscription'}"));
+        assert!(!get.contains("patchSubscription"));
+
+        let patch = operation_text(SPEC, &analysis, "patchSubscription");
+        assert!(patch.starts_with("    patch:\n"));
+        assert!(patch.ends_with("'204': {description: Updated}"));
+        assert!(!patch.contains("components:"));
+    }
+
+    #[test]
+    fn a_json_operation_range_covers_only_that_operation_object() {
+        let source = r#"{
+  "openapi": "3.1.0",
+  "info": {"title": "Billing", "version": "1"},
+  "paths": {
+    "/subs": {
+      "get": {
+        "operationId": "listSubs",
+        "responses": {"200": {"description": "Found"}}
+      },
+      "post": {
+        "operationId": "createSub",
+        "responses": {"201": {"description": "Created"}}
+      }
+    },
+    "/subs/cost": {
+      "get": {
+        "operationId": "subCost",
+        "responses": {"200": {"description": "Cost"}}
+      }
+    }
+  }
+}
+"#;
+        let analysis = OpenApiAnalyzer::analyze_source("openapi.json", source).expect("analysis");
+
+        let list = operation_text(source, &analysis, "listSubs");
+        assert!(list.starts_with("      \"get\": {"));
+        assert!(list.ends_with("      },"));
+        assert!(!list.contains("createSub"));
+        assert!(!list.contains("\"openapi\""));
+
+        let create = operation_text(source, &analysis, "createSub");
+        assert!(create.starts_with("      \"post\": {"));
+        assert!(create.ends_with("      }"));
+
+        let cost = operation_text(source, &analysis, "subCost");
+        assert!(cost.contains("\"operationId\": \"subCost\""));
+        assert!(!cost.contains("listSubs"));
+    }
+
+    #[test]
+    fn an_edit_elsewhere_in_the_specification_keeps_an_operation_hash_stable() {
+        let edited = SPEC.replace(
+            "'204': {description: Updated}",
+            "'204': {description: Updated}\n        '409': {description: Conflict}",
+        );
+        let before = OpenApiAnalyzer::analyze_source("openapi.yaml", SPEC).expect("analysis");
+        let after = OpenApiAnalyzer::analyze_source("openapi.yaml", &edited).expect("analysis");
+        let hash = |analysis: &FileAnalysis, name: &str| {
+            analysis
+                .symbols
+                .iter()
+                .find(|symbol| symbol.name == name)
+                .expect("operation symbol")
+                .body_hash
+                .clone()
+        };
+
+        assert_eq!(
+            hash(&before, "getSubscription"),
+            hash(&after, "getSubscription")
+        );
+        assert_ne!(
+            hash(&before, "patchSubscription"),
+            hash(&after, "patchSubscription")
+        );
     }
 
     #[test]

@@ -364,19 +364,23 @@ pub(super) fn verify_stale(
         author,
         &now,
     )?;
-    print_stale_review(cli, agent, &report, &results)
+    print_stale_review(cli, agent, claims.len(), &report, &results)
 }
 
 fn print_stale_review(
     cli: &Cli,
     agent: &str,
+    claims_total: usize,
     report: &ctx_app::verification::StaleClaimReviewReport,
     results: &[ctx_app::verification::ReviewedStaleClaim],
 ) -> Result<(), CliError> {
+    let undecided = claims_total.saturating_sub(report.claims_reviewed);
     if cli.json {
         println!(
             "{}",
-            serde_json::to_string_pretty(&json!({"report": report, "results": results}))?
+            serde_json::to_string_pretty(
+                &json!({"report": report, "undecided": undecided, "results": results})
+            )?
         );
         return Ok(());
     }
@@ -403,6 +407,11 @@ fn print_stale_review(
         "Reviewed {} stale claim(s) via {agent}: {} reactivated, {} suggested for removal (not applied automatically)",
         report.claims_reviewed, report.reactivated, report.suggested_removals
     );
+    if undecided > 0 {
+        println!(
+            "{undecided} stale claim(s) got no usable verdict from {agent} and stay stale; run `ctx verify --stale` again to retry them"
+        );
+    }
     Ok(())
 }
 

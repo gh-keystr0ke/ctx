@@ -574,10 +574,11 @@ For each claim, decide "accept" (the current code shown still genuinely satisfie
 
 Respond with exactly one JSON object and nothing else: no prose, no markdown fence, no explanation outside the JSON.
 
-{"decisions":[{"fingerprint":"<exact fingerprint from below>","verdict":"accept|reject","reasoning":"<one or two sentences citing what the shown code and product intent actually say>"}]}
+{"decisions":[{"claim":"<claim label from below, e.g. C1>","verdict":"accept|reject","reasoning":"<one or two sentences citing what the shown code and product intent actually say>"}]}
 
 Rules:
-- decisions must include exactly one entry for every claim fingerprint listed below -- no more, no fewer, and never an invented fingerprint.
+- decisions must include exactly one entry for every claim label listed below (C1, C2, ...) -- no more, no fewer, and never an invented label. Copy the label exactly; do not repeat the source or target names in it.
+- Judge each claim only against its own product intent and its own current code -- never against another claim's intent.
 - reasoning is required for every decision, accept or reject, and must cite the claim's own shown code/intent text -- never a generic statement.
 - A claim with no current code shown (the symbol could not be read) cannot be confirmed from its code -- prefer "reject" for it unless the product intent alone makes the mapping obviously still valid.
 - Prefer "reject" when you cannot actually confirm the mapping still holds, rather than accepting on uncertainty."#;
@@ -604,14 +605,15 @@ impl Default for StaleClaimReviewBudget {
 /// re-review (`ctx verify --stale`): the same [`AgentTransport`] boundary
 /// every vendor already implements, a different prompt and response
 /// contract from both extraction and knowledge-candidate review. Never
-/// trusts a fingerprint the agent didn't see, and never accepts a
-/// `decisions` list that doesn't cover the input claims exactly once each --
-/// the same discipline [`review`] already applies.
+/// trusts a claim label the agent didn't see: unknown, malformed, or
+/// conflicting decisions are dropped, undecided claims are asked about once
+/// more, and a claim that still gets no usable verdict is left out of the
+/// result (it stays stale) rather than failing every other verdict.
 ///
 /// # Errors
-/// Returns [`AgentContractError`] when the transport fails, the response
-/// isn't valid JSON, or `decisions` names an unknown or duplicate
-/// fingerprint, or omits one of the input claims.
+/// Returns [`AgentContractError`] when a claim cannot fit the prompt
+/// budget, the transport fails, or a response isn't the expected JSON
+/// object at all.
 pub fn review_stale_claims<T: AgentTransport>(
     transport: &T,
     claims: &[StaleClaim],
@@ -620,13 +622,15 @@ pub fn review_stale_claims<T: AgentTransport>(
 }
 
 /// Reviews stale claims in independently validated, byte-bounded batches.
-/// Every claim is included exactly once; an individual claim that cannot fit
+/// Every claim is sent exactly once (plus one retry when the agent leaves it
+/// undecided), so the result may hold fewer verdicts than `claims`; an
+/// individual claim that cannot fit
 /// the configured budget fails explicitly instead of producing an oversized
 /// CLI argument or silently truncating evidence.
 ///
 /// # Errors
 /// Returns [`AgentContractError`] when a prompt cannot fit its budget, the
-/// transport fails, or any batch response violates the review contract.
+/// transport fails, or a batch response isn't the expected JSON object.
 pub fn review_stale_claims_with_budget<T: AgentTransport>(
     transport: &T,
     claims: &[StaleClaim],
@@ -639,9 +643,55 @@ pub fn review_stale_claims_with_budget<T: AgentTransport>(
     Ok(verdicts)
 }
 
+/// Reviews one batch, then asks once more for just the claims the first
+/// answer left undecided. An agent occasionally copies a label wrong,
+/// repeats a claim with conflicting verdicts, or skips one in a long batch;
+/// such entries are dropped (never mapped to a guessed claim), and a claim
+/// still undecided after the retry is simply left out of the result -- it
+/// stays stale for the next `ctx verify --stale` run instead of discarding
+/// every other verdict of the run.
 fn review_stale_claim_batch<T: AgentTransport>(
     transport: &T,
     claims: &[StaleClaim],
+) -> Result<Vec<StaleClaimVerdict>, AgentContractError> {
+    let all: Vec<&StaleClaim> = claims.iter().collect();
+    let mut verdicts = request_stale_claim_verdicts(transport, &all)?;
+    let undecided: Vec<&StaleClaim> = claims
+        .iter()
+        .filter(|claim| {
+            !verdicts
+                .iter()
+                .any(|verdict| verdict.fingerprint == claim.fingerprint)
+        })
+        .collect();
+    if undecided.is_empty() {
+        return Ok(verdicts);
+    }
+    tracing::warn!(
+        undecided = undecided.len(),
+        batch = claims.len(),
+        "stale-claim review left claims undecided; asking again for just those"
+    );
+    verdicts.extend(request_stale_claim_verdicts(transport, &undecided)?);
+    let still_undecided = claims.len() - verdicts.len();
+    if still_undecided > 0 {
+        tracing::warn!(
+            undecided = still_undecided,
+            "stale-claim review still left claims undecided; they stay stale"
+        );
+    }
+    Ok(verdicts)
+}
+
+/// One agent round-trip over `claims`, labelled `C1..Cn` in the prompt.
+/// Short labels instead of the long claim fingerprints keep the agent from
+/// splicing parts of neighbouring fingerprints together. Only decisions that
+/// name a shown label (or, tolerated, an exact shown fingerprint) exactly
+/// once survive; a transport failure or a response that is not the
+/// expected JSON object at all is still an error.
+fn request_stale_claim_verdicts<T: AgentTransport>(
+    transport: &T,
+    claims: &[&StaleClaim],
 ) -> Result<Vec<StaleClaimVerdict>, AgentContractError> {
     let prompt = format!(
         "{STALE_CLAIM_REVIEW_SYSTEM_PROMPT}\n\n{}",
@@ -650,38 +700,70 @@ fn review_stale_claim_batch<T: AgentTransport>(
     let raw = run_agent_contract(transport, "stale claim review", &prompt)?;
     let parsed: RawStaleClaimReviewOutput = parse_json_response(&raw, "stale claim review")?;
 
-    let known: BTreeSet<&str> = claims
-        .iter()
-        .map(|claim| claim.fingerprint.as_str())
-        .collect();
-    let mut seen: BTreeSet<String> = BTreeSet::new();
-    let mut decisions = Vec::with_capacity(parsed.decisions.len());
-    for raw_decision in parsed.decisions {
-        if !known.contains(raw_decision.fingerprint.as_str()) {
-            return Err(AgentContractError::InvalidJson(format!(
-                "stale-claim review decided an unknown fingerprint: {}",
-                raw_decision.fingerprint
-            )));
+    let resolve = |reference: &str| -> Option<usize> {
+        let reference = reference.trim();
+        claims
+            .iter()
+            .enumerate()
+            .find(|(index, claim)| {
+                stale_claim_label(*index).eq_ignore_ascii_case(reference)
+                    || claim.fingerprint == reference
+            })
+            .map(|(index, _)| index)
+    };
+    let mut decided: Vec<Option<RawStaleClaimDecision>> = claims.iter().map(|_| None).collect();
+    let mut conflicted = vec![false; claims.len()];
+    for value in parsed.decisions {
+        let decision = match serde_json::from_value::<RawStaleClaimDecision>(value) {
+            Ok(decision) if !decision.reasoning.trim().is_empty() => decision,
+            Ok(decision) => {
+                tracing::warn!(
+                    claim = decision.claim,
+                    "stale-claim review gave no reasoning; decision dropped"
+                );
+                continue;
+            }
+            Err(error) => {
+                tracing::warn!(%error, "stale-claim review decision is malformed; dropped");
+                continue;
+            }
+        };
+        let Some(index) = resolve(&decision.claim) else {
+            tracing::warn!(
+                claim = decision.claim,
+                "stale-claim review decided an unknown claim; decision dropped"
+            );
+            continue;
+        };
+        match &decided[index] {
+            None if !conflicted[index] => decided[index] = Some(decision),
+            Some(earlier) if earlier.verdict == decision.verdict => {}
+            _ => {
+                tracing::warn!(
+                    claim = decision.claim,
+                    "stale-claim review gave one claim conflicting verdicts; both dropped"
+                );
+                decided[index] = None;
+                conflicted[index] = true;
+            }
         }
-        if !seen.insert(raw_decision.fingerprint.clone()) {
-            return Err(AgentContractError::InvalidJson(format!(
-                "stale-claim review decided the same fingerprint twice: {}",
-                raw_decision.fingerprint
-            )));
-        }
-        decisions.push(StaleClaimVerdict {
-            fingerprint: raw_decision.fingerprint,
-            verdict: raw_decision.verdict,
-            reasoning: raw_decision.reasoning,
-        });
-    }
-    if seen.len() != known.len() {
-        return Err(AgentContractError::InvalidJson(
-            "stale-claim review did not decide every claim".to_owned(),
-        ));
     }
 
-    Ok(decisions)
+    Ok(claims
+        .iter()
+        .zip(decided)
+        .filter_map(|(claim, decision)| {
+            decision.map(|decision| StaleClaimVerdict {
+                fingerprint: claim.fingerprint.clone(),
+                verdict: decision.verdict,
+                reasoning: decision.reasoning,
+            })
+        })
+        .collect())
+}
+
+fn stale_claim_label(index: usize) -> String {
+    format!("C{}", index + 1)
 }
 
 fn stale_claim_batches(
@@ -700,7 +782,7 @@ fn stale_claim_batches(
     let mut start = 0usize;
     let mut bytes = base_bytes;
     for (index, claim) in claims.iter().enumerate() {
-        let claim_bytes = render_stale_claim(claim).len();
+        let claim_bytes = render_stale_claim(claim, &stale_claim_label(budget.max_claims)).len();
         if base_bytes + claim_bytes > budget.max_prompt_bytes {
             return Err(AgentContractError::PromptBudget(format!(
                 "claim '{}' needs {} bytes but the limit is {}",
@@ -723,22 +805,21 @@ fn stale_claim_batches(
     Ok(ranges)
 }
 
-fn render_stale_claims(claims: &[StaleClaim]) -> String {
+fn render_stale_claims(claims: &[&StaleClaim]) -> String {
     let mut text = String::new();
-    for claim in claims {
-        text.push_str(&render_stale_claim(claim));
+    for (index, claim) in claims.iter().enumerate() {
+        text.push_str(&render_stale_claim(claim, &stale_claim_label(index)));
     }
     text
 }
 
-fn render_stale_claim(claim: &StaleClaim) -> String {
+fn render_stale_claim(claim: &StaleClaim, label: &str) -> String {
     use std::fmt::Write as _;
 
     let mut text = String::new();
     let _ = writeln!(
         text,
-        "- fingerprint: {}\n  relation: {:?}\n  source: {} ({:?})\n  target: {} ({:?})",
-        claim.fingerprint,
+        "- claim: {label}\n  relation: {:?}\n  source: {} ({:?})\n  target: {} ({:?})",
         claim.relation,
         claim.source.identifier,
         claim.source.kind,
@@ -757,13 +838,17 @@ fn render_stale_claim(claim: &StaleClaim) -> String {
 
 #[derive(Deserialize)]
 struct RawStaleClaimReviewOutput {
-    decisions: Vec<RawStaleClaimDecision>,
+    /// Kept untyped so one malformed entry is dropped on its own instead of
+    /// failing the whole batch's deserialization.
+    decisions: Vec<serde_json::Value>,
 }
 
 #[derive(Deserialize)]
 struct RawStaleClaimDecision {
-    fingerprint: String,
+    #[serde(alias = "fingerprint")]
+    claim: String,
     verdict: ReviewVerdict,
+    #[serde(default)]
     reasoning: String,
 }
 
@@ -1252,10 +1337,10 @@ mod tests {
             self.prompts.borrow_mut().push(prompt.to_owned());
             let decisions: Vec<_> = prompt
                 .lines()
-                .filter_map(|line| line.strip_prefix("- fingerprint: "))
-                .map(|fingerprint| {
+                .filter_map(|line| line.strip_prefix("- claim: "))
+                .map(|label| {
                     serde_json::json!({
-                        "fingerprint": fingerprint,
+                        "claim": label,
                         "verdict": "accept",
                         "reasoning": "the shown code still supports the shown intent"
                     })
@@ -1335,29 +1420,116 @@ mod tests {
     }
 
     #[test]
-    fn review_stale_claims_rejects_an_invented_fingerprint_not_trusted() {
+    fn review_stale_claims_still_matches_a_decision_keyed_by_the_full_fingerprint() {
         let claims = vec![stale_claim("fp1")];
         let transport = FakeTransport {
-            response: r#"{"decisions":[{"fingerprint":"fp-invented","verdict":"accept","reasoning":"..."}]}"#
+            response: r#"{"decisions":[{"fingerprint":"fp1","verdict":"accept","reasoning":"still holds"}]}"#
                 .to_owned(),
         };
 
-        let result = review_stale_claims(&transport, &claims);
+        let result = review_stale_claims(&transport, &claims).expect("parsed review");
 
-        assert!(result.is_err());
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].fingerprint, "fp1");
     }
 
     #[test]
-    fn review_stale_claims_rejects_a_decision_list_missing_a_claim() {
+    fn the_prompt_labels_claims_briefly_instead_of_repeating_fingerprints() {
+        let claims = vec![stale_claim("explicit:symbol:very:long:fingerprint")];
+        let transport = EchoStaleReviewTransport::default();
+
+        review_stale_claims(&transport, &claims).expect("parsed review");
+
+        let prompts = transport.prompts.borrow();
+        assert!(prompts[0].contains("- claim: C1\n"));
+        assert!(!prompts[0].contains("explicit:symbol:very:long:fingerprint"));
+    }
+
+    /// Answers each prompt from a queue, recording every prompt it saw.
+    struct ScriptedTransport {
+        responses: RefCell<Vec<String>>,
+        prompts: RefCell<Vec<String>>,
+    }
+
+    impl ScriptedTransport {
+        fn new(responses: &[&str]) -> Self {
+            Self {
+                responses: RefCell::new(responses.iter().rev().map(|r| (*r).to_owned()).collect()),
+                prompts: RefCell::new(Vec::new()),
+            }
+        }
+    }
+
+    impl AgentTransport for ScriptedTransport {
+        fn run(&self, prompt: &str) -> Result<String, AgentContractError> {
+            self.prompts.borrow_mut().push(prompt.to_owned());
+            Ok(self
+                .responses
+                .borrow_mut()
+                .pop()
+                .unwrap_or_else(|| r#"{"decisions":[]}"#.to_owned()))
+        }
+    }
+
+    #[test]
+    fn an_invented_claim_is_dropped_and_the_real_claim_is_asked_again() {
         let claims = vec![stale_claim("fp1"), stale_claim("fp2")];
+        let transport = ScriptedTransport::new(&[
+            r#"{"decisions":[
+                {"claim":"C1","verdict":"reject","reasoning":"gone"},
+                {"claim":"C9","verdict":"accept","reasoning":"invented"}
+            ]}"#,
+            r#"{"decisions":[{"claim":"C1","verdict":"accept","reasoning":"still holds"}]}"#,
+        ]);
+
+        let result = review_stale_claims(&transport, &claims).expect("partial review");
+
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].fingerprint, "fp1");
+        assert_eq!(result[0].verdict, ReviewVerdict::Reject);
+        assert_eq!(result[1].fingerprint, "fp2");
+        assert_eq!(result[1].verdict, ReviewVerdict::Accept);
+        let prompts = transport.prompts.borrow();
+        assert_eq!(prompts.len(), 2);
+        assert_eq!(prompts[1].matches("- claim: ").count(), 1);
+    }
+
+    #[test]
+    fn a_claim_the_agent_never_decides_stays_out_of_the_result_without_failing_the_rest() {
+        let claims = vec![stale_claim("fp1"), stale_claim("fp2")];
+        let transport = ScriptedTransport::new(&[
+            r#"{"decisions":[{"claim":"C1","verdict":"accept","reasoning":"still holds"}]}"#,
+            r#"{"decisions":[]}"#,
+        ]);
+
+        let result = review_stale_claims(&transport, &claims).expect("partial review");
+
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].fingerprint, "fp1");
+        assert_eq!(transport.prompts.borrow().len(), 2);
+    }
+
+    #[test]
+    fn conflicting_or_malformed_decisions_are_dropped_not_trusted() {
+        let claims = vec![stale_claim("fp1"), stale_claim("fp2")];
+        let transport = ScriptedTransport::new(&[r#"{"decisions":[
+                {"claim":"C1","verdict":"accept","reasoning":"holds"},
+                {"claim":"C1","verdict":"reject","reasoning":"does not hold"},
+                {"claim":"C2","verdict":"maybe","reasoning":"unsure"}
+            ]}"#]);
+
+        let result = review_stale_claims(&transport, &claims).expect("partial review");
+
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn a_response_that_is_not_the_review_object_still_fails_explicitly() {
+        let claims = vec![stale_claim("fp1")];
         let transport = FakeTransport {
-            response:
-                r#"{"decisions":[{"fingerprint":"fp1","verdict":"accept","reasoning":"..."}]}"#
-                    .to_owned(),
+            response: "I could not review these claims.".to_owned(),
         };
 
-        let result = review_stale_claims(&transport, &claims);
-
-        assert!(result.is_err());
+        assert!(review_stale_claims(&transport, &claims).is_err());
     }
 }

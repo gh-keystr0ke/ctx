@@ -2155,8 +2155,8 @@ fn verify_stale_reactivates_an_accepted_claim_and_leaves_a_rejected_one_as_a_sug
     fs::write(
         &script_path,
         "#!/bin/sh\n\
-         fp=$(echo \"$3\" | grep '^- fingerprint:' | head -1 | sed 's/^- fingerprint: //')\n\
-         echo \"{\\\"decisions\\\":[{\\\"fingerprint\\\":\\\"$fp\\\",\\\"verdict\\\":\\\"accept\\\",\\\"reasoning\\\":\\\"cancel still preserves paid access; it only gained an optional reason parameter\\\"}]}\"\n",
+         claim=$(echo \"$3\" | grep '^- claim:' | head -1 | sed 's/^- claim: //')\n\
+         echo \"{\\\"decisions\\\":[{\\\"claim\\\":\\\"$claim\\\",\\\"verdict\\\":\\\"accept\\\",\\\"reasoning\\\":\\\"cancel still preserves paid access; it only gained an optional reason parameter\\\"}]}\"\n",
     )
     .expect("write fake claude script");
     #[cfg(unix)]

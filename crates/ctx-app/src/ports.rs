@@ -212,6 +212,16 @@ pub trait ReviewRepository {
     /// # Errors
     /// Returns [`PortError`] when Git cannot read repository data.
     fn source_at(&self, revision: &str, path: &str) -> Result<Option<String>, PortError>;
+    /// Reads the staged diff and its new blobs.
+    ///
+    /// # Errors
+    /// Returns [`PortError`] if the staging area cannot be read.
+    fn staged_changes(
+        &self,
+    ) -> Result<(ReviewChangeSet, std::collections::BTreeMap<String, String>), PortError> {
+        Err(PortError::new("staged review is unavailable"))
+    }
+
     /// Loads multiple paths from one revision.
     ///
     /// # Errors

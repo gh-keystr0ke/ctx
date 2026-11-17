@@ -376,7 +376,7 @@ fn tool_definitions() -> Vec<Value> {
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "base": {"type": "string", "default": "HEAD"},
+                    "base": {"type": "string", "default": "auto"},
                     "verbose": {"type": "boolean", "default": false}
                 },
                 "additionalProperties": false
@@ -438,7 +438,7 @@ const fn default_token_budget() -> usize {
 }
 
 fn default_base() -> String {
-    "HEAD".to_owned()
+    "auto".to_owned()
 }
 
 #[cfg(test)]

@@ -42,3 +42,19 @@ Use `--refresh` to request a one-time refresh from the CLI.
 
 Tool results include an `index` object with `commit`, `head`, and `state`.
 Tools that return a list put the list in `matches`.
+
+## Configure a coding agent
+
+Install ctx and run `ctx init` in the checkout.
+Run `ctx setup claude`, `ctx setup codex`, or `ctx setup antigravity`.
+Setup adds the MCP server and the bundled ctx skill to the checkout.
+Use `--dry-run` to see the proposed file changes.
+
+Use `--hooks` to enable review of staged changes before commits.
+With Claude Code, stage your changes before invoking `git commit`.
+For Codex or Antigravity, setup installs a Git pre-commit hook.
+The hook pauses once for each set of invariant or destructive findings.
+Review the findings before you retry.
+
+MCP review uses the merge base with the default branch when you omit `base`.
+Use `ctx review --base auto` to select the same base on the CLI.

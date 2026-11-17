@@ -53,6 +53,35 @@ where
         related_tests_mode: RelatedTestsMode,
     ) -> Result<ReviewReport, ReviewError> {
         let changes = self.git.review_changes(base).map_err(ReviewError::Git)?;
+        self.analyze_diff(repository, base, changes, None, verbose, related_tests_mode)
+    }
+
+    /// Reviews only changes recorded in the Git index.
+    ///
+    /// # Errors
+    /// Returns an error when the stage, source, or graph cannot be read.
+    pub fn run_staged(&self, repository: &RepositoryId) -> Result<ReviewReport, ReviewError> {
+        let (changes, staged_sources) = self.git.staged_changes().map_err(ReviewError::Git)?;
+        self.analyze_diff(
+            repository,
+            "HEAD",
+            changes,
+            Some(&staged_sources),
+            false,
+            RelatedTestsMode::Off,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn analyze_diff(
+        &self,
+        repository: &RepositoryId,
+        base: &str,
+        changes: crate::ports::ReviewChangeSet,
+        staged: Option<&BTreeMap<String, String>>,
+        verbose: bool,
+        related_tests_mode: RelatedTestsMode,
+    ) -> Result<ReviewReport, ReviewError> {
         let old_paths = changes
             .source_changes
             .iter()
@@ -77,7 +106,15 @@ where
                 before.insert(path.to_owned(), analysis);
             }
             if let Some(path) = new_path {
-                let analysis = self.analyzer.analyze(path).map_err(ReviewError::Analysis)?;
+                let analysis = if let Some(staged) = staged {
+                    let source = staged.get(path).ok_or_else(|| {
+                        ReviewError::Git(PortError::new(format!("missing staged source '{path}'")))
+                    })?;
+                    self.analyzer.analyze_text(path, source)
+                } else {
+                    self.analyzer.analyze(path)
+                }
+                .map_err(ReviewError::Analysis)?;
                 after.insert(path.to_owned(), analysis);
             }
         }

@@ -244,6 +244,8 @@ impl GitRepo {
             ".ctx/ctx.db-shm",
             ".ctx/ctx.db-wal",
             ".ctx/index.lock",
+            ".ctx/commit-review",
+            ".ctx/commit-review.lock",
             ".ctx/registry.toml",
             ".ctx/export.json",
             ".ctx/report/",
@@ -393,6 +395,18 @@ impl GitRepo {
             }
         }
         Ok(None)
+    }
+
+    fn resolve_review_revision(&self, base: &str) -> Result<String, GitError> {
+        if base == "auto" {
+            if let Some(trunk) = self.default_branch_revision()?
+                && let Some(oid) = self.optional_text(&["merge-base", "--", "HEAD", &trunk])?
+            {
+                return Ok(oid);
+            }
+            return self.resolve_revision("HEAD");
+        }
+        self.resolve_revision(base)
     }
 
     fn resolve_revision(&self, revision: &str) -> Result<String, GitError> {
@@ -756,7 +770,7 @@ impl GitRepository for GitRepo {
 
 impl ReviewRepository for GitRepo {
     fn review_changes(&self, base: &str) -> Result<ReviewChangeSet, PortError> {
-        let source_base = self.resolve_revision(base).map_err(port_error)?;
+        let source_base = self.resolve_review_revision(base).map_err(port_error)?;
         let source_bytes = self
             .output(&["diff", "--name-status", "-z", "-M", &source_base, "--"])
             .map_err(port_error)?;
@@ -791,8 +805,11 @@ impl ReviewRepository for GitRepo {
                 .map_err(port_error)?;
             let mut changed = parse_nul_strings(&context_untracked_bytes)?;
             if self.context_has_commits() {
-                let context_base =
-                    resolve_revision_at(&self.context_root, base).map_err(port_error)?;
+                let context_base = resolve_revision_at(
+                    &self.context_root,
+                    if base == "auto" { "HEAD" } else { base },
+                )
+                .map_err(port_error)?;
                 let context_bytes = self
                     .context_output(&["diff", "--name-only", "-z", &context_base, "--", ".context"])
                     .map_err(port_error)?;
@@ -828,6 +845,44 @@ impl ReviewRepository for GitRepo {
         })
     }
 
+    fn staged_changes(&self) -> Result<(ReviewChangeSet, BTreeMap<String, String>), PortError> {
+        let bytes = self
+            .output(&["diff", "--cached", "--name-status", "-z", "-M", "--"])
+            .map_err(port_error)?;
+        let source_changes = filter_changes(
+            parse_name_status(&bytes, &self.languages)?,
+            &self.path_filter,
+        );
+        let context = if self.context_is_repository {
+            let bytes = self
+                .context_output(&["diff", "--cached", "--name-only", "-z", "--", ".context"])
+                .map_err(port_error)?;
+            parse_nul_strings(&bytes)?
+        } else {
+            Vec::new()
+        };
+        let paths = source_changes
+            .iter()
+            .filter_map(FileChange::current_path)
+            .map(str::to_owned)
+            .collect::<Vec<_>>();
+        let sources = required_blobs(&self.root, "", &paths)?
+            .into_iter()
+            .map(|(path, bytes)| {
+                let source = String::from_utf8(bytes)
+                    .map_err(|error| PortError::new(format!("{path}: {error}")))?;
+                Ok((path, source))
+            })
+            .collect::<Result<_, PortError>>()?;
+        Ok((
+            ReviewChangeSet {
+                source_changes,
+                changed_context_files: context,
+            },
+            sources,
+        ))
+    }
+
     fn source_at(&self, revision: &str, path: &str) -> Result<Option<String>, PortError> {
         let revision = self.resolve_revision(revision).map_err(port_error)?;
         let object = format!("{revision}:{path}");
@@ -850,7 +905,10 @@ impl ReviewRepository for GitRepo {
         revision: &str,
         paths: &[String],
     ) -> Result<BTreeMap<String, String>, PortError> {
-        let revision = self.resolve_revision(revision).map_err(port_error)?;
+        if paths.is_empty() {
+            return Ok(BTreeMap::new());
+        }
+        let revision = self.resolve_review_revision(revision).map_err(port_error)?;
         paths
             .iter()
             .zip(batch_blobs(&self.root, &revision, paths)?)

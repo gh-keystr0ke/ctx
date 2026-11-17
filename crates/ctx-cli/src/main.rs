@@ -58,12 +58,14 @@ use thiserror::Error;
 mod agent_dispatch;
 mod agent_pacing;
 mod artifacts_command;
+mod commit_hook;
 mod diagnostics;
 mod federation_command;
 mod hooks_command;
 mod ingest_command;
 mod report_command;
 mod review_format;
+mod setup_command;
 mod status_command;
 mod tab_title;
 mod type_inference_command;
@@ -287,7 +289,7 @@ enum Command {
     },
     /// Review a branch or working-tree diff in product terms.
     Review {
-        /// Git revision against which to review changes.
+        /// Git revision, or auto for the merge base with the default branch.
         #[arg(long, default_value = "HEAD")]
         base: String,
         /// Output format for the report.
@@ -405,6 +407,24 @@ enum Command {
         /// Conflicts with `--knowledge`.
         #[arg(long, conflicts_with = "knowledge")]
         stale: bool,
+    },
+    /// Configure MCP and install the ctx skill for a coding agent.
+    Setup {
+        /// Agent to configure in this checkout.
+        #[arg(value_enum)]
+        agent: setup_command::Agent,
+        /// Install the agent's opt-in review hook.
+        #[arg(long)]
+        hooks: bool,
+        /// Show the planned diff without writing files.
+        #[arg(long)]
+        dry_run: bool,
+    },
+    /// Run a configured review hook.
+    Hook {
+        /// Hook integration to run.
+        #[arg(value_enum)]
+        hook: commit_hook::Hook,
     },
     /// Serve ctx integrations.
     Serve {
@@ -683,6 +703,12 @@ fn run(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
                 verify(cli, git, accept.as_deref(), reject.as_deref(), author)
             }
         }
+        Command::Setup {
+            agent,
+            hooks,
+            dry_run,
+        } => setup_command::run(cli, git, *agent, *hooks, *dry_run),
+        Command::Hook { hook } => commit_hook::run(*hook, git),
         Command::Serve { mcp } => {
             if *mcp {
                 ctx_mcp::serve_stdio(git).map_err(CliError::from)
@@ -718,6 +744,8 @@ impl Command {
             Self::Federation { .. } => "federation",
             Self::Verify { .. } => "verify",
             Self::Serve { .. } => "serve",
+            Self::Setup { .. } => "setup",
+            Self::Hook { .. } => "hook",
         }
     }
 }
@@ -1615,6 +1643,7 @@ fn initialize(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
             "Enabled analyzers: {}. Next: add source code to Git, then run 'ctx index'.",
             languages.join(", ")
         );
+        println!("Next: ctx setup claude");
         println!("Next: ctx hooks install");
     }
     Ok(())

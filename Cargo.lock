@@ -268,6 +268,7 @@ dependencies = [
 name = "ctx-cli"
 version = "0.8.7"
 dependencies = [
+ "blake3",
  "chrono",
  "clap",
  "ctx-adapters",
@@ -279,6 +280,7 @@ dependencies = [
  "serde_json",
  "tempfile",
  "thiserror",
+ "toml",
  "tracing",
  "tracing-subscriber",
 ]

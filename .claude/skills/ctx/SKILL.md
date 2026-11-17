@@ -24,7 +24,7 @@ Check for `.ctx/config.toml` and/or a `.context/` directory at the repository ro
 
 ## Two ways to call ctx
 
-Prefer the MCP server when it is connected (check your available tools for `get_context`, `get_impact`, `explain_relation`, `find_requirements`, `review_change`). Otherwise fall back to the `ctx` CLI with `--json` for parseable output. Both call the identical underlying logic — there is no behavioral difference, only transport. MCP is deliberately read-only and covers five query tools only; everything mutating (`index`, `ingest`, `enrich`, `verify`, `init`, `registry`, `export`, `sync`) is CLI-only — see `references/commands.md`.
+Prefer the MCP server when it is connected (check your available tools for `get_context`, `get_impact`, `explain_relation`, `find_requirements`, `review_change`). Otherwise fall back to the `ctx` CLI with `--json` for parseable output. Both call the identical underlying logic — there is no behavioral difference, only transport. MCP refreshes only the local index cache on clean inputs and also exposes `get_status`; everything mutating (`index`, `ingest`, `enrich`, `verify`, `init`, `registry`, `export`, `sync`) is CLI-only — see `references/commands.md`.
 
 | MCP tool           | CLI equivalent                          | Notes |
 |---------------------|------------------------------------------|-------|
@@ -45,7 +45,6 @@ Run every non-trivial coding task through this shape. Steps 1 and 4 are not opti
 4. ctx review --base <branch point> --json                 # ALWAYS, before calling the task done / opening a PR / committing
 5. Update .context/ if this changed a product contract        # see "Keep .context/ in sync" below
 6. git commit                                               # only after 4 and 5
-7. ctx index                                                 # after committing, so future queries see the new commit
 ```
 
 ### 1–2. Before and during editing
@@ -142,3 +141,9 @@ A `stale` relationship means the code changed enough that a previously-confirmed
 - Do not treat `ctx verify --knowledge --auto`'s "Auto-verified" documents as equivalent to human review when reporting to the user — say plainly that they were agent-decided.
 - Do not set up `ctx registry`/federation for a single-repository project — it exists for multi-service teams with sibling local checkouts; see `references/federation.md` for when it actually applies.
 - Do not skip the pre-commit `ctx review` or the `.context/` documentation update because a change "seems obviously fine" — those are exactly the two non-negotiable steps above.
+
+## Commit hook
+
+If the project enables `ctx setup claude --hooks`, stage files before you call
+`git commit`. If ctx pauses the commit, read the staged findings before you
+retry. The next attempt with the same findings can proceed.

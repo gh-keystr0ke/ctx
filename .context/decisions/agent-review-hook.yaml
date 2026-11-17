@@ -1,0 +1,14 @@
+id: ADR-REVIEW-HOOK-001
+type: decision
+feature: FEAT-REVIEW
+title: Review staged changes before agent commits
+status: accepted
+decision: >
+  Agent setup can install an opt-in commit hook. The hook reviews the Git
+  staging area and pauses for an invariant or destructive finding. A retry
+  with the same findings can proceed after the agent reads the report.
+implementation:
+  - symbol: ctx_app.review.ReviewRunner.run_staged
+  - symbol: ctx_cli.commit_hook.run
+tests:
+  - symbol: crates.ctx-cli.tests.e2e.claude_setup_preserves_configuration_and_blocks_staged_findings_once

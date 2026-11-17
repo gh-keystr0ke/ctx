@@ -14,7 +14,7 @@ use ctx_core::{
     },
     domain::{ClaimClass, ClaimStatus, Project, RelationKind, SourceKind, Url},
 };
-use serde_json::Value;
+use serde_json::{Value, json};
 use tempfile::TempDir;
 
 struct FixtureRepository {
@@ -3207,4 +3207,77 @@ fn read_report_tree(root: &Path) -> BTreeMap<String, Vec<u8>> {
     let mut files = BTreeMap::new();
     collect(root, root, &mut files);
     files
+}
+
+#[test]
+fn claude_setup_preserves_configuration_and_blocks_staged_findings_once() {
+    use std::io::Write as _;
+    use std::process::Stdio;
+
+    let repository = FixtureRepository::new();
+    let root = repository.root();
+    repository.ctx(&["init"]);
+    repository.ctx(&["index"]);
+    fs::create_dir_all(root.join(".claude")).expect("settings directory");
+    let mcp_path = root.join(".mcp.json");
+    let settings_path = root.join(".claude/settings.json");
+    let mcp = r#"{"mcpServers":{"other":{"command":"other"}}}"#;
+    fs::write(&mcp_path, mcp).expect("write existing MCP config");
+    fs::write(&settings_path, r#"{"hooks":{"PreToolUse":[{"matcher":"Edit","hooks":[{"type":"command","command":"existing"}]}]}}"#)
+        .expect("write existing hook");
+    let dry = repository.ctx(&["setup", "claude", "--hooks", "--dry-run"]);
+    assert!(!dry["diffs"].as_array().expect("diffs").is_empty());
+    assert_eq!(
+        fs::read_to_string(&mcp_path).expect("untouched MCP config"),
+        mcp
+    );
+    repository.ctx(&["setup", "claude", "--hooks"]);
+    let settings: Value = serde_json::from_slice(&fs::read(settings_path).expect("read settings"))
+        .expect("settings JSON");
+    assert_eq!(settings["hooks"]["PreToolUse"][0]["matcher"], "Edit");
+    let mcp: Value =
+        serde_json::from_slice(&fs::read(mcp_path).expect("read MCP config")).expect("MCP JSON");
+    assert_eq!(mcp["mcpServers"]["other"]["command"], "other");
+    assert!(
+        Path::new(
+            mcp["mcpServers"]["ctx"]["command"]
+                .as_str()
+                .expect("binary")
+        )
+        .is_absolute()
+    );
+    assert_eq!(
+        repository.ctx(&["setup", "claude", "--hooks"])["changed_files"],
+        json!([])
+    );
+
+    let source_path = root.join("src/billing/subscription.py");
+    let clean = fs::read_to_string(&source_path).expect("read fixture");
+    repository.introduce_entitlement_regression();
+    run_git(root, &["add", "src/billing/subscription.py"]);
+    fs::write(source_path, clean).expect("restore worktree only");
+    let invoke = || {
+        let mut child = Command::new(env!("CARGO_BIN_EXE_ctx"))
+            .current_dir(root)
+            .args(["hook", "claude-pre-commit"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .expect("start Claude hook");
+        let payload = json!({"cwd": root, "tool_name":"Bash", "tool_input":{"command":"git commit -m guarded"}});
+        write!(child.stdin.take().expect("hook stdin"), "{payload}").expect("send hook input");
+        let output = child.wait_with_output().expect("hook result");
+        assert!(output.status.success());
+        output.stdout
+    };
+    let first: Value = serde_json::from_slice(&invoke()).expect("denial JSON");
+    let decision = &first["hookSpecificOutput"];
+    assert_eq!(decision["permissionDecision"], "deny");
+    assert!(
+        decision["permissionDecisionReason"]
+            .as_str()
+            .expect("reason")
+            .contains("INV-SUB-003")
+    );
+    assert!(invoke().is_empty());
 }

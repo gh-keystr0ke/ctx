@@ -4,6 +4,8 @@ All notable changes to `ctx` are documented here. The project follows semantic v
 
 ## Unreleased
 
+## 0.8.6 — 2026-11-17
+
 ### Security
 
 - Bundled SQLite is updated to 3.54 through `rusqlite` 0.42, fixing CVE-2026-119375 (RUSTSEC-2026-0459): a crafted database and `-wal` file pair could return uninitialized process memory.

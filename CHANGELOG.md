@@ -4,6 +4,16 @@ All notable changes to `ctx` are documented here. The project follows semantic v
 
 ## Unreleased
 
+### Security
+
+- Bundled SQLite is updated to 3.54 through `rusqlite` 0.42, fixing CVE-2026-119375 (RUSTSEC-2026-0459): a crafted database and `-wal` file pair could return uninitialized process memory.
+- `rustls` 0.23.46, `rustls-webpki` 0.103.17, and `webpki-roots` 1.0.12 fix RUSTSEC-2026-0346, -0347, -0348, -0349, -0381, and -0382 in the HTTPS client used for Jira and GitLab ingestion.
+
+### Changed
+
+- The minimum supported Rust version for building from source is now 1.90 (was 1.88), as required by `rusqlite` 0.42 and `tree-sitter` 0.27. Release binaries are unaffected.
+- Dependencies are updated: `tree-sitter` 0.27.2, `ureq` 3.5.2, `toml` 1.2.1, `serde_json` 1.0.154, `thiserror` 2.0.21, and `clap` 4.6.7.
+
 ### Fixed
 
 - `ctx verify --stale` no longer aborts the whole run, discarding every verdict, when the review agent mislabels, repeats, or skips one claim. Claims are now labelled `C1..Cn` in the prompt instead of by full fingerprint, bad decisions are dropped, undecided claims are asked once more, and any claim still undecided stays stale and is reported.

@@ -4,7 +4,13 @@ all-features = true
 [advisories]
 version = 2
 yanked = "deny"
-ignore = []
+ignore = [
+    # chrono is flagged unmaintained, with no safe upgrade. It is not a
+    # vulnerability, and ctx uses it only for current-time RFC 3339 stamps,
+    # one log-file timestamp, and one RFC 2822 Retry-After parse. Remove this
+    # entry once chrono is replaced.
+    { id = "RUSTSEC-2026-0543", reason = "unmaintained, no fix; narrow use, replacement tracked separately" },
+]
 
 [bans]
 multiple-versions = "warn"

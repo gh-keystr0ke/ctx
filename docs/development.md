@@ -5,7 +5,7 @@ cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 cargo test --workspace --locked
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
-cargo +1.88.0 check --workspace --all-targets --locked
+cargo +1.90.0 check --workspace --all-targets --locked
 ```
 
 The end-to-end tests build temporary real Git repositories. They cover the complete subscriptions product journey and a mixed Python/Rust/Go repository through initialization, indexing, language-scoped call resolution, status, and Rust/Go diff review.

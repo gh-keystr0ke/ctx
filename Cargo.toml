@@ -13,7 +13,7 @@ resolver = "2"
 [workspace.package]
 version = "0.8.5"
 edition = "2024"
-rust-version = "1.88"
+rust-version = "1.90"
 license = "Apache-2.0"
 description = "A local-first product-context engine that links product intent (Features, Requirements, Invariants, Decisions) to code, with provenance and confidence."
 repository = "https://github.com/gh-keystr0ke/ctx"
@@ -24,7 +24,7 @@ base64 = "0.23"
 blake3 = "1.8.2"
 chrono = { version = "0.4.41", default-features = false, features = ["clock", "serde"] }
 clap = { version = "4.5.45", features = ["derive"] }
-rusqlite = { version = "0.40.2", features = ["bundled"] }
+rusqlite = { version = "0.42.0", features = ["bundled"] }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.142"
 yaml_serde = "0.10.7"
@@ -33,7 +33,7 @@ thiserror = "2.0.16"
 toml = "1.1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "json"] }
-tree-sitter = "0.26.13"
+tree-sitter = "0.27.2"
 tree-sitter-python = "0.25.0"
 tree-sitter-rust = "0.24.2"
 tree-sitter-go = "0.25.0"

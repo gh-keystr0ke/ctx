@@ -6,7 +6,7 @@ There are two ways to get from zero to a usable `.context/` baseline: hand-autho
 
 ## 0. Prerequisites
 
-- Rust 1.88+ and Git installed, and the `ctx` binary on `PATH` (or built via `cargo install --locked --path crates/ctx-cli` from the `ctx` source tree).
+- Rust 1.90+ and Git installed, and the `ctx` binary on `PATH` (or built via `cargo install --locked --path crates/ctx-cli` from the `ctx` source tree).
 - A Git repository with at least one commit. `ctx index` always requires configured source to be committed; `.context/`/`.ctx-candidates/` require commits too unless they are redirected to a plain, non-Git context store.
 - Decide `languages` for `.ctx/config.toml` up front: `python`, `rust`, `go`, and `goose` (SQL migrations) are the built-in modules. Unsupported or empty language sets fail during repository discovery.
 - **Onboarding a repository you don't own or can't push into?** Run `ctx context-store set <path>` (add `--git` for the same commit-before-index guarantee this checkout's `.context/` normally has) *before* `ctx init`, so `.context/`/`.ctx-candidates/` are scaffolded at that redirected location instead of inside the checkout — nothing below writes into the repository itself. See `commands.md` for behavior and `authoring-context.md` for committed-versus-local paths.

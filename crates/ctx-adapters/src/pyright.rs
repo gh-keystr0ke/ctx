@@ -1215,7 +1215,7 @@ while True:
         fs::write(&source_path, "row = Model()\n").expect("source fixture");
         let executable = executable_fixture(temporary.path(), "server.py", FAKE_TYPE_SERVER);
         let mut server =
-            PyrightTypeServer::start(&executable, temporary.path(), None, Duration::from_secs(1))
+            PyrightTypeServer::start(&executable, temporary.path(), None, FIXTURE_STARTUP_TIMEOUT)
                 .expect("type server starts");
         let probe = TypeProbe {
             expression: "row".to_owned(),
@@ -1259,15 +1259,14 @@ while True:
     fn server_crash_aborts_startup() {
         let temporary = tempfile::tempdir().expect("temporary directory");
         let executable = executable_fixture(temporary.path(), "crash.py", "raise SystemExit(3)\n");
-        let error = PyrightTypeServer::start(
-            &executable,
-            temporary.path(),
-            None,
-            Duration::from_millis(200),
-        )
-        .err()
-        .expect("server crash");
-        assert!(matches!(error, PyrightError::Exited { .. }));
+        let error =
+            PyrightTypeServer::start(&executable, temporary.path(), None, FIXTURE_STARTUP_TIMEOUT)
+                .err()
+                .expect("server crash");
+        assert!(
+            matches!(error, PyrightError::Exited { .. }),
+            "got {error:?}"
+        );
     }
 
     #[cfg(unix)]
@@ -1279,15 +1278,11 @@ while True:
             "malformed.py",
             "import sys\nsys.stdout.buffer.write(b'Content-Length: 1\\r\\n\\r\\n{')\nsys.stdout.buffer.flush()\n",
         );
-        let error = PyrightTypeServer::start(
-            &executable,
-            temporary.path(),
-            None,
-            Duration::from_millis(200),
-        )
-        .err()
-        .expect("malformed response");
-        assert!(matches!(error, PyrightError::Protocol(_)));
+        let error =
+            PyrightTypeServer::start(&executable, temporary.path(), None, FIXTURE_STARTUP_TIMEOUT)
+                .err()
+                .expect("malformed response");
+        assert!(matches!(error, PyrightError::Protocol(_)), "got {error:?}");
     }
 
     #[cfg(unix)]
@@ -1314,6 +1309,12 @@ while True:
     }
 
     #[cfg(unix)]
+    /// Generous on purpose: these fixtures answer, crash, or misbehave right
+    /// away, so the timeout only bounds a hang. A tight value raced Python's
+    /// own startup under a parallel test run and reported `Timeout` instead
+    /// of the error the test expects.
+    const FIXTURE_STARTUP_TIMEOUT: Duration = Duration::from_secs(5);
+
     fn executable_fixture(directory: &Path, name: &str, body: &str) -> PathBuf {
         use std::os::unix::fs::PermissionsExt as _;
 

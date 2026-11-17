@@ -8,7 +8,7 @@ use ctx_adapters::{
     sqlite::SqliteStore,
     worktree::{PREVIEW_NOTICE, WorktreeSnapshot},
 };
-use ctx_app::status::IndexFreshness;
+use ctx_app::{ports::GitRepository, status::IndexFreshness};
 use ctx_core::domain::RepositoryId;
 use serde_json::{Value, json};
 
@@ -36,6 +36,7 @@ pub(crate) fn check(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
 }
 
 pub(crate) fn index_preview(cli: &Cli, git: &GitRepo, quiet: bool) -> Result<(), CliError> {
+    let head = git.head()?;
     let snapshot = WorktreeSnapshot::read(git)?;
     let destination = preview_path(git.root());
     let directory = git.root().join(".ctx");
@@ -43,7 +44,7 @@ pub(crate) fn index_preview(cli: &Cli, git: &GitRepo, quiet: bool) -> Result<(),
     git.ignore_local_state()?;
     let temp = tempfile::NamedTempFile::new_in(directory)?;
     let mut store = SqliteStore::open(temp.path(), git.context_root())?;
-    let report = snapshot.persist_preview(git, &mut store)?;
+    let report = snapshot.persist_preview(git, head, &mut store)?;
     drop(store);
     temp.persist(destination).map_err(|error| error.error)?;
     if cli.json {

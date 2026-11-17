@@ -29,7 +29,6 @@ use crate::{
 pub const PREVIEW_NOTICE: &str = "PREVIEW: uncommitted working tree";
 
 pub struct WorktreeSnapshot {
-    head: CommitMetadata,
     plan: IndexPlan,
     documents: Vec<BusinessDocument>,
 }
@@ -48,7 +47,6 @@ impl WorktreeSnapshot {
     /// # Errors
     /// Returns an error for invalid sources or product documents.
     pub fn read(git: &GitRepo) -> Result<Self, LocalIndexError> {
-        let head = git.head()?;
         let analyzer = AnalyzerRegistry::builtins(git.root(), &git.source_scope().languages)?;
         let documents = YamlBusinessContextReader::new(git.context_root().to_path_buf())
             .read_all()
@@ -77,11 +75,7 @@ impl WorktreeSnapshot {
             .collect::<Vec<_>>();
         let plan = plan_incremental_index(&RepositorySnapshot::default(), &analyses, &changes)
             .map_err(IndexError::from)?;
-        Ok(Self {
-            head,
-            plan,
-            documents,
-        })
+        Ok(Self { plan, documents })
     }
 
     /// Checks exact context mappings and offers canonical names for unmatched symbols.
@@ -166,30 +160,30 @@ impl WorktreeSnapshot {
     /// # Errors
     /// Returns an error if HEAD changed or the preview cannot be stored.
     pub fn persist_preview(
-        mut self,
+        self,
         git: &GitRepo,
+        mut head: CommitMetadata,
         store: &mut SqliteStore,
     ) -> Result<LocalIndexReport, LocalIndexError> {
-        if git.head_oid()? != self.head.oid {
+        if git.head_oid()? != head.oid {
             return Err(ctx_app::ports::PortError::new(
                 "HEAD changed during preview; retry the command",
             )
             .into());
         }
-        self.head.oid = self.head.oid.worktree();
-        self.head.parent_oid = None;
+        head.oid = head.oid.worktree();
+        head.parent_oid = None;
         let now = chrono::Utc::now().to_rfc3339();
         let repository = git.descriptor()?;
         store.ensure_repository(&repository, &now)?;
-        store.apply_index(&repository.id, &self.head, &now, &self.plan)?;
-        let business_context =
-            store.sync_context(&repository.id, &self.head, &now, &self.documents)?;
+        store.apply_index(&repository.id, &head, &now, &self.plan)?;
+        let business_context = store.sync_context(&repository.id, &head, &now, &self.documents)?;
         store
             .connection()
             .execute_batch("PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode=DELETE;")?;
         Ok(LocalIndexReport {
             code: IndexReport {
-                commit: self.head.oid.to_string(),
+                commit: head.oid.to_string(),
                 already_current: false,
                 stats: self.plan.stats,
                 failed_files: Vec::new(),

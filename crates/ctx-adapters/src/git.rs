@@ -244,6 +244,7 @@ impl GitRepo {
             ".ctx/ctx.db-shm",
             ".ctx/ctx.db-wal",
             ".ctx/index.lock",
+            ".ctx/preview.db",
             ".ctx/commit-review",
             ".ctx/commit-review.lock",
             ".ctx/registry.toml",

@@ -61,7 +61,7 @@ impl IndexStore for SqliteStore {
             .map_err(database_error)?
             .map(|(oid, parent_oid, authored_at)| {
                 Ok(CommitMetadata {
-                    oid: CommitOid::new(oid).map_err(domain_error)?,
+                    oid: CommitOid::from_index(oid).map_err(domain_error)?,
                     parent_oid: parent_oid
                         .map(CommitOid::new)
                         .transpose()

@@ -12,6 +12,9 @@ use crate::{Cli, CliError, database_path};
 pub enum ReportCommand {
     /// Generate a local, interactive static site.
     Html {
+        /// Render the isolated working-tree preview.
+        #[arg(long, conflicts_with = "refresh")]
+        preview: bool,
         /// Output directory (relative paths resolve from the repository root).
         #[arg(long)]
         out: Option<PathBuf>,
@@ -25,31 +28,47 @@ pub enum ReportCommand {
 }
 
 pub fn report(cli: &Cli, git: &GitRepo, command: &ReportCommand) -> Result<(), CliError> {
-    let database = database_path(git.root())?;
-    let store = SqliteStore::open(&database, git.context_root())?;
-    let data = ReportService::new(git, &store).build()?;
+    let preview = matches!(command, ReportCommand::Html { preview: true, .. });
+    let store = if preview {
+        crate::worktree_command::open_preview(git)?
+    } else {
+        SqliteStore::open(&database_path(git.root())?, git.context_root())?
+    };
+    let service = ReportService::new(git, &store);
+    let data = if preview {
+        service.build_preview()?
+    } else {
+        service.build()?
+    };
     let (format, requested, rendered) = match command {
-        ReportCommand::Html { out } => ("html", out.as_deref(), HtmlRenderer.render(&data)?),
+        ReportCommand::Html { out, .. } => ("html", out.as_deref(), HtmlRenderer.render(&data)?),
         ReportCommand::Markdown { out } => {
             ("markdown", out.as_deref(), MarkdownRenderer.render(&data)?)
         }
     };
-    let output = resolve_output(git.root(), requested, format);
+    let output = resolve_output(
+        git.root(),
+        requested,
+        if preview { "preview" } else { format },
+    );
     let file_count = rendered.files().len() + 1;
     rendered.write_to(&output)?;
-    git.ignore_local_state()?;
+    if !preview {
+        git.ignore_local_state()?;
+    }
     if cli.json {
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&json!({
-                "ok": true,
-                "format": format,
-                "path": output,
-                "source_commit": data.meta.source_commit,
-                "files": file_count,
-            }))?
-        );
+        let mut payload = json!({
+            "ok": true, "format": format, "path": output,
+            "source_commit": data.meta.source_commit, "files": file_count,
+        });
+        if preview {
+            crate::worktree_command::mark_preview(&mut payload);
+        }
+        println!("{}", serde_json::to_string_pretty(&payload)?);
     } else {
+        if preview {
+            println!("{}", ctx_adapters::worktree::PREVIEW_NOTICE);
+        }
         println!(
             "Generated {format} report with {file_count} files at {}",
             output.display()

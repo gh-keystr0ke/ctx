@@ -33,6 +33,7 @@ pub enum FreshnessState {
     Current,
     Behind,
     Dirty,
+    Preview,
     NotIndexed,
 }
 
@@ -43,6 +44,7 @@ impl IndexFreshness {
         let head = short_commit(&self.head);
         match self.state {
             FreshnessState::Current => None,
+            FreshnessState::Preview => Some("PREVIEW: uncommitted working tree".to_owned()),
             FreshnessState::Dirty => Some(format!(
                 "warning: index describes HEAD {head}; working tree has uncommitted index inputs"
             )),

@@ -93,6 +93,31 @@ impl CommitOid {
         Ok(Self(value.to_ascii_lowercase()))
     }
 
+    /// Marks an index reference as belonging to an uncommitted worktree.
+    #[must_use]
+    pub fn worktree(&self) -> Self {
+        if self.is_worktree() {
+            return self.clone();
+        }
+        Self(format!("worktree@{}", self.0))
+    }
+
+    /// Parses a reference from local index storage.
+    ///
+    /// # Errors
+    /// Returns an error if the underlying Git identifier is invalid.
+    pub fn from_index(value: String) -> Result<Self, InvalidIdentifier> {
+        if let Some(head) = value.strip_prefix("worktree@") {
+            return Self::new(head).map(|oid| oid.worktree());
+        }
+        Self::new(value)
+    }
+
+    #[must_use]
+    pub fn is_worktree(&self) -> bool {
+        self.0.starts_with("worktree@")
+    }
+
     pub fn as_str(&self) -> &str {
         &self.0
     }

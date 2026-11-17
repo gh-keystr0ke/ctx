@@ -176,8 +176,27 @@ where
     /// Returns [`ReportError`] when the index does not describe `HEAD` or any
     /// required Git, graph, artifact, or provenance data cannot be loaded.
     pub fn build(&self) -> Result<ReportData, ReportError> {
-        let status = StatusService::new(self.git, self.store).inspect()?;
-        if status.index_state != IndexState::Current {
+        self.build_mode(false)
+    }
+
+    /// Builds an isolated working-tree report.
+    ///
+    /// # Errors
+    /// Returns an error if the store does not contain a working-tree preview.
+    pub fn build_preview(&self) -> Result<ReportData, ReportError> {
+        self.build_mode(true)
+    }
+
+    fn build_mode(&self, preview: bool) -> Result<ReportData, ReportError> {
+        let mut status = StatusService::new(self.git, self.store).inspect()?;
+        let indexed_preview = status
+            .knowledge
+            .last_indexed_commit
+            .as_ref()
+            .filter(|commit| commit.is_worktree());
+        if preview != indexed_preview.is_some()
+            || (!preview && status.index_state != IndexState::Current)
+        {
             return Err(ReportError::RequiresCurrentIndex {
                 head: status.head_commit.to_string(),
                 indexed: status
@@ -186,6 +205,13 @@ where
                     .as_ref()
                     .map_or_else(|| "not indexed".to_owned(), ToString::to_string),
             });
+        }
+        if let Some(commit) = indexed_preview {
+            status.head_commit = commit.clone();
+            status
+                .notices
+                .insert(0, "PREVIEW: uncommitted working tree".to_owned());
+            status.suggested_actions.clear();
         }
         let repository = self.git.descriptor().map_err(ReportError::Store)?;
         let graph = self
@@ -202,13 +228,15 @@ where
             .map_err(ReportError::Store)?;
         let mut accepted = BTreeMap::new();
         for node in graph.nodes.values().filter(|node| {
-            matches!(
-                node.kind,
-                NodeKind::Feature
-                    | NodeKind::Requirement
-                    | NodeKind::Invariant
-                    | NodeKind::Decision
-            )
+            !preview && {
+                matches!(
+                    node.kind,
+                    NodeKind::Feature
+                        | NodeKind::Requirement
+                        | NodeKind::Invariant
+                        | NodeKind::Decision
+                )
+            }
         }) {
             if let Some(record) = self
                 .store
@@ -220,7 +248,7 @@ where
         }
         Ok(build_report_data(
             status,
-            repository.remote_url,
+            if preview { None } else { repository.remote_url },
             &graph,
             &artifacts,
             &links,

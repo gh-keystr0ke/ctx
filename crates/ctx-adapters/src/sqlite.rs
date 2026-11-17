@@ -118,6 +118,24 @@ impl SqliteStore {
         })
     }
 
+    /// Opens an existing preview without writing or migrating it.
+    ///
+    /// # Errors
+    /// Returns an error if the preview file cannot be opened.
+    pub fn open_preview(path: &Path, root: &Path) -> Result<Self, SqliteStoreError> {
+        let connection =
+            Connection::open_with_flags(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).map_err(
+                |source| SqliteStoreError::Open {
+                    path: path.display().to_string(),
+                    source,
+                },
+            )?;
+        Ok(Self {
+            connection,
+            root: root.to_path_buf(),
+        })
+    }
+
     pub const fn connection(&self) -> &Connection {
         &self.connection
     }

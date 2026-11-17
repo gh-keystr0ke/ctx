@@ -3281,3 +3281,72 @@ fn claude_setup_preserves_configuration_and_blocks_staged_findings_once() {
     );
     assert!(invoke().is_empty());
 }
+
+#[test]
+fn worktree_check_and_preview_leave_the_committed_database_intact() {
+    let repository = FixtureRepository::new();
+    repository.ctx(&["init"]);
+    let root = repository.root();
+    let database = root.join(".ctx/ctx.db");
+    let initial = fs::read(&database).expect("empty committed index");
+    let named = root.join(".context/requirements/cancel-at-period-end.yaml");
+    let document = fs::read_to_string(&named).expect("read requirement");
+    let correct = "billing.subscription.SubscriptionService.cancel";
+    let invalid = "billing.SubscriptionService.cancel";
+    assert!(document.contains(correct));
+    fs::write(&named, document.replace(correct, invalid)).expect("write invalid link");
+    let bad = Command::new(env!("CARGO_BIN_EXE_ctx"))
+        .current_dir(root)
+        .args(["check", "--json"])
+        .output()
+        .expect("run check");
+    assert_eq!(bad.status.code(), Some(1));
+    let report: Value = serde_json::from_slice(&bad.stdout).expect("invalid links report");
+    assert_eq!(report["issues"][0]["suggestions"][0], correct);
+    assert_eq!(fs::read(&database).expect("unchanged index"), initial);
+    fs::write(&named, document).expect("restore requirement");
+    assert_eq!(repository.ctx(&["check"])["ok"], true);
+    repository.ctx(&["index"]);
+
+    let base = fs::read(&database).expect("committed index");
+    let source = root.join("src/worktree_only.py");
+    fs::write(source, "def preview_only():\n    pass\n").expect("add uncommitted source");
+    let preview = repository.ctx(&["index", "--preview"]);
+    assert!(
+        preview["commit"]
+            .as_str()
+            .expect("synthetic commit")
+            .starts_with("worktree@")
+    );
+    assert_eq!(preview["valid_for_git"], false);
+    let impact = repository.ctx(&["impact", "worktree_only.preview_only", "--preview"]);
+    assert_eq!(impact["index"]["state"], "preview");
+    assert_eq!(
+        impact["matches"][0]["selected"][0]["identifier"],
+        "worktree_only.preview_only"
+    );
+    let explain = repository.ctx(&["explain", "worktree_only.preview_only", "--preview"]);
+    assert_eq!(explain["valid_for_git"], false);
+    let context = repository.ctx(&[
+        "context",
+        "working tree",
+        "--symbol",
+        "worktree_only.preview_only",
+        "--preview",
+    ]);
+    assert_eq!(context["index"]["state"], "preview");
+    assert!(
+        repository
+            .ctx_text(&["impact", "worktree_only.preview_only", "--preview"])
+            .starts_with("PREVIEW: uncommitted working tree")
+    );
+    let report = repository.ctx(&["report", "html", "--preview"]);
+    assert_eq!(report["valid_for_git"], false);
+    let site = Path::new(report["path"].as_str().expect("report path"));
+    assert!(
+        fs::read_to_string(site.join("index.html"))
+            .expect("report page")
+            .contains("PREVIEW: uncommitted working tree")
+    );
+    assert_eq!(fs::read(&database).expect("committed index"), base);
+}

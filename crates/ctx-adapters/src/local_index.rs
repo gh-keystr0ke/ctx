@@ -46,7 +46,7 @@ pub enum LocalIndexError {
     Index(#[from] IndexError),
     #[error(transparent)]
     Context(#[from] ContextImportError),
-    #[error("HEAD contains {} invalid source file(s)", .0.len())]
+    #[error("index inputs contain {} invalid source file(s)", .0.len())]
     InvalidFiles(Vec<InvalidFile>),
     #[error("index transaction failed: {0}")]
     Transaction(#[from] rusqlite::Error),

@@ -70,6 +70,7 @@ mod status_command;
 mod tab_title;
 mod type_inference_command;
 mod verify_command;
+mod worktree_command;
 
 use agent_dispatch::ConfiguredAgent;
 use artifacts_command::{ArtifactsCommand, artifacts};
@@ -149,6 +150,9 @@ enum Command {
         /// Validate and index the exact Git HEAD snapshot, even on a dirty worktree.
         #[arg(long)]
         from_head: bool,
+        /// Build a separate index from uncommitted worktree files.
+        #[arg(long, conflicts_with = "from_head")]
+        preview: bool,
         /// Suppress successful index output.
         #[arg(long)]
         quiet: bool,
@@ -183,10 +187,15 @@ enum Command {
     },
     /// Show current index health and counts.
     Status,
+    /// Validate worktree context documents and their symbol links.
+    Check,
     /// Show bounded product and implementation impact for a file or symbol.
     Impact {
         /// Indexed symbol, file, product ID, or data contract.
         target: String,
+        /// Query the isolated working-tree preview.
+        #[arg(long, conflicts_with = "refresh")]
+        preview: bool,
     },
     /// Explain a node or a directed `source -> target` claim.
     Explain {
@@ -199,6 +208,9 @@ enum Command {
         /// like `ctx trace`, gated the same way by `--verbose`.
         #[arg(long)]
         trace: bool,
+        /// Query the isolated working-tree preview.
+        #[arg(long, conflicts_with = "refresh")]
+        preview: bool,
     },
     /// Trace an HTTP endpoint's request sequence: its handler, the data it
     /// reads/writes, its outbound calls, and (crossing into a synchronized
@@ -321,6 +333,9 @@ enum Command {
         symbol: Vec<String>,
         #[arg(long, default_value_t = 4_000)]
         token_budget: usize,
+        /// Query the isolated working-tree preview.
+        #[arg(long, conflicts_with = "refresh")]
+        preview: bool,
     },
     /// Manage local neighboring repository checkouts.
     Registry {
@@ -486,6 +501,8 @@ enum CliError {
     Review(#[from] ReviewError),
     #[error("review found blocking changes")]
     ReviewBlocked,
+    #[error("context validation failed")]
+    CheckFailed,
     #[error(transparent)]
     Status(#[from] StatusError),
     #[error(transparent)]
@@ -572,7 +589,7 @@ fn main() -> ExitCode {
     let cli = Cli::parse();
     match execute(&cli) {
         Ok(()) => ExitCode::SUCCESS,
-        Err(CliError::ReviewBlocked) => ExitCode::FAILURE,
+        Err(CliError::ReviewBlocked | CliError::CheckFailed) => ExitCode::FAILURE,
         Err(CliError::Index(LocalIndexError::InvalidFiles(files))) => {
             if cli.json {
                 println!("{}", json!({"ok": false, "invalid_files": files}));
@@ -631,12 +648,27 @@ fn execute(cli: &Cli) -> Result<(), CliError> {
 fn run(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
     match &cli.command {
         Command::Init => initialize(cli, git),
-        Command::Index { from_head, quiet } => index(cli, git, *from_head, *quiet),
+        Command::Index {
+            from_head,
+            quiet,
+            preview,
+        } => {
+            if *preview {
+                worktree_command::index_preview(cli, git, *quiet)
+            } else {
+                index(cli, git, *from_head, *quiet)
+            }
+        }
+        Command::Check => worktree_command::check(cli, git),
         Command::Hooks { command } => hooks_command::run(cli, git, command),
         command @ Command::InferTypes { .. } => infer_types_command(cli, git, command),
         Command::Status => status(cli, git),
-        Command::Impact { target } => impact(cli, git, target),
-        Command::Explain { target, trace } => explain(cli, git, target, *trace),
+        Command::Impact { target, preview } => impact(cli, git, target, *preview),
+        Command::Explain {
+            target,
+            trace,
+            preview,
+        } => explain(cli, git, target, *trace, *preview),
         Command::Trace {
             target,
             federation_continuation,
@@ -656,7 +688,8 @@ fn run(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
             file,
             symbol,
             token_budget,
-        } => context(cli, git, task, file, symbol, *token_budget),
+            preview,
+        } => context(cli, git, task, file, symbol, *token_budget, *preview),
         Command::Registry { command } => registry(cli, git, command),
         Command::ContextStore { command } => context_store(cli, git, command),
         Command::Export { out } => export(cli, git, out.as_deref()),
@@ -727,6 +760,7 @@ impl Command {
             Self::Hooks { .. } => "hooks",
             Self::InferTypes { .. } => "infer-types",
             Self::Status => "status",
+            Self::Check => "check",
             Self::Impact { .. } => "impact",
             Self::Explain { .. } => "explain",
             Self::Trace { .. } => "trace",
@@ -1061,11 +1095,10 @@ fn context(
     files: &[String],
     symbols: &[String],
     token_budget: usize,
+    preview: bool,
 ) -> Result<(), CliError> {
-    let database_path = database_path(git.root())?;
-    let mut store = SqliteStore::open(&database_path, git.context_root())?;
     let repository = git.descriptor()?;
-    let freshness = query_freshness(cli, git, &mut store, &repository.id)?;
+    let (store, freshness) = worktree_command::query_store(cli, git, &repository.id, preview)?;
     let request = ContextRequest {
         task: task.to_owned(),
         files: files.to_vec(),
@@ -1076,6 +1109,9 @@ fn context(
     if cli.json {
         let mut payload = serde_json::to_value(&pack)?;
         payload["index"] = serde_json::to_value(&freshness)?;
+        if preview {
+            worktree_command::mark_preview(&mut payload);
+        }
         println!("{}", serde_json::to_string_pretty(&payload)?);
         return Ok(());
     }
@@ -1176,19 +1212,16 @@ fn review(
     Ok(())
 }
 
-fn impact(cli: &Cli, git: &GitRepo, target: &str) -> Result<(), CliError> {
-    let database_path = database_path(git.root())?;
-    let mut store = SqliteStore::open(&database_path, git.context_root())?;
+fn impact(cli: &Cli, git: &GitRepo, target: &str, preview: bool) -> Result<(), CliError> {
     let repository = git.descriptor()?;
-    let freshness = query_freshness(cli, git, &mut store, &repository.id)?;
+    let (store, freshness) = worktree_command::query_store(cli, git, &repository.id, preview)?;
     let reports = QueryService::new(&store).impact(&repository.id, target)?;
     if cli.json {
-        println!(
-            "{}",
-            serde_json::to_string_pretty(
-                &json!({"query": target, "matches": reports, "index": freshness})
-            )?
-        );
+        let mut payload = json!({"query": target, "matches": reports, "index": freshness});
+        if preview {
+            worktree_command::mark_preview(&mut payload);
+        }
+        println!("{}", serde_json::to_string_pretty(&payload)?);
         return Ok(());
     }
     let total = reports.len();
@@ -1229,19 +1262,26 @@ fn impact(cli: &Cli, git: &GitRepo, target: &str) -> Result<(), CliError> {
     Ok(())
 }
 
-fn explain(cli: &Cli, git: &GitRepo, target: &str, want_trace: bool) -> Result<(), CliError> {
-    let database_path = database_path(git.root())?;
-    let mut store = SqliteStore::open(&database_path, git.context_root())?;
+fn explain(
+    cli: &Cli,
+    git: &GitRepo,
+    target: &str,
+    want_trace: bool,
+    preview: bool,
+) -> Result<(), CliError> {
     let repository = git.descriptor()?;
-    let freshness = query_freshness(cli, git, &mut store, &repository.id)?;
+    let (store, freshness) = worktree_command::query_store(cli, git, &repository.id, preview)?;
     let explanations = QueryService::new(&store).explain(&repository.id, target)?;
     let traces = want_trace
-        .then(|| traces_for_implementation(cli, git, &store, &explanations))
+        .then(|| traces_for_implementation(cli, git, &store, &explanations, &freshness))
         .transpose()?;
     if cli.json {
         let mut payload = json!({"query": target, "matches": explanations, "index": freshness});
         if let Some(traces) = &traces {
             payload["traces"] = serde_json::to_value(traces)?;
+        }
+        if preview {
+            worktree_command::mark_preview(&mut payload);
         }
         println!("{}", serde_json::to_string_pretty(&payload)?);
         return Ok(());
@@ -1326,10 +1366,15 @@ fn traces_for_implementation(
     git: &GitRepo,
     store: &SqliteStore,
     explanations: &[ctx_core::explain::Explanation],
+    freshness: &IndexFreshness,
 ) -> Result<Vec<EndpointTrace>, CliError> {
     let repository = git.descriptor()?;
     let graph = store.load_graph(&repository.id)?;
-    let local_commit = git.head()?.oid.to_string();
+    let local_commit = freshness
+        .commit
+        .as_ref()
+        .unwrap_or(&freshness.head)
+        .to_string();
     let service = git.service_name().unwrap_or("").to_owned();
     let registry = NeighborRegistry::load(git.root())?;
     let binary = federation_binary()?;

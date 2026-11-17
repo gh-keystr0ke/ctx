@@ -44,6 +44,7 @@ Run every non-trivial coding task through this shape. Steps 1 and 4 are not opti
 3.  ...edit the code...
 4. ctx review --base <branch point> --json                 # ALWAYS, before calling the task done / opening a PR / committing
 5. Update .context/ if this changed a product contract        # see "Keep .context/ in sync" below
+   ctx check                                               # validate worktree context after editing it
 6. git commit                                               # only after 4 and 5
 ```
 

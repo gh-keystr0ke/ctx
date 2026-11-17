@@ -23,3 +23,5 @@ pub mod pyright;
 pub mod python;
 pub mod rust;
 pub mod sqlite;
+
+pub mod worktree;

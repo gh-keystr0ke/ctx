@@ -1,0 +1,15 @@
+id: ADR-INDEX-PREVIEW-001
+type: decision
+feature: FEAT-INDEXING
+title: Isolate uncommitted context and source previews
+status: accepted
+decision: >
+  Context checks analyze worktree files without opening the database. Preview
+  indexing writes to preview.db and labels its validity boundary worktree@HEAD.
+  Preview results have no Git validity. Only explicit preview queries read this
+  database. The committed-inputs rule still applies to the primary index.
+implementation:
+  - symbol: ctx_adapters.worktree.WorktreeSnapshot.read
+  - symbol: ctx_adapters.worktree.WorktreeSnapshot.persist_preview
+tests:
+  - symbol: crates.ctx-cli.tests.e2e.worktree_check_and_preview_leave_the_committed_database_intact

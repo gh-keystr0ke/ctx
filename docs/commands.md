@@ -124,3 +124,15 @@ Run `ctx hooks install` to refresh the local index after commits, merges, checko
 The hooks use Git's `core.hooksPath` when configured.
 Indexing runs in the background and records errors in `.ctx/logs/hooks.log`.
 Run `ctx hooks uninstall` to remove the ctx blocks.
+
+## Check context and preview uncommitted files
+
+Run `ctx check` after editing `.context/`. The command reads the working tree
+and checks documents, feature links, and exact symbol names.
+For an unresolved symbol, it suggests indexed-style names from the working tree.
+Exit code 1 means a check failed.
+
+Run `ctx index --preview` to build `.ctx/preview.db` from the working tree.
+Use `--preview` with `impact`, `explain`, `context`, or `report html` to read it.
+The output identifies the snapshot as `worktree@<HEAD>` and invalid for Git.
+Build the preview again after you edit its inputs.

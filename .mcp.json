@@ -1,8 +1,8 @@
 {
   "mcpServers": {
     "ctx": {
-      "command": "cargo",
-      "args": ["run", "--release", "--bin", "ctx", "--", "serve", "--mcp"]
+      "command": "ctx",
+      "args": ["serve", "--mcp"]
     }
   }
 }

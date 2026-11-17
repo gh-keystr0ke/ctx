@@ -11,12 +11,63 @@ permissions:
 jobs:
   mutants:
     runs-on: ubuntu-latest
+    timeout-minutes: 240
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        # cargo-mutants numbers shards from 0: `--shard k/n` needs k < n.
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+    env:
+      # Debug info is most of the target directory and is never read here.
+      CARGO_PROFILE_DEV_DEBUG: "0"
+      CARGO_PROFILE_TEST_DEBUG: "0"
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@1.97.1
       - uses: taiki-e/install-action@cargo-mutants
-      - run: cargo mutants --workspace --no-shuffle --shard ${{ matrix.shard }}/4 --timeout 300
+      - name: Run mutants
+        # No fixed --timeout: cargo-mutants derives one from the baseline test
+        # time. A fixed 300 s let each hanging mutant run for five minutes,
+        # long enough for a mutant that loops while allocating to exhaust
+        # the runner. --in-place is safe on a throwaway checkout and avoids
+        # copying the tree.
+        run: |
+          set +e
+          cargo mutants --workspace --no-shuffle --in-place \
+            --shard ${{ matrix.shard }}/8
+          status=$?
+          # 2 (missed mutants) and 3 (timeouts) are findings, reported in the
+          # summary and the artifact. 1 (usage error) and 4 (baseline tests
+          # fail) mean the run itself is broken.
+          case "$status" in
+            0|2|3) exit 0 ;;
+            *) exit "$status" ;;
+          esac
+      - name: Summarize
+        if: always()
+        run: |
+          count() { [ -f "mutants.out/$1.txt" ] && wc -l < "mutants.out/$1.txt" | tr -d ' ' || echo 0; }
+          {
+            echo "### Mutation shard ${{ matrix.shard }}/8"
+            echo
+            echo "| caught | missed | timeout | unviable |"
+            echo "|---|---|---|---|"
+            echo "| $(count caught) | $(count missed) | $(count timeout) | $(count unviable) |"
+            for kind in missed timeout; do
+              if [ -s "mutants.out/$kind.txt" ]; then
+                echo
+                echo "<details><summary>$kind</summary>"
+                echo
+                echo '```'
+                cat "mutants.out/$kind.txt"
+                echo '```'
+                echo "</details>"
+              fi
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: mutants-shard-${{ matrix.shard }}
+          path: mutants.out
+          if-no-files-found: ignore

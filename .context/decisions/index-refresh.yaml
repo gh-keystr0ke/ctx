@@ -1,0 +1,16 @@
+id: ADR-INDEX-REFRESH-001
+type: decision
+feature: FEAT-INDEXING
+title: Refresh the local index before MCP queries
+status: accepted
+decision: >
+  Queries report the indexed commit and HEAD. Automatic refresh requires clean
+  index inputs and writes only to the local index and its lock file. MCP never
+  modifies Git or product documents. If refresh cannot finish within the wait
+  limit, MCP warns the caller and lets the refresh finish in the background.
+  The get_status tool inspects the index without refreshing it.
+implementation:
+  - symbol: ctx_adapters.local_index.refresh_in_background
+  - symbol: ctx_app.status.index_freshness
+tests:
+  - symbol: ctx_mcp.tests.refreshes_clean_head_and_warns_when_newer_head_has_dirty_inputs

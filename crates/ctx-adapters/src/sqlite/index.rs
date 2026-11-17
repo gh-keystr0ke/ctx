@@ -10,7 +10,7 @@ use ctx_core::{
         RepositorySnapshot,
     },
 };
-use rusqlite::{OptionalExtension, Transaction, params};
+use rusqlite::{Connection, OptionalExtension, params};
 
 use super::SqliteStore;
 
@@ -85,7 +85,7 @@ impl IndexStore for SqliteStore {
         indexed_at: &str,
         plan: &IndexPlan,
     ) -> Result<(), PortError> {
-        let transaction = self.connection.transaction().map_err(database_error)?;
+        let transaction = self.connection.savepoint().map_err(database_error)?;
         let repository_row = repository_row(&transaction, repository)?;
         let commit_row = insert_commit(&transaction, repository_row, commit, indexed_at)?;
         close_derived_edges(&transaction, repository_row, commit_row, plan)?;
@@ -293,10 +293,7 @@ impl SqliteStore {
     }
 }
 
-fn repository_row(
-    transaction: &Transaction<'_>,
-    repository: &RepositoryId,
-) -> Result<i64, PortError> {
+fn repository_row(transaction: &Connection, repository: &RepositoryId) -> Result<i64, PortError> {
     transaction
         .prepare_cached("SELECT id FROM repositories WHERE stable_id = ?1")
         .map_err(database_error)?
@@ -305,7 +302,7 @@ fn repository_row(
 }
 
 fn insert_commit(
-    transaction: &Transaction<'_>,
+    transaction: &Connection,
     repository_row: i64,
     commit: &CommitMetadata,
     indexed_at: &str,
@@ -335,7 +332,7 @@ fn insert_commit(
 }
 
 fn close_derived_edges(
-    transaction: &Transaction<'_>,
+    transaction: &Connection,
     repository_row: i64,
     commit_row: i64,
     plan: &IndexPlan,
@@ -356,7 +353,7 @@ fn close_derived_edges(
 }
 
 fn retire_nodes(
-    transaction: &Transaction<'_>,
+    transaction: &Connection,
     repository_row: i64,
     commit_row: i64,
     plan: &IndexPlan,
@@ -393,7 +390,7 @@ fn retire_nodes(
 }
 
 fn persist_node(
-    transaction: &Transaction<'_>,
+    transaction: &Connection,
     repository_row: i64,
     commit_row: i64,
     node: &PlannedNode,
@@ -448,7 +445,7 @@ fn persist_node(
 }
 
 fn mark_semantic_edges_stale(
-    transaction: &Transaction<'_>,
+    transaction: &Connection,
     repository_row: i64,
     plan: &IndexPlan,
 ) -> Result<(), PortError> {
@@ -471,7 +468,7 @@ fn mark_semantic_edges_stale(
 }
 
 fn persist_edge(
-    transaction: &Transaction<'_>,
+    transaction: &Connection,
     repository_row: i64,
     commit_row: i64,
     indexed_at: &str,
@@ -546,10 +543,7 @@ fn persist_edge(
     Ok(())
 }
 
-fn replace_derived_edge_inputs(
-    transaction: &Transaction<'_>,
-    edge_row: i64,
-) -> Result<(), PortError> {
+fn replace_derived_edge_inputs(transaction: &Connection, edge_row: i64) -> Result<(), PortError> {
     let evidence_rows = {
         let mut statement = transaction
             .prepare_cached(
@@ -611,7 +605,7 @@ fn replace_derived_edge_inputs(
 }
 
 fn persist_static_evidence(
-    transaction: &Transaction<'_>,
+    transaction: &Connection,
     repository_row: i64,
     commit_row: i64,
     indexed_at: &str,
@@ -661,7 +655,7 @@ fn persist_static_evidence(
 }
 
 fn node_row(
-    transaction: &Transaction<'_>,
+    transaction: &Connection,
     repository_row: i64,
     stable_key: &StableKey,
 ) -> Result<Option<i64>, PortError> {

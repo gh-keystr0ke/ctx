@@ -17,6 +17,7 @@ pub mod goose;
 pub mod http_retry;
 pub mod jira;
 pub mod language;
+pub mod local_index;
 pub mod openapi;
 pub mod pyright;
 pub mod python;

@@ -172,7 +172,7 @@ Every full flag list, plus what each output stream means, is in **[docs/commands
 }
 ```
 
-Initialize and index the repository first. The server exposes five read-only tools (`get_context`, `get_impact`, `explain_relation`, `find_requirements`, `review_change`) mirroring the CLI commands above. Details: **[docs/mcp.md](docs/mcp.md)**.
+Run `ctx init` before you start the server. MCP exposes six tools, including `get_status`. See [MCP integration](docs/mcp.md).
 
 ## Docker
 

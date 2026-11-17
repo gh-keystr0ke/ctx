@@ -31,6 +31,7 @@ pub enum GitError {
     Config { path: String, message: String },
 }
 
+#[derive(Clone)]
 pub struct GitRepo {
     root: PathBuf,
     /// Where `.context/` and `.ctx-candidates/` are read from and written
@@ -50,6 +51,7 @@ pub struct GitRepo {
     /// before the `origin/HEAD` / `main` / `master` fallback in
     /// [`GitRepo::default_branch_revision`].
     configured_default_branch: Option<String>,
+    auto_index: AutoIndex,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -60,6 +62,8 @@ struct ConfigFile {
     paths: ConfigPaths,
     service: Option<ConfigService>,
     git: Option<ConfigGit>,
+    #[serde(default)]
+    index: ConfigIndex,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -70,6 +74,21 @@ struct ConfigService {
 #[derive(Clone, Debug, Deserialize)]
 struct ConfigGit {
     default_branch: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum AutoIndex {
+    #[default]
+    Mcp,
+    Always,
+    Never,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+struct ConfigIndex {
+    #[serde(default)]
+    auto: AutoIndex,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -95,6 +114,7 @@ struct RepositoryConfiguration {
     /// before the `origin/HEAD` / `main` / `master` fallback in
     /// [`GitRepo::default_branch_revision`].
     configured_default_branch: Option<String>,
+    auto_index: AutoIndex,
 }
 
 impl Default for RepositoryConfiguration {
@@ -104,6 +124,7 @@ impl Default for RepositoryConfiguration {
             path_filter: PathFilter::default(),
             service_name: None,
             configured_default_branch: None,
+            auto_index: AutoIndex::default(),
         }
     }
 }
@@ -160,7 +181,12 @@ impl GitRepo {
             path_filter: configuration.path_filter,
             service_name: configuration.service_name,
             configured_default_branch: configuration.configured_default_branch,
+            auto_index: configuration.auto_index,
         })
+    }
+
+    pub const fn auto_index(&self) -> AutoIndex {
+        self.auto_index
     }
 
     pub fn root(&self) -> &Path {
@@ -432,6 +458,11 @@ impl GitRepository for GitRepo {
             parent_oid,
             authored_at,
         })
+    }
+
+    fn head_oid(&self) -> Result<CommitOid, PortError> {
+        let oid = self.resolve_revision("HEAD").map_err(port_error)?;
+        CommitOid::new(oid).map_err(|error| PortError::new(error.to_string()))
     }
 
     fn all_source_files(&self) -> Result<Vec<String>, PortError> {
@@ -952,6 +983,7 @@ fn load_configuration(root: &Path) -> Result<RepositoryConfiguration, GitError> 
         },
         service_name,
         configured_default_branch,
+        auto_index: config.index.auto,
     })
 }
 

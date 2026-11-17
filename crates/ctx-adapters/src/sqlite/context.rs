@@ -6,7 +6,7 @@ use ctx_core::{
     domain::{CommitOid, RelationKind, RepositoryId, StableKey},
     indexing::PlannedNodeAttributes,
 };
-use rusqlite::{OptionalExtension, Transaction, params};
+use rusqlite::{Connection, OptionalExtension, params};
 
 use super::SqliteStore;
 
@@ -24,7 +24,7 @@ impl BusinessContextStore for SqliteStore {
         indexed_at: &str,
         documents: &[BusinessDocument],
     ) -> Result<ContextImportStats, PortError> {
-        let transaction = self.connection.transaction().map_err(database_error)?;
+        let transaction = self.connection.savepoint().map_err(database_error)?;
         let repository_row = repository_row(&transaction, repository)?;
         let commit_row = commit_row(&transaction, repository_row, &commit.oid)?;
         let current = current_business_nodes(&transaction, repository_row)?;
@@ -86,7 +86,7 @@ impl BusinessContextStore for SqliteStore {
 }
 
 fn retire_removed_documents(
-    transaction: &Transaction<'_>,
+    transaction: &Connection,
     repository_row: i64,
     commit_row: i64,
     current: &BTreeMap<StableKey, CurrentBusinessNode>,
@@ -118,7 +118,7 @@ fn retire_removed_documents(
 }
 
 fn persist_document(
-    transaction: &Transaction<'_>,
+    transaction: &Connection,
     repository_row: i64,
     commit_row: i64,
     document: &BusinessDocument,
@@ -207,7 +207,7 @@ fn persist_document(
 
 #[allow(clippy::too_many_arguments)]
 fn persist_document_claims(
-    transaction: &Transaction<'_>,
+    transaction: &Connection,
     repository_row: i64,
     commit_row: i64,
     indexed_at: &str,
@@ -273,7 +273,7 @@ fn persist_document_claims(
 
 #[allow(clippy::too_many_arguments)]
 fn persist_symbol_claim(
-    transaction: &Transaction<'_>,
+    transaction: &Connection,
     repository_row: i64,
     commit_row: i64,
     indexed_at: &str,
@@ -317,7 +317,7 @@ fn persist_symbol_claim(
 
 #[allow(clippy::too_many_arguments)]
 fn create_claim_if_missing(
-    transaction: &Transaction<'_>,
+    transaction: &Connection,
     repository_row: i64,
     commit_row: i64,
     indexed_at: &str,
@@ -401,7 +401,7 @@ fn create_claim_if_missing(
 }
 
 fn ensure_source(
-    transaction: &Transaction<'_>,
+    transaction: &Connection,
     repository_row: i64,
     commit_row: i64,
     indexed_at: &str,
@@ -444,7 +444,7 @@ fn ensure_source(
 }
 
 fn close_document_edges(
-    transaction: &Transaction<'_>,
+    transaction: &Connection,
     repository_row: i64,
     commit_row: i64,
     source_uri: &str,
@@ -491,7 +491,7 @@ fn close_document_edges(
 }
 
 fn current_business_nodes(
-    transaction: &Transaction<'_>,
+    transaction: &Connection,
     repository_row: i64,
 ) -> Result<BTreeMap<StableKey, CurrentBusinessNode>, PortError> {
     let mut statement = transaction
@@ -532,7 +532,7 @@ fn current_business_nodes(
 }
 
 fn current_symbol_keys(
-    transaction: &Transaction<'_>,
+    transaction: &Connection,
     repository_row: i64,
 ) -> Result<BTreeMap<String, Vec<StableKey>>, PortError> {
     let mut statement = transaction
@@ -578,7 +578,7 @@ fn add_symbol_lookup(
 }
 
 fn current_intent_keys(
-    transaction: &Transaction<'_>,
+    transaction: &Connection,
     repository_row: i64,
 ) -> Result<BTreeMap<String, StableKey>, PortError> {
     let current = current_business_nodes(transaction, repository_row)?;
@@ -592,10 +592,7 @@ fn current_intent_keys(
         .collect())
 }
 
-fn repository_row(
-    transaction: &Transaction<'_>,
-    repository: &RepositoryId,
-) -> Result<i64, PortError> {
+fn repository_row(transaction: &Connection, repository: &RepositoryId) -> Result<i64, PortError> {
     transaction
         .prepare_cached("SELECT id FROM repositories WHERE stable_id = ?1")
         .map_err(database_error)?
@@ -604,7 +601,7 @@ fn repository_row(
 }
 
 fn commit_row(
-    transaction: &Transaction<'_>,
+    transaction: &Connection,
     repository_row: i64,
     commit: &CommitOid,
 ) -> Result<i64, PortError> {
@@ -616,7 +613,7 @@ fn commit_row(
 }
 
 fn required_node_row(
-    transaction: &Transaction<'_>,
+    transaction: &Connection,
     repository_row: i64,
     stable_key: &StableKey,
 ) -> Result<i64, PortError> {

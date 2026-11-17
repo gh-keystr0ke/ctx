@@ -1,5 +1,5 @@
 use ctx_core::{
-    domain::CommitOid,
+    domain::{CommitOid, RepositoryId},
     schema::{SchemaDivergence, reconcile_orm_and_migrations},
     verification::{intents_without_mapping, stale_semantic_claims},
 };
@@ -16,6 +16,91 @@ pub enum IndexState {
     NotIndexed,
     Behind,
     Current,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct IndexFreshness {
+    pub commit: Option<CommitOid>,
+    pub head: CommitOid,
+    pub state: FreshnessState,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FreshnessState {
+    Current,
+    Behind,
+    Dirty,
+    NotIndexed,
+}
+
+impl IndexFreshness {
+    #[must_use]
+    pub fn warning(&self) -> Option<String> {
+        let reason = self.reason.as_deref().unwrap_or("refresh is disabled");
+        let head = short_commit(&self.head);
+        match self.state {
+            FreshnessState::Current => None,
+            FreshnessState::Dirty => Some(format!(
+                "warning: index describes HEAD {head}; working tree has uncommitted index inputs"
+            )),
+            FreshnessState::NotIndexed => Some(format!(
+                "warning: HEAD {head} is not indexed ({reason}); run 'ctx index'"
+            )),
+            FreshnessState::Behind => {
+                let commit = self.commit.as_ref().map_or("unknown", short_commit);
+                Some(format!(
+                    "warning: index is at {commit}, HEAD is {head} ({reason}); run 'ctx index'"
+                ))
+            }
+        }
+    }
+}
+
+fn short_commit(commit: &CommitOid) -> &str {
+    commit.as_str().get(..7).unwrap_or(commit.as_str())
+}
+
+fn classify_freshness(head: &CommitOid, indexed: Option<&CommitOid>) -> IndexState {
+    match indexed {
+        None => IndexState::NotIndexed,
+        Some(indexed) if indexed == head => IndexState::Current,
+        Some(_) => IndexState::Behind,
+    }
+}
+
+/// Inspects the indexed commit and the current worktree without loading the graph.
+///
+/// # Errors
+/// Returns [`StatusError`] when Git or the store cannot be read.
+pub fn index_freshness(
+    git: &impl GitRepository,
+    store: &impl IndexStore,
+    repository: &RepositoryId,
+) -> Result<IndexFreshness, StatusError> {
+    let head = git.head_oid().map_err(StatusError::Git)?;
+    let commit = store
+        .latest_commit(repository)
+        .map_err(StatusError::Storage)?
+        .map(|commit| commit.oid);
+    let dirty = !git
+        .uncommitted_index_inputs()
+        .map_err(StatusError::Git)?
+        .is_empty();
+    let state = match classify_freshness(&head, commit.as_ref()) {
+        IndexState::NotIndexed => FreshnessState::NotIndexed,
+        IndexState::Behind => FreshnessState::Behind,
+        IndexState::Current if dirty => FreshnessState::Dirty,
+        IndexState::Current => FreshnessState::Current,
+    };
+    Ok(IndexFreshness {
+        commit,
+        head,
+        state,
+        reason: dirty.then(|| "working tree has uncommitted index inputs".to_owned()),
+    })
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -145,11 +230,7 @@ fn build_report(
         unmapped_intents,
         stale_claims,
     } = analysis;
-    let index_state = match &knowledge.last_indexed_commit {
-        None => IndexState::NotIndexed,
-        Some(indexed) if indexed == &head_commit => IndexState::Current,
-        Some(_) => IndexState::Behind,
-    };
+    let index_state = classify_freshness(&head_commit, knowledge.last_indexed_commit.as_ref());
     let health = classify_health(
         index_state,
         &knowledge,

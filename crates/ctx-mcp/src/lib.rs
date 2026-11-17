@@ -2,11 +2,17 @@
 
 use std::io::{self, BufRead, Write};
 
-use ctx_adapters::{analyzer::AnalyzerRegistry, git::GitRepo, sqlite::SqliteStore};
+use ctx_adapters::{
+    analyzer::AnalyzerRegistry,
+    git::{AutoIndex, GitRepo},
+    local_index::refresh_in_background,
+    sqlite::SqliteStore,
+};
 use ctx_app::{
     ports::{GitRepository, PortError},
     query::QueryService,
     review::ReviewRunner,
+    status::{IndexFreshness, StatusService},
 };
 use ctx_core::{context_pack::ContextRequest, domain::RepositoryId};
 use serde::Deserialize;
@@ -94,14 +100,39 @@ impl<'a> McpServer<'a> {
             .pointer("/params/arguments")
             .cloned()
             .unwrap_or_else(|| json!({}));
-        let result = self
-            .execute_tool(name, arguments)
-            .map_or_else(|error| tool_error(&error), tool_result);
+        let freshness = refresh_in_background(
+            self.git,
+            &self.store,
+            &self.repository,
+            name != "get_status" && self.git.auto_index() != AutoIndex::Never,
+        );
+        let result = match freshness {
+            Ok(freshness) => {
+                let mut result = self.execute_tool(name, arguments).map_or_else(
+                    |error| tool_error(&error),
+                    |value| tool_result(value, &freshness),
+                );
+                if let Some(warning) = freshness.warning()
+                    && let Some(content) = result["content"].as_array_mut()
+                {
+                    content.insert(0, json!({"type": "text", "text": warning}));
+                }
+                result
+            }
+            Err(error) => tool_error(&error.to_string()),
+        };
         rpc_result(id, result)
     }
 
     fn execute_tool(&mut self, name: &str, arguments: Value) -> Result<Value, String> {
         match name {
+            "get_status" => {
+                decode::<StatusArguments>(arguments)?;
+                let result = StatusService::new(self.git, &self.store)
+                    .inspect()
+                    .map_err(|error| error.to_string())?;
+                serde_json::to_value(result).map_err(|error| error.to_string())
+            }
             "get_context" => {
                 let arguments: GetContextArguments = decode(arguments)?;
                 let request = ContextRequest {
@@ -264,7 +295,11 @@ fn rpc_error(id: Value, code: i64, message: String) -> Value {
     Value::Object(response)
 }
 
-fn tool_result(value: Value) -> Value {
+fn tool_result(mut value: Value, freshness: &IndexFreshness) -> Value {
+    if value.is_array() {
+        value = json!({"matches": value});
+    }
+    value["index"] = json!(freshness);
     let text = serde_json::to_string_pretty(&value).unwrap_or_else(|_| value.to_string());
     let mut result = serde_json::Map::new();
     result.insert(
@@ -289,6 +324,13 @@ fn decode<T: for<'de> Deserialize<'de>>(value: Value) -> Result<T, String> {
 
 fn tool_definitions() -> Vec<Value> {
     vec![
+        json!({
+            "name": "get_status",
+            "title": "Inspect the ctx index",
+            "description": "Read freshness, graph coverage, and index diagnostics.",
+            "inputSchema": {"type": "object", "additionalProperties": false},
+            "annotations": {"readOnlyHint": true, "openWorldHint": false}
+        }),
         json!({
             "name": "get_context",
             "title": "Compile ctx Context Pack",
@@ -354,6 +396,10 @@ fn object_schema(field: &str, description: &str) -> Value {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct StatusArguments {}
+
+#[derive(Debug, Deserialize)]
 struct GetContextArguments {
     task: String,
     #[serde(default)]
@@ -405,7 +451,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn advertises_exactly_the_five_product_tools_in_stable_order() {
+    fn advertises_product_tools_in_stable_order() {
         let tools = tool_definitions();
         let names = tools
             .iter()
@@ -414,6 +460,7 @@ mod tests {
         assert_eq!(
             names,
             [
+                "get_status",
                 "get_context",
                 "get_impact",
                 "explain_relation",
@@ -422,7 +469,7 @@ mod tests {
             ]
         );
         assert_eq!(
-            tools[1]["inputSchema"]["properties"]["target"]["type"],
+            tools[2]["inputSchema"]["properties"]["target"]["type"],
             "string"
         );
     }
@@ -503,10 +550,38 @@ mod tests {
     }
 
     #[test]
-    fn all_five_tools_execute_over_the_stdio_json_rpc_transport() {
+    fn refreshes_clean_head_and_warns_when_newer_head_has_dirty_inputs() {
+        let (directory, git) = indexed_repository();
+        let mut server = McpServer::new(&git).expect("MCP server");
+        let source = directory.path().join("src/app.py");
+        let request = json!({"id":1,"method":"tools/call","params":{"name":"get_impact","arguments":{"target":"app.cancel"}}});
+        fs::write(&source, "def cancel():\n    return 1\n").expect("next source");
+        run_git(directory.path(), &["commit", "-am", "next"]);
+        let response = server.handle(&request).expect("refreshed response");
+        let index = &response["result"]["structuredContent"]["index"];
+        assert_eq!(index["state"], "current");
+        assert_eq!(index["head"], index["commit"]);
+        fs::write(&source, "def cancel():\n    return 2\n").expect("new source");
+        run_git(directory.path(), &["commit", "-am", "new"]);
+        fs::write(&source, "def cancel():\n    return 3\n").expect("dirty source");
+        let response = server.handle(&request).expect("stale response");
+        assert_eq!(
+            response["result"]["structuredContent"]["index"]["state"],
+            "behind"
+        );
+        let warning = response["result"]["content"][0]["text"]
+            .as_str()
+            .expect("warning");
+        assert!(warning.starts_with("warning: index is at"), "{warning}");
+        assert!(warning.contains("working tree"), "{warning}");
+    }
+
+    #[test]
+    fn all_tools_execute_over_the_stdio_json_rpc_transport() {
         let (_directory, git) = indexed_repository();
         let mut server = McpServer::new(&git).expect("MCP server");
         let requests = [
+            json!({"jsonrpc":"2.0","id":0,"method":"tools/call","params":{"name":"get_status"}}),
             json!({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"get_context","arguments":{"task":"preserve access","token_budget":1000}}}),
             json!({"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"get_impact","arguments":{"target":"app.cancel"}}}),
             json!({"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"explain_relation","arguments":{"claim":"REQ-TEST-001"}}}),
@@ -531,10 +606,9 @@ mod tests {
         for response in responses {
             assert!(response.get("error").is_none(), "{response}");
             assert_eq!(response["result"]["isError"], false, "{response}");
-            assert!(
-                response["result"]["structuredContent"].is_object()
-                    || response["result"]["structuredContent"].is_array(),
-                "{response}"
+            assert_eq!(
+                response["result"]["structuredContent"]["index"]["state"],
+                "current"
             );
         }
     }

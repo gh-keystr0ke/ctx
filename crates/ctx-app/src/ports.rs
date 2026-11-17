@@ -113,6 +113,13 @@ pub trait GitRepository {
     /// # Errors
     /// Returns [`PortError`] when `HEAD` cannot be inspected or is invalid.
     fn head(&self) -> Result<CommitMetadata, PortError>;
+    /// Returns the current commit ID without loading its metadata.
+    ///
+    /// # Errors
+    /// Returns [`PortError`] when Git cannot resolve HEAD.
+    fn head_oid(&self) -> Result<CommitOid, PortError> {
+        self.head().map(|commit| commit.oid)
+    }
     /// Lists supported source files in deterministic order.
     ///
     /// # Errors

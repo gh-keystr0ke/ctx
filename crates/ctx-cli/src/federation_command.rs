@@ -756,10 +756,15 @@ pub(super) fn trace(
     continuation: Option<&str>,
 ) -> Result<(), CliError> {
     let database_path = database_path(git.root())?;
-    let store = SqliteStore::open(&database_path, git.context_root())?;
+    let mut store = SqliteStore::open(&database_path, git.context_root())?;
     let repository = git.descriptor()?;
+    let freshness = super::query_freshness(cli, git, &mut store, &repository.id)?;
     let graph = store.load_graph(&repository.id)?;
-    let local_commit = git.head()?.oid.to_string();
+    let local_commit = freshness
+        .commit
+        .as_ref()
+        .unwrap_or(&freshness.head)
+        .to_string();
     let service = git.service_name().unwrap_or("").to_owned();
     let registry = NeighborRegistry::load(git.root())?;
     let binary = federation_binary()?;
@@ -808,7 +813,9 @@ pub(super) fn trace(
     if cli.json {
         println!(
             "{}",
-            serde_json::to_string_pretty(&json!({"query": target, "traces": reports}))?
+            serde_json::to_string_pretty(
+                &json!({"query": target, "traces": reports, "index": freshness})
+            )?
         );
         return Ok(());
     }

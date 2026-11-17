@@ -8,6 +8,7 @@ use std::{
 
 use chrono::Utc;
 use clap::{ArgAction, Parser, Subcommand};
+use ctx_adapters::local_index::{LocalIndexError, ensure_fresh, index_local};
 use ctx_adapters::{
     analyzer::AnalyzerRegistry,
     business_context::YamlBusinessContextReader,
@@ -22,10 +23,9 @@ use ctx_adapters::{
     pyright::PyrightError,
     sqlite::SqliteStore,
 };
+use ctx_app::status::IndexFreshness;
 use ctx_app::{
-    context::{ContextImportError, ContextImporter},
     enrich::{EnrichError, EnrichRunner},
-    index::{IndexError, IndexReport, IndexRunner},
     ingest::IngestError,
     ports::{CommitMetadata, GitRepository, GraphStore, IndexStore, PortError},
     query::{QueryError, QueryService},
@@ -38,7 +38,7 @@ use ctx_app::{
         VerificationError, VerificationService,
     },
 };
-use ctx_core::business::{BusinessKind, ContextImportStats, Visibility};
+use ctx_core::business::{BusinessKind, Visibility};
 use ctx_core::context_pack::ContextRequest;
 use ctx_core::domain::{ClaimStatus, NodeKind, RelationKind, RepositoryId};
 use ctx_core::graph::{GraphEvidence, GraphSnapshot};
@@ -98,6 +98,9 @@ struct Cli {
     json: bool,
     #[arg(short, long, action = ArgAction::Count, global = true)]
     verbose: u8,
+    /// Refresh an outdated index before a query when its inputs are clean.
+    #[arg(long, global = true)]
+    refresh: bool,
     /// Write full trace diagnostics to a timestamped file under `.ctx/logs`.
     #[arg(long, global = true)]
     debug: bool,
@@ -401,13 +404,11 @@ enum CliError {
     #[error(transparent)]
     Sqlite(#[from] ctx_adapters::sqlite::SqliteStoreError),
     #[error(transparent)]
-    Index(#[from] IndexError),
+    Index(#[from] LocalIndexError),
     #[error(transparent)]
     InferTypes(#[from] InferTypesError),
     #[error(transparent)]
     Pyright(#[from] PyrightError),
-    #[error(transparent)]
-    Context(#[from] ContextImportError),
     #[error(transparent)]
     Query(#[from] QueryError),
     #[error(transparent)]
@@ -494,13 +495,6 @@ enum CliError {
         handlers: String,
         first_handler: String,
     },
-}
-
-#[derive(Serialize)]
-struct FullIndexReport {
-    #[serde(flatten)]
-    code: IndexReport,
-    business_context: ContextImportStats,
 }
 
 fn main() -> ExitCode {
@@ -977,8 +971,9 @@ fn context(
     token_budget: usize,
 ) -> Result<(), CliError> {
     let database_path = database_path(git.root())?;
-    let store = SqliteStore::open(&database_path, git.context_root())?;
+    let mut store = SqliteStore::open(&database_path, git.context_root())?;
     let repository = git.descriptor()?;
+    let freshness = query_freshness(cli, git, &mut store, &repository.id)?;
     let request = ContextRequest {
         task: task.to_owned(),
         files: files.to_vec(),
@@ -987,7 +982,9 @@ fn context(
     };
     let pack = QueryService::new(&store).context(&repository.id, &request)?;
     if cli.json {
-        println!("{}", serde_json::to_string_pretty(&pack)?);
+        let mut payload = serde_json::to_value(&pack)?;
+        payload["index"] = serde_json::to_value(&freshness)?;
+        println!("{}", serde_json::to_string_pretty(&payload)?);
         return Ok(());
     }
     println!("Task: {}", pack.task);
@@ -1089,13 +1086,16 @@ fn review(
 
 fn impact(cli: &Cli, git: &GitRepo, target: &str) -> Result<(), CliError> {
     let database_path = database_path(git.root())?;
-    let store = SqliteStore::open(&database_path, git.context_root())?;
+    let mut store = SqliteStore::open(&database_path, git.context_root())?;
     let repository = git.descriptor()?;
+    let freshness = query_freshness(cli, git, &mut store, &repository.id)?;
     let reports = QueryService::new(&store).impact(&repository.id, target)?;
     if cli.json {
         println!(
             "{}",
-            serde_json::to_string_pretty(&json!({"query": target, "matches": reports}))?
+            serde_json::to_string_pretty(
+                &json!({"query": target, "matches": reports, "index": freshness})
+            )?
         );
         return Ok(());
     }
@@ -1139,14 +1139,15 @@ fn impact(cli: &Cli, git: &GitRepo, target: &str) -> Result<(), CliError> {
 
 fn explain(cli: &Cli, git: &GitRepo, target: &str, want_trace: bool) -> Result<(), CliError> {
     let database_path = database_path(git.root())?;
-    let store = SqliteStore::open(&database_path, git.context_root())?;
+    let mut store = SqliteStore::open(&database_path, git.context_root())?;
     let repository = git.descriptor()?;
+    let freshness = query_freshness(cli, git, &mut store, &repository.id)?;
     let explanations = QueryService::new(&store).explain(&repository.id, target)?;
     let traces = want_trace
         .then(|| traces_for_implementation(cli, git, &store, &explanations))
         .transpose()?;
     if cli.json {
-        let mut payload = json!({"query": target, "matches": explanations});
+        let mut payload = json!({"query": target, "matches": explanations, "index": freshness});
         if let Some(traces) = &traces {
             payload["traces"] = serde_json::to_value(traces)?;
         }
@@ -1300,13 +1301,16 @@ fn traces_for_implementation(
 
 fn find(cli: &Cli, git: &GitRepo, target: &str) -> Result<(), CliError> {
     let database_path = database_path(git.root())?;
-    let store = SqliteStore::open(&database_path, git.context_root())?;
+    let mut store = SqliteStore::open(&database_path, git.context_root())?;
     let repository = git.descriptor()?;
+    let freshness = query_freshness(cli, git, &mut store, &repository.id)?;
     let matches = QueryService::new(&store).find(&repository.id, target)?;
     if cli.json {
         println!(
             "{}",
-            serde_json::to_string_pretty(&json!({"query": target, "matches": matches}))?
+            serde_json::to_string_pretty(
+                &json!({"query": target, "matches": matches, "index": freshness})
+            )?
         );
         return Ok(());
     }
@@ -1535,18 +1539,7 @@ fn initialize(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
 fn index(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
     let database_path = database_path(git.root())?;
     let mut store = SqliteStore::open(&database_path, git.context_root())?;
-    let analyzer = AnalyzerRegistry::builtins(git.root(), &git.source_scope().languages)?;
-    let now = Utc::now().to_rfc3339();
-    let code = IndexRunner::new(git, &analyzer, &mut store).run(&now)?;
-    let repository = git.descriptor()?;
-    let head = git.head()?;
-    let reader = YamlBusinessContextReader::new(git.context_root().to_path_buf());
-    let business_context =
-        ContextImporter::new(&reader, &mut store).run(&repository, &head, &now)?;
-    let report = FullIndexReport {
-        code,
-        business_context,
-    };
+    let report = index_local(git, &mut store)?;
     if cli.json {
         println!("{}", serde_json::to_string_pretty(&report)?);
     } else if report.code.already_current {
@@ -1586,6 +1579,22 @@ fn index(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
         );
     }
     Ok(())
+}
+
+fn query_freshness(
+    cli: &Cli,
+    git: &GitRepo,
+    store: &mut SqliteStore,
+    repository: &ctx_core::domain::RepositoryId,
+) -> Result<IndexFreshness, CliError> {
+    let refresh = cli.refresh || git.auto_index() == ctx_adapters::git::AutoIndex::Always;
+    let freshness = ensure_fresh(git, store, repository, refresh)?;
+    if !cli.json
+        && let Some(warning) = freshness.warning()
+    {
+        eprintln!("{warning}");
+    }
+    Ok(freshness)
 }
 
 fn database_path(root: &Path) -> Result<PathBuf, CliError> {

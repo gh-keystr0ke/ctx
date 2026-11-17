@@ -67,3 +67,16 @@ It does not prove the product hypothesis from `product_conclu.md` sections 49–
 Future result documents should record repository/corpus selection, labeling protocol, participant or agent setup, raw per-case outcomes, false-positive/false-negative definitions, and limitations. A green synthetic corpus must never be reported as confirmation of those experiments.
 
 `docs/evaluation-historical.md` is a first, partial step in that direction: it replays 16 real commits from this repository's own history (not synthetic fixtures) through `ctx review` and grades the results against independently re-derived ground truth. It is real historical data but not the external, third-party-repository corpus the experiments above require — see that document for its methodology and honest limits, including a real recall gap it found in `ctx review`.
+
+## SQLite index benchmark
+
+Run `scripts/bench-index.sh <ctx-binary>` from an initialized ctx checkout.
+The script uses an isolated clone and reports the median of five runs.
+On macOS, the full index starts at the parent of `dc99f75`. The incremental run
+advances to `dc99f75`, then review compares the working tree with `HEAD~20`.
+
+| Operation | 0.8.7 | Migration 013 and statement caching |
+| --- | ---: | ---: |
+| Full index | 2.184 s | 0.563 s |
+| Incremental index | 0.324 s | 0.215 s |
+| Review against `HEAD~20` | 0.607 s | 0.594 s |

@@ -298,11 +298,9 @@ fn repository_row(
     repository: &RepositoryId,
 ) -> Result<i64, PortError> {
     transaction
-        .query_row(
-            "SELECT id FROM repositories WHERE stable_id = ?1",
-            [repository.as_str()],
-            |row| row.get(0),
-        )
+        .prepare_cached("SELECT id FROM repositories WHERE stable_id = ?1")
+        .map_err(database_error)?
+        .query_row([repository.as_str()], |row| row.get(0))
         .map_err(database_error)
 }
 
@@ -313,7 +311,7 @@ fn insert_commit(
     indexed_at: &str,
 ) -> Result<i64, PortError> {
     transaction
-        .query_row(
+        .prepare_cached(
             "INSERT INTO commits(repository_id, oid, parent_oid, authored_at, indexed_at)
              VALUES (?1, ?2, ?3, ?4, ?5)
              ON CONFLICT(repository_id, oid) DO UPDATE SET
@@ -321,6 +319,9 @@ fn insert_commit(
                 authored_at = excluded.authored_at,
                 indexed_at = excluded.indexed_at
              RETURNING id",
+        )
+        .map_err(database_error)?
+        .query_row(
             params![
                 repository_row,
                 commit.oid.as_str(),
@@ -341,13 +342,14 @@ fn close_derived_edges(
 ) -> Result<(), PortError> {
     for source_uri in &plan.structural_sources_to_close {
         transaction
-            .execute(
+            .prepare_cached(
                 "UPDATE edges SET valid_to = ?1
                  WHERE repository_id = ?2 AND valid_to IS NULL
                    AND epistemic_class = 'fact'
                    AND id IN (SELECT edge_id FROM derivations WHERE source_uri = ?3)",
-                params![commit_row, repository_row, source_uri],
             )
+            .map_err(database_error)?
+            .execute(params![commit_row, repository_row, source_uri])
             .map_err(database_error)?;
     }
     Ok(())
@@ -365,25 +367,26 @@ fn retire_nodes(
             continue;
         };
         transaction
-            .execute(
+            .prepare_cached(
                 "UPDATE node_versions SET valid_to = ?1
                  WHERE node_id = ?2 AND valid_to IS NULL",
-                params![commit_row, node_row],
             )
+            .map_err(database_error)?
+            .execute(params![commit_row, node_row])
             .map_err(database_error)?;
         transaction
-            .execute(
-                "UPDATE nodes SET retired_commit = ?1 WHERE id = ?2",
-                params![commit_row, node_row],
-            )
+            .prepare_cached("UPDATE nodes SET retired_commit = ?1 WHERE id = ?2")
+            .map_err(database_error)?
+            .execute(params![commit_row, node_row])
             .map_err(database_error)?;
         transaction
-            .execute(
+            .prepare_cached(
                 "UPDATE edges SET valid_to = ?1
                  WHERE valid_to IS NULL AND epistemic_class = 'fact'
                    AND (src_node_id = ?2 OR dst_node_id = ?2)",
-                params![commit_row, node_row],
             )
+            .map_err(database_error)?
+            .execute(params![commit_row, node_row])
             .map_err(database_error)?;
     }
     Ok(())
@@ -396,31 +399,33 @@ fn persist_node(
     node: &PlannedNode,
 ) -> Result<(), PortError> {
     transaction
-        .execute(
+        .prepare_cached(
             "INSERT INTO nodes(repository_id, kind, stable_key, created_commit)
              VALUES (?1, ?2, ?3, ?4)
              ON CONFLICT(repository_id, kind, stable_key)
              DO UPDATE SET retired_commit = NULL",
-            params![
-                repository_row,
-                node_kind(node),
-                node.stable_key.as_str(),
-                commit_row
-            ],
         )
+        .map_err(database_error)?
+        .execute(params![
+            repository_row,
+            node_kind(node),
+            node.stable_key.as_str(),
+            commit_row
+        ])
         .map_err(database_error)?;
     let node_row = node_row(transaction, repository_row, &node.stable_key)?
         .ok_or_else(|| PortError::new("persisted node could not be read back"))?;
     transaction
-        .execute(
+        .prepare_cached(
             "UPDATE node_versions SET valid_to = ?1
              WHERE node_id = ?2 AND valid_to IS NULL AND valid_from != ?1",
-            params![commit_row, node_row],
         )
+        .map_err(database_error)?
+        .execute(params![commit_row, node_row])
         .map_err(database_error)?;
     let attributes = serde_json::to_string(&node.attributes).map_err(serialization_error)?;
     transaction
-        .execute(
+        .prepare_cached(
             "INSERT INTO node_versions(
                 node_id, valid_from, name, content_hash, attributes_json
              ) VALUES (?1, ?2, ?3, ?4, ?5)
@@ -429,14 +434,15 @@ fn persist_node(
                 name = excluded.name,
                 content_hash = excluded.content_hash,
                 attributes_json = excluded.attributes_json",
-            params![
-                node_row,
-                commit_row,
-                node.name,
-                node.content_hash,
-                attributes
-            ],
         )
+        .map_err(database_error)?
+        .execute(params![
+            node_row,
+            commit_row,
+            node.name,
+            node.content_hash,
+            attributes
+        ])
         .map_err(database_error)?;
     Ok(())
 }
@@ -451,13 +457,14 @@ fn mark_semantic_edges_stale(
             continue;
         };
         transaction
-            .execute(
+            .prepare_cached(
                 "UPDATE edges SET status = 'stale', stale_reason = 'implementation_changed'
                  WHERE repository_id = ?1 AND valid_to IS NULL
                    AND epistemic_class != 'fact'
                    AND (src_node_id = ?2 OR dst_node_id = ?2)",
-                params![repository_row, node_row],
             )
+            .map_err(database_error)?
+            .execute(params![repository_row, node_row])
             .map_err(database_error)?;
     }
     Ok(())
@@ -475,7 +482,7 @@ fn persist_edge(
     let target_row = node_row(transaction, repository_row, &edge.target)?
         .ok_or_else(|| PortError::new(format!("edge target '{}' is missing", edge.target)))?;
     let edge_row = transaction
-        .query_row(
+        .prepare_cached(
             "INSERT INTO edges(
                 repository_id, src_node_id, dst_node_id, kind, epistemic_class,
                 provenance_kind, confidence, status, valid_from, producer, fingerprint
@@ -492,6 +499,9 @@ fn persist_edge(
                 producer = excluded.producer,
                 stale_reason = NULL
              RETURNING id",
+        )
+        .map_err(database_error)?
+        .query_row(
             params![
                 repository_row,
                 source_row,
@@ -510,16 +520,17 @@ fn persist_edge(
         .map_err(database_error)?;
     replace_derived_edge_inputs(transaction, edge_row)?;
     transaction
-        .execute(
+        .prepare_cached(
             "INSERT INTO derivations(edge_id, producer, source_uri, input_fingerprint)
              VALUES (?1, ?2, ?3, ?4)",
-            params![
-                edge_row,
-                edge.producer,
-                edge.source_uri,
-                edge.input_fingerprint
-            ],
         )
+        .map_err(database_error)?
+        .execute(params![
+            edge_row,
+            edge.producer,
+            edge.source_uri,
+            edge.input_fingerprint
+        ])
         .map_err(database_error)?;
     if let Some(locator) = &edge.evidence_locator {
         persist_static_evidence(
@@ -541,7 +552,7 @@ fn replace_derived_edge_inputs(
 ) -> Result<(), PortError> {
     let evidence_rows = {
         let mut statement = transaction
-            .prepare(
+            .prepare_cached(
                 "SELECT ev.id, ev.source_id
                  FROM edge_evidence ee
                  JOIN evidence ev ON ev.id = ee.evidence_id
@@ -557,21 +568,26 @@ fn replace_derived_edge_inputs(
             .map_err(database_error)?
     };
     transaction
-        .execute("DELETE FROM edge_evidence WHERE edge_id = ?1", [edge_row])
+        .prepare_cached("DELETE FROM edge_evidence WHERE edge_id = ?1")
+        .map_err(database_error)?
+        .execute([edge_row])
         .map_err(database_error)?;
     transaction
-        .execute("DELETE FROM derivations WHERE edge_id = ?1", [edge_row])
+        .prepare_cached("DELETE FROM derivations WHERE edge_id = ?1")
+        .map_err(database_error)?
+        .execute([edge_row])
         .map_err(database_error)?;
     for (evidence_row, _) in &evidence_rows {
         transaction
-            .execute(
+            .prepare_cached(
                 "DELETE FROM evidence
                  WHERE id = ?1
                    AND NOT EXISTS (
                        SELECT 1 FROM edge_evidence WHERE evidence_id = ?1
                    )",
-                [evidence_row],
             )
+            .map_err(database_error)?
+            .execute([evidence_row])
             .map_err(database_error)?;
     }
     let source_rows = evidence_rows
@@ -580,14 +596,15 @@ fn replace_derived_edge_inputs(
         .collect::<BTreeSet<_>>();
     for source_row in source_rows {
         transaction
-            .execute(
+            .prepare_cached(
                 "DELETE FROM sources
                  WHERE id = ?1
                    AND NOT EXISTS (
                        SELECT 1 FROM evidence WHERE source_id = ?1
                    )",
-                [source_row],
             )
+            .map_err(database_error)?
+            .execute([source_row])
             .map_err(database_error)?;
     }
     Ok(())
@@ -603,41 +620,42 @@ fn persist_static_evidence(
     locator: &str,
 ) -> Result<(), PortError> {
     transaction
-        .execute(
+        .prepare_cached(
             "INSERT INTO sources(
                 repository_id, kind, uri, commit_id, author, timestamp,
                 content_hash, metadata_json
              ) VALUES (?1, 'staticanalysis', ?2, ?3, NULL, ?4, ?5, ?6)",
-            params![
-                repository_row,
-                edge.source_uri,
-                commit_row,
-                indexed_at,
-                edge.input_fingerprint,
-                format!(r#"{{"producer":"{}"}}"#, edge.producer)
-            ],
         )
+        .map_err(database_error)?
+        .execute(params![
+            repository_row,
+            edge.source_uri,
+            commit_row,
+            indexed_at,
+            edge.input_fingerprint,
+            format!(r#"{{"producer":"{}"}}"#, edge.producer)
+        ])
         .map_err(database_error)?;
     let source_row = transaction.last_insert_rowid();
     transaction
-        .execute(
+        .prepare_cached(
             "INSERT INTO evidence(
                 source_id, locator, excerpt_hash, strength, attributes_json
              ) VALUES (?1, ?2, ?3, ?4, '{}')",
-            params![
-                source_row,
-                locator,
-                edge.input_fingerprint,
-                f64::from(edge.confidence.get())
-            ],
         )
+        .map_err(database_error)?
+        .execute(params![
+            source_row,
+            locator,
+            edge.input_fingerprint,
+            f64::from(edge.confidence.get())
+        ])
         .map_err(database_error)?;
     let evidence_row = transaction.last_insert_rowid();
     transaction
-        .execute(
-            "INSERT INTO edge_evidence(edge_id, evidence_id) VALUES (?1, ?2)",
-            params![edge_row, evidence_row],
-        )
+        .prepare_cached("INSERT INTO edge_evidence(edge_id, evidence_id) VALUES (?1, ?2)")
+        .map_err(database_error)?
+        .execute(params![edge_row, evidence_row])
         .map_err(database_error)?;
     Ok(())
 }
@@ -648,11 +666,11 @@ fn node_row(
     stable_key: &StableKey,
 ) -> Result<Option<i64>, PortError> {
     transaction
-        .query_row(
-            "SELECT id FROM nodes WHERE repository_id = ?1 AND stable_key = ?2",
-            params![repository_row, stable_key.as_str()],
-            |row| row.get(0),
-        )
+        .prepare_cached("SELECT id FROM nodes WHERE repository_id = ?1 AND stable_key = ?2")
+        .map_err(database_error)?
+        .query_row(params![repository_row, stable_key.as_str()], |row| {
+            row.get(0)
+        })
         .optional()
         .map_err(database_error)
 }
@@ -663,12 +681,12 @@ fn count_current_nodes(
     kind: &str,
 ) -> Result<usize, PortError> {
     let count = connection
-        .query_row(
+        .prepare_cached(
             "SELECT COUNT(*) FROM nodes
              WHERE repository_id = ?1 AND kind = ?2 AND retired_commit IS NULL",
-            params![repository_row, kind],
-            |row| row.get::<_, i64>(0),
         )
+        .map_err(database_error)?
+        .query_row(params![repository_row, kind], |row| row.get::<_, i64>(0))
         .map_err(database_error)?;
     usize::try_from(count).map_err(|error| PortError::new(error.to_string()))
 }
@@ -679,12 +697,12 @@ fn count_edges(
     status: &str,
 ) -> Result<usize, PortError> {
     let count = connection
-        .query_row(
+        .prepare_cached(
             "SELECT COUNT(*) FROM edges
              WHERE repository_id = ?1 AND status = ?2 AND valid_to IS NULL",
-            params![repository_row, status],
-            |row| row.get::<_, i64>(0),
         )
+        .map_err(database_error)?
+        .query_row(params![repository_row, status], |row| row.get::<_, i64>(0))
         .map_err(database_error)?;
     usize::try_from(count).map_err(|error| PortError::new(error.to_string()))
 }
@@ -696,13 +714,15 @@ fn count_current_edges_by_class(
     status: &str,
 ) -> Result<usize, PortError> {
     let count = connection
-        .query_row(
+        .prepare_cached(
             "SELECT COUNT(*) FROM edges
              WHERE repository_id = ?1 AND epistemic_class = ?2
                AND status = ?3 AND valid_to IS NULL",
-            params![repository_row, epistemic_class, status],
-            |row| row.get::<_, i64>(0),
         )
+        .map_err(database_error)?
+        .query_row(params![repository_row, epistemic_class, status], |row| {
+            row.get::<_, i64>(0)
+        })
         .map_err(database_error)?;
     usize::try_from(count).map_err(|error| PortError::new(error.to_string()))
 }

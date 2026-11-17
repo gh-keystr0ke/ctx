@@ -4,6 +4,10 @@ All notable changes to `ctx` are documented here. The project follows semantic v
 
 ## Unreleased
 
+### Fixed
+
+- Full indexing of the ctx benchmark checkout is 3.9× faster, from 2.184 s to 0.563 s. The first open of an existing database builds the lookup indexes in migration 013.
+
 ## 0.8.7 — 2026-11-17
 
 ### Fixed

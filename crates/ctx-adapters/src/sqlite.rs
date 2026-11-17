@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use rusqlite::Connection;
+use rusqlite::{Connection, TransactionBehavior};
 use thiserror::Error;
 
 mod artifacts;
@@ -39,6 +39,7 @@ const MIGRATIONS: &[(i64, &str)] = &[
         12,
         include_str!("../migrations/012_unavailable_external_keys.sql"),
     ),
+    (13, include_str!("../migrations/013_lookup_indexes.sql")),
 ];
 
 #[derive(Debug, Error)]
@@ -78,10 +79,14 @@ impl SqliteStore {
             path: path.display().to_string(),
             source,
         })?;
+        connection.busy_timeout(std::time::Duration::from_secs(5))?;
+        connection.set_prepared_statement_cache_capacity(128);
         connection.pragma_update(None, "foreign_keys", true)?;
         connection.pragma_update(None, "journal_mode", "WAL")?;
 
-        let transaction = connection.transaction()?;
+        connection.pragma_update(None, "synchronous", "NORMAL")?;
+
+        let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
         transaction.execute_batch(
             "CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY);",
         )?;
@@ -127,6 +132,81 @@ mod tests {
     use tempfile::tempdir;
 
     use super::*;
+
+    #[test]
+    fn hot_index_lookups_use_selective_indexes() {
+        let directory = tempdir().expect("temporary directory");
+        let store = SqliteStore::open(&directory.path().join("ctx.db"), directory.path())
+            .expect("create database");
+        for (query, parameters, expected) in [
+            (
+                "SELECT id FROM nodes WHERE repository_id = ?1 AND stable_key = ?2",
+                2,
+                "nodes_by_key",
+            ),
+            (
+                "SELECT 1 FROM edge_evidence WHERE evidence_id = ?1",
+                1,
+                "edge_evidence_by_evidence",
+            ),
+            (
+                "DELETE FROM derivations WHERE edge_id = ?1",
+                1,
+                "derivations_by_edge",
+            ),
+            (
+                "SELECT 1 FROM derivations WHERE node_version_id = ?1",
+                1,
+                "derivations_by_node_version",
+            ),
+            (
+                "SELECT 1 FROM evidence WHERE source_id = ?1",
+                1,
+                "evidence_by_source",
+            ),
+            (
+                "SELECT edge_id FROM derivations WHERE source_uri = ?1",
+                1,
+                "derivations_by_source",
+            ),
+            (
+                "SELECT id FROM sources WHERE repository_id = ?1 AND uri = ?2 AND content_hash = ?3 ORDER BY id DESC LIMIT 1",
+                3,
+                "sources_by_content",
+            ),
+            (
+                "DELETE FROM annotations WHERE edge_id = ?1",
+                1,
+                "annotations_by_edge",
+            ),
+            (
+                "SELECT id FROM artifact_links WHERE repository_id = ?1",
+                1,
+                "artifact_links_by_repository",
+            ),
+        ] {
+            let mut statement = store
+                .connection()
+                .prepare(&format!("EXPLAIN QUERY PLAN {query}"))
+                .expect("prepare query plan");
+            let steps = statement
+                .query_map(
+                    rusqlite::params_from_iter(vec![rusqlite::types::Null; parameters]),
+                    |row| row.get::<_, String>(3),
+                )
+                .expect("explain query")
+                .collect::<Result<Vec<_>, _>>()
+                .expect("read query plan");
+            assert!(
+                steps.iter().all(|step| !step.starts_with("SCAN ")),
+                "{query}: {steps:?}"
+            );
+            assert!(
+                steps.iter().any(|step| step.contains(expected)),
+                "{query}: {steps:?}"
+            );
+        }
+    }
 
     #[test]
     fn creates_and_reopens_a_repository_database() {

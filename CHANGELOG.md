@@ -4,9 +4,26 @@ All notable changes to `ctx` are documented here. The project follows semantic v
 
 ## Unreleased
 
+## 0.8.8 — 2026-11-18
+
+### Added
+
+- CLI and MCP queries report index freshness. MCP refreshes clean checkouts by default. CLI queries can request a refresh with `--refresh`.
+- `ctx index --from-head` validates committed sources before writing. `ctx hooks install` enables background indexing after Git operations.
+- `ctx review --format markdown` creates a pull request report. `--fail-on` sets the exit code for selected findings. `--base auto` reviews against the default branch's merge base.
+- `ctx setup` configures Claude Code, Codex, or Antigravity. It installs the bundled skill and can enable staged commit review.
+- `ctx check` validates worktree documents and suggests canonical symbol names. `ctx index --preview` builds a separate worktree index with no Git validity.
+
+### Changed
+
+- Review text groups findings by intent. JSON adds `findings_by_intent` alongside the existing `findings` array.
+- Context Packs rank rare identifier terms and show only resolved calls. Symbol descriptions omit empty sections and redundant file entries.
+- `ctx find` prints one match per line and supports `--kind requirement`. Agent pacing moves to `enrich --pace-agent` and `verify --pace-agent`.
+
 ### Fixed
 
-- Full indexing of the ctx benchmark checkout is 3.9× faster, from 2.184 s to 0.563 s. The first open of an existing database builds the lookup indexes in migration 013.
+- Full indexing of the ctx benchmark checkout is 3.4× faster, from 2.184 s to 0.647 s. The first open of an existing database builds the lookup indexes in migration 013.
+- Repository MCP configuration starts the installed `ctx` binary directly.
 
 ## 0.8.7 — 2026-11-17
 

@@ -75,8 +75,24 @@ The script uses an isolated clone and reports the median of five runs.
 On macOS, the full index starts at the parent of `dc99f75`. The incremental run
 advances to `dc99f75`, then review compares the working tree with `HEAD~20`.
 
-| Operation | 0.8.7 | Migration 013 and statement caching |
-| --- | ---: | ---: |
-| Full index | 2.184 s | 0.563 s |
-| Incremental index | 0.324 s | 0.215 s |
-| Review against `HEAD~20` | 0.607 s | 0.594 s |
+| Operation | 0.8.7 | SQLite changes only | 0.8.8 |
+| --- | ---: | ---: | ---: |
+| Full index | 2.184 s | 0.563 s | 0.647 s |
+| Incremental index | 0.324 s | 0.215 s | 0.242 s |
+| Review against `HEAD~20` | 0.607 s | 0.594 s | 0.244 s |
+
+## Release 0.8.8 checks
+
+The ten lexical Context Pack cases use the subscriptions fixture and a
+1,000-token budget. Mean estimated tokens per symbol description fell from
+34.76 to 20.54. Expected symbol recall increased from 9/10 to 10/10.
+The full corpus passed all 133 checks in 36 cases.
+
+A one-line change in `build_review_findings` at `53188bc` reduced text output
+from 62 to 21 lines. Its six signals produced five unique intent groups.
+Repeated Markdown reports for the same diff were byte-identical.
+
+The destructive exit policy replayed 100 first-parent commits through
+`53188bc`. Each review compared a commit to its first parent. The replay
+produced no blocking findings or execution errors. A fixture with a dropped
+column separately verified the blocking exit code.

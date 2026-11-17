@@ -18,11 +18,11 @@ path = "src/main.rs"
 blake3.workspace = true
 chrono.workspace = true
 clap.workspace = true
-ctx-adapters = { path = "../ctx-adapters", version = "0.8.7" }
-ctx-app = { path = "../ctx-app", version = "0.8.7" }
-ctx-core = { path = "../ctx-core", version = "0.8.7" }
-ctx-mcp = { path = "../ctx-mcp", version = "0.8.7" }
-ctx-report = { path = "../ctx-report", version = "0.8.7" }
+ctx-adapters = { path = "../ctx-adapters", version = "0.8.8" }
+ctx-app = { path = "../ctx-app", version = "0.8.8" }
+ctx-core = { path = "../ctx-core", version = "0.8.8" }
+ctx-mcp = { path = "../ctx-mcp", version = "0.8.8" }
+ctx-report = { path = "../ctx-report", version = "0.8.8" }
 serde.workspace = true
 serde_json.workspace = true
 shlex = "2"

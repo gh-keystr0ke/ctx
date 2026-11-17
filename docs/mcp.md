@@ -51,7 +51,7 @@ Setup adds the MCP server and the bundled ctx skill to the checkout.
 Use `--dry-run` to see the proposed file changes.
 
 Use `--hooks` to enable review of staged changes before commits.
-With Claude Code, stage your changes before invoking `git commit`.
+With Claude Code, stage your changes in a separate command. Then run `git commit` without paths or `--all`.
 For Codex or Antigravity, setup installs a Git pre-commit hook.
 The hook pauses once for each set of invariant or destructive findings.
 Review the findings before you retry.

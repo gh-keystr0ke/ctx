@@ -278,6 +278,7 @@ dependencies = [
  "ctx-report",
  "serde",
  "serde_json",
+ "shlex",
  "tempfile",
  "thiserror",
  "toml",

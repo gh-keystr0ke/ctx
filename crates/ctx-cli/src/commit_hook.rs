@@ -1,4 +1,8 @@
-use std::{fs::OpenOptions, io, path::Path};
+use std::{
+    fs::OpenOptions,
+    io,
+    path::{Path, PathBuf},
+};
 
 use clap::ValueEnum;
 use ctx_adapters::{analyzer::AnalyzerRegistry, git::GitRepo, sqlite::SqliteStore};
@@ -33,47 +37,143 @@ pub(crate) fn run(hook: Hook, git: &GitRepo) -> Result<(), CliError> {
             let Some(command) = input.pointer("/tool_input/command").and_then(Value::as_str) else {
                 return Ok(());
             };
-            if !runs_git_commit(command) {
-                return Ok(());
-            }
             let cwd = input["cwd"].as_str().map_or(git.root(), Path::new);
-            let target = GitRepo::discover(cwd)?;
-            if let Some(reason) = review_staged(&target)? {
-                println!(
-                    "{}",
-                    json!({"hookSpecificOutput": {
-                        "hookEventName": "PreToolUse", "permissionDecision": "deny", "permissionDecisionReason": reason
-                    }})
-                );
+            if let Some(action) = invocation(command, cwd) {
+                let reason = match action {
+                    CommitInvocation::Review(directory) => review_staged(&GitRepo::discover(&directory)?)?,
+                    CommitInvocation::StageFirst => Some("Stage your changes in a separate command, then run git commit without paths or --all.".to_owned()),
+                };
+                if let Some(reason) = reason {
+                    println!(
+                        "{}",
+                        json!({"hookSpecificOutput": {
+                            "hookEventName": "PreToolUse", "permissionDecision": "deny", "permissionDecisionReason": reason
+                        }})
+                    );
+                }
             }
         }
     }
     Ok(())
 }
 
-fn runs_git_commit(command: &str) -> bool {
-    command.split([';', '&', '|', '\n', '(']).any(|segment| {
-        let mut words = segment.split_whitespace().peekable();
+enum CommitInvocation {
+    Review(PathBuf),
+    StageFirst,
+}
+
+fn shell_segments(command: &str) -> Vec<&str> {
+    let mut segments = Vec::new();
+    let mut start = 0;
+    let mut quote = None;
+    let mut escaped = false;
+    for (offset, character) in command.char_indices() {
+        if escaped {
+            escaped = false;
+        } else if character == '\\' && quote != Some('\'') {
+            escaped = true;
+        } else if quote == Some(character) {
+            quote = None;
+        } else if quote.is_none() {
+            match character {
+                '\'' | '"' | '`' => quote = Some(character),
+                ';' | '&' | '|' | '\n' | '(' | ')' => {
+                    segments.push(&command[start..offset]);
+                    start = offset + character.len_utf8();
+                }
+                _ => {}
+            }
+        }
+    }
+    segments.push(&command[start..]);
+    segments
+}
+
+fn invocation(command: &str, cwd: &Path) -> Option<CommitInvocation> {
+    let mut directory = cwd.to_path_buf();
+    let mut stages_first = false;
+    let mut candidate = None;
+    for segment in shell_segments(command) {
+        let Some(words) = shlex::split(segment) else {
+            continue;
+        };
+        let mut words = words.iter().map(String::as_str).peekable();
         while words
             .peek()
             .is_some_and(|word| word.contains('=') || matches!(*word, "command" | "env"))
         {
             words.next();
         }
-        if words.next().and_then(|word| word.rsplit('/').next()) != Some("git") {
-            return false;
-        }
-        while let Some(word) = words.next() {
-            match word {
-                "-C" | "-c" | "--git-dir" | "--work-tree" => {
-                    words.next();
+        match words.next().and_then(|word| word.rsplit('/').next()) {
+            Some("cd") => {
+                if let Some(path) = words.next() {
+                    directory.push(path);
                 }
-                option if option.starts_with('-') => {}
-                subcommand => return subcommand == "commit",
             }
+            Some("git") => {
+                let mut target = directory.clone();
+                while let Some(word) = words.next() {
+                    match word {
+                        "-C" => {
+                            if let Some(path) = words.next() {
+                                target.push(path);
+                            }
+                        }
+                        "-c" | "--git-dir" | "--work-tree" => {
+                            words.next();
+                        }
+                        option if option.starts_with('-') => {}
+                        "add" | "rm" | "mv" | "reset" | "apply" | "update-index" | "restore" => {
+                            stages_first = true;
+                            break;
+                        }
+                        "commit" => {
+                            if stages_first || candidate.is_some() || commit_changes_stage(words) {
+                                return Some(CommitInvocation::StageFirst);
+                            }
+                            candidate = Some(CommitInvocation::Review(target));
+                            break;
+                        }
+                        _ => break,
+                    }
+                }
+            }
+            _ => {}
         }
-        false
-    })
+    }
+    candidate
+}
+
+fn commit_changes_stage(mut words: impl Iterator<Item = impl AsRef<str>>) -> bool {
+    while let Some(word) = words.next() {
+        match word.as_ref() {
+            "-a"
+            | "--all"
+            | "-i"
+            | "--include"
+            | "-o"
+            | "--only"
+            | "-p"
+            | "--patch"
+            | "--interactive"
+            | "--pathspec-from-file" => return true,
+            "-m" | "--message" | "-F" | "--file" | "-c" | "-C" | "--reuse-message"
+            | "--reedit-message" | "--author" | "--date" | "--cleanup" | "--fixup" | "--squash"
+            | "-t" | "--template" | "--trailer" => {
+                words.next();
+            }
+            flag if flag.starts_with("--pathspec-from-file=") => return true,
+            flag if flag.starts_with('-')
+                && !flag.starts_with("--")
+                && flag[1..].starts_with('a') =>
+            {
+                return true;
+            }
+            flag if flag.starts_with('-') => {}
+            _ => return true,
+        }
+    }
+    false
 }
 
 fn review_staged(git: &GitRepo) -> Result<Option<String>, CliError> {
@@ -144,7 +244,7 @@ fn acknowledge(git: &GitRepo, report: &ReviewReport) -> Result<Option<String>, C
                 .changes
                 .iter()
                 .filter(|change| change.destructive)
-                .map(|change| change.description()),
+                .map(ctx_core::schema::SchemaChange::description),
         );
     }
     for finding in api {
@@ -153,8 +253,31 @@ fn acknowledge(git: &GitRepo, report: &ReviewReport) -> Result<Option<String>, C
                 .changes
                 .iter()
                 .filter(|change| change.destructive)
-                .map(|change| change.description()),
+                .map(ctx_core::review::ApiChange::description),
         );
     }
     Ok(Some(lines.join("\n")))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn identifies_staged_commits_and_requires_separate_staging() {
+        let root = Path::new("/project");
+        assert!(
+            matches!(invocation("git -C 'space dir' commit -m 'one; two'", root),
+            Some(CommitInvocation::Review(path)) if path == root.join("space dir"))
+        );
+        assert!(matches!(
+            invocation("git add . && git commit -m change", root),
+            Some(CommitInvocation::StageFirst)
+        ));
+        assert!(matches!(
+            invocation("git commit -am change", root),
+            Some(CommitInvocation::StageFirst)
+        ));
+        assert!(invocation("printf 'hello; git commit'", root).is_none());
+    }
 }

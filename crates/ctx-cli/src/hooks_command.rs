@@ -80,7 +80,7 @@ fn managed_range(text: &str) -> Result<Option<std::ops::Range<usize>>, io::Error
         match line.trim_end_matches(['\r', '\n']) {
             OPEN if start.is_none() && range.is_none() => start = Some(offset),
             CLOSE if start.is_some() && range.is_none() => {
-                range = Some(start.take().expect("opening marker")..offset + line.len())
+                range = Some(start.take().expect("opening marker")..offset + line.len());
             }
             OPEN | CLOSE => return Err(io::Error::other("invalid ctx hook markers")),
             _ => {}
@@ -108,16 +108,7 @@ pub(crate) fn plan_hook(existing: &str, body: Option<&str>) -> Result<String, io
             let Some(line) = result.lines().next() else {
                 unreachable!()
             };
-            let interpreter = line
-                .trim_start_matches("#!")
-                .split_whitespace()
-                .collect::<Vec<_>>();
-            if !interpreter.iter().any(|word| {
-                matches!(
-                    word.rsplit('/').next(),
-                    Some("sh" | "bash" | "dash" | "zsh" | "ksh")
-                )
-            }) {
+            if !shell_shebang(line) {
                 return Err(io::Error::other(
                     "existing hook must use a POSIX-compatible shell",
                 ));
@@ -134,14 +125,83 @@ pub(crate) fn plan_hook(existing: &str, body: Option<&str>) -> Result<String, io
     Ok(result)
 }
 
+fn shell_shebang(line: &str) -> bool {
+    line.trim_start_matches("#!")
+        .split_whitespace()
+        .any(|word| {
+            matches!(
+                word.rsplit('/').next(),
+                Some("sh" | "bash" | "dash" | "zsh" | "ksh")
+            )
+        })
+}
+
 fn edit_hook(path: &Path, body: Option<&str>) -> Result<bool, io::Error> {
-    let original = read_missing(path)?;
-    let desired = plan_hook(&original, body)?;
-    if original == desired {
-        return Ok(false);
+    let bytes = match fs::read(path) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Vec::new(),
+        Err(error) => return Err(error),
+    };
+    let original = std::str::from_utf8(&bytes);
+    let preserved = path.with_extension("ctx-original");
+    let executable_wrapper = r#"#!/bin/sh
+exec "$0.ctx-original" "$@"
+"#;
+    let inactive_wrapper = "#!/bin/sh\n# ctx preserves the inactive original hook.\n";
+    if let Ok(original) = original {
+        let can_edit = original
+            .lines()
+            .next()
+            .is_none_or(|line| !line.starts_with("#!") || shell_shebang(line))
+            && (bytes.is_empty() || file_is_executable(path)?);
+        if body.is_none() || can_edit {
+            let desired = plan_hook(original, body)?;
+            if original == desired {
+                return Ok(false);
+            }
+            if body.is_none()
+                && matches!(desired.as_str(), wrapper if wrapper == executable_wrapper || wrapper == inactive_wrapper)
+                && preserved.is_file()
+            {
+                fs::rename(preserved, path)?;
+            } else {
+                write_file(path, &desired, true)?;
+            }
+            return Ok(true);
+        }
     }
-    write_file(path, &desired, true)?;
+    let Some(body) = body else {
+        return Ok(false);
+    };
+    if preserved.exists() {
+        return Err(io::Error::other(format!(
+            "hook backup already exists: {}",
+            preserved.display()
+        )));
+    }
+    let wrapper = if file_is_executable(path)? {
+        executable_wrapper
+    } else {
+        inactive_wrapper
+    };
+    fs::copy(path, &preserved)?;
+    if let Err(error) = write_file(path, &plan_hook(wrapper, Some(body))?, true) {
+        fs::remove_file(&preserved)?;
+        return Err(error);
+    }
     Ok(true)
+}
+
+fn file_is_executable(path: &Path) -> Result<bool, io::Error> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        Ok(path.metadata()?.permissions().mode() & 0o111 != 0)
+    }
+    #[cfg(not(unix))]
+    {
+        Ok(path.is_file())
+    }
 }
 
 pub(crate) fn read_missing(path: &Path) -> Result<String, io::Error> {

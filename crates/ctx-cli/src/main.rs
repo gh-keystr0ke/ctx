@@ -60,6 +60,7 @@ mod diagnostics;
 mod federation_command;
 mod ingest_command;
 mod report_command;
+mod review_format;
 mod status_command;
 mod tab_title;
 mod type_inference_command;
@@ -238,8 +239,15 @@ enum Command {
     },
     /// Review a branch or working-tree diff in product terms.
     Review {
+        /// Git revision against which to review changes.
         #[arg(long, default_value = "HEAD")]
         base: String,
+        /// Output format for the report.
+        #[arg(long, value_enum, default_value = "text")]
+        format: review_format::ReviewFormat,
+        /// Return exit code 1 if the report meets this condition.
+        #[arg(long, value_enum)]
+        fail_on: Option<review_format::FailOn>,
         /// List every test structurally reachable from the changed code
         /// (calls, containment, data/API/event interactions) — no
         /// product-intent gating, no confidence threshold, maximally broad.
@@ -404,6 +412,8 @@ enum CliError {
     Query(#[from] QueryError),
     #[error(transparent)]
     Review(#[from] ReviewError),
+    #[error("review found blocking changes")]
+    ReviewBlocked,
     #[error(transparent)]
     Status(#[from] StatusError),
     #[error(transparent)]
@@ -497,6 +507,7 @@ fn main() -> ExitCode {
     let cli = Cli::parse();
     match execute(&cli) {
         Ok(()) => ExitCode::SUCCESS,
+        Err(CliError::ReviewBlocked) => ExitCode::FAILURE,
         Err(error) => {
             if cli.json {
                 let output = json!({"ok": false, "error": error.to_string()});
@@ -504,7 +515,11 @@ fn main() -> ExitCode {
             } else {
                 eprintln!("error: {error}");
             }
-            ExitCode::FAILURE
+            if matches!(cli.command, Command::Review { .. }) {
+                ExitCode::from(2)
+            } else {
+                ExitCode::FAILURE
+            }
         }
     }
 }
@@ -557,7 +572,9 @@ fn run(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
         Command::Review {
             base,
             related_tests,
-        } => review(cli, git, base, related_tests.as_deref()),
+            format,
+            fail_on,
+        } => review(cli, git, base, related_tests.as_deref(), *format, *fail_on),
         Command::Context {
             task,
             file,
@@ -1036,6 +1053,8 @@ fn review(
     git: &GitRepo,
     base: &str,
     related_tests: Option<&str>,
+    format: review_format::ReviewFormat,
+    fail_on: Option<review_format::FailOn>,
 ) -> Result<(), CliError> {
     let related_tests_mode = parse_related_tests_mode(related_tests)?;
     let database_path = database_path(git.root())?;
@@ -1048,174 +1067,24 @@ fn review(
         cli.verbose > 0,
         related_tests_mode,
     )?;
-    if cli.json {
-        println!("{}", serde_json::to_string_pretty(&report)?);
-        return Ok(());
+    let format = if cli.json {
+        review_format::ReviewFormat::Json
+    } else {
+        format
+    };
+    match format {
+        review_format::ReviewFormat::Json => println!("{}", serde_json::to_string_pretty(&report)?),
+        review_format::ReviewFormat::Markdown => review_format::print_markdown(&report),
+        review_format::ReviewFormat::Text => review_format::print_text(
+            &report,
+            cli.verbose > 0,
+            related_tests_mode != ctx_core::review::RelatedTestsMode::Off,
+        ),
     }
-    if report.findings.is_empty() {
-        println!("No high-confidence product-impact findings.");
-    }
-    for finding in report.findings {
-        println!(
-            "{:?} — {} may be affected",
-            finding.severity, finding.affected_intent.identifier
-        );
-        println!("Changed: {}", finding.changed_entity);
-        println!("Product context: {}", finding.affected_intent.name);
-        println!("Detected change: {:?}", finding.change_kind);
-        println!("Why this is relevant: {}", finding.reason);
-        for evidence in finding.evidence {
-            println!("Evidence: {evidence}");
-        }
-        if finding.related_tests.is_empty() {
-            println!("Related tests: none explicitly linked");
-        } else {
-            let tests = finding
-                .related_tests
-                .iter()
-                .map(|test| test.identifier.as_str())
-                .collect::<Vec<_>>()
-                .join(", ");
-            println!(
-                "Related tests: {tests} ({})",
-                if finding.tests_modified {
-                    "modified"
-                } else {
-                    "not modified"
-                }
-            );
-        }
-        if finding.possible_requirement_drift {
-            println!("Uncertainty: product context was not modified; check for requirement drift.");
-        }
-        println!("Suggested reviewer action: {}", finding.suggested_action);
-        println!();
-    }
-    print_api_findings(&report.api_findings);
-    print_schema_findings(&report.schema_findings);
-    if !report.stale_relationships.is_empty() {
-        println!("Stale semantic relationships touching changed code:");
-        for relationship in report.stale_relationships {
-            println!("  - {relationship}");
-        }
-    }
-    if related_tests_mode != ctx_core::review::RelatedTestsMode::Off {
-        if report.tests_to_run.is_empty() {
-            println!("Tests to run: none reachable from the changed code.");
-        } else {
-            println!("Tests to run (broad, no product-intent gating):");
-            for test in &report.tests_to_run {
-                println!("  - {}", test.identifier);
-            }
-        }
-    }
-    if cli.verbose > 0 {
-        println!(
-            "Suppressed {} formatting/rename/refactor changes.",
-            report.suppressed_non_behavioral_changes
-        );
+    if fail_on.is_some_and(|policy| policy.blocks(&report)) {
+        return Err(CliError::ReviewBlocked);
     }
     Ok(())
-}
-
-fn print_api_findings(findings: &[ctx_core::review::ApiFinding]) {
-    if findings.is_empty() {
-        return;
-    }
-    println!("Observed API changes (deterministic; not proven requirement impact):");
-    for finding in findings {
-        println!(
-            "{} — {}",
-            if finding.destructive {
-                "DESTRUCTIVE"
-            } else {
-                "informational"
-            },
-            finding.source_symbol
-        );
-        for change in &finding.changes {
-            println!(
-                "  - [{}] {}",
-                if change.destructive {
-                    "destructive"
-                } else {
-                    "informational"
-                },
-                change.description()
-            );
-        }
-        if finding.related_intents.is_empty() {
-            println!("  Possible product impact: no known mapping found (not proven unrelated).");
-        } else {
-            let intents = finding
-                .related_intents
-                .iter()
-                .map(|intent| intent.identifier.as_str())
-                .collect::<Vec<_>>()
-                .join(", ");
-            println!("  Possible product impact: {intents}");
-        }
-        if !finding.related_tests.is_empty() {
-            let tests = finding
-                .related_tests
-                .iter()
-                .map(|test| test.identifier.as_str())
-                .collect::<Vec<_>>()
-                .join(", ");
-            println!("  Related tests: {tests}");
-        }
-        println!();
-    }
-}
-
-fn print_schema_findings(findings: &[ctx_core::review::SchemaFinding]) {
-    if findings.is_empty() {
-        return;
-    }
-    println!("Observed schema changes (deterministic; not proven requirement impact):");
-    for finding in findings {
-        println!(
-            "{} — {}",
-            if finding.destructive {
-                "DESTRUCTIVE"
-            } else {
-                "informational"
-            },
-            finding.source_symbol
-        );
-        for change in &finding.changes {
-            println!(
-                "  - [{}] {}",
-                if change.destructive {
-                    "destructive"
-                } else {
-                    "informational"
-                },
-                change.description()
-            );
-        }
-        if finding.related_intents.is_empty() {
-            println!("  Possible product impact: no known mapping found (not proven unrelated).");
-        } else {
-            let intents = finding
-                .related_intents
-                .iter()
-                .map(|intent| intent.identifier.as_str())
-                .collect::<Vec<_>>()
-                .join(", ");
-            println!("  Possible product impact: {intents}");
-        }
-        if !finding.related_tests.is_empty() {
-            let tests = finding
-                .related_tests
-                .iter()
-                .map(|test| test.identifier.as_str())
-                .collect::<Vec<_>>()
-                .join(", ");
-            println!("  Related tests: {tests}");
-        }
-        println!();
-    }
 }
 
 fn impact(cli: &Cli, git: &GitRepo, target: &str) -> Result<(), CliError> {

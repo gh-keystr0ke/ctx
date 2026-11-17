@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    domain::{ClaimStatus, NodeKind, RelationKind, StableKey},
+    domain::{ClaimClass, ClaimStatus, NodeKind, RelationKind, SourceKind, StableKey},
     graph::{GraphEdge, GraphNode, GraphSnapshot, NodeSummary},
     indexing::{FileChange, PlannedNodeAttributes},
     ir::{ApiEndpoint, DatabaseAccessKind, FileAnalysis, HttpMethod, SymbolDefinition, SymbolKind},
@@ -53,6 +53,41 @@ pub struct ReviewFinding {
     pub possible_requirement_drift: bool,
     pub uncertainty: Option<String>,
     pub suggested_action: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct IntentFinding {
+    pub affected_intent: NodeSummary,
+    pub severity: Severity,
+    pub confidence: f32,
+    pub signals: Vec<ReviewFinding>,
+}
+
+fn group_findings(findings: &[ReviewFinding]) -> Vec<IntentFinding> {
+    let mut groups = BTreeMap::<_, IntentFinding>::new();
+    for finding in findings {
+        let group = groups
+            .entry(&finding.affected_intent.stable_key)
+            .or_insert_with(|| IntentFinding {
+                affected_intent: finding.affected_intent.clone(),
+                severity: finding.severity,
+                confidence: finding.confidence,
+                signals: Vec::new(),
+            });
+        if (finding.severity, finding.confidence) > (group.severity, group.confidence) {
+            group.severity = finding.severity;
+            group.confidence = finding.confidence;
+        }
+        group.signals.push(finding.clone());
+    }
+    let mut groups = groups.into_values().collect::<Vec<_>>();
+    groups.sort_by_key(|group| {
+        (
+            std::cmp::Reverse(group.severity),
+            group.affected_intent.stable_key.clone(),
+        )
+    });
+    groups
 }
 
 /// A deterministic schema change observed directly in a diff's migration or
@@ -128,6 +163,8 @@ pub struct ReviewReport {
     pub base: String,
     pub changed_entities: Vec<ChangedEntity>,
     pub findings: Vec<ReviewFinding>,
+    #[serde(default)]
+    pub findings_by_intent: Vec<IntentFinding>,
     pub schema_findings: Vec<SchemaFinding>,
     pub api_findings: Vec<ApiFinding>,
     pub stale_relationships: Vec<String>,
@@ -262,6 +299,7 @@ pub fn build_review_findings(graph: &GraphSnapshot, input: &ReviewInput) -> Revi
     ReviewReport {
         base: input.base.clone(),
         changed_entities,
+        findings_by_intent: group_findings(&findings),
         findings,
         schema_findings: schema_change_findings(graph, input),
         api_findings: api_change_findings(graph, input),
@@ -1004,20 +1042,23 @@ fn finding_for_edge(
     });
     let possible_requirement_drift = context.context_unchanged
         && matches!(intent.kind, NodeKind::Requirement | NodeKind::Invariant);
-    let reason = indirect_via.map_or_else(
-        || {
-            format!(
-                "The changed symbol has a {:?} {:?} claim from {:?}.",
-                edge.claim_class, edge.kind, edge.source_kind
-            )
-        },
-        |helper| {
-            format!(
-                "This symbol has a {:?} {:?} claim from {:?}, and it calls `{helper}`, whose body changed in this diff.",
-                edge.claim_class, edge.kind, edge.source_kind
-            )
-        },
-    );
+    let source = match (edge.claim_class, edge.source_kind) {
+        (ClaimClass::Assertion, SourceKind::Documentation) => {
+            "Product context documents that this symbol"
+        }
+        (ClaimClass::Assertion, _) => "A recorded assertion says this symbol",
+        (ClaimClass::Fact, _) => "Recorded evidence shows that this symbol",
+        (ClaimClass::Inference, _) => "An inference suggests that this symbol",
+    };
+    let relation = match edge.kind {
+        RelationKind::Enforces => "enforces",
+        RelationKind::Satisfies => "satisfies",
+        _ => "implements",
+    };
+    let reason = format!("{source} {relation} this intent.");
+    let reason = indirect_via.map_or(reason.clone(), |helper| {
+        format!("{reason} It calls `{helper}`, whose body changed.")
+    });
     Some(ReviewFinding {
         severity: severity(intent.kind, change_kind),
         confidence,

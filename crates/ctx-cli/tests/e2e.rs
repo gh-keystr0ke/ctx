@@ -643,6 +643,29 @@ def cancel_subscription(subscription_id: str, request: Request) -> Subscription:
     let review = repository.ctx(&["review", "--base", "HEAD"]);
     assert_eq!(review["api_findings"][0]["destructive"], true);
     assert_eq!(review["api_findings"][0]["changes"][0]["kind"], "removed");
+    let markdown = || {
+        Command::new(env!("CARGO_BIN_EXE_ctx"))
+            .current_dir(repository.root())
+            .args([
+                "review",
+                "--base",
+                "HEAD",
+                "--format",
+                "markdown",
+                "--fail-on",
+                "destructive",
+            ])
+            .output()
+            .expect("run Markdown review")
+    };
+    let first = markdown();
+    assert_eq!(first.status.code(), Some(1));
+    assert_eq!(first.stdout, markdown().stdout);
+    assert!(
+        String::from_utf8(first.stdout)
+            .expect("Markdown")
+            .contains("Observed API changes")
+    );
     run_git(repository.root(), &["add", "."]);
     run_git(
         repository.root(),

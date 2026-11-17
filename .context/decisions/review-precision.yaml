@@ -12,7 +12,9 @@ decision: >
   confidence and evidence strength the same way a direct finding does, stays
   behind the same threshold, is deduplicated per affected caller/intent pair,
   and only ever originates from a genuinely callable changed symbol so a
-  container's aggregate body-hash change can never fabricate a signal. Schema
+  container's aggregate body-hash change can never fabricate a signal.
+  Review groups direct and indirect signals by intent for display. Each
+  group takes its severity and confidence from its strongest signal. Schema
   findings follow the same principle in a different shape: a schema change is
   always deterministic (never a confidence composition), but is reported as a
   separate schema_findings stream rather than folded into proven

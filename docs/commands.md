@@ -86,3 +86,23 @@ See [docs/federation.md](federation.md) for the full workflow, including what `[
 - `impact`/`context` JSON separates `data_contracts` (database entities and HTTP endpoints) from `implementation` and `tests`.
 - `ctx review` reports three independent streams: `findings` (proven product-requirement impact), `schema_findings` (deterministic database schema changes), and `api_findings` (deterministic HTTP contract changes). None is a subset of another, and an empty advisory `related_intents`/`related_tests` list on a schema or API finding means no mapping is known — not that the change is unrelated to the product.
 - Review deliberately favors precision over recall: formatting-only changes, renames, and likely refactors are suppressed by default. Pass `-v` to see suppressed-change counts and lower-confidence diagnostics.
+
+## Review output and exit codes
+
+Use `ctx review --format markdown` to generate a report for a pull request.
+Use `--format json` or `--json` for structured output.
+JSON includes the flat `findings` array and the grouped `findings_by_intent` array.
+
+| `--fail-on` value | Blocking condition |
+| --- | --- |
+| `destructive` | A destructive schema or API change |
+| `untested-invariant` | An invariant finding with no modified related test |
+| `high` | A high-severity product finding |
+| `medium` | A medium- or high-severity product finding |
+
+Exit code 0 means review succeeded and found no change that meets the selected condition.
+Exit code 1 means a change meets the selected condition.
+Exit code 2 means review could not run.
+Without `--fail-on`, a successful review exits with code 0.
+
+To block destructive changes in CI, run `ctx review --base "$BASE_SHA" --fail-on destructive`.

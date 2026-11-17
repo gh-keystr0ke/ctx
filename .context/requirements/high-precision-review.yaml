@@ -17,7 +17,9 @@ statement: >
   indirect uncertainty note naming the changed callee. This one-hop-only
   escalation never chains through a second call hop and is deduplicated per
   (caller, intent) pair even when more than one changed entity would
-  otherwise explain the same pair. Schema changes from a migration or an
+  otherwise explain the same pair. Text and Markdown output group direct and
+  indirect signals into one finding per intent. JSON provides these groups
+  alongside the flat findings array. Schema changes from a migration or an
   edited SQLAlchemy model are surfaced as a separate schema_findings stream,
   classified destructive or informational from deterministic operations
   alone, and kept structurally apart from proven product-impact findings;

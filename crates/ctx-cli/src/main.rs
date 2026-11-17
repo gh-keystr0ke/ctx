@@ -95,13 +95,11 @@ exclude = ["generated", "vendor", "build", "dist", "target", ".venv"]
     version,
     about = "Trusted product context for code changes"
 )]
-#[allow(
-    clippy::struct_excessive_bools,
-    reason = "clap parses independent command-line flags"
-)]
 struct Cli {
+    /// Print machine-readable JSON.
     #[arg(long, global = true)]
     json: bool,
+    /// Show more detail. Repeat to increase the verbosity.
     #[arg(short, long, action = ArgAction::Count, global = true)]
     verbose: u8,
     /// Refresh an outdated index before a query when its inputs are clean.
@@ -110,11 +108,22 @@ struct Cli {
     /// Write full trace diagnostics to a timestamped file under `.ctx/logs`.
     #[arg(long, global = true)]
     debug: bool,
-    /// Pace AI-agent calls: one per 30s, with a 15m break every 30m.
-    #[arg(long, global = true)]
-    siga_siga: bool,
     #[command(subcommand)]
     command: Command,
+}
+
+impl Cli {
+    const fn pace_agent(&self) -> bool {
+        match self.command {
+            Command::Enrich { pace_agent, .. } | Command::Verify { pace_agent, .. } => pace_agent,
+            _ => false,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, clap::ValueEnum)]
+enum FindKind {
+    Requirement,
 }
 
 #[derive(Clone, Copy)]
@@ -160,9 +169,13 @@ enum Command {
     /// Show current index health and counts.
     Status,
     /// Show bounded product and implementation impact for a file or symbol.
-    Impact { target: String },
+    Impact {
+        /// Indexed symbol, file, product ID, or data contract.
+        target: String,
+    },
     /// Explain a node or a directed `source -> target` claim.
     Explain {
+        /// Indexed node or directed claim to explain.
         target: String,
         /// Also trace every HTTP endpoint reachable from this target's own
         /// implementation (a Feature's endpoints, a Requirement's, or the
@@ -186,7 +199,13 @@ enum Command {
         federation_continuation: Option<String>,
     },
     /// Discover indexed symbols/nodes by short or exact name.
-    Find { target: String },
+    Find {
+        /// Indexed name or requirement search terms.
+        target: String,
+        /// Restrict lookup to a node kind.
+        #[arg(long, value_enum)]
+        kind: Option<FindKind>,
+    },
     /// Inspect and maintain locally stored external artifacts.
     Artifacts {
         #[command(subcommand)]
@@ -227,6 +246,9 @@ enum Command {
     /// Analyze ingested artifacts with an AI agent for candidate product
     /// knowledge, queued for human verification via `ctx verify`.
     Enrich {
+        /// Pace AI-agent calls and take regular breaks.
+        #[arg(long, alias = "siga-siga")]
+        pace_agent: bool,
         /// The agent to run: "claude" (headless Claude Code CLI, `claude
         /// -p`), "codex" (headless `OpenAI` Codex CLI, `codex exec`), or
         /// "antigravity" (headless Google Antigravity CLI, `agy -p`).
@@ -274,9 +296,12 @@ enum Command {
     },
     /// Compile bounded context for a coding task.
     Context {
+        /// Task to use for lexical ranking.
         task: String,
+        /// Restrict context to the neighborhood of this file.
         #[arg(long)]
         file: Vec<String>,
+        /// Restrict context to the neighborhood of this symbol.
         #[arg(long)]
         symbol: Vec<String>,
         #[arg(long, default_value_t = 4_000)]
@@ -287,7 +312,7 @@ enum Command {
         #[command(subcommand)]
         command: RegistryCommand,
     },
-    /// Manage where .context/ and .ctx-candidates/ are stored (ADR-CTX-050):
+    /// Manage where .context/ and .ctx-candidates/ are stored:
     /// redirected outside the checkout when it belongs to someone else, so
     /// nothing is ever written into a repository you don't own.
     ContextStore {
@@ -314,6 +339,9 @@ enum Command {
     /// Review and accept/reject heuristic semantic candidates, or
     /// (`--knowledge`) AI-derived candidates from `ctx enrich`.
     Verify {
+        /// Pace AI-agent calls and take regular breaks.
+        #[arg(long, alias = "siga-siga")]
+        pace_agent: bool,
         #[arg(long, conflicts_with = "reject")]
         accept: Option<String>,
         #[arg(long, conflicts_with = "accept")]
@@ -579,7 +607,7 @@ fn run(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
             target,
             federation_continuation,
         } => trace(cli, git, target, federation_continuation.as_deref()),
-        Command::Find { target } => find(cli, git, target),
+        Command::Find { target, kind } => find(cli, git, target, *kind),
         Command::Artifacts { command } => artifacts(cli, git, command),
         command @ Command::Ingest { .. } => ingest_command::from_command(cli, git, command),
         command @ Command::Enrich { .. } => enrich_command(cli, git, command),
@@ -613,6 +641,7 @@ fn run(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
             model,
             id_prefix,
             stale,
+            ..
         } => {
             if *stale {
                 verify_stale(cli, git, agent, model.clone(), author)
@@ -1319,12 +1348,27 @@ fn traces_for_implementation(
     Ok(traces)
 }
 
-fn find(cli: &Cli, git: &GitRepo, target: &str) -> Result<(), CliError> {
+fn find(cli: &Cli, git: &GitRepo, target: &str, kind: Option<FindKind>) -> Result<(), CliError> {
     let database_path = database_path(git.root())?;
     let mut store = SqliteStore::open(&database_path, git.context_root())?;
     let repository = git.descriptor()?;
     let freshness = query_freshness(cli, git, &mut store, &repository.id)?;
-    let matches = QueryService::new(&store).find(&repository.id, target)?;
+    let query = QueryService::new(&store);
+    if matches!(kind, Some(FindKind::Requirement)) {
+        let matches = query.find_requirements(&repository.id, target)?;
+        if cli.json {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(
+                    &json!({"query": target, "matches": matches, "index": freshness})
+                )?
+            );
+        } else {
+            print_nodes("Requirements", &matches);
+        }
+        return Ok(());
+    }
+    let matches = query.find(&repository.id, target)?;
     if cli.json {
         println!(
             "{}",
@@ -1334,16 +1378,10 @@ fn find(cli: &Cli, git: &GitRepo, target: &str) -> Result<(), CliError> {
         );
         return Ok(());
     }
-    let total = matches.len();
-    if total > 1 {
-        println!("{total} symbols found\n");
-    } else if total == 0 {
+    if matches.is_empty() {
         println!("0 symbols found");
     }
-    for (index, symbol_match) in matches.into_iter().enumerate() {
-        if total > 1 {
-            println!("[{}/{total}]", index + 1);
-        }
+    for symbol_match in matches {
         let kind = symbol_match.symbol_kind.map_or_else(
             || format!("{:?}", symbol_match.node_kind),
             |kind| format!("{kind:?}"),
@@ -1380,8 +1418,9 @@ fn enrich(
                 subject.identity.kind, subject.identity.external_id
             );
         };
-    let configured_agent = ConfiguredAgent::from_name(agent, model, cli.verbose > 0, cli.siga_siga)
-        .map_err(CliError::UnsupportedAgent)?;
+    let configured_agent =
+        ConfiguredAgent::from_name(agent, model, cli.verbose > 0, cli.pace_agent())
+            .map_err(CliError::UnsupportedAgent)?;
     let report = match options.scope {
         IngestScopeArg::All => EnrichRunner::new(&configured_agent, &mut store).run_with_progress(
             &repository.id,
@@ -1428,6 +1467,7 @@ fn enrich_command(cli: &Cli, git: &GitRepo, command: &Command) -> Result<(), Cli
         allow_ungrounded_symbols,
         scope,
         related_depth,
+        ..
     } = command
     else {
         unreachable!("enrich_command is called only for Command::Enrich")
@@ -1495,7 +1535,15 @@ fn print_nodes(label: &str, nodes: &[ctx_core::graph::NodeSummary]) {
     }
     println!("{label}:");
     for node in nodes {
-        println!("  - {}", node.identifier);
+        if matches!(node.kind, ctx_core::domain::NodeKind::Requirement) {
+            println!(
+                "  - {} — {}",
+                node.identifier,
+                node.name.split_whitespace().collect::<Vec<_>>().join(" ")
+            );
+        } else {
+            println!("  - {}", node.identifier);
+        }
     }
 }
 

@@ -5,7 +5,7 @@ Every command accepts these global flags, which must appear before the subcomman
 - `--json` — stable machine-readable output.
 - `-v`/`-vv`/`-vvv` (repeatable) — progressively richer terminal diagnostics on stderr, without corrupting `--json` stdout. `-v` reports command and ingest lifecycle; `-vv` adds internal stages and external-call metadata (no payloads); `-vvv` adds timings plus raw request/response data.
 - `--debug` — independently of `-v`, record the full `-vvv`-equivalent trace as timestamped JSONL under `.ctx/logs` (Git-ignored, `0600` permissions).
-- `--siga-siga` — pace AI-agent calls made by `ctx enrich`, `ctx verify --knowledge --auto`, and `ctx verify --stale`: one request immediately, then at least 30s between requests, with a 15m pause after 30m of continuous calling. No effect on commands that don't call an agent.
+- Use `--pace-agent` with `ctx enrich` or `ctx verify` to limit agent calls. The old `--siga-siga` spelling works as a subcommand option.
 
 ## Setup and indexing
 

@@ -31,7 +31,7 @@ Prefer the MCP server when it is connected (check your available tools for `get_
 | `get_context`       | `ctx context "<task>" [--file P]... [--symbol S]... [--token-budget N] --json` | `task` is required; everything else is optional |
 | `get_impact`        | `ctx impact <file\|symbol\|stable-id\|table.column> --json` | |
 | `explain_relation`  | `ctx explain "<id>"` or `ctx explain "source -> target" --json` (add `--trace` for reachable HTTP endpoints) | |
-| `find_requirements` | *(no CLI equivalent — MCP only)* | falls back to reading `.context/requirements/*.yaml` directly if MCP is unavailable |
+| `find_requirements` | `ctx find --kind requirement <query> --json` | Searches requirements by ID or text. |
 | `review_change`     | `ctx review [--base <revision>] --json` | `base` defaults to `HEAD` |
 
 ## The per-task pipeline

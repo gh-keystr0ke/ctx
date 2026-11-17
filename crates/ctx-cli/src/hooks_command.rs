@@ -1,0 +1,197 @@
+use std::{
+    fs, io,
+    path::{Path, PathBuf},
+    process::Command,
+};
+
+use clap::Subcommand;
+use serde_json::json;
+
+use crate::{Cli, CliError, GitRepo};
+
+const OPEN: &str = "# >>> ctx";
+const CLOSE: &str = "# <<< ctx";
+const POST_HOOKS: &[&str] = &["post-commit", "post-merge", "post-checkout", "post-rewrite"];
+
+#[derive(Debug, Subcommand)]
+pub(crate) enum HooksCommand {
+    /// Install background indexing hooks.
+    Install,
+    /// Remove ctx's managed blocks.
+    Uninstall,
+}
+
+pub(crate) fn run(cli: &Cli, git: &GitRepo, command: &HooksCommand) -> Result<(), CliError> {
+    let binary = std::env::current_exe()?;
+    let install = matches!(command, HooksCommand::Install);
+    let mut changed = Vec::new();
+    for name in POST_HOOKS
+        .iter()
+        .copied()
+        .chain((!install).then_some("pre-commit"))
+    {
+        let path = hook_path(git, name)?;
+        if edit_hook(&path, install.then(|| post_body(&binary)).as_deref())? {
+            changed.push(path);
+        }
+    }
+    if cli.json {
+        println!("{}", json!({"changed_files": changed}));
+    } else {
+        for path in changed {
+            println!("{}", path.display());
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn hook_path(git: &GitRepo, name: &str) -> Result<PathBuf, io::Error> {
+    let output = Command::new("git")
+        .current_dir(git.root())
+        .args(["rev-parse", "--git-path", &format!("hooks/{name}")])
+        .output()?;
+    if !output.status.success() {
+        return Err(io::Error::other(String::from_utf8_lossy(&output.stderr)));
+    }
+    let path = String::from_utf8(output.stdout).map_err(io::Error::other)?;
+    Ok(git.root().join(path.trim_end_matches('\n')))
+}
+
+pub(crate) fn shell_quote(path: &Path) -> String {
+    shell_quote_text(&path.to_string_lossy())
+}
+
+pub(crate) fn shell_quote_text(text: &str) -> String {
+    format!("'{}'", text.replace('\'', "'\"'\"'"))
+}
+
+fn post_body(binary: &Path) -> String {
+    let binary = shell_quote(binary);
+    format!(
+        "(\n  unset GIT_INDEX_FILE\n  mkdir -p .ctx/logs && {binary} index --quiet >>.ctx/logs/hooks.log 2>&1\n) </dev/null >/dev/null 2>&1 &"
+    )
+}
+
+fn managed_range(text: &str) -> Result<Option<std::ops::Range<usize>>, io::Error> {
+    let mut start = None;
+    let mut range = None;
+    let mut offset = 0;
+    for line in text.split_inclusive('\n') {
+        match line.trim_end_matches(['\r', '\n']) {
+            OPEN if start.is_none() && range.is_none() => start = Some(offset),
+            CLOSE if start.is_some() && range.is_none() => {
+                range = Some(start.take().expect("opening marker")..offset + line.len())
+            }
+            OPEN | CLOSE => return Err(io::Error::other("invalid ctx hook markers")),
+            _ => {}
+        }
+        offset += line.len();
+    }
+    if start.is_some() {
+        return Err(io::Error::other("ctx hook has no closing marker"));
+    }
+    Ok(range)
+}
+
+pub(crate) fn plan_hook(existing: &str, body: Option<&str>) -> Result<String, io::Error> {
+    let mut result = existing.to_owned();
+    if let Some(range) = managed_range(existing)? {
+        result.replace_range(
+            range,
+            &body.map_or_else(String::new, |body| format!("{OPEN}\n{body}\n{CLOSE}\n")),
+        );
+    } else if let Some(body) = body {
+        if result.is_empty() {
+            result.push_str("#!/bin/sh\n");
+        }
+        let offset = if result.starts_with("#!") {
+            let Some(line) = result.lines().next() else {
+                unreachable!()
+            };
+            let interpreter = line
+                .trim_start_matches("#!")
+                .split_whitespace()
+                .collect::<Vec<_>>();
+            if !interpreter.iter().any(|word| {
+                matches!(
+                    word.rsplit('/').next(),
+                    Some("sh" | "bash" | "dash" | "zsh" | "ksh")
+                )
+            }) {
+                return Err(io::Error::other(
+                    "existing hook must use a POSIX-compatible shell",
+                ));
+            }
+            if !result.contains('\n') {
+                result.push('\n');
+            }
+            result.find('\n').expect("shebang line") + 1
+        } else {
+            0
+        };
+        result.insert_str(offset, &format!("{OPEN}\n{body}\n{CLOSE}\n"));
+    }
+    Ok(result)
+}
+
+fn edit_hook(path: &Path, body: Option<&str>) -> Result<bool, io::Error> {
+    let original = read_missing(path)?;
+    let desired = plan_hook(&original, body)?;
+    if original == desired {
+        return Ok(false);
+    }
+    write_file(path, &desired, true)?;
+    Ok(true)
+}
+
+pub(crate) fn read_missing(path: &Path) -> Result<String, io::Error> {
+    match fs::read_to_string(path) {
+        Ok(text) => Ok(text),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(String::new()),
+        Err(error) => Err(error),
+    }
+}
+
+pub(crate) fn write_file(path: &Path, contents: &str, executable: bool) -> Result<(), io::Error> {
+    use std::io::Write as _;
+
+    let directory = path
+        .parent()
+        .ok_or_else(|| io::Error::other("file has no parent directory"))?;
+    fs::create_dir_all(directory)?;
+    let mut temp = tempfile::NamedTempFile::new_in(directory)?;
+    temp.write_all(contents.as_bytes())?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        let old = path
+            .metadata()
+            .ok()
+            .map_or(0o644, |metadata| metadata.permissions().mode());
+        temp.as_file()
+            .set_permissions(fs::Permissions::from_mode(if executable {
+                old | 0o111
+            } else {
+                old
+            }))?;
+    }
+    temp.persist(path).map_err(|error| error.error)?;
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn managed_block_round_trips_a_user_hook() {
+        let original = "#!/bin/bash\nprintf '%s' custom\nexit 0\n";
+        let first = plan_hook(original, Some("ctx index --quiet")).expect("insert block");
+        assert_eq!(
+            plan_hook(&first, Some("ctx index --quiet")).expect("add again"),
+            first
+        );
+        assert_eq!(plan_hook(&first, None).expect("remove block"), original);
+        assert!(first.find(OPEN) < first.find("exit 0"));
+    }
+}

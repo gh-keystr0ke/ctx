@@ -60,6 +60,7 @@ mod agent_pacing;
 mod artifacts_command;
 mod diagnostics;
 mod federation_command;
+mod hooks_command;
 mod ingest_command;
 mod report_command;
 mod review_format;
@@ -94,6 +95,10 @@ exclude = ["generated", "vendor", "build", "dist", "target", ".venv"]
     name = "ctx",
     version,
     about = "Trusted product context for code changes"
+)]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "clap parses independent command-line flags"
 )]
 struct Cli {
     /// Print machine-readable JSON.
@@ -142,6 +147,14 @@ enum Command {
         /// Validate and index the exact Git HEAD snapshot, even on a dirty worktree.
         #[arg(long)]
         from_head: bool,
+        /// Suppress successful index output.
+        #[arg(long)]
+        quiet: bool,
+    },
+    /// Manage repository Git hooks.
+    Hooks {
+        #[command(subcommand)]
+        command: hooks_command::HooksCommand,
     },
     /// Infer typed Python ORM writes with a separate Pyright semantic pass.
     InferTypes {
@@ -598,7 +611,8 @@ fn execute(cli: &Cli) -> Result<(), CliError> {
 fn run(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
     match &cli.command {
         Command::Init => initialize(cli, git),
-        Command::Index { from_head } => index(cli, git, *from_head),
+        Command::Index { from_head, quiet } => index(cli, git, *from_head, *quiet),
+        Command::Hooks { command } => hooks_command::run(cli, git, command),
         command @ Command::InferTypes { .. } => infer_types_command(cli, git, command),
         Command::Status => status(cli, git),
         Command::Impact { target } => impact(cli, git, target),
@@ -684,6 +698,7 @@ impl Command {
         match self {
             Self::Init => "init",
             Self::Index { .. } => "index",
+            Self::Hooks { .. } => "hooks",
             Self::InferTypes { .. } => "infer-types",
             Self::Status => "status",
             Self::Impact { .. } => "impact",
@@ -1600,11 +1615,12 @@ fn initialize(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
             "Enabled analyzers: {}. Next: add source code to Git, then run 'ctx index'.",
             languages.join(", ")
         );
+        println!("Next: ctx hooks install");
     }
     Ok(())
 }
 
-fn index(cli: &Cli, git: &GitRepo, from_head: bool) -> Result<(), CliError> {
+fn index(cli: &Cli, git: &GitRepo, from_head: bool, quiet: bool) -> Result<(), CliError> {
     let database_path = database_path(git.root())?;
     let report = if from_head {
         let _lock = lock_index(git)?;
@@ -1615,6 +1631,12 @@ fn index(cli: &Cli, git: &GitRepo, from_head: bool) -> Result<(), CliError> {
         let mut store = SqliteStore::open(&database_path, git.context_root())?;
         index_local(git, &mut store)?
     };
+    if quiet && !cli.json {
+        for failure in &report.code.failed_files {
+            eprintln!("{}: {}", failure.path, failure.error);
+        }
+        return Ok(());
+    }
     if cli.json {
         println!("{}", serde_json::to_string_pretty(&report)?);
     } else if report.code.already_current {

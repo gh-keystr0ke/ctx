@@ -117,3 +117,10 @@ The command reports how many uncommitted files it excludes.
 It checks every configured source before it opens the index.
 If a source fails analysis, the command returns exit code 1.
 Use `--json` to get the path, line, and reason for each error in `invalid_files`.
+
+## Background indexing hooks
+
+Run `ctx hooks install` to refresh the local index after commits, merges, checkouts, and rewrites.
+The hooks use Git's `core.hooksPath` when configured.
+Indexing runs in the background and records errors in `.ctx/logs/hooks.log`.
+Run `ctx hooks uninstall` to remove the ctx blocks.

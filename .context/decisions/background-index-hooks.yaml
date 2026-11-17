@@ -1,0 +1,15 @@
+id: ADR-INDEX-HOOKS-001
+type: decision
+feature: FEAT-INDEXING
+title: Refresh the local index through opt-in Git hooks
+status: accepted
+decision: >
+  Installation adds a managed block to each Git lifecycle hook. Each block
+  starts local indexing in the background. Index errors go to the local log
+  and do not change the Git command's result. All index writers share an
+  advisory lock.
+implementation:
+  - symbol: ctx_cli.hooks_command.run
+  - symbol: ctx_adapters.local_index.lock_index
+tests:
+  - symbol: ctx_cli.hooks_command.tests.managed_block_round_trips_a_user_hook

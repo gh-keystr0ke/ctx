@@ -737,6 +737,41 @@ fn complete_product_journey_is_deterministic_and_evidence_backed() {
 }
 
 #[test]
+fn from_head_reads_committed_sources_and_rejects_invalid_head_before_writing() {
+    let repository = MixedLanguageRepository::new();
+    let root = repository.root();
+    let path = root.join("src/app.py");
+    repository.ctx(&["init"]);
+    repository.ctx(&["index"]);
+    let baseline = repository.ctx(&["impact", "app.run"]);
+
+    fs::write(&path, "def dirty():\n    pass\n").expect("dirty worktree");
+    let from_head = repository.ctx(&["index", "--from-head"]);
+    assert_eq!(from_head["uncommitted_files_ignored"], 1);
+    let dirty = repository.ctx(&["impact", "app.run"]);
+    assert_eq!(baseline["matches"], dirty["matches"]);
+    assert_eq!(dirty["index"]["state"], "dirty");
+
+    fs::write(&path, "def run(:\n    pass\n").expect("invalid committed source");
+    run_git(root, &["add", "src/app.py"]);
+    run_git(root, &["commit", "--quiet", "-m", "invalid HEAD"]);
+    fs::write(&path, "def run():\n    pass\n").expect("valid worktree source");
+    let database = root.join(".ctx/ctx.db");
+    let before = fs::read(&database).expect("read index");
+    let output = Command::new(env!("CARGO_BIN_EXE_ctx"))
+        .current_dir(root)
+        .args(["index", "--from-head", "--json"])
+        .output()
+        .expect("run strict index");
+    assert_eq!(output.status.code(), Some(1));
+    let result: Value = serde_json::from_slice(&output.stdout).expect("invalid files report");
+    assert_eq!(result["invalid_files"][0]["path"], "src/app.py");
+    assert_eq!(result["invalid_files"][0]["line"], 1);
+    assert_eq!(result["invalid_files"][0]["reason"], "syntax error");
+    assert_eq!(before, fs::read(database).expect("read unchanged index"));
+}
+
+#[test]
 fn mixed_python_rust_and_go_repository_indexes_and_reviews_through_one_registry() {
     let repository = MixedLanguageRepository::new();
 

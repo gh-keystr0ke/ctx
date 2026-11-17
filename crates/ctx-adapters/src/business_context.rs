@@ -1,5 +1,5 @@
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     fs,
     path::{Path, PathBuf},
 };
@@ -130,7 +130,7 @@ fn collect_paths(directory: &Path, paths: &mut Vec<PathBuf>) -> Result<(), Busin
     Ok(())
 }
 
-fn is_context_file(path: &Path) -> bool {
+pub(crate) fn is_context_file(path: &Path) -> bool {
     path.extension().is_some_and(|extension| {
         extension.eq_ignore_ascii_case("yaml")
             || extension.eq_ignore_ascii_case("yml")
@@ -143,20 +143,49 @@ fn read_document(root: &Path, path: &Path) -> Result<BusinessDocument, BusinessC
         path: path.display().to_string(),
         source,
     })?;
+    parse_document(root, path, &content)
+}
+
+pub(crate) fn parse_context_blobs(
+    root: &Path,
+    blobs: &BTreeMap<String, Vec<u8>>,
+) -> Result<Vec<BusinessDocument>, PortError> {
+    let mut ids = BTreeSet::new();
+    blobs
+        .iter()
+        .map(|(path, bytes)| {
+            let text = std::str::from_utf8(bytes)
+                .map_err(|error| PortError::new(format!("{path}: {error}")))?;
+            let document = parse_document(root, &root.join(path), text).map_err(port_error)?;
+            if !ids.insert(document.id.clone()) {
+                return Err(port_error(BusinessContextError::DuplicateId {
+                    id: document.id,
+                }));
+            }
+            Ok(document)
+        })
+        .collect()
+}
+
+fn parse_document(
+    root: &Path,
+    path: &Path,
+    content: &str,
+) -> Result<BusinessDocument, BusinessContextError> {
     let yaml = if path
         .extension()
         .is_some_and(|extension| extension.eq_ignore_ascii_case("md"))
     {
-        markdown_front_matter(path, &content)?
+        markdown_front_matter(path, content)?
     } else {
-        content.as_str()
+        content
     };
     let raw: RawDocument =
         yaml_serde::from_str(yaml).map_err(|error| BusinessContextError::Yaml {
             path: path.display().to_string(),
             message: error.to_string(),
         })?;
-    normalize_document(root, path, &content, raw)
+    normalize_document(root, path, content, raw)
 }
 
 fn markdown_front_matter<'a>(

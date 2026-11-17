@@ -1,6 +1,8 @@
 use std::{
+    collections::BTreeMap,
+    io::Write,
     path::{Path, PathBuf},
-    process::Command,
+    process::{Command, Stdio},
 };
 
 use ctx_app::ports::{
@@ -241,6 +243,7 @@ impl GitRepo {
             ".ctx/ctx.db",
             ".ctx/ctx.db-shm",
             ".ctx/ctx.db-wal",
+            ".ctx/index.lock",
             ".ctx/registry.toml",
             ".ctx/export.json",
             ".ctx/report/",
@@ -268,6 +271,61 @@ impl GitRepo {
     /// read, or updated.
     pub fn ignore_local_database(&self) -> Result<(), GitError> {
         self.ignore_local_state()
+    }
+
+    pub(crate) fn committed_sources(
+        &self,
+        revision: &CommitOid,
+    ) -> Result<BTreeMap<String, Vec<u8>>, PortError> {
+        let paths = tree_paths(&self.root, revision.as_str(), None)?
+            .into_iter()
+            .filter(|path| self.source_allowed(path))
+            .collect::<Vec<_>>();
+        required_blobs(&self.root, revision.as_str(), &paths)
+    }
+
+    pub(crate) fn committed_context(
+        &self,
+        source_revision: &CommitOid,
+    ) -> Result<Option<BTreeMap<String, Vec<u8>>>, PortError> {
+        if !self.context_is_repository {
+            return Ok(None);
+        }
+        if self.has_external_context() && !self.context_has_commits() {
+            return Ok(Some(BTreeMap::new()));
+        }
+        let revision = if self.has_external_context() {
+            resolve_revision_at(&self.context_root, "HEAD").map_err(port_error)?
+        } else {
+            source_revision.to_string()
+        };
+        let paths = tree_paths(&self.context_root, &revision, Some(".context"))?
+            .into_iter()
+            .filter(|path| crate::business_context::is_context_file(Path::new(path)))
+            .collect::<Vec<_>>();
+        required_blobs(&self.context_root, &revision, &paths).map(Some)
+    }
+
+    pub(crate) fn changes_between(
+        &self,
+        previous: &CommitOid,
+        next: &CommitOid,
+    ) -> Result<Vec<FileChange>, PortError> {
+        let bytes = self
+            .output(&[
+                "diff",
+                "--name-status",
+                "-z",
+                "-M",
+                previous.as_str(),
+                next.as_str(),
+                "--",
+            ])
+            .map_err(port_error)?;
+        Ok(filter_changes(
+            parse_name_status(&bytes, &self.languages)?,
+            &self.path_filter,
+        ))
     }
 
     fn output(&self, args: &[&str]) -> Result<Vec<u8>, GitError> {
@@ -378,6 +436,103 @@ fn is_inside_work_tree(path: &Path) -> bool {
     run_git(path, &["rev-parse", "--is-inside-work-tree"])
         .ok()
         .is_some_and(|bytes| std::str::from_utf8(&bytes).map(str::trim) == Ok("true"))
+}
+
+fn tree_paths(root: &Path, revision: &str, scope: Option<&str>) -> Result<Vec<String>, PortError> {
+    let bytes = if let Some(scope) = scope {
+        run_git(
+            root,
+            &["ls-tree", "-r", "-z", "--name-only", revision, "--", scope],
+        )
+    } else {
+        run_git(root, &["ls-tree", "-r", "-z", "--name-only", revision])
+    }
+    .map_err(port_error)?;
+    parse_nul_strings(&bytes)
+}
+
+fn required_blobs(
+    root: &Path,
+    revision: &str,
+    paths: &[String],
+) -> Result<BTreeMap<String, Vec<u8>>, PortError> {
+    let prefix = run_git(root, &["rev-parse", "--show-prefix"]).map_err(port_error)?;
+    let prefix = std::str::from_utf8(&prefix).map_err(|_| port_error(GitError::InvalidUtf8))?;
+    let prefix = prefix.strip_suffix('\n').unwrap_or(prefix);
+    let object_paths = paths
+        .iter()
+        .map(|path| format!("{prefix}{path}"))
+        .collect::<Vec<_>>();
+    let blobs = batch_blobs(root, revision, &object_paths)?;
+    paths
+        .iter()
+        .zip(blobs)
+        .map(|(path, blob)| {
+            blob.map(|blob| (path.clone(), blob))
+                .ok_or_else(|| PortError::new(format!("missing Git blob '{path}' at {revision}")))
+        })
+        .collect()
+}
+
+fn batch_blobs(
+    root: &Path,
+    revision: &str,
+    paths: &[String],
+) -> Result<Vec<Option<Vec<u8>>>, PortError> {
+    if paths.is_empty() {
+        return Ok(Vec::new());
+    }
+    // Lowercase -z accepts NUL-terminated input on older Git versions too.
+    let mut child = Command::new("git")
+        .current_dir(root)
+        .args(["cat-file", "--batch", "-z"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|error| PortError::new(error.to_string()))?;
+    let mut stdin = child.stdin.take().expect("piped Git stdin");
+    let output = std::thread::scope(|scope| {
+        let send = scope.spawn(move || {
+            for path in paths {
+                write!(stdin, "{revision}:{path}\0")?;
+            }
+            Ok::<_, std::io::Error>(())
+        });
+        let output = child.wait_with_output()?;
+        send.join().expect("Git input writer completes")?;
+        Ok::<_, std::io::Error>(output)
+    })
+    .map_err(|error| PortError::new(error.to_string()))?;
+    if !output.status.success() {
+        return Err(PortError::new(String::from_utf8_lossy(&output.stderr)));
+    }
+    let mut bytes = output.stdout.as_slice();
+    let invalid = || PortError::new("invalid output from git cat-file --batch");
+    let mut blobs = Vec::with_capacity(paths.len());
+    for path in paths {
+        let missing = format!("{revision}:{path} missing\n");
+        if let Some(rest) = bytes.strip_prefix(missing.as_bytes()) {
+            bytes = rest;
+            blobs.push(None);
+            continue;
+        }
+        let end = bytes
+            .iter()
+            .position(|&byte| byte == b'\n')
+            .ok_or_else(invalid)?;
+        let header = std::str::from_utf8(&bytes[..end]).map_err(|_| invalid())?;
+        let (_, size) = header.split_once(" blob ").ok_or_else(invalid)?;
+        let size: usize = size.parse().map_err(|_| invalid())?;
+        bytes = &bytes[end + 1..];
+        let (blob, rest) = bytes.split_at_checked(size).ok_or_else(invalid)?;
+        bytes = rest.strip_prefix(b"\n").ok_or_else(invalid)?;
+        blobs.push(Some(blob.to_vec()));
+    }
+    if !bytes.is_empty() {
+        return Err(invalid());
+    }
+    Ok(blobs)
 }
 
 fn run_git(root: &Path, args: &[&str]) -> Result<Vec<u8>, GitError> {
@@ -688,6 +843,26 @@ impl ReviewRepository for GitRepo {
         String::from_utf8(output.stdout)
             .map(Some)
             .map_err(|_| PortError::new(format!("'{path}' at {revision} is not valid UTF-8")))
+    }
+
+    fn sources_at(
+        &self,
+        revision: &str,
+        paths: &[String],
+    ) -> Result<BTreeMap<String, String>, PortError> {
+        let revision = self.resolve_revision(revision).map_err(port_error)?;
+        paths
+            .iter()
+            .zip(batch_blobs(&self.root, &revision, paths)?)
+            .filter_map(|(path, blob)| blob.map(|blob| (path, blob)))
+            .map(|(path, blob)| {
+                String::from_utf8(blob)
+                    .map(|text| (path.clone(), text))
+                    .map_err(|_| {
+                        PortError::new(format!("'{path}' at {revision} is not valid UTF-8"))
+                    })
+            })
+            .collect()
     }
 }
 

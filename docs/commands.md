@@ -106,3 +106,14 @@ Exit code 2 means review could not run.
 Without `--fail-on`, a successful review exits with code 0.
 
 To block destructive changes in CI, run `ctx review --base "$BASE_SHA" --fail-on destructive`.
+
+## Index a committed snapshot
+
+Use `ctx index --from-head` to read sources and product documents from Git HEAD.
+For an external Git context store, ctx reads that store's HEAD.
+A plain-directory context store supplies its current files.
+
+The command reports how many uncommitted files it excludes.
+It checks every configured source before it opens the index.
+If a source fails analysis, the command returns exit code 1.
+Use `--json` to get the path, line, and reason for each error in `invalid_files`.

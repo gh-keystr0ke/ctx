@@ -2,6 +2,7 @@
 **/.ctx/ctx.db
 **/.ctx/ctx.db-shm
 **/.ctx/ctx.db-wal
+**/.ctx/index.lock
 /docs/historical-eval-results/
 /worklog.md
 /prompt.md

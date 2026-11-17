@@ -10,7 +10,9 @@ statement: >
   derived output from its current bytes; any prior snapshot entry is retired
   in the same atomic transition (REQ-INDEX-002), so the failed analysis never
   partially lands and never blocks the rest of the transition from
-  committing. Business-context bytes (.context/*.yaml) get
+  committing in default mode. With index --from-head, ctx validates every
+  configured source file from Git HEAD before opening the index. Any source
+  error rejects the full transition. Business-context bytes (.context/*.yaml) get
   the identical commit-before-index guarantee only when their resolved
   location -- this checkout's root by default, or wherever `ctx
   context-store set` redirects it (ADR-CTX-050) -- is itself a Git
@@ -20,11 +22,13 @@ statement: >
   non-redirected case.
 implementation:
   - symbol: ctx_app.index.IndexRunner.run
+  - symbol: ctx_adapters.local_index.prepare_head_index
   - symbol: ctx_app.index.changes_after_analysis
   - symbol: ctx_adapters.git.GitRepo.GitRepository.uncommitted_index_inputs
   - symbol: ctx_adapters.git.GitRepo.context_is_git_repository
   - symbol: ctx_adapters.sqlite.index.SqliteStore.IndexStore.apply_index
 tests:
+  - symbol: crates.ctx-cli.tests.e2e.from_head_reads_committed_sources_and_rejects_invalid_head_before_writing
   - symbol: crates.ctx-cli.tests.e2e.complete_product_journey_is_deterministic_and_evidence_backed
   - symbol: ctx_adapters.sqlite.index.tests.same_commit_reanalysis_replaces_derived_node_version
   - symbol: ctx_adapters.sqlite.index.tests.database_facts_persist_with_static_evidence_and_status_counts

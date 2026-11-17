@@ -53,16 +53,26 @@ where
         related_tests_mode: RelatedTestsMode,
     ) -> Result<ReviewReport, ReviewError> {
         let changes = self.git.review_changes(base).map_err(ReviewError::Git)?;
+        let old_paths = changes
+            .source_changes
+            .iter()
+            .filter_map(|change| change_paths(change).0)
+            .map(str::to_owned)
+            .collect::<Vec<_>>();
+        let old_sources = self
+            .git
+            .sources_at(base, &old_paths)
+            .map_err(ReviewError::Git)?;
         let mut before = BTreeMap::new();
         let mut after = BTreeMap::new();
         for change in &changes.source_changes {
             let (old_path, new_path) = change_paths(change);
             if let Some(path) = old_path
-                && let Some(source) = self.git.source_at(base, path).map_err(ReviewError::Git)?
+                && let Some(source) = old_sources.get(path)
             {
                 let analysis = self
                     .analyzer
-                    .analyze_text(path, &source)
+                    .analyze_text(path, source)
                     .map_err(ReviewError::Analysis)?;
                 before.insert(path.to_owned(), analysis);
             }

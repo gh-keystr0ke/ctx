@@ -212,6 +212,23 @@ pub trait ReviewRepository {
     /// # Errors
     /// Returns [`PortError`] when Git cannot read repository data.
     fn source_at(&self, revision: &str, path: &str) -> Result<Option<String>, PortError>;
+    /// Loads multiple paths from one revision.
+    ///
+    /// # Errors
+    /// Returns [`PortError`] if a source cannot be read.
+    fn sources_at(
+        &self,
+        revision: &str,
+        paths: &[String],
+    ) -> Result<std::collections::BTreeMap<String, String>, PortError> {
+        let mut sources = std::collections::BTreeMap::new();
+        for path in paths {
+            if let Some(source) = self.source_at(revision, path)? {
+                sources.insert(path.clone(), source);
+            }
+        }
+        Ok(sources)
+    }
 }
 
 pub trait BusinessContextReader {

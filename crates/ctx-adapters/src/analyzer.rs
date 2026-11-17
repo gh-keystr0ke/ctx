@@ -86,6 +86,46 @@ impl AnalyzerRegistry {
         Ok(())
     }
 
+    pub(crate) fn analyze_strict(
+        &self,
+        path: &str,
+        source: &str,
+    ) -> Result<FileAnalysis, (usize, String)> {
+        let module = self
+            .module_for_path(path)
+            .map_err(|error| (1, error.to_string()))?;
+        let language = match module.language() {
+            "python" => Some(tree_sitter_python::LANGUAGE.into()),
+            "rust" => Some(tree_sitter_rust::LANGUAGE.into()),
+            "go" => Some(tree_sitter_go::LANGUAGE.into()),
+            _ => None,
+        };
+        if let Some(language) = language {
+            let mut parser = tree_sitter::Parser::new();
+            parser
+                .set_language(&language)
+                .map_err(|error| (1, error.to_string()))?;
+            let tree = parser
+                .parse(source, None)
+                .ok_or_else(|| (1, "parser did not return a syntax tree".to_owned()))?;
+            let mut node = tree.root_node();
+            if node.has_error() {
+                while !node.is_error() && !node.is_missing() {
+                    let mut cursor = node.walk();
+                    let child = node
+                        .children(&mut cursor)
+                        .find(tree_sitter::Node::has_error);
+                    let Some(child) = child else { break };
+                    node = child;
+                }
+                return Err((node.start_position().row + 1, "syntax error".to_owned()));
+            }
+        }
+        module
+            .analyze_text(path, source)
+            .map_err(|error| (1, error.to_string()))
+    }
+
     fn module_for_path(&self, relative_path: &str) -> Result<&dyn AnalyzerModule, PortError> {
         let extension = Path::new(relative_path)
             .extension()

@@ -8,7 +8,9 @@ use std::{
 
 use chrono::Utc;
 use clap::{ArgAction, Parser, Subcommand};
-use ctx_adapters::local_index::{LocalIndexError, ensure_fresh, index_local};
+use ctx_adapters::local_index::{
+    LocalIndexError, ensure_fresh, index_local, lock_index, prepare_head_index,
+};
 use ctx_adapters::{
     analyzer::AnalyzerRegistry,
     business_context::YamlBusinessContextReader,
@@ -93,6 +95,10 @@ exclude = ["generated", "vendor", "build", "dist", "target", ".venv"]
     version,
     about = "Trusted product context for code changes"
 )]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "clap parses independent command-line flags"
+)]
 struct Cli {
     #[arg(long, global = true)]
     json: bool,
@@ -123,7 +129,11 @@ enum Command {
     /// Initialize local storage and business-context directories.
     Init,
     /// Incrementally index the repository's current Git commit.
-    Index,
+    Index {
+        /// Validate and index the exact Git HEAD snapshot, even on a dirty worktree.
+        #[arg(long)]
+        from_head: bool,
+    },
     /// Infer typed Python ORM writes with a separate Pyright semantic pass.
     InferTypes {
         /// Pyright Type Server executable. It must implement the Type Server Protocol.
@@ -502,6 +512,16 @@ fn main() -> ExitCode {
     match execute(&cli) {
         Ok(()) => ExitCode::SUCCESS,
         Err(CliError::ReviewBlocked) => ExitCode::FAILURE,
+        Err(CliError::Index(LocalIndexError::InvalidFiles(files))) => {
+            if cli.json {
+                println!("{}", json!({"ok": false, "invalid_files": files}));
+            } else {
+                for file in files {
+                    eprintln!("{}:{}: {}", file.path, file.line, file.reason);
+                }
+            }
+            ExitCode::FAILURE
+        }
         Err(error) => {
             if cli.json {
                 let output = json!({"ok": false, "error": error.to_string()});
@@ -550,7 +570,7 @@ fn execute(cli: &Cli) -> Result<(), CliError> {
 fn run(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
     match &cli.command {
         Command::Init => initialize(cli, git),
-        Command::Index => index(cli, git),
+        Command::Index { from_head } => index(cli, git, *from_head),
         command @ Command::InferTypes { .. } => infer_types_command(cli, git, command),
         Command::Status => status(cli, git),
         Command::Impact { target } => impact(cli, git, target),
@@ -634,7 +654,7 @@ impl Command {
     const fn name(&self) -> &'static str {
         match self {
             Self::Init => "init",
-            Self::Index => "index",
+            Self::Index { .. } => "index",
             Self::InferTypes { .. } => "infer-types",
             Self::Status => "status",
             Self::Impact { .. } => "impact",
@@ -1536,10 +1556,17 @@ fn initialize(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
     Ok(())
 }
 
-fn index(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
+fn index(cli: &Cli, git: &GitRepo, from_head: bool) -> Result<(), CliError> {
     let database_path = database_path(git.root())?;
-    let mut store = SqliteStore::open(&database_path, git.context_root())?;
-    let report = index_local(git, &mut store)?;
+    let report = if from_head {
+        let _lock = lock_index(git)?;
+        let snapshot = prepare_head_index(git)?;
+        let mut store = SqliteStore::open(&database_path, git.context_root())?;
+        snapshot.persist(git, &mut store)?
+    } else {
+        let mut store = SqliteStore::open(&database_path, git.context_root())?;
+        index_local(git, &mut store)?
+    };
     if cli.json {
         println!("{}", serde_json::to_string_pretty(&report)?);
     } else if report.code.already_current {
@@ -1570,6 +1597,9 @@ fn index(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
         }
     }
     if !cli.json {
+        if let Some(count) = report.uncommitted_files_ignored {
+            println!("{count} uncommitted file(s) excluded from the index");
+        }
         println!(
             "Business context: {} created, {} versioned, {} explicit links, {} unresolved",
             report.business_context.documents_created,

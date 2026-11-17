@@ -193,12 +193,20 @@ pub enum CaseReport {
         description: &'static str,
         passed: bool,
         checks: Vec<CheckOutcome>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        context_symbol_tokens: Option<ContextSymbolTokens>,
     },
     Errored {
         id: &'static str,
         description: &'static str,
         error: String,
     },
+}
+
+#[derive(Clone, Debug, Default, Serialize)]
+pub struct ContextSymbolTokens {
+    pub symbols: usize,
+    pub estimated_tokens: usize,
 }
 
 impl CaseReport {
@@ -214,6 +222,7 @@ impl CaseReport {
             description,
             passed,
             checks,
+            context_symbol_tokens: None,
         }
     }
 
@@ -242,6 +251,9 @@ pub struct Summary {
     pub classification_passed: usize,
     pub budget_checks: usize,
     pub budget_passed: usize,
+    pub context_symbol_tokens: ContextSymbolTokens,
+    pub context_recall_checks: usize,
+    pub context_recall_passed: usize,
 }
 
 /// Computes a [`Summary`] from a completed corpus run. Pure: only reads the
@@ -255,12 +267,25 @@ pub fn summarize(reports: &[CaseReport]) -> Summary {
     for report in reports {
         match report {
             CaseReport::Errored { .. } => summary.errored_cases += 1,
-            CaseReport::Completed { passed, checks, .. } => {
+            CaseReport::Completed {
+                passed,
+                checks,
+                context_symbol_tokens,
+                ..
+            } => {
+                if let Some(tokens) = context_symbol_tokens {
+                    summary.context_symbol_tokens.symbols += tokens.symbols;
+                    summary.context_symbol_tokens.estimated_tokens += tokens.estimated_tokens;
+                }
                 if *passed {
                     summary.passed_cases += 1;
                 }
                 for outcome in checks {
                     summary.total_checks += 1;
+                    if outcome.description.starts_with("context pack includes ") {
+                        summary.context_recall_checks += 1;
+                        summary.context_recall_passed += usize::from(outcome.passed);
+                    }
                     if outcome.passed {
                         summary.passed_checks += 1;
                     }

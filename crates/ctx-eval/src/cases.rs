@@ -121,9 +121,86 @@ pub fn corpus() -> Vec<EvaluationCase> {
         explicit_schema_seed_does_not_pull_unrelated_lexical_roots(),
         column_level_impact_seed_narrows_to_column_readers(),
     ]
+    .into_iter()
+    .chain(lexical_context_cases())
+    .collect()
 }
 
 const GOOSE_CONFIG: &str = "languages = [\"python\", \"goose\"]\n\n[paths]\ninclude = [\"src\", \"tests\", \"migrations\"]\n";
+
+fn lexical_context_cases() -> impl Iterator<Item = EvaluationCase> {
+    [
+        (
+            "context-cancel",
+            "cancel subscription",
+            SUBSCRIPTION_SERVICE,
+        ),
+        (
+            "context-cancellation-policy",
+            "SubscriptionService cancel paid access",
+            SUBSCRIPTION_SERVICE,
+        ),
+        (
+            "context-period-cancel",
+            "cancel at period end",
+            SUBSCRIPTION_SERVICE,
+        ),
+        (
+            "context-service-member",
+            "subscription_service.cancel",
+            SUBSCRIPTION_SERVICE,
+        ),
+        (
+            "context-camel-case",
+            "SubscriptionService",
+            "billing.subscription.SubscriptionService",
+        ),
+        (
+            "context-webhook",
+            "StripeWebhookHandler handle_subscription_update",
+            STRIPE_HANDLER,
+        ),
+        (
+            "context-webhook-updates",
+            "handle subscription updates",
+            STRIPE_HANDLER,
+        ),
+        (
+            "context-webhook-order",
+            "stripe webhook ordering",
+            STRIPE_HANDLER,
+        ),
+        (
+            "context-handler-type",
+            "StripeWebhookHandler",
+            "billing.subscription.StripeWebhookHandler",
+        ),
+        (
+            "context-data-type",
+            "Subscription paid_until status dataclass",
+            "billing.subscription.Subscription",
+        ),
+    ]
+    .into_iter()
+    .map(|(id, task, expected)| EvaluationCase {
+        id,
+        description: task,
+        steps: vec![
+            Step::WriteFiles(subscription_base_files()),
+            Step::Commit("subscription fixture"),
+            Step::Index,
+            Step::Context {
+                task,
+                symbols: Vec::new(),
+                token_budget: 1000,
+            },
+        ],
+        checks: vec![
+            Check::ContextIdentifierPresent(expected),
+            Check::ContextWithinBudget,
+        ],
+    })
+}
 
 fn subscriptions_migration(columns_sql: &str) -> String {
     format!(

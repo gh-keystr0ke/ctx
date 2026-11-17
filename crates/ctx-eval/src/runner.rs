@@ -19,7 +19,28 @@ pub fn evaluate_case(case: &EvaluationCase) -> CaseReport {
                 .iter()
                 .map(|check| report::evaluate(&run, check))
                 .collect();
-            CaseReport::completed(case.id, case.description, checks)
+            let mut result = CaseReport::completed(case.id, case.description, checks);
+            if let CaseReport::Completed {
+                context_symbol_tokens,
+                ..
+            } = &mut result
+                && let Some(pack) = run.context
+            {
+                *context_symbol_tokens = Some(
+                    pack.items
+                        .iter()
+                        .filter(|item| item.kind == ctx_core::domain::NodeKind::CodeSymbol)
+                        .fold(
+                            report::ContextSymbolTokens::default(),
+                            |mut totals, item| {
+                                totals.symbols += 1;
+                                totals.estimated_tokens += item.estimated_tokens;
+                                totals
+                            },
+                        ),
+                );
+            }
+            result
         }
         Err(error) => CaseReport::Errored {
             id: case.id,

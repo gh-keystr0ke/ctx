@@ -84,20 +84,33 @@ struct Candidate {
     score: usize,
 }
 
-/// Active database entities grouped by their source symbol. Building this
-/// once keeps context rendering and lexical scoring linear in the graph size
-/// instead of rescanning every edge twice for every symbol.
+/// Active database entities and resolved calls grouped by source symbol.
 #[derive(Default)]
-struct DatabaseEdgeIndex {
+struct ContextEdgeIndex {
     reads: BTreeMap<StableKey, BTreeSet<String>>,
     writes: BTreeMap<StableKey, BTreeSet<String>>,
+    calls: BTreeMap<StableKey, BTreeSet<String>>,
 }
 
-impl DatabaseEdgeIndex {
+impl ContextEdgeIndex {
     fn from_graph(graph: &GraphSnapshot) -> Self {
         let mut index = Self::default();
         for edge in &graph.edges {
             if edge.status != ClaimStatus::Active {
+                continue;
+            }
+            if edge.kind == RelationKind::Calls {
+                if let Some(target) = graph
+                    .nodes
+                    .get(&edge.target)
+                    .filter(|node| node.kind == NodeKind::CodeSymbol)
+                {
+                    index
+                        .calls
+                        .entry(edge.source.clone())
+                        .or_default()
+                        .insert(target.identifier().to_owned());
+                }
                 continue;
             }
             let entities = match edge.kind {
@@ -142,13 +155,26 @@ pub fn compile_context_pack(
     if request.token_budget == 0 {
         return Err(ContextCompileError::EmptyBudget);
     }
-    let database_edges = DatabaseEdgeIndex::from_graph(graph);
-    let task_terms = terms(&request.task);
-    let seed_keys = detect_seeds(graph, &database_edges, request, &task_terms);
+    let database_edges = ContextEdgeIndex::from_graph(graph);
+    let mut scores = lexical_scores(graph, &terms(&request.task));
+    let seed_keys = detect_seeds(graph, request, &scores);
     if seed_keys.is_empty() {
         return Err(ContextCompileError::NoSeeds);
     }
-    let candidates = expand_candidates(graph, &database_edges, &seed_keys, &task_terms);
+    for edge in &graph.edges {
+        if edge.kind == RelationKind::Implements
+            && edge.status == ClaimStatus::Active
+            && seed_keys.contains(&edge.target)
+            && graph
+                .nodes
+                .get(&edge.target)
+                .is_some_and(|node| node.kind == NodeKind::Requirement)
+        {
+            *scores.entry(edge.source.clone()).or_default() += 150;
+        }
+    }
+    let mut candidates = expand_candidates(graph, &seed_keys, &scores);
+    candidates.sort_by_key(|candidate| graph.nodes[&candidate.key].kind == NodeKind::File);
     let task_tokens = estimate_tokens(&request.task).max(1);
     let mut used = task_tokens.min(request.token_budget);
     let evidence_reserve = if request.token_budget >= 100 {
@@ -159,11 +185,17 @@ pub fn compile_context_pack(
     let item_limit = request.token_budget.saturating_sub(evidence_reserve);
     let mut items = Vec::new();
     let mut selected = BTreeSet::new();
+    let mut described_files = BTreeSet::new();
     let mut truncated = false;
     for candidate in candidates {
         let Some(node) = graph.nodes.get(&candidate.key) else {
             continue;
         };
+        if let PlannedNodeAttributes::File { path, .. } = &node.attributes
+            && described_files.contains(path)
+        {
+            continue;
+        }
         let remaining = item_limit.saturating_sub(used);
         if remaining == 0 {
             truncated = true;
@@ -180,6 +212,9 @@ pub fn compile_context_pack(
                 continue;
             }
             truncated = true;
+        }
+        if let PlannedNodeAttributes::Symbol { file_path, .. } = &node.attributes {
+            described_files.insert(file_path.clone());
         }
         used += item.estimated_tokens;
         selected.insert(candidate.key);
@@ -225,9 +260,8 @@ pub fn compile_context_pack(
 
 fn detect_seeds(
     graph: &GraphSnapshot,
-    database_edges: &DatabaseEdgeIndex,
     request: &ContextRequest,
-    task_terms: &BTreeSet<String>,
+    scores: &BTreeMap<StableKey, usize>,
 ) -> BTreeSet<StableKey> {
     let mut seeds = BTreeSet::new();
     for query in request.files.iter().chain(&request.symbols) {
@@ -258,7 +292,7 @@ fn detect_seeds(
         .values()
         .filter(|node| !node.is_test())
         .filter_map(|node| {
-            let score = lexical_score(database_edges, node, task_terms);
+            let score = scores.get(&node.stable_key).copied().unwrap_or_default();
             (score > 0).then_some((score, node.stable_key.clone()))
         })
         .collect::<Vec<_>>();
@@ -271,9 +305,8 @@ fn detect_seeds(
 
 fn expand_candidates(
     graph: &GraphSnapshot,
-    database_edges: &DatabaseEdgeIndex,
     seeds: &BTreeSet<StableKey>,
-    task_terms: &BTreeSet<String>,
+    scores: &BTreeMap<StableKey, usize>,
 ) -> Vec<Candidate> {
     let mut distances = seeds
         .iter()
@@ -332,16 +365,12 @@ fn expand_candidates(
     let mut candidates = distances
         .into_iter()
         .filter_map(|(key, distance)| {
-            let node = graph.nodes.get(&key)?;
+            graph.nodes.get(&key)?;
             Some(Candidate {
                 direct: seeds.contains(&key),
-                score: candidate_score(
-                    database_edges,
-                    node,
-                    task_terms,
-                    distance,
-                    seeds.contains(&key),
-                ),
+                score: usize::from(seeds.contains(&key)) * 1_000
+                    + scores.get(&key).copied().unwrap_or_default()
+                    + (3 - distance) * 10,
                 key,
                 distance,
             })
@@ -401,35 +430,59 @@ fn touches(edge: &GraphEdge, key: &StableKey) -> bool {
     edge.source == *key || edge.target == *key
 }
 
-fn lexical_score(
-    database_edges: &DatabaseEdgeIndex,
-    node: &GraphNode,
-    task_terms: &BTreeSet<String>,
-) -> usize {
-    let searchable = format!(
-        "{} {} {}",
-        node.identifier(),
-        node.name,
-        node_content(database_edges, node)
-    );
-    let node_terms = terms(&searchable);
-    task_terms.intersection(&node_terms).count()
-}
-
-fn candidate_score(
-    database_edges: &DatabaseEdgeIndex,
-    node: &GraphNode,
-    task_terms: &BTreeSet<String>,
-    distance: usize,
-    direct: bool,
-) -> usize {
-    usize::from(direct) * 1_000
-        + lexical_score(database_edges, node, task_terms) * 100
-        + (3 - distance) * 10
+fn lexical_scores(graph: &GraphSnapshot, task: &BTreeSet<String>) -> BTreeMap<StableKey, usize> {
+    let mut frequencies = BTreeMap::<String, usize>::new();
+    let mut matches = Vec::new();
+    for node in graph.nodes.values() {
+        let name = terms(&node.name);
+        let identifier = terms(node.identifier());
+        let body = match &node.attributes {
+            PlannedNodeAttributes::Business { body, .. } => terms(body),
+            PlannedNodeAttributes::Symbol { signature, .. } => {
+                terms(signature.as_deref().unwrap_or(""))
+            }
+            _ => BTreeSet::new(),
+        };
+        let hits = task
+            .iter()
+            .filter_map(|term| {
+                let weight = if name.contains(term) {
+                    4
+                } else if identifier.contains(term) {
+                    2
+                } else if body.contains(term) {
+                    1
+                } else {
+                    return None;
+                };
+                *frequencies.entry(term.clone()).or_default() += 1;
+                Some((term, weight))
+            })
+            .collect::<Vec<_>>();
+        if !hits.is_empty() {
+            matches.push((&node.stable_key, hits));
+        }
+    }
+    matches
+        .into_iter()
+        .map(|(key, hits)| {
+            let score = hits
+                .into_iter()
+                .map(|(term, weight)| {
+                    // Integer inverse document frequency keeps ties and ordering portable.
+                    let idf = (graph.nodes.len() + 1)
+                        .ilog2()
+                        .saturating_sub(frequencies[term].ilog2());
+                    weight * (idf as usize + 1) * 25
+                })
+                .sum();
+            (key.clone(), score)
+        })
+        .collect()
 }
 
 fn context_item(
-    database_edges: &DatabaseEdgeIndex,
+    database_edges: &ContextEdgeIndex,
     node: &GraphNode,
     seeds: &BTreeSet<StableKey>,
     distance: usize,
@@ -466,7 +519,7 @@ fn priority(node: &GraphNode, direct: bool, distance: usize) -> ContextPriority 
     }
 }
 
-fn node_content(database_edges: &DatabaseEdgeIndex, node: &GraphNode) -> String {
+fn node_content(database_edges: &ContextEdgeIndex, node: &GraphNode) -> String {
     match &node.attributes {
         PlannedNodeAttributes::Business { body, status, .. } => {
             format!("Status: {status}\n{}", body.trim())
@@ -475,7 +528,6 @@ fn node_content(database_edges: &DatabaseEdgeIndex, node: &GraphNode) -> String 
             file_path,
             range,
             signature,
-            calls,
             database_accesses,
             schema_tables,
             api_endpoints,
@@ -517,23 +569,32 @@ fn node_content(database_edges: &DatabaseEdgeIndex, node: &GraphNode) -> String 
                         .join(", ")
                 )
             };
-            format!(
-                "{}:{}-{}\nSignature: {}\nCalls: {}\nDB reads: {}\nDB writes: {}{}{}{}",
+            let mut content = format!(
+                "{}:{}-{}\nSignature: {}",
                 file_path,
                 range.start_line,
                 range.end_line,
-                signature.as_deref().unwrap_or("unknown"),
-                if calls.is_empty() {
-                    "none".to_owned()
-                } else {
-                    calls.join(", ")
-                },
-                render_entities(&reads),
-                render_entities(&writes),
-                schema_line,
-                api_line,
-                external_line,
-            )
+                signature.as_deref().unwrap_or("unknown")
+            );
+            if let Some(calls) = database_edges.calls.get(&node.stable_key) {
+                content.push_str("\nCalls: ");
+                content.push_str(
+                    &calls
+                        .iter()
+                        .map(String::as_str)
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                );
+            }
+            for (label, entities) in [("DB reads", reads), ("DB writes", writes)] {
+                if !entities.is_empty() {
+                    content.push_str(&format!("\n{label}: {}", render_entities(&entities)));
+                }
+            }
+            content.push_str(&schema_line);
+            content.push_str(&api_line);
+            content.push_str(&external_line);
+            content
         }
         PlannedNodeAttributes::File { path, language, .. } => {
             format!("{language} source file: {path}")
@@ -569,7 +630,7 @@ fn node_content(database_edges: &DatabaseEdgeIndex, node: &GraphNode) -> String 
 /// extraction artifact.
 fn merge_edge_entities(
     map: &mut BTreeMap<String, BTreeSet<String>>,
-    database_edges: &DatabaseEdgeIndex,
+    database_edges: &ContextEdgeIndex,
     node: &GraphNode,
     relation: RelationKind,
 ) {
@@ -775,12 +836,32 @@ fn claim_text(edge: &GraphEdge, graph: &GraphSnapshot) -> String {
 }
 
 fn terms(value: &str) -> BTreeSet<String> {
-    value
-        .split(|character: char| {
-            !character.is_alphanumeric() && character != '_' && character != '-'
-        })
+    let mut split = String::with_capacity(value.len());
+    let mut previous = ' ';
+    for character in value.chars() {
+        if character.is_uppercase() && (previous.is_lowercase() || previous.is_ascii_digit()) {
+            split.push(' ');
+        }
+        split.push(character);
+        previous = character;
+    }
+    split
+        .split(|character: char| !character.is_alphanumeric())
         .filter(|term| term.len() >= 3)
-        .map(str::to_ascii_lowercase)
+        .map(|term| {
+            let lower = term.to_ascii_lowercase();
+            if lower == "dedupe" {
+                return "dedup".to_owned();
+            }
+            if lower.ends_with("ss") {
+                return lower;
+            }
+            lower
+                .strip_suffix('s')
+                .filter(|stem| stem.len() >= 3)
+                .unwrap_or(&lower)
+                .to_owned()
+        })
         .collect()
 }
 
@@ -1150,7 +1231,7 @@ mod tests {
             ],
         );
 
-        let database_edges = DatabaseEdgeIndex::from_graph(&graph);
+        let database_edges = ContextEdgeIndex::from_graph(&graph);
         let content = node_content(&database_edges, &function);
 
         assert!(
@@ -1164,15 +1245,15 @@ mod tests {
     }
 
     #[test]
-    fn node_content_still_reports_none_for_a_model_that_only_defines_schema() {
+    fn node_content_omits_empty_access_lines_for_a_model_that_only_defines_schema() {
         let model = symbol_node("model", "app.models.PaymentDB");
         let graph = graph_with(std::slice::from_ref(&model), Vec::new());
 
-        let database_edges = DatabaseEdgeIndex::from_graph(&graph);
+        let database_edges = ContextEdgeIndex::from_graph(&graph);
         let content = node_content(&database_edges, &model);
 
-        assert!(content.contains("DB reads: none"));
-        assert!(content.contains("DB writes: none"));
+        assert!(!content.contains("DB reads:"));
+        assert!(!content.contains("DB writes:"));
     }
 
     fn graph_with(nodes: &[GraphNode], edges: Vec<GraphEdge>) -> GraphSnapshot {

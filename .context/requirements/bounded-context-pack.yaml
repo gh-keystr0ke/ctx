@@ -13,6 +13,9 @@ statement: >
   explicit seed resolves to several distinct matches (a short name shared
   across namespaces), every match becomes its own explicit root in the same
   pack rather than an error or an arbitrary pick (REQ-LOOKUP-001).
+  Lexical ranking weighs rare identifier terms and highlights implementation
+  links to matched requirements. Symbol descriptions include resolved calls
+  and omit empty database access lines and redundant file descriptions.
 implementation:
   - symbol: ctx_core.context_pack.compile_context_pack
   - symbol: ctx_core.context_pack.detect_seeds

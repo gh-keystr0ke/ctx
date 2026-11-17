@@ -9,3 +9,8 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
+    ignore:
+      # The toolchain is pinned to rust-toolchain.toml (and 1.90.0 is the
+      # MSRV check). Dependabot proposes versions that do not exist, such as
+      # 1.120.0; bump this action by hand with rust-toolchain.toml.
+      - dependency-name: dtolnay/rust-toolchain

@@ -3504,3 +3504,40 @@ fn index_process_exits_cleanly_while_another_writer_holds_the_lock() {
     drop(lock);
     assert_eq!(repository.ctx(&["index"])["already_current"], false);
 }
+
+#[test]
+fn repair_plan_reports_broken_links_and_keeps_the_index_intact() {
+    let repository = FixtureRepository::new();
+    repository.ctx(&["init"]);
+    repository.ctx(&["index"]);
+    let root = repository.root();
+    let database = root.join(".ctx/ctx.db");
+    let before = fs::read(&database).unwrap();
+    let path = root.join(".context/requirements/cancel-at-period-end.yaml");
+    let invalid = fs::read_to_string(&path).unwrap().replace(
+        "billing.subscription.SubscriptionService.cancel",
+        "missing.cancel",
+    );
+    fs::write(&path, &invalid).unwrap();
+
+    let first = repository.ctx(&["repair", "plan"]);
+    assert_eq!(first, repository.ctx(&["repair", "plan"]));
+    assert!(
+        first["validation_issues"][0]["message"]
+            .as_str()
+            .unwrap()
+            .contains("missing.cancel")
+    );
+    let failed = Command::new(env!("CARGO_BIN_EXE_ctx"))
+        .current_dir(root)
+        .args(["repair", "plan", "--fail-on", "drift", "--json"])
+        .output()
+        .unwrap();
+    assert_eq!(failed.status.code(), Some(1));
+    assert_eq!(
+        serde_json::from_slice::<Value>(&failed.stdout).unwrap(),
+        first
+    );
+    assert_eq!(fs::read(&database).unwrap(), before);
+    assert_eq!(fs::read_to_string(path).unwrap(), invalid);
+}

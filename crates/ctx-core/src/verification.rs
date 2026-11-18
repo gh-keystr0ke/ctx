@@ -1,5 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
+mod duplicates;
+pub(crate) use duplicates::duplicate_documents;
+
 use serde::{Deserialize, Serialize};
 
 use crate::{

@@ -17,6 +17,7 @@ pub mod ir;
 pub mod knowledge;
 pub mod linking;
 pub mod neighborhood;
+pub mod repair;
 pub mod review;
 pub mod schema;
 pub mod trace;

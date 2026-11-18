@@ -63,6 +63,7 @@ mod diagnostics;
 mod federation_command;
 mod hooks_command;
 mod ingest_command;
+mod repair_command;
 mod report_command;
 mod review_format;
 mod setup_command;
@@ -154,6 +155,11 @@ enum Command {
         /// Suppress successful index output.
         #[arg(long)]
         quiet: bool,
+    },
+    /// Find and repair context drift.
+    Repair {
+        #[command(subcommand)]
+        command: repair_command::RepairCommand,
     },
     /// Manage repository Git hooks.
     Hooks {
@@ -657,6 +663,7 @@ fn run(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
                 index(cli, git, *from_head, *quiet)
             }
         }
+        Command::Repair { command } => repair_command::run(cli, git, command),
         Command::Check => worktree_command::check(cli, git),
         Command::Hooks { command } => hooks_command::run(cli, git, command),
         command @ Command::InferTypes { .. } => infer_types_command(cli, git, command),
@@ -720,6 +727,7 @@ impl Command {
             Self::InferTypes { .. } => "infer-types",
             Self::Status => "status",
             Self::Check => "check",
+            Self::Repair { .. } => "repair",
             Self::Impact { .. } => "impact",
             Self::Explain { .. } => "explain",
             Self::Trace { .. } => "trace",

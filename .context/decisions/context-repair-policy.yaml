@@ -12,3 +12,8 @@ decision: >
   compare active documents at similarity 0.6, retain the document with more
   code links or the lower ID on ties, and let the reviewer write the combined
   wording. Union the code links and mark the other document superseded.
+implementation:
+  - symbol: ctx_core.repair.indexed_drift
+  - symbol: ctx_cli.repair_command.run
+tests:
+  - symbol: crates.ctx-cli.tests.e2e.repair_plan_reports_broken_links_and_keeps_the_index_intact

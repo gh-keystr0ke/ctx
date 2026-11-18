@@ -232,3 +232,27 @@ The trivial false-positive rate remains 2/49.
    false positives, and anchor resolution.
 6. After the release checks pass, set version 0.9.0 and run release CI.
    Publish the tag and artifacts from the validated commit.
+
+#### Pinned-source follow-up
+
+A second pass found five more significant points in pinned project guides.
+Four count toward the class quotas. One pool point counts toward precision.
+The tuning scorer rated 12 of 44 positions and returned `incomplete`.
+The required count is 36. The false-positive rate remains 2/49.
+
+| Tuning project | Significant | Trivial | Rated top positions | Cohen's κ |
+| --- | ---: | ---: | ---: | ---: |
+| Hyperswitch | 2 | 4 | 0/10 | 0.636 |
+| Mattermost | 5 | 31 | 4/15 | 0.846 |
+| Zulip | 7 | 14 | 8/19 | 0.810 |
+
+A new protocol would need approval if the fixed sample still falls short.
+The least disruptive change is to extend the frozen v0 order beyond 60.
+Set a new cap before collecting labels. Preserve the original 60-point
+results so the change in sample size is visible. Continue to exclude pool
+points from the quotas and false-positive rate.
+
+A larger sample can address the quota shortfall. The precision pool still
+requires evidence for the actual top positions. Keep unknown outcomes in
+the completeness denominator, and keep the held-out projects sealed during
+calibration.

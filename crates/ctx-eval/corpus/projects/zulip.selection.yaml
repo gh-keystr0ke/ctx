@@ -1,0 +1,417 @@
+schema: 1
+fill_order:
+- symbol:python:zerver.lib.retention.archive_direct_messages:Function#1e5cb7811addb845b003c41cadb84643071f5efbf3c4a4be763ae8362f8f659c#1
+- symbol:python:corporate.lib.stripe.BillingSession.update_license_ledger_for_automanaged_plan:Method#c74c251eb104fef92c058bfe9f2100beeb3769ebd5dcf92011a76c87e9c709a7#1
+- symbol:python:corporate.lib.stripe.BillingSession.make_end_of_cycle_updates_if_needed:Method#7a162ee96027fe0109cecfab3e244655f34d5ad7074e149a415dd2d4eb2e35f5#1
+- symbol:python:zerver.lib.streams.bulk_can_access_stream_metadata_user_ids:Function#5e9ea88db98db54ba4c00ea8e070ac653ea2ac503231f44289aa4f43eedd2790#1
+- symbol:python:zerver.lib.rate_limiter.RateLimitedUser.rules:Method#178bd4a86bb62cee036d9b6efa9c82788c842e11839254436fd7a004a1eb3b30#1
+- symbol:python:zerver.actions.message_send.check_send_message:Function#47aa60670912f873b1fb333530298bf8e0fbe0315b6d4120fdc52cef2c30c0f1#1
+- symbol:python:zerver.actions.message_send.internal_send_stream_message_by_name:Function#1ba2767a1280f0847735a2bb7a5f0892311a402a2fc9c2df73f18a3a9755a827#1
+- symbol:python:corporate.lib.stripe.RemoteServerBillingSession.get_audit_log_event:Method#b381d74d0d31e083dec967fe81143f773094ab56178e140601b80229a60364dd#1
+- symbol:python:zerver.lib.streams.list_to_streams:Function#34fc17825d433de711124911ba44a13bf134d066bd053c2f65cea46d0894ea1d#1
+- symbol:python:zerver.lib.streams.create_stream_if_needed:Function#4f2f88394e1e0a836e82e29edeac742965c2ddc1c4bbf4f234f801cc108ca0d9#1
+- symbol:python:zerver.lib.retention.archive_messages:Function#1e5cb7811addb845b003c41cadb84643071f5efbf3c4a4be763ae8362f8f659c#1
+- symbol:python:zerver.lib.streams.list_to_streams:Function#9c0d25f1fc11f9dda39d016b5b8984deb74ac48ece8ac7c7a0b3288bd2563d06#1
+- symbol:python:corporate.lib.stripe.BillingSession.make_end_of_cycle_updates_if_needed:Method#9cf4a36a7fed65d71ab2177d322e4a09d21117269008f319310e4cbcf5143bea#1
+- symbol:python:corporate.lib.stripe.BillingSession.do_change_plan_to_new_tier:Method#cc22b7635096c136364fc6aba0bbef5f76b4dbb7e43dfdd14b4e00a2fae4f141#1
+- symbol:python:zerver.lib.rate_limiter.get_tor_ips:Function#d928a952869f75d1aaed5b913e7c562ed6c7ddbc85f82c0b245d65735b2c76ef#1
+- symbol:python:zerver.lib.retention.move_rows:Function#a1d8009aa224d27dffc26f1ac7ae72b0f64497c805713a906d7a519f0484399e#1
+- symbol:python:zerver.actions.message_send.maybe_send_channel_events_notice:Function#a6481fad00bfcdbcb57d81ce48767fd2eee27c0428533946c340172915000a58#1
+- symbol:python:corporate.lib.stripe.BillingSession.get_initial_upgrade_context:Method#2fad6af08415d8a6c1785efa93996ff3717b51f6fd12c7a3830915d79bf61f0f#1
+- symbol:python:zerver.lib.streams.bulk_can_remove_subscribers_from_streams:Function#30411b250064a4a0a760812884781cfb54e174cd49a52324e3f7a02e97ebd35d#1
+- symbol:python:corporate.lib.stripe.BillingSession.get_initial_upgrade_context:Method#79a7cd12b1e6febea2f441d285304488119e0bed8487e73220700f4647a0296b#1
+- symbol:python:zerver.lib.retention.archive_messages_by_recipient:Function#1e5cb7811addb845b003c41cadb84643071f5efbf3c4a4be763ae8362f8f659c#1
+- symbol:python:zerver.lib.streams.get_streams_to_which_user_cannot_add_subscribers:Function#c3624e0f6b67eacf90bf43f2325edaa165e40f6ff9c43ecdf94272055c3f30a8#1
+- symbol:python:corporate.lib.stripe.BillingSession.make_end_of_cycle_updates_if_needed:Method#c800a7c23e5b8ec5bb18b478e3c1657a3f46ab3f38b2d099a406a182abe1f609#1
+- symbol:python:zerver.lib.rate_limiter.rate_limit_spectator_attachment_access_by_file:Function#ec9c41e00448a40d6f959894d388b9e50abece6b2733e3cff98771fea3becac1#1
+- symbol:python:zerver.lib.rate_limiter.should_rate_limit:Function#1d556f70a48d7d9613d40c594e36f2754c18db7d45112bcfaaeba38e23eec05c#1
+- symbol:python:corporate.lib.stripe.RemoteRealmBillingSession.save_org_type_from_request_sponsorship_session:Method#dbb3efe5cb9915645399794b49fdd8dc7b134dbb2a7b26aa6b0da7e27ba42645#1
+- symbol:python:zerver.actions.message_send.send_rate_limited_pm_notification_to_bot_owner:Function#02b05e721860cecf7a762f14e82ced3053476eaf6cfb8354bb695b8724920d42#1
+- symbol:python:zerver.lib.streams.get_streams_for_user:Function#2a5df3c98772882ec22209e0beb545dd53aeb35319f1dbe7719070b11c6116e1#1
+- symbol:python:zerver.lib.streams.create_stream_if_needed:Function#d18448cfcc575d5040d23593659f00c7c83f745512ffc000da9669a69eb61b35#1
+- symbol:python:zerver.lib.rate_limiter.should_rate_limit:Function#5ecf89f56558d37a3e9f46b02ec45532df35c2659351df3c1c40bb0aa42ed6e0#1
+fill_points:
+  ? symbol:python:corporate.lib.stripe.BillingSession.do_change_plan_to_new_tier:Method#cc22b7635096c136364fc6aba0bbef5f76b4dbb7e43dfdd14b4e00a2fae4f141#1
+  : location: corporate/lib/stripe.py:3714
+    rank: 22
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  ? symbol:python:corporate.lib.stripe.BillingSession.get_initial_upgrade_context:Method#2fad6af08415d8a6c1785efa93996ff3717b51f6fd12c7a3830915d79bf61f0f#1
+  : location: corporate/lib/stripe.py:2952
+    rank: 366
+    score: 1
+    contributions:
+      decision_shape: 1
+  ? symbol:python:corporate.lib.stripe.BillingSession.get_initial_upgrade_context:Method#79a7cd12b1e6febea2f441d285304488119e0bed8487e73220700f4647a0296b#1
+  : location: corporate/lib/stripe.py:3037
+    rank: 71
+    score: 7
+    contributions:
+      downstream_calls: 7
+  ? symbol:python:corporate.lib.stripe.BillingSession.make_end_of_cycle_updates_if_needed:Method#7a162ee96027fe0109cecfab3e244655f34d5ad7074e149a415dd2d4eb2e35f5#1
+  : location: corporate/lib/stripe.py:2582
+    rank: 4
+    score: 13
+    contributions:
+      condition: 4
+      decision_shape: 1
+      downstream_calls: 8
+  ? symbol:python:corporate.lib.stripe.BillingSession.make_end_of_cycle_updates_if_needed:Method#9cf4a36a7fed65d71ab2177d322e4a09d21117269008f319310e4cbcf5143bea#1
+  : location: corporate/lib/stripe.py:2560
+    rank: 5
+    score: 13
+    contributions:
+      condition: 4
+      decision_shape: 1
+      downstream_calls: 8
+  ? symbol:python:corporate.lib.stripe.BillingSession.make_end_of_cycle_updates_if_needed:Method#c800a7c23e5b8ec5bb18b478e3c1657a3f46ab3f38b2d099a406a182abe1f609#1
+  : location: corporate/lib/stripe.py:2491
+    rank: 6
+    score: 13
+    contributions:
+      condition: 4
+      decision_shape: 1
+      downstream_calls: 8
+  ? symbol:python:corporate.lib.stripe.BillingSession.update_license_ledger_for_automanaged_plan:Method#c74c251eb104fef92c058bfe9f2100beeb3769ebd5dcf92011a76c87e9c709a7#1
+  : location: corporate/lib/stripe.py:4104
+    rank: 875
+    score: 0
+    contributions: {}
+  ? symbol:python:corporate.lib.stripe.RemoteRealmBillingSession.save_org_type_from_request_sponsorship_session:Method#dbb3efe5cb9915645399794b49fdd8dc7b134dbb2a7b26aa6b0da7e27ba42645#1
+  : location: corporate/lib/stripe.py:5115
+    rank: 909
+    score: 0
+    contributions: {}
+  ? symbol:python:corporate.lib.stripe.RemoteServerBillingSession.get_audit_log_event:Method#b381d74d0d31e083dec967fe81143f773094ab56178e140601b80229a60364dd#1
+  : location: corporate/lib/stripe.py:5236
+    rank: 928
+    score: 0
+    contributions: {}
+  ? symbol:python:zerver.actions.message_send.check_send_message:Function#47aa60670912f873b1fb333530298bf8e0fbe0315b6d4120fdc52cef2c30c0f1#1
+  : location: zerver/actions/message_send.py:1610
+    rank: 563
+    score: 1
+    contributions:
+      decision_shape: 1
+  ? symbol:python:zerver.actions.message_send.internal_send_stream_message_by_name:Function#1ba2767a1280f0847735a2bb7a5f0892311a402a2fc9c2df73f18a3a9755a827#1
+  : location: zerver/actions/message_send.py:2288
+    rank: 41
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  ? symbol:python:zerver.actions.message_send.maybe_send_channel_events_notice:Function#a6481fad00bfcdbcb57d81ce48767fd2eee27c0428533946c340172915000a58#1
+  : location: zerver/actions/message_send.py:2347
+    rank: 42
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  ? symbol:python:zerver.actions.message_send.send_rate_limited_pm_notification_to_bot_owner:Function#02b05e721860cecf7a762f14e82ced3053476eaf6cfb8354bb695b8724920d42#1
+  : location: zerver/actions/message_send.py:1643
+    rank: 43
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  ? symbol:python:zerver.lib.rate_limiter.RateLimitedUser.rules:Method#178bd4a86bb62cee036d9b6efa9c82788c842e11839254436fd7a004a1eb3b30#1
+  : location: zerver/lib/rate_limiter.py:128
+    rank: 146
+    score: 5
+    contributions:
+      condition: 4
+      decision_shape: 1
+  symbol:python:zerver.lib.rate_limiter.get_tor_ips:Function#d928a952869f75d1aaed5b913e7c562ed6c7ddbc85f82c0b245d65735b2c76ef#1:
+    location: zerver/lib/rate_limiter.py:348
+    rank: 147
+    score: 5
+    contributions:
+      condition: 4
+      decision_shape: 1
+  ? symbol:python:zerver.lib.rate_limiter.rate_limit_spectator_attachment_access_by_file:Function#ec9c41e00448a40d6f959894d388b9e50abece6b2733e3cff98771fea3becac1#1
+  : location: zerver/lib/rate_limiter.py:334
+    rank: 204
+    score: 4
+    contributions:
+      condition: 4
+  ? symbol:python:zerver.lib.rate_limiter.should_rate_limit:Function#1d556f70a48d7d9613d40c594e36f2754c18db7d45112bcfaaeba38e23eec05c#1
+  : location: zerver/lib/rate_limiter.py:429
+    rank: 148
+    score: 5
+    contributions:
+      condition: 4
+      decision_shape: 1
+  ? symbol:python:zerver.lib.rate_limiter.should_rate_limit:Function#5ecf89f56558d37a3e9f46b02ec45532df35c2659351df3c1c40bb0aa42ed6e0#1
+  : location: zerver/lib/rate_limiter.py:427
+    rank: 1087
+    score: 0
+    contributions: {}
+  ? symbol:python:zerver.lib.retention.archive_direct_messages:Function#1e5cb7811addb845b003c41cadb84643071f5efbf3c4a4be763ae8362f8f659c#1
+  : location: zerver/lib/retention.py:509
+    rank: 637
+    score: 1
+    contributions:
+      decision_shape: 1
+  symbol:python:zerver.lib.retention.archive_messages:Function#1e5cb7811addb845b003c41cadb84643071f5efbf3c4a4be763ae8362f8f659c#1:
+    location: zerver/lib/retention.py:546
+    rank: 638
+    score: 1
+    contributions:
+      decision_shape: 1
+  ? symbol:python:zerver.lib.retention.archive_messages_by_recipient:Function#1e5cb7811addb845b003c41cadb84643071f5efbf3c4a4be763ae8362f8f659c#1
+  : location: zerver/lib/retention.py:502
+    rank: 639
+    score: 1
+    contributions:
+      decision_shape: 1
+  symbol:python:zerver.lib.retention.move_rows:Function#a1d8009aa224d27dffc26f1ac7ae72b0f64497c805713a906d7a519f0484399e#1:
+    location: zerver/lib/retention.py:108
+    rank: 649
+    score: 1
+    contributions:
+      decision_shape: 1
+  ? symbol:python:zerver.lib.streams.bulk_can_access_stream_metadata_user_ids:Function#5e9ea88db98db54ba4c00ea8e070ac653ea2ac503231f44289aa4f43eedd2790#1
+  : location: zerver/lib/streams.py:1177
+    rank: 1133
+    score: 0
+    contributions: {}
+  ? symbol:python:zerver.lib.streams.bulk_can_remove_subscribers_from_streams:Function#30411b250064a4a0a760812884781cfb54e174cd49a52324e3f7a02e97ebd35d#1
+  : location: zerver/lib/streams.py:1362
+    rank: 80
+    score: 7
+    contributions:
+      decision_shape: 1
+      downstream_calls: 6
+  ? symbol:python:zerver.lib.streams.create_stream_if_needed:Function#4f2f88394e1e0a836e82e29edeac742965c2ddc1c4bbf4f234f801cc108ca0d9#1
+  : location: zerver/lib/streams.py:419
+    rank: 1195
+    score: 0
+    contributions: {}
+  ? symbol:python:zerver.lib.streams.create_stream_if_needed:Function#d18448cfcc575d5040d23593659f00c7c83f745512ffc000da9669a69eb61b35#1
+  : location: zerver/lib/streams.py:457
+    rank: 81
+    score: 7
+    contributions:
+      downstream_calls: 7
+  ? symbol:python:zerver.lib.streams.get_streams_for_user:Function#2a5df3c98772882ec22209e0beb545dd53aeb35319f1dbe7719070b11c6116e1#1
+  : location: zerver/lib/streams.py:2029
+    rank: 740
+    score: 1
+    contributions:
+      downstream_calls: 1
+  ? symbol:python:zerver.lib.streams.get_streams_to_which_user_cannot_add_subscribers:Function#c3624e0f6b67eacf90bf43f2325edaa165e40f6ff9c43ecdf94272055c3f30a8#1
+  : location: zerver/lib/streams.py:1443
+    rank: 1212
+    score: 0
+    contributions: {}
+  symbol:python:zerver.lib.streams.list_to_streams:Function#34fc17825d433de711124911ba44a13bf134d066bd053c2f65cea46d0894ea1d#1:
+    location: zerver/lib/streams.py:1693
+    rank: 66
+    score: 8
+    contributions:
+      downstream_calls: 8
+  symbol:python:zerver.lib.streams.list_to_streams:Function#9c0d25f1fc11f9dda39d016b5b8984deb74ac48ece8ac7c7a0b3288bd2563d06#1:
+    location: zerver/lib/streams.py:1649
+    rank: 751
+    score: 1
+    contributions:
+      decision_shape: 1
+points:
+  zulip-0001:
+    selected_by: top
+    rank: 79
+    score: 7
+    contributions:
+      downstream_calls: 7
+  zulip-0002:
+    selected_by: top
+    rank: 1
+    score: 13
+    contributions:
+      condition: 4
+      decision_shape: 1
+      downstream_calls: 8
+  zulip-0003:
+    selected_by: top
+    rank: 7
+    score: 13
+    contributions:
+      condition: 4
+      decision_shape: 1
+      downstream_calls: 8
+  zulip-0004:
+    selected_by: top
+    rank: 38
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  zulip-0005:
+    selected_by: top
+    rank: 21
+    score: 10
+    contributions:
+      condition: 4
+      decision_shape: 1
+      downstream_calls: 5
+  zulip-0006:
+    selected_by: top
+    rank: 108
+    score: 6
+    contributions:
+      downstream_calls: 6
+  zulip-0007:
+    selected_by: top
+    rank: 2
+    score: 13
+    contributions:
+      condition: 4
+      decision_shape: 1
+      downstream_calls: 8
+  zulip-0008:
+    selected_by: top
+    rank: 16
+    score: 12
+    contributions:
+      condition: 4
+      decision_shape: 1
+      downstream_calls: 7
+  zulip-0009:
+    selected_by: top
+    rank: 39
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  zulip-0010:
+    selected_by: top
+    rank: 64
+    score: 8
+    contributions:
+      decision_shape: 1
+      downstream_calls: 7
+  zulip-0011:
+    selected_by: top
+    rank: 234
+    score: 3
+    contributions:
+      downstream_calls: 3
+  zulip-0012:
+    selected_by: top
+    rank: 3
+    score: 13
+    contributions:
+      condition: 4
+      decision_shape: 1
+      downstream_calls: 8
+  zulip-0013:
+    selected_by: top
+    rank: 78
+    score: 7
+    contributions:
+      condition: 4
+      decision_shape: 1
+      downstream_calls: 2
+  zulip-0014:
+    selected_by: top
+    rank: 40
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  zulip-0015:
+    selected_by: top
+    rank: 65
+    score: 8
+    contributions:
+      decision_shape: 1
+      downstream_calls: 7
+  zulip-0016:
+    selected_by: random
+    rank: 224
+    score: 3
+    contributions:
+      downstream_calls: 3
+  zulip-0017:
+    selected_by: random
+    rank: 711
+    score: 1
+    contributions:
+      decision_shape: 1
+  zulip-0018:
+    selected_by: random
+    rank: 455
+    score: 1
+    contributions:
+      decision_shape: 1
+  zulip-0019:
+    selected_by: random
+    rank: 230
+    score: 3
+    contributions:
+      downstream_calls: 3
+  zulip-0020:
+    selected_by: random
+    rank: 791
+    score: 0
+    contributions: {}
+  zulip-0021:
+    selected_by: random
+    rank: 932
+    score: 0
+    contributions: {}
+  zulip-0022:
+    selected_by: random
+    rank: 17
+    score: 11
+    contributions:
+      condition: 4
+      downstream_calls: 7
+  zulip-0023:
+    selected_by: random
+    rank: 819
+    score: 0
+    contributions: {}
+  zulip-0024:
+    selected_by: random
+    rank: 297
+    score: 2
+    contributions:
+      decision_shape: 1
+      downstream_calls: 1
+  zulip-0025:
+    selected_by: random
+    rank: 203
+    score: 4
+    contributions:
+      condition: 4
+  zulip-0026:
+    selected_by: random
+    rank: 461
+    score: 1
+    contributions:
+      decision_shape: 1
+  zulip-0027:
+    selected_by: random
+    rank: 1178
+    score: 0
+    contributions: {}
+  zulip-0028:
+    selected_by: random
+    rank: 1056
+    score: 0
+    contributions: {}
+  zulip-0029:
+    selected_by: random
+    rank: 10
+    score: 12
+    contributions:
+      condition: 4
+      downstream_calls: 8
+  zulip-0030:
+    selected_by: random
+    rank: 801
+    score: 0
+    contributions: {}

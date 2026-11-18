@@ -602,3 +602,75 @@ points:
     rank: 1087
     score: 0
     contributions: {}
+  zulip-0061:
+    selected_by: pool
+    rank: 2
+    score: 15
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+      external_sdk_calls: 6
+  zulip-0062:
+    selected_by: pool
+    rank: 1
+    score: 18
+    contributions:
+      condition: 4
+      downstream_calls: 8
+      external_sdk_calls: 6
+  zulip-0063:
+    selected_by: pool
+    rank: 203
+    score: 4
+    contributions:
+      condition: 4
+  zulip-0064:
+    selected_by: pool
+    rank: 154
+    score: 5
+    contributions:
+      condition: 4
+      decision_shape: 1
+  zulip-0065:
+    selected_by: pool
+    rank: 204
+    score: 4
+    contributions:
+      condition: 4
+  zulip-0066:
+    selected_by: pool
+    rank: 205
+    score: 4
+    contributions:
+      condition: 4
+  zulip-0067:
+    selected_by: pool
+    rank: 206
+    score: 4
+    contributions:
+      condition: 4
+  zulip-0068:
+    selected_by: pool
+    rank: 209
+    score: 4
+    contributions:
+      condition: 4
+  zulip-0069:
+    selected_by: pool
+    rank: 213
+    score: 4
+    contributions:
+      condition: 4
+  zulip-0070:
+    selected_by: pool
+    rank: 215
+    score: 4
+    contributions:
+      condition: 4
+  zulip-0071:
+    selected_by: pool
+    rank: 170
+    score: 5
+    contributions:
+      condition: 4
+      decision_shape: 1

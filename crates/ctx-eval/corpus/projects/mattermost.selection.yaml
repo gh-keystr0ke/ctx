@@ -624,3 +624,89 @@ points:
     rank: 1699
     score: 0
     contributions: {}
+  mattermost-0061:
+    selected_by: pool
+    rank: 173
+    score: 6
+    contributions:
+      condition: 4
+      decision_shape: 1
+      downstream_calls: 1
+  mattermost-0062:
+    selected_by: pool
+    rank: 195
+    score: 5
+    contributions:
+      condition: 4
+      decision_shape: 1
+  mattermost-0063:
+    selected_by: pool
+    rank: 197
+    score: 5
+    contributions:
+      condition: 4
+      downstream_calls: 1
+  mattermost-0064:
+    selected_by: pool
+    rank: 200
+    score: 5
+    contributions:
+      condition: 4
+      decision_shape: 1
+  mattermost-0065:
+    selected_by: pool
+    rank: 202
+    score: 5
+    contributions:
+      condition: 4
+      decision_shape: 1
+  mattermost-0066:
+    selected_by: pool
+    rank: 204
+    score: 5
+    contributions:
+      condition: 4
+      decision_shape: 1
+  mattermost-0067:
+    selected_by: pool
+    rank: 205
+    score: 5
+    contributions:
+      condition: 4
+      decision_shape: 1
+  mattermost-0068:
+    selected_by: pool
+    rank: 143
+    score: 8
+    contributions:
+      condition: 4
+      downstream_calls: 4
+  mattermost-0069:
+    selected_by: pool
+    rank: 208
+    score: 5
+    contributions:
+      condition: 4
+      decision_shape: 1
+  mattermost-0070:
+    selected_by: pool
+    rank: 165
+    score: 7
+    contributions:
+      condition: 4
+      decision_shape: 1
+      downstream_calls: 2
+  mattermost-0071:
+    selected_by: pool
+    rank: 213
+    score: 5
+    contributions:
+      condition: 4
+      decision_shape: 1
+  mattermost-0072:
+    selected_by: pool
+    rank: 221
+    score: 5
+    contributions:
+      condition: 4
+      decision_shape: 1

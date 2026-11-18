@@ -1,0 +1,389 @@
+schema: 1
+fill_order:
+- symbol:rust:router.core.routing.helpers.push_metrics_with_update_window_for_contract_based_routing:Function#bf9fa3c8f72b83b2c2514dc23e4bc00ad822a6ada3d70e86a4ac19e304618977#1
+- symbol:rust:router.core.payments.operations.payment_capture.PaymentCapture.GetTracker<F,payments::PaymentData<F>,api::PaymentsCaptureRequest>.get_trackers:Method#869fd20a589ffb68ceaf1919d89834a2b34c1f08d382ee4f7fa8682cbf68ee2e#1
+- symbol:rust:router.core.payments.retry.do_gsm_actions:Function#2214548bcc9fac88729046b91c23599428f02a1934bce676b0112993d649da3b#1
+- symbol:rust:router.core.payments.operations.payment_response.PaymentResponse.PostUpdateTracker<F,PaymentData<F>,types::PaymentsIncrementalAuthorizationData>.update_tracker:Method#bbc5f56567afb65fa5906e522dd41d824d60244e307c90578914bf6a50c469c8#1
+- symbol:rust:router.core.routing.helpers.update_window_for_elimination_routing:Function#966ef96545aefe92098caf54d90a889c362722362c7fd723e203e5272c61380e#1
+- symbol:rust:router.core.payments.operations.payment_confirm.PaymentConfirm.Domain<F,api::PaymentsRequest,PaymentData<F>>.create_payment_method:Method#6a8a09c6f5b6b451f4e97fd2d3a21c0d18e23ea4d41e0fb106de11d894ea9d30#1
+- symbol:rust:router.core.payments.flows.session_flow.PaymentsSessionRouterData.RouterDataSession.decide_flow:Method#286f61b2a22d7835b384d6a01c24fc4ed9ff005d792d1c2f446dcec9da628b0c#1
+- symbol:rust:router.core.payments.operations.payment_complete_authorize.CompleteAuthorize.Domain<F,api::PaymentsRequest,PaymentData<F>>.fetch_payment_method:Method#c6748a528f4e447bf2565b53dc109e920eac7e5d637fd3d775f6aebeddedc524#1
+- symbol:rust:router.core.routing.helpers.update_window_for_elimination_routing:Function#b35dd5aa06f5bc6f81b6a2370fbac645f630ad4dc6a93bcfcf5cc4c194e6e36d#1
+- symbol:rust:router.core.payments.routing.utils.convert_comparison:Function#eb803916ecb6f2a061d572dd3afe240086899bfc1d4e2ca8aaba679f2449684b#1
+- symbol:rust:router.core.payments.flows.session_flow.PaymentsSessionRouterData.RouterDataSession.decide_flow:Method#ee32c9e4d2ca00fc19c4db3f91d12b65a13660897b3c09c367390bf69231453a#1
+- symbol:rust:router.core.payments.routing.transformers.Option.ForeignFrom<storage_enums::CaptureMethod>.foreign_from:Method#97b4ed697b536ef52fcd26555633083b2cd12699544ee342067c7ace150e5695#1
+- symbol:rust:router.core.routing.helpers.enable_dynamic_routing_algorithm:Function#74b190bfe30056a484acd459ff78d201aa598e7d001a38283620532888c4ee60#1
+- symbol:rust:router.core.payments.routing.perform_contract_based_routing:Function#3c921eda3400da5c98b4ea53f563d7d28225d36a6d7ca9967164c31437eb4bcf#1
+- symbol:rust:router.core.payments.flows.session_flow.create_applepay_session_token:Function#db510f9ca5fbca088070883bb4636afde8011fb5e6b51a41e7874467c7cee45e#1
+- symbol:rust:router.core.payments.tokenization.save_payment_method:Function#270669b7e42d3e62f9fa9daa439d70561afa73c20393081fa14549a9291775b8#1
+- symbol:rust:router.core.routing.helpers.enable_dynamic_routing_algorithm:Function#f95d39c067fe22a086a651cedae099278e2116f92ca56c2711c946cd6da7832c#1
+- symbol:rust:router.core.payments.tokenization.save_payment_method:Function#9a7c8c131fe46de0e7898ab26d146e4ea98dbd78abcaf1f935ad6803d295bc8a#1
+- symbol:rust:router.core.payments.flows.session_flow.create_gpay_session_token:Function#ecd209e6dbcb78923917bae9e79b237e2e85f877503e08525a4e0577eda3a572#1
+- symbol:rust:router.core.payments.routing.utils.fetch_de_euclid_routing_records_raw:Function#7ccbb25b5273c7a68a460ab73065d29d4a7d077d02afbdf117ee31dade1d6d9e#1
+- symbol:rust:router.core.routing.helpers.TxnStatus.ForeignFrom<common_enums::AttemptStatus>.foreign_from:Method#00fc4bc9c64ca151709ff73a363ebf043e41e9e5d89bad5e7bfc214fd7ab0ca2#1
+- symbol:rust:router.core.payments.helpers.add_connector_response_to_additional_payment_data:Function#0d53cf584cb1f8423323be7df21ce01ed8e60100aa29491d5de11b74148bf7b2#1
+- symbol:rust:router.core.payments.operations.payment_response.create_deferred_payment_method:Function#190f1ec9025f62c294a8c4eacc3d0648848512bc3bb7d176a14552d1379ee146#1
+- symbol:rust:router.core.payments.routing.perform_static_routing_v1:Function#3036c6790e5047fe767cb3737a0b188a3948a0da1bf7527c2cd769937694e382#1
+- symbol:rust:router.core.routing.helpers.TxnStatus.ForeignFrom<common_enums::AttemptStatus>.foreign_from:Method#0ce0ee1632168b527dd255ebfaeb5fbeaf2d728c75a30ed510df745d1961a0ad#1
+- symbol:rust:router.core.payments.operations.payment_confirm.PaymentConfirm.GetTracker<F,PaymentData<F>,api::PaymentsRequest>.get_trackers:Method#ef1faca1d33cbc3bd786f090b224bd68f575c9ee1ee2926a8c6022509a3b1e45#1
+- symbol:rust:router.core.payments.retry.do_gsm_actions:Function#5c232a540bc801a1100e8e178c5647cc30bddc634bc9a403e18821196fe47b14#1
+- symbol:rust:router.core.payments.operations.payment_session.PaymentSession.GetTracker<F,PaymentData<F>,api::PaymentsSessionRequest>.get_trackers:Method#f72ded31cc1db04b996f09e6db34cb5c80f3b3023d562e2a4266beecf90ca09e#1
+- symbol:rust:router.core.routing.helpers.TxnStatus.ForeignFrom<common_enums::AttemptStatus>.foreign_from:Method#0dd81c1915e8721c44882b3df9f5add01104f8dc755d6b06596bcb4089998879#1
+- symbol:rust:router.core.payments.helpers.decide_session_token_flow:Function#99e089876a306d60797152331510470394676237b80409e0810e05f71a14d46b#1
+fill_points:
+  ? symbol:rust:router.core.payments.flows.session_flow.PaymentsSessionRouterData.RouterDataSession.decide_flow:Method#286f61b2a22d7835b384d6a01c24fc4ed9ff005d792d1c2f446dcec9da628b0c#1
+  : location: crates/router/src/core/payments/flows/session_flow.rs:1761
+    rank: 11
+    score: 8
+    contributions:
+      downstream_calls: 8
+  ? symbol:rust:router.core.payments.flows.session_flow.PaymentsSessionRouterData.RouterDataSession.decide_flow:Method#ee32c9e4d2ca00fc19c4db3f91d12b65a13660897b3c09c367390bf69231453a#1
+  : location: crates/router/src/core/payments/flows/session_flow.rs:1751
+    rank: 12
+    score: 8
+    contributions:
+      downstream_calls: 8
+  ? symbol:rust:router.core.payments.flows.session_flow.create_applepay_session_token:Function#db510f9ca5fbca088070883bb4636afde8011fb5e6b51a41e7874467c7cee45e#1
+  : location: crates/router/src/core/payments/flows/session_flow.rs:282
+    rank: 13
+    score: 8
+    contributions:
+      downstream_calls: 8
+  ? symbol:rust:router.core.payments.flows.session_flow.create_gpay_session_token:Function#ecd209e6dbcb78923917bae9e79b237e2e85f877503e08525a4e0577eda3a572#1
+  : location: crates/router/src/core/payments/flows/session_flow.rs:1084
+    rank: 14
+    score: 8
+    contributions:
+      downstream_calls: 8
+  ? symbol:rust:router.core.payments.helpers.add_connector_response_to_additional_payment_data:Function#0d53cf584cb1f8423323be7df21ce01ed8e60100aa29491d5de11b74148bf7b2#1
+  : location: crates/router/src/core/payments/helpers.rs:8901
+    rank: 2031
+    score: 0
+    contributions: {}
+  ? symbol:rust:router.core.payments.helpers.decide_session_token_flow:Function#99e089876a306d60797152331510470394676237b80409e0810e05f71a14d46b#1
+  : location: crates/router/src/core/payments/helpers.rs:8803
+    rank: 1408
+    score: 1
+    contributions:
+      decision_shape: 1
+  ? symbol:rust:router.core.payments.operations.payment_capture.PaymentCapture.GetTracker<F,payments::PaymentData<F>,api::PaymentsCaptureRequest>.get_trackers:Method#869fd20a589ffb68ceaf1919d89834a2b34c1f08d382ee4f7fa8682cbf68ee2e#1
+  : location: crates/router/src/core/payments/operations/payment_capture.rs:179
+    rank: 470
+    score: 4
+    contributions:
+      condition: 4
+  ? symbol:rust:router.core.payments.operations.payment_complete_authorize.CompleteAuthorize.Domain<F,api::PaymentsRequest,PaymentData<F>>.fetch_payment_method:Method#c6748a528f4e447bf2565b53dc109e920eac7e5d637fd3d775f6aebeddedc524#1
+  : location: crates/router/src/core/payments/operations/payment_complete_authorize.rs:462
+    rank: 492
+    score: 4
+    contributions:
+      condition: 4
+  ? symbol:rust:router.core.payments.operations.payment_confirm.PaymentConfirm.Domain<F,api::PaymentsRequest,PaymentData<F>>.create_payment_method:Method#6a8a09c6f5b6b451f4e97fd2d3a21c0d18e23ea4d41e0fb106de11d894ea9d30#1
+  : location: crates/router/src/core/payments/operations/payment_confirm.rs:1194
+    rank: 2659
+    score: 0
+    contributions: {}
+  ? symbol:rust:router.core.payments.operations.payment_confirm.PaymentConfirm.GetTracker<F,PaymentData<F>,api::PaymentsRequest>.get_trackers:Method#ef1faca1d33cbc3bd786f090b224bd68f575c9ee1ee2926a8c6022509a3b1e45#1
+  : location: crates/router/src/core/payments/operations/payment_confirm.rs:633
+    rank: 2722
+    score: 0
+    contributions: {}
+  ? symbol:rust:router.core.payments.operations.payment_response.PaymentResponse.PostUpdateTracker<F,PaymentData<F>,types::PaymentsIncrementalAuthorizationData>.update_tracker:Method#bbc5f56567afb65fa5906e522dd41d824d60244e307c90578914bf6a50c469c8#1
+  : location: crates/router/src/core/payments/operations/payment_response.rs:1249
+    rank: 722
+    score: 4
+    contributions:
+      condition: 4
+  ? symbol:rust:router.core.payments.operations.payment_response.create_deferred_payment_method:Function#190f1ec9025f62c294a8c4eacc3d0648848512bc3bb7d176a14552d1379ee146#1
+  : location: crates/router/src/core/payments/operations/payment_response.rs:3901
+    rank: 15
+    score: 8
+    contributions:
+      downstream_calls: 8
+  ? symbol:rust:router.core.payments.operations.payment_session.PaymentSession.GetTracker<F,PaymentData<F>,api::PaymentsSessionRequest>.get_trackers:Method#f72ded31cc1db04b996f09e6db34cb5c80f3b3023d562e2a4266beecf90ca09e#1
+  : location: crates/router/src/core/payments/operations/payment_session.rs:75
+    rank: 803
+    score: 4
+    contributions:
+      condition: 4
+  ? symbol:rust:router.core.payments.retry.do_gsm_actions:Function#2214548bcc9fac88729046b91c23599428f02a1934bce676b0112993d649da3b#1
+  : location: crates/router/src/core/payments/retry.rs:158
+    rank: 9
+    score: 9
+    contributions:
+      condition: 4
+      downstream_calls: 5
+  ? symbol:rust:router.core.payments.retry.do_gsm_actions:Function#5c232a540bc801a1100e8e178c5647cc30bddc634bc9a403e18821196fe47b14#1
+  : location: crates/router/src/core/payments/retry.rs:122
+    rank: 16
+    score: 8
+    contributions:
+      downstream_calls: 8
+  ? symbol:rust:router.core.payments.routing.perform_contract_based_routing:Function#3c921eda3400da5c98b4ea53f563d7d28225d36a6d7ca9967164c31437eb4bcf#1
+  : location: crates/router/src/core/payments/routing.rs:4580
+    rank: 3417
+    score: 0
+    contributions: {}
+  ? symbol:rust:router.core.payments.routing.perform_static_routing_v1:Function#3036c6790e5047fe767cb3737a0b188a3948a0da1bf7527c2cd769937694e382#1
+  : location: crates/router/src/core/payments/routing.rs:1934
+    rank: 3486
+    score: 0
+    contributions: {}
+  ? symbol:rust:router.core.payments.routing.transformers.Option.ForeignFrom<storage_enums::CaptureMethod>.foreign_from:Method#97b4ed697b536ef52fcd26555633083b2cd12699544ee342067c7ace150e5695#1
+  : location: crates/router/src/core/payments/routing/transformers.rs:30
+    rank: 3542
+    score: 0
+    contributions: {}
+  ? symbol:rust:router.core.payments.routing.utils.convert_comparison:Function#eb803916ecb6f2a061d572dd3afe240086899bfc1d4e2ca8aaba679f2449684b#1
+  : location: crates/router/src/core/payments/routing/utils.rs:2048
+    rank: 3680
+    score: 0
+    contributions: {}
+  ? symbol:rust:router.core.payments.routing.utils.fetch_de_euclid_routing_records_raw:Function#7ccbb25b5273c7a68a460ab73065d29d4a7d077d02afbdf117ee31dade1d6d9e#1
+  : location: crates/router/src/core/payments/routing/utils.rs:1040
+    rank: 3752
+    score: 0
+    contributions: {}
+  ? symbol:rust:router.core.payments.tokenization.save_payment_method:Function#270669b7e42d3e62f9fa9daa439d70561afa73c20393081fa14549a9291775b8#1
+  : location: crates/router/src/core/payments/tokenization.rs:279
+    rank: 3853
+    score: 0
+    contributions: {}
+  ? symbol:rust:router.core.payments.tokenization.save_payment_method:Function#9a7c8c131fe46de0e7898ab26d146e4ea98dbd78abcaf1f935ad6803d295bc8a#1
+  : location: crates/router/src/core/payments/tokenization.rs:410
+    rank: 31
+    score: 8
+    contributions:
+      condition: 4
+      downstream_calls: 4
+  ? symbol:rust:router.core.routing.helpers.TxnStatus.ForeignFrom<common_enums::AttemptStatus>.foreign_from:Method#00fc4bc9c64ca151709ff73a363ebf043e41e9e5d89bad5e7bfc214fd7ab0ca2#1
+  : location: crates/router/src/core/routing/helpers.rs:1802
+    rank: 1210
+    score: 4
+    contributions:
+      condition: 4
+  ? symbol:rust:router.core.routing.helpers.TxnStatus.ForeignFrom<common_enums::AttemptStatus>.foreign_from:Method#0ce0ee1632168b527dd255ebfaeb5fbeaf2d728c75a30ed510df745d1961a0ad#1
+  : location: crates/router/src/core/routing/helpers.rs:1801
+    rank: 1211
+    score: 4
+    contributions:
+      condition: 4
+  ? symbol:rust:router.core.routing.helpers.TxnStatus.ForeignFrom<common_enums::AttemptStatus>.foreign_from:Method#0dd81c1915e8721c44882b3df9f5add01104f8dc755d6b06596bcb4089998879#1
+  : location: crates/router/src/core/routing/helpers.rs:1787
+    rank: 1212
+    score: 4
+    contributions:
+      condition: 4
+  ? symbol:rust:router.core.routing.helpers.enable_dynamic_routing_algorithm:Function#74b190bfe30056a484acd459ff78d201aa598e7d001a38283620532888c4ee60#1
+  : location: crates/router/src/core/routing/helpers.rs:2055
+    rank: 107
+    score: 5
+    contributions:
+      downstream_calls: 5
+  ? symbol:rust:router.core.routing.helpers.enable_dynamic_routing_algorithm:Function#f95d39c067fe22a086a651cedae099278e2116f92ca56c2711c946cd6da7832c#1
+  : location: crates/router/src/core/routing/helpers.rs:2039
+    rank: 108
+    score: 5
+    contributions:
+      downstream_calls: 5
+  ? symbol:rust:router.core.routing.helpers.push_metrics_with_update_window_for_contract_based_routing:Function#bf9fa3c8f72b83b2c2514dc23e4bc00ad822a6ada3d70e86a4ac19e304618977#1
+  : location: crates/router/src/core/routing/helpers.rs:1446
+    rank: 46
+    score: 7
+    contributions:
+      downstream_calls: 7
+  ? symbol:rust:router.core.routing.helpers.update_window_for_elimination_routing:Function#966ef96545aefe92098caf54d90a889c362722362c7fd723e203e5272c61380e#1
+  : location: crates/router/src/core/routing/helpers.rs:1267
+    rank: 47
+    score: 7
+    contributions:
+      downstream_calls: 7
+  ? symbol:rust:router.core.routing.helpers.update_window_for_elimination_routing:Function#b35dd5aa06f5bc6f81b6a2370fbac645f630ad4dc6a93bcfcf5cc4c194e6e36d#1
+  : location: crates/router/src/core/routing/helpers.rs:1266
+    rank: 48
+    score: 7
+    contributions:
+      downstream_calls: 7
+points:
+  hyperswitch-0001:
+    selected_by: top
+    rank: 1
+    score: 12
+    contributions:
+      condition: 4
+      downstream_calls: 8
+  hyperswitch-0002:
+    selected_by: top
+    rank: 10
+    score: 9
+    contributions:
+      condition: 4
+      downstream_calls: 5
+  hyperswitch-0003:
+    selected_by: top
+    rank: 2
+    score: 12
+    contributions:
+      condition: 4
+      downstream_calls: 8
+  hyperswitch-0004:
+    selected_by: top
+    rank: 34
+    score: 8
+    contributions:
+      decision_shape: 1
+      downstream_calls: 7
+  hyperswitch-0005:
+    selected_by: top
+    rank: 3
+    score: 12
+    contributions:
+      condition: 4
+      downstream_calls: 8
+  hyperswitch-0006:
+    selected_by: top
+    rank: 35
+    score: 8
+    contributions:
+      downstream_calls: 8
+  hyperswitch-0007:
+    selected_by: top
+    rank: 4
+    score: 12
+    contributions:
+      condition: 4
+      downstream_calls: 8
+  hyperswitch-0008:
+    selected_by: top
+    rank: 36
+    score: 8
+    contributions:
+      downstream_calls: 8
+  hyperswitch-0009:
+    selected_by: top
+    rank: 5
+    score: 12
+    contributions:
+      condition: 4
+      downstream_calls: 8
+  hyperswitch-0010:
+    selected_by: top
+    rank: 43
+    score: 7
+    contributions:
+      condition: 4
+      downstream_calls: 3
+  hyperswitch-0011:
+    selected_by: top
+    rank: 6
+    score: 12
+    contributions:
+      condition: 4
+      downstream_calls: 8
+  hyperswitch-0012:
+    selected_by: top
+    rank: 44
+    score: 7
+    contributions:
+      condition: 4
+      downstream_calls: 3
+  hyperswitch-0013:
+    selected_by: top
+    rank: 7
+    score: 10
+    contributions:
+      condition: 4
+      downstream_calls: 6
+  hyperswitch-0014:
+    selected_by: top
+    rank: 45
+    score: 7
+    contributions:
+      downstream_calls: 7
+  hyperswitch-0015:
+    selected_by: top
+    rank: 8
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  hyperswitch-0016:
+    selected_by: random
+    rank: 2909
+    score: 0
+    contributions: {}
+  hyperswitch-0017:
+    selected_by: random
+    rank: 2424
+    score: 0
+    contributions: {}
+  hyperswitch-0018:
+    selected_by: random
+    rank: 1745
+    score: 0
+    contributions: {}
+  hyperswitch-0019:
+    selected_by: random
+    rank: 327
+    score: 4
+    contributions:
+      condition: 4
+  hyperswitch-0020:
+    selected_by: random
+    rank: 2089
+    score: 0
+    contributions: {}
+  hyperswitch-0021:
+    selected_by: random
+    rank: 1233
+    score: 4
+    contributions:
+      condition: 4
+  hyperswitch-0022:
+    selected_by: random
+    rank: 2369
+    score: 0
+    contributions: {}
+  hyperswitch-0023:
+    selected_by: random
+    rank: 3821
+    score: 0
+    contributions: {}
+  hyperswitch-0024:
+    selected_by: random
+    rank: 3040
+    score: 0
+    contributions: {}
+  hyperswitch-0025:
+    selected_by: random
+    rank: 451
+    score: 4
+    contributions:
+      condition: 4
+  hyperswitch-0026:
+    selected_by: random
+    rank: 1622
+    score: 0
+    contributions: {}
+  hyperswitch-0027:
+    selected_by: random
+    rank: 2144
+    score: 0
+    contributions: {}
+  hyperswitch-0028:
+    selected_by: random
+    rank: 2554
+    score: 0
+    contributions: {}
+  hyperswitch-0029:
+    selected_by: random
+    rank: 1241
+    score: 4
+    contributions:
+      condition: 4
+  hyperswitch-0030:
+    selected_by: random
+    rank: 710
+    score: 4
+    contributions:
+      downstream_calls: 4

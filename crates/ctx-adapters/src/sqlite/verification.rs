@@ -446,6 +446,7 @@ mod stale_claim_tests {
             visibility: Visibility::Public,
             feature: None,
             implementation: vec![ExplicitSymbolLink {
+                repair_agent: None,
                 symbol: "billing.cancel".to_owned(),
                 locator: "implementation[0]".to_owned(),
             }],

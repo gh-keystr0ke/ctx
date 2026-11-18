@@ -66,7 +66,10 @@ impl BusinessContextStore for SqliteStore {
 
         let symbols = current_symbol_keys(&transaction, repository_row)?;
         let intents = current_intent_keys(&transaction, repository_row)?;
-        for document in documents {
+        for document in documents
+            .iter()
+            .filter(|doc| !matches!(doc.status.as_str(), "superseded" | "deprecated"))
+        {
             persist_document_claims(
                 &transaction,
                 repository_row,
@@ -260,6 +263,7 @@ fn persist_document_claims(
                 feature_key,
                 RelationKind::DependsOn,
                 "feature",
+                None,
                 feature_id,
                 stats,
             )?;
@@ -311,6 +315,7 @@ fn persist_symbol_claim(
         target,
         relation,
         &link.locator,
+        link.repair_agent.as_deref(),
         &link.symbol,
         stats,
     )
@@ -327,9 +332,26 @@ fn create_claim_if_missing(
     target: &StableKey,
     relation: RelationKind,
     locator: &str,
+    repair_agent: Option<&str>,
     excerpt: &str,
     stats: &mut ContextImportStats,
 ) -> Result<(), PortError> {
+    let (claim_class, source_kind, confidence, producer) = repair_agent.map_or(
+        (
+            "assertion",
+            "documentation",
+            1.0,
+            "business_context_explicit".to_owned(),
+        ),
+        |agent| {
+            (
+                "inference",
+                "llm_inference",
+                0.55,
+                format!("repair:{agent}"),
+            )
+        },
+    );
     let fingerprint = format!(
         "explicit:{}:{relation:?}:{}:{}:{locator}",
         source.as_str(),
@@ -378,8 +400,8 @@ fn create_claim_if_missing(
             "INSERT INTO edges(
                 repository_id, src_node_id, dst_node_id, kind, epistemic_class,
                 provenance_kind, confidence, status, valid_from, producer, fingerprint
-             ) VALUES (?1, ?2, ?3, ?4, 'assertion', 'documentation', 1.0,
-                       'active', ?5, 'business_context_explicit', ?6)",
+             ) VALUES (?1, ?2, ?3, ?4, ?7, ?8, ?10,
+                       'active', ?5, ?9, ?6)",
         )
         .map_err(database_error)?
         .execute(params![
@@ -388,7 +410,11 @@ fn create_claim_if_missing(
             target_row,
             relation_kind(relation),
             commit_row,
-            fingerprint
+            fingerprint,
+            claim_class,
+            source_kind,
+            producer,
+            confidence
         ])
         .map_err(database_error)?;
     let edge_row = transaction.last_insert_rowid();
@@ -764,6 +790,7 @@ mod tests {
             visibility: ctx_core::business::Visibility::Public,
             feature: None,
             implementation: vec![ExplicitSymbolLink {
+                repair_agent: None,
                 symbol: "billing.cancel".to_owned(),
                 locator: "implementation[0]".to_owned(),
             }],
@@ -942,6 +969,7 @@ mod tests {
             visibility: ctx_core::business::Visibility::Private,
             feature: None,
             implementation: vec![ExplicitSymbolLink {
+                repair_agent: None,
                 symbol: "billing.cancel".to_owned(),
                 locator: "implementation[0]".to_owned(),
             }],

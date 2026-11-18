@@ -1,3 +1,5 @@
+use std::fs;
+
 use ctx_adapters::{git::GitRepo, sqlite::SqliteStore};
 use ctx_app::status::{IndexState, StatusHealth, StatusService};
 
@@ -7,10 +9,26 @@ pub fn status(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
     let database_path = database_path(git.root())?;
     let store = SqliteStore::open(&database_path, git.context_root())?;
     let status = StatusService::new(git, &store).inspect()?;
+    let repair = repair_plan_summary(git, status.head_commit.as_str());
     if cli.json {
-        println!("{}", serde_json::to_string_pretty(&status)?);
+        let mut output = serde_json::to_value(&status)?;
+        if let Some(repair) = repair {
+            output["repair"] = repair;
+        }
+        println!("{}", serde_json::to_string_pretty(&output)?);
         return Ok(());
     }
+    print_status(&status);
+    if let Some(repair) = repair {
+        println!(
+            "Last background repair plan: {} drift finding(s)",
+            repair["count"]
+        );
+    }
+    Ok(())
+}
+
+fn print_status(status: &ctx_app::status::StatusReport) {
     println!("Repository: {}", status.repository);
     println!("Health: {}", health_label(status.health));
     println!(
@@ -97,7 +115,14 @@ pub fn status(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
             println!("  - {action}");
         }
     }
-    Ok(())
+}
+
+fn repair_plan_summary(git: &GitRepo, head: &str) -> Option<serde_json::Value> {
+    let path = git.root().join(".ctx/logs/repair-plan.json");
+    let plan: serde_json::Value = serde_json::from_slice(&fs::read(path).ok()?).ok()?;
+    let commit = plan["index"]["head"].as_str()?;
+    let count = plan["count"].as_u64()?;
+    Some(serde_json::json!({"revision": commit, "count": count, "current": commit == head}))
 }
 
 const fn health_label(health: StatusHealth) -> &'static str {

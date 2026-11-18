@@ -749,6 +749,7 @@ fn candidate_to_document(candidate: &KnowledgeCandidate, document_id: &str) -> B
         symbols
             .iter()
             .map(|symbol| ExplicitSymbolLink {
+                repair_agent: None,
                 symbol: symbol.clone(),
                 locator: String::new(),
             })

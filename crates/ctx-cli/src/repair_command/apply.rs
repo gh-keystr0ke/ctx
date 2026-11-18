@@ -4,6 +4,7 @@ use std::{
     fs,
     io::{self, Write},
     path::{Path, PathBuf},
+    process::Command,
 };
 
 use ctx_adapters::{git::GitRepo, sqlite::SqliteStore, worktree::WorktreeSnapshot};
@@ -13,7 +14,7 @@ use serde_json::json;
 use super::link_repairs;
 use crate::{Cli, CliError, database_path};
 
-pub(super) fn apply(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
+pub(super) fn apply(cli: &Cli, git: &GitRepo, commit: bool) -> Result<(), CliError> {
     let head = git.head()?;
     let store = SqliteStore::open_preview(&database_path(git.root())?, git.context_root())?;
     let repository = git.descriptor()?;
@@ -25,9 +26,10 @@ pub(super) fn apply(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
     let mut snapshot = WorktreeSnapshot::read(git)?;
     let issues = snapshot.issues();
     let links = link_repairs(&snapshot, &issues, &store, &repository.id)?;
+    let config = super::config::Config::read(git)?;
     let mut repairs = BTreeMap::<&str, Vec<_>>::new();
     for link in &links {
-        if link.replacement.is_some() {
+        if link.replacement.is_some() && config.safe(link.test) {
             repairs.entry(link.path).or_default().push(link);
         }
     }
@@ -36,6 +38,7 @@ pub(super) fn apply(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
     for (path, links) in repairs {
         edits.push(prepare_file(git, &mut snapshot, path, &links)?);
     }
+    let mut branch = None;
     if !edits.is_empty() {
         let remaining = snapshot.issues();
         let every_issue_explained = remaining.iter().all(|issue| {
@@ -63,16 +66,22 @@ pub(super) fn apply(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
         if git.head_oid()? != head.oid {
             return Err(io::Error::other("HEAD changed during repair").into());
         }
+        if commit {
+            branch = Some(prepare_commit(git.context_root())?);
+        }
         write_edits(&edits)?;
+        if branch.is_some() {
+            commit_edits(git.context_root(), &edits)?;
+        }
     }
     let applied = links
         .iter()
-        .filter(|link| link.replacement.is_some())
+        .filter(|link| link.replacement.is_some() && config.safe(link.test))
         .collect::<Vec<_>>();
     if cli.json {
         println!(
             "{}",
-            serde_json::to_string_pretty(&json!({"applied": applied}))?
+            serde_json::to_string_pretty(&json!({"applied": applied, "branch": branch}))?
         );
     } else {
         println!("Applied {} safe repair(s).", applied.len());
@@ -80,10 +89,54 @@ pub(super) fn apply(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
     Ok(())
 }
 
-struct Edit {
-    path: PathBuf,
-    original: String,
-    patched: String,
+fn prepare_commit(root: &Path) -> io::Result<String> {
+    let status = run_git(root, &["status", "--porcelain"])?;
+    if !status.trim().is_empty() {
+        return Err(io::Error::other(
+            "repair --commit requires a clean context worktree",
+        ));
+    }
+    let branch = format!("ctx/repair-{}", chrono::Utc::now().format("%Y%m%d-%H%M%S"));
+    run_git(root, &["switch", "-c", &branch])?;
+    Ok(branch)
+}
+
+fn commit_edits(root: &Path, edits: &[Edit]) -> io::Result<()> {
+    let root = fs::canonicalize(root)?;
+    let paths = edits
+        .iter()
+        .map(|edit| {
+            edit.path
+                .strip_prefix(&root)
+                .ok()
+                .and_then(Path::to_str)
+                .ok_or_else(|| io::Error::other("repair path is outside the context worktree"))
+        })
+        .collect::<io::Result<Vec<_>>>()?;
+    let mut args = vec![
+        "commit",
+        "--only",
+        "-m",
+        "docs(context): repair symbol mappings",
+        "--",
+    ];
+    args.extend(paths);
+    run_git(&root, &args)?;
+    Ok(())
+}
+
+fn run_git(root: &Path, args: &[&str]) -> io::Result<String> {
+    let output = Command::new("git").current_dir(root).args(args).output()?;
+    if !output.status.success() {
+        return Err(io::Error::other(String::from_utf8_lossy(&output.stderr)));
+    }
+    String::from_utf8(output.stdout).map_err(io::Error::other)
+}
+
+pub(super) struct Edit {
+    pub path: PathBuf,
+    pub original: String,
+    pub patched: String,
 }
 
 fn prepare_file(
@@ -173,7 +226,7 @@ fn scalar_position(text: &str, original: &str) -> Option<(usize, usize)> {
         .then_some((offset, original.len()))
 }
 
-fn write_edits(edits: &[Edit]) -> io::Result<()> {
+pub(super) fn write_edits(edits: &[Edit]) -> io::Result<()> {
     for (index, edit) in edits.iter().enumerate() {
         if let Err(error) = persist_context_edit(&edit.path, &edit.original, &edit.patched) {
             for previous in edits[..index].iter().rev() {

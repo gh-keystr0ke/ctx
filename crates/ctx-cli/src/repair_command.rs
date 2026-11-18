@@ -1,4 +1,8 @@
 mod apply;
+mod config;
+mod propose;
+mod queue;
+mod review;
 
 use clap::{Subcommand, ValueEnum};
 use ctx_adapters::{git::GitRepo, sqlite::SqliteStore, worktree::WorktreeSnapshot};
@@ -17,10 +21,27 @@ use crate::{Cli, CliError, database_path};
 
 #[derive(Debug, Subcommand)]
 pub(crate) enum RepairCommand {
+    /// Propose repairs for human review.
+    Propose {
+        #[arg(long)]
+        agent: Option<String>,
+        #[arg(long)]
+        model: Option<String>,
+        #[arg(long, default_value = "repair")]
+        author: String,
+    },
+    /// Accept, edit, reject, or defer queued repairs.
+    Review {
+        #[arg(long)]
+        auto: bool,
+    },
     /// Apply links backed by committed identity evidence.
     Apply {
         #[arg(long, value_enum)]
         policy: RepairPolicy,
+        /// Commit the selected repairs on a new ctx/repair branch.
+        #[arg(long)]
+        commit: bool,
     },
     /// Inspect context drift without writing changes.
     Plan {
@@ -42,9 +63,16 @@ pub(crate) enum FailOn {
 
 pub(crate) fn run(cli: &Cli, git: &GitRepo, command: &RepairCommand) -> Result<(), CliError> {
     match command {
+        RepairCommand::Propose {
+            agent,
+            model,
+            author,
+        } => propose::propose(cli, git, agent.as_deref(), model.as_deref(), author),
+        RepairCommand::Review { auto } => review::review(cli, git, *auto),
         RepairCommand::Apply {
             policy: RepairPolicy::Safe,
-        } => apply::apply(cli, git),
+            commit,
+        } => apply::apply(cli, git, *commit),
         RepairCommand::Plan { fail_on } => plan(cli, git, fail_on.is_some()),
     }
 }

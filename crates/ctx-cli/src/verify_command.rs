@@ -366,6 +366,37 @@ pub(super) fn verify_stale(
     model: Option<String>,
     author: &str,
 ) -> Result<(), CliError> {
+    let StaleReviewResults(total, report, results) =
+        verify_stale_results(cli, git, agent, model, author)?;
+    if total == 0 {
+        if cli.json {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&json!({
+                    "claims_reviewed": 0, "reactivated": 0, "suggested_removals": 0, "results": []
+                }))?
+            );
+        } else {
+            println!("No stale semantic claims.");
+        }
+        return Ok(());
+    }
+    print_stale_review(cli, agent, total, &report, &results)
+}
+
+pub(super) struct StaleReviewResults(
+    pub usize,
+    pub ctx_app::verification::StaleClaimReviewReport,
+    pub Vec<ctx_app::verification::ReviewedStaleClaim>,
+);
+
+pub(super) fn verify_stale_results(
+    cli: &Cli,
+    git: &GitRepo,
+    agent: &str,
+    model: Option<String>,
+    author: &str,
+) -> Result<StaleReviewResults, CliError> {
     let database_path = database_path(git.root())?;
     let mut store = SqliteStore::open(&database_path, git.context_root())?;
     let repository = git.descriptor()?;
@@ -379,17 +410,11 @@ pub(super) fn verify_stale(
 
     let mut claims = VerificationService::new(&mut store).stale_claims(&repository.id)?;
     if claims.is_empty() {
-        if cli.json {
-            println!(
-                "{}",
-                serde_json::to_string_pretty(&json!({
-                    "claims_reviewed": 0, "reactivated": 0, "suggested_removals": 0, "results": []
-                }))?
-            );
-        } else {
-            println!("No stale semantic claims.");
-        }
-        return Ok(());
+        return Ok(StaleReviewResults(
+            0,
+            ctx_app::verification::StaleClaimReviewReport::default(),
+            Vec::new(),
+        ));
     }
     let graph = store.load_graph(&repository.id)?;
     enrich_stale_claims_with_current_code(&mut claims, &graph, git.root());
@@ -406,7 +431,7 @@ pub(super) fn verify_stale(
         author,
         &now,
     )?;
-    print_stale_review(cli, agent, claims.len(), &report, &results)
+    Ok(StaleReviewResults(claims.len(), report, results))
 }
 
 fn print_stale_review(

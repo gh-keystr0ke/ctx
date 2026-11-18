@@ -284,6 +284,7 @@ dependencies = [
  "toml",
  "tracing",
  "tracing-subscriber",
+ "yaml_serde",
 ]
 
 [[package]]

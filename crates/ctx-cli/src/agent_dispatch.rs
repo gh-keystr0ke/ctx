@@ -88,6 +88,16 @@ impl StaleClaimReviewAgent for ConfiguredAgent {
     }
 }
 
+impl ctx_adapters::agent_contract::AgentTransport for ConfiguredAgent {
+    fn run(
+        &self,
+        prompt: &str,
+    ) -> Result<String, ctx_adapters::agent_contract::AgentContractError> {
+        self.pace();
+        self.inner.run(prompt)
+    }
+}
+
 impl ResearchAgent for ConfiguredAgent {
     fn research(
         &self,

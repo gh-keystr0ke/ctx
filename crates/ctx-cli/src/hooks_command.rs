@@ -31,7 +31,12 @@ pub(crate) fn run(cli: &Cli, git: &GitRepo, command: &HooksCommand) -> Result<()
         .chain((!install).then_some("pre-commit"))
     {
         let path = hook_path(git, name)?;
-        if edit_hook(&path, install.then(|| post_body(&binary)).as_deref())? {
+        if edit_hook(
+            &path,
+            install
+                .then(|| post_body(&binary, name == "post-commit"))
+                .as_deref(),
+        )? {
             changed.push(path);
         }
     }
@@ -65,10 +70,17 @@ pub(crate) fn shell_quote_text(text: &str) -> String {
     format!("'{}'", text.replace('\'', "'\"'\"'"))
 }
 
-fn post_body(binary: &Path) -> String {
+fn post_body(binary: &Path, repair_plan: bool) -> String {
     let binary = shell_quote(binary);
+    let repair = if repair_plan {
+        format!(
+            "\n  umask 077\n  repair_tmp=.ctx/logs/repair-plan-$$.json\n  if {binary} repair plan --json >\"$repair_tmp\" 2>>.ctx/logs/hooks.log; then\n    mv \"$repair_tmp\" .ctx/logs/repair-plan.json\n  else\n    rm -f \"$repair_tmp\"\n  fi"
+        )
+    } else {
+        String::new()
+    };
     format!(
-        "(\n  unset GIT_INDEX_FILE\n  mkdir -p .ctx/logs && {binary} index --quiet >>.ctx/logs/hooks.log 2>&1\n) </dev/null >/dev/null 2>&1 &"
+        "(\n  unset GIT_INDEX_FILE\n  mkdir -p .ctx/logs && {binary} index --quiet >>.ctx/logs/hooks.log 2>&1{repair}\n) </dev/null >/dev/null 2>&1 &"
     )
 }
 

@@ -69,6 +69,8 @@ impl BusinessKind {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ExplicitSymbolLink {
     pub symbol: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub repair_agent: Option<String>,
     pub locator: String,
 }
 

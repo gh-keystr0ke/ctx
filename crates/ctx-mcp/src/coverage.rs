@@ -103,22 +103,22 @@ pub(super) fn definitions() -> [Value; 3] {
         tool(
             "get_coverage",
             "Read structural coverage, gap counts, and potential divergence evidence",
-            scope.clone(),
+            &scope,
         ),
         tool(
             "list_gaps",
             "List up to 25 ranked actionable knowledge gaps",
-            scope,
+            &scope,
         ),
         tool(
             "explain_gap",
             "Read one behavioral point and its stored coverage evidence",
-            super::object_schema("anchor", "Stable decision anchor"),
+            &super::object_schema("anchor", "Stable decision anchor"),
         ),
     ]
 }
 
-fn tool(name: &str, description: &str, schema: Value) -> Value {
+fn tool(name: &str, description: &str, schema: &Value) -> Value {
     json!({
         "name": name,
         "description": description,

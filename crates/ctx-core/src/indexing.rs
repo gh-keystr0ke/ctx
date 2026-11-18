@@ -1,5 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet, btree_map::Entry};
 
+mod renames;
+
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -634,6 +636,7 @@ fn match_symbols(
     same_shape_prior: &[IndexedSymbol],
     used: &mut BTreeSet<StableKey>,
 ) -> Result<Vec<(SymbolDefinition, StableKey)>, IndexPlanError> {
+    let renames = renames::same_file_renames(prior_file, definitions);
     definitions
         .iter()
         .map(|definition| {
@@ -650,6 +653,7 @@ fn match_symbols(
                         && symbol.name == definition.name
                         && symbol.structural_fingerprint == definition.structural_fingerprint
                 }),
+                renames.get(&definition.canonical_path).copied(),
             ];
             // A candidate already in `used` isn't necessarily taken by
             // someone else: `reserve_exact_canonical_matches` pre-reserves

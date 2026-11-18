@@ -7,7 +7,10 @@ decision: >
   Automatically replace a broken symbol or test link under the safe policy only
   when committed identity evidence establishes one successor. A continuous
   history under one stable key can establish an identity-preserving move. A
-  retired identity without a proven successor requires review. Validate changes
+  retired identity without a proven successor requires review. A unique
+  unchanged body and compatible signature can establish a pure same-file
+  rename. Agent-approved links use inference confidence and retain their
+  producer. Validate changes
   with context check and a worktree preview before accepting a repair. Preserve
   provenance and roll back incomplete or invalid changes. Review wording,
   removals and merges explicitly. Use stale claim verification for R5. For R7
@@ -16,9 +19,14 @@ decision: >
   wording. Union the code links and mark the other document superseded.
 implementation:
   - symbol: ctx_core.repair.indexed_drift
+  - symbol: ctx_core.indexing.renames.same_file_renames
+  - symbol: ctx_cli.repair_command.propose.propose
+  - symbol: ctx_cli.repair_command.review.review
   - symbol: ctx_cli.repair_command.run
   - symbol: ctx_cli.repair_command.apply.apply
   - symbol: ctx_adapters.sqlite.repair.SqliteStore.historical_symbol
 tests:
+  - symbol: crates.ctx-cli.tests.e2e.repair_review_merges_duplicate_documents_with_reviewer_wording
+  - symbol: crates.ctx-cli.tests.e2e.repair_handles_pure_test_renames_and_leaves_ambiguous_matches_unresolved
   - symbol: crates.ctx-cli.tests.e2e.repair_plan_distinguishes_indexed_moves_from_unproven_renames
   - symbol: crates.ctx-cli.tests.e2e.repair_plan_reports_broken_links_and_keeps_the_index_intact

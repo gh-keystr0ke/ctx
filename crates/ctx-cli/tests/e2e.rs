@@ -3794,3 +3794,97 @@ fn coverage_ask_preserves_dispositions_and_stages_anchored_knowledge() {
     assert_eq!(coverage["behavioral"]["counts"]["unknown"], 1);
     assert_eq!(coverage["behavioral"]["counts"]["explained"], 1);
 }
+
+#[test]
+fn repair_review_merges_duplicate_documents_with_reviewer_wording() {
+    use std::{io::Write as _, process::Stdio};
+    let repository = MixedLanguageRepository::new();
+    repository.ctx(&["init"]);
+    let root = repository.root();
+    let context = root.join(".context/requirements");
+    fs::create_dir_all(&context).unwrap();
+    let path = |id: &str| context.join(format!("{id}.yaml"));
+    let body = "Apply the configured timeout to every product retry attempt.";
+    for (id, symbol) in [("a", "app.helper"), ("b", "app.run")] {
+        fs::write(
+            path(id),
+            format!("id: REQ-{id}\nstatement: {body}\nimplementation:\n  - symbol: {symbol}\n"),
+        )
+        .unwrap();
+    }
+    run_git(root, &["add", ".context"]);
+    run_git(root, &["commit", "-qm", "record duplicate requirements"]);
+    repository.ctx(&["index"]);
+
+    let proposals = repository.ctx(&["repair", "propose"]);
+    assert_eq!(proposals["proposals"][0]["class"], "R7");
+    assert_eq!(proposals["proposals"][0]["document"], "REQ-a");
+    assert_eq!(
+        repository.ctx(&["repair", "propose"])["proposals"],
+        json!([])
+    );
+
+    let mut child = Command::new(env!("CARGO_BIN_EXE_ctx"))
+        .current_dir(root)
+        .args(["--json", "repair", "review"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(b"a 1 Apply the documented timeout to each retry.\n")
+        .unwrap();
+    let output = child.wait_with_output().unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report["decisions"][0]["method"], "human");
+    let retained = fs::read_to_string(path("a")).unwrap();
+    assert!(retained.contains("documented timeout"));
+    assert!(retained.contains("app.helper"));
+    assert!(retained.contains("app.run"));
+    let retired = fs::read_to_string(path("b")).unwrap();
+    assert!(retired.contains("status: superseded"));
+    assert!(retired.contains("superseded_by: REQ-a"));
+}
+
+#[test]
+fn repair_handles_pure_test_renames_and_leaves_ambiguous_matches_unresolved() {
+    let repository = MixedLanguageRepository::new();
+    repository.ctx(&["init"]);
+    let root = repository.root();
+    let path = root.join("src/renames.py");
+    fs::write(&path, "def test_old():\n    assert True\n\ndef old():\n    return 1\n\ndef kept():\n    return 1\n").unwrap();
+    let context = root.join(".context/requirements");
+    fs::create_dir_all(&context).unwrap();
+    fs::write(context.join("renames.yaml"),
+        "id: REQ-RENAME\nstatement: Preserve the check.\nimplementation:\n  - symbol: renames.old\ntests:\n  - symbol: renames.test_old\n").unwrap();
+    run_git(root, &["add", ".context", "src"]);
+    run_git(root, &["commit", "-qm", "record original names"]);
+    repository.ctx(&["index"]);
+
+    fs::write(&path, "def test_new():\n    assert True\n\ndef new():\n    return 1\n\ndef kept():\n    return 1\n").unwrap();
+    run_git(root, &["add", "src"]);
+    run_git(root, &["commit", "-qm", "replace two names"]);
+    repository.ctx(&["index"]);
+    let plan = repository.ctx(&["repair", "plan"]);
+    assert_eq!(plan["links"][0]["class"], "R4");
+    assert_eq!(plan["links"][1]["class"], "R2");
+    assert_eq!(plan["links"][1]["replacement"], "renames.test_new");
+    let repaired = repository.ctx(&["repair", "apply", "--policy", "safe", "--commit"]);
+    let branch = repaired["branch"].as_str().unwrap();
+    assert!(branch.starts_with("ctx/repair-"));
+    assert_eq!(repaired["applied"].as_array().unwrap().len(), 1);
+    assert!(
+        fs::read_to_string(context.join("renames.yaml"))
+            .unwrap()
+            .contains("renames.test_new")
+    );
+}

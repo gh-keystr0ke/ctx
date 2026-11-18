@@ -97,15 +97,10 @@ struct RawDocument {
 #[serde(untagged)]
 enum RawLink {
     Name(String),
-    Object { symbol: String },
-}
-
-impl RawLink {
-    fn symbol(self) -> String {
-        match self {
-            Self::Name(symbol) | Self::Object { symbol } => symbol,
-        }
-    }
+    Object {
+        symbol: String,
+        repair_agent: Option<String>,
+    },
 }
 
 const fn default_implementation_expected() -> bool {
@@ -258,9 +253,19 @@ fn normalize_links(links: Vec<RawLink>, field: &str) -> Vec<ExplicitSymbolLink> 
     links
         .into_iter()
         .enumerate()
-        .map(|(index, link)| ExplicitSymbolLink {
-            symbol: link.symbol(),
-            locator: format!("{field}[{index}]"),
+        .map(|(index, link)| {
+            let (symbol, repair_agent) = match link {
+                RawLink::Name(symbol) => (symbol, None),
+                RawLink::Object {
+                    symbol,
+                    repair_agent,
+                } => (symbol, repair_agent),
+            };
+            ExplicitSymbolLink {
+                symbol,
+                repair_agent,
+                locator: format!("{field}[{index}]"),
+            }
         })
         .collect()
 }
@@ -348,6 +353,8 @@ fn slugify(id: &str) -> String {
 #[derive(Serialize)]
 struct WrittenLink<'a> {
     symbol: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    repair_agent: Option<&'a str>,
 }
 
 #[derive(Serialize)]
@@ -422,6 +429,7 @@ fn written_document(document: &BusinessDocument) -> WrittenDocument<'_> {
             .iter()
             .map(|link| WrittenLink {
                 symbol: &link.symbol,
+                repair_agent: link.repair_agent.as_deref(),
             })
             .collect(),
         tests: document
@@ -429,6 +437,7 @@ fn written_document(document: &BusinessDocument) -> WrittenDocument<'_> {
             .iter()
             .map(|link| WrittenLink {
                 symbol: &link.symbol,
+                repair_agent: link.repair_agent.as_deref(),
             })
             .collect(),
     }
@@ -504,6 +513,7 @@ mod tests {
             implementation_expected: true,
             anchors: Vec::new(),
             implementation: vec![ExplicitSymbolLink {
+                repair_agent: None,
                 symbol: "billing.subscription.SubscriptionService.cancel".to_owned(),
                 locator: "implementation[0]".to_owned(),
             }],

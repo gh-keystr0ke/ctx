@@ -203,3 +203,32 @@ significant and two trivial. The other 34 require stronger evidence.
 Precision@5 on rated points was 80%, with only 22.7% of positions rated.
 The 80% pool completeness gate therefore still blocks interpretation of that
 precision figure. Pool labels did not change the quota or false-positive rate.
+
+#### Next release verification pass
+
+A second search found the invitation expiry rule in the pinned Mattermost
+guide. Mattermost now has four significant points. The second label remains
+unchanged, so agreement is κ = 0.846 on 12 pairs. The tuning result covers
+11 of 44 top positions. Nine are significant and two are trivial.
+The trivial false-positive rate remains 2/49.
+
+| Tuning project | Additional significant labels needed | Additional trivial labels needed |
+| --- | ---: | ---: |
+| Zulip | 9 | 1 |
+| Mattermost | 11 | 0 |
+| Hyperswitch | 15 | 11 |
+
+1. Search pinned docs by user-facing behavior, configuration names, and API
+   terms. Follow linked issues from the commit that changed each decision.
+2. Review the existing samples and record evidence for each changed label.
+   Keep the original second labels for the agreement report.
+3. Run `ctx-corpus score --tuning`. At the current ranking, 25 more decisive
+   labels are required to reach 36 of 44 positions.
+4. If the fixed sample still falls short, report the remaining counts for
+   approval of a new sampling protocol. Preserve the current corpus as a
+   baseline. Freeze any replacement sampling protocol before labeling.
+5. Freeze the final ranking and run `ctx-corpus score --gate`. Resolve missing
+   labels through the pool workflow. Check agreement, quotas, precision,
+   false positives, and anchor resolution.
+6. After the release checks pass, set version 0.9.0 and run release CI.
+   Publish the tag and artifacts from the validated commit.

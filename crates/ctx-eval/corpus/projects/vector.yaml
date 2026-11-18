@@ -1,0 +1,30 @@
+schema: 1
+guide_version: 1
+project: vector
+language: rust
+role: gate
+repository: https://github.com/vectordotdev/vector
+release: 'v0.62.0'
+commit: b78d987398d23f19f3705fb76a1cd18642565b66
+evidence_sources:
+  - kind: docs
+    repository: https://github.com/vectordotdev/vector
+    commit: b78d987398d23f19f3705fb76a1cd18642565b66
+    paths: [website/content/en]
+    url_template: 'https://github.com/vectordotdev/vector/blob/{commit}/{path}#L{line}'
+  - kind: spec
+    repository: https://github.com/vectordotdev/vector
+    commit: b78d987398d23f19f3705fb76a1cd18642565b66
+    paths: [rfcs]
+    url_template: 'https://github.com/vectordotdev/vector/blob/{commit}/{path}#L{line}'
+reference_patterns:
+  - regex: '#(\d+)'
+    url: 'https://github.com/vectordotdev/vector/issues/{1}'
+modules:
+  - lib/vector-buffers
+  - src/sinks/util/retries.rs
+  - src/sinks/util/batch.rs
+  - lib/vector-common/src/finalization.rs
+excluded_paths: []
+sample: {seed: 42, size: 30, ranking_version: v0}
+points: []

@@ -16,6 +16,8 @@ name = "ctx-corpus"
 path = "src/bin/ctx-corpus.rs"
 
 [dependencies]
+blake3.workspace = true
+clap.workspace = true
 chrono.workspace = true
 ctx-adapters = { path = "../ctx-adapters", version = "0.8.8" }
 ctx-app = { path = "../ctx-app", version = "0.8.8" }

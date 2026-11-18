@@ -1,0 +1,24 @@
+schema: 1
+guide_version: 1
+project: hyperswitch
+language: rust
+role: tuning
+repository: https://github.com/juspay/hyperswitch
+release: 'v1.129.0'
+commit: cf913c5aaa226e102b257a81a3a53ac841bf45bd
+evidence_sources:
+  - kind: docs
+    repository: https://github.com/juspay/hyperswitch-docs
+    commit: 6b4306d2f722da7dad938c8bf3bf4506fa75d689
+    paths: [.]
+    url_template: 'https://github.com/juspay/hyperswitch-docs/blob/{commit}/{path}#L{line}'
+reference_patterns:
+  - regex: '#(\d+)'
+    url: 'https://github.com/juspay/hyperswitch/issues/{1}'
+modules:
+  - crates/router/src/core/payments
+  - crates/router/src/core/refunds
+  - crates/router/src/core/routing
+excluded_paths: [crates/router/src/connector, crates/hyperswitch_connectors]
+sample: {seed: 42, size: 30, ranking_version: v0}
+points: []

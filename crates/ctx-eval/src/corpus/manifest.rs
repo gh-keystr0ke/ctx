@@ -141,6 +141,8 @@ pub struct Selection {
     pub schema: u32,
     #[serde(default)]
     pub fill_order: Vec<String>,
+    #[serde(default)]
+    pub fill_points: BTreeMap<String, FillPoint>,
     pub points: BTreeMap<String, SelectedPoint>,
 }
 
@@ -160,4 +162,13 @@ pub enum SelectedBy {
     Random,
     Fill,
     Pool,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct FillPoint {
+    pub location: String,
+    pub rank: usize,
+    pub score: i64,
+    pub contributions: BTreeMap<String, i64>,
 }

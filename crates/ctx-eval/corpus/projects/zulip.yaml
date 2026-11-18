@@ -1,0 +1,26 @@
+schema: 1
+guide_version: 1
+project: zulip
+language: python
+role: tuning
+repository: https://github.com/zulip/zulip
+release: '13.2'
+commit: 542731df0211f4c397fbac80e45a8145192b2b56
+evidence_sources:
+  - kind: docs
+    repository: https://github.com/zulip/zulip
+    commit: 542731df0211f4c397fbac80e45a8145192b2b56
+    paths: [help, docs]
+    url_template: 'https://github.com/zulip/zulip/blob/{commit}/{path}#L{line}'
+reference_patterns:
+  - regex: '#(\d+)'
+    url: 'https://github.com/zulip/zulip/issues/{1}'
+modules:
+  - zerver/lib/retention.py
+  - corporate/lib/stripe.py
+  - zerver/lib/rate_limiter.py
+  - zerver/actions/message_send.py
+  - zerver/lib/streams.py
+excluded_paths: []
+sample: {seed: 42, size: 30, ranking_version: v0}
+points: []

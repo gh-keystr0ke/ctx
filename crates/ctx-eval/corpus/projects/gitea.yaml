@@ -1,0 +1,26 @@
+schema: 1
+guide_version: 1
+project: gitea
+language: go
+role: gate
+repository: https://github.com/go-gitea/gitea
+release: 'v28.4.0'
+commit: 0b5dfdeeeaadf6350314246c5936b53cce38170c
+evidence_sources:
+  - kind: docs
+    repository: https://github.com/go-gitea/docs
+    commit: 553a5f0a43999b1355c7c08fe8c8729ae2bac9c8
+    paths: [content]
+    url_template: 'https://github.com/go-gitea/docs/blob/{commit}/{path}#L{line}'
+reference_patterns:
+  - regex: '#(\d+)'
+    url: 'https://github.com/go-gitea/gitea/issues/{1}'
+modules:
+  - models/git/protected_branch.go
+  - services/pull/merge.go
+  - services/pull/check.go
+  - models/perm/access
+  - models/organization
+excluded_paths: []
+sample: {seed: 42, size: 30, ranking_version: v0}
+points: []

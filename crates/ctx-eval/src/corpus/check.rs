@@ -39,6 +39,12 @@ pub fn check(root: &Path) -> Result<(), String> {
             let manifest: Project = parse(&path)?;
             check_project(&manifest, version)
                 .map_err(|error| format!("{}: {error}", path.display()))?;
+            if !manifest.points.is_empty() {
+                let selection = path.with_extension("selection.yaml");
+                if !selection.is_file() {
+                    return Err(format!("{} is missing", selection.display()));
+                }
+            }
         }
     }
     Ok(())
@@ -85,6 +91,15 @@ fn check_selection(project: &Project, selection: &Selection) -> Result<(), Strin
     let ids: BTreeSet<_> = project.points.iter().map(|point| &point.id).collect();
     if let Some(id) = selection.points.keys().find(|id| !ids.contains(id)) {
         return Err(format!("selection references unknown point {id}"));
+    }
+    if let Some(id) = ids.iter().find(|id| !selection.points.contains_key(**id)) {
+        return Err(format!("selection is missing point {id}"));
+    }
+    let fill: BTreeSet<_> = selection.fill_order.iter().collect();
+    if fill.len() != selection.fill_order.len()
+        || !fill.into_iter().eq(selection.fill_points.keys())
+    {
+        return Err("fill order and metadata disagree".to_owned());
     }
     Ok(())
 }

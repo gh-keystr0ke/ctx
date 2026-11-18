@@ -1,0 +1,24 @@
+schema: 1
+guide_version: 1
+project: mattermost
+language: go
+role: tuning
+repository: https://github.com/mattermost/mattermost
+release: 'v12.1.0'
+commit: 243e3d0135203ab9166fe8f2873b07f697b06fd4
+evidence_sources:
+  - kind: docs
+    repository: https://github.com/mattermost/docs
+    commit: bd09d959514c34e72a33c24663b5946682b656ec
+    paths: [source]
+    url_template: 'https://github.com/mattermost/docs/blob/{commit}/{path}#L{line}'
+reference_patterns:
+  - regex: '#(\d+)'
+    url: 'https://github.com/mattermost/mattermost/issues/{1}'
+modules:
+  - server/channels/app/channel.go
+  - server/channels/app/post.go
+  - server/channels/app/team.go
+excluded_paths: [server/enterprise]
+sample: {seed: 42, size: 30, ranking_version: v0}
+points: []

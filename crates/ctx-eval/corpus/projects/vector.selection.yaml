@@ -1,0 +1,400 @@
+schema: 1
+fill_order:
+- symbol:rust:crate.finalization.BatchStatus.update:Method#fb7c92a01c3b43de737ffbcd4f2cac06cc9fa9e2ab0bf5e9a6dadf34402e3dfc#1
+- symbol:rust:crate.variants.disk_v2.tests.model.ReaderModelState.transition_to_idle:Method#8d439dcddb4dcdf19068bb4b6cd50bc17d80dbabcd9b317ef29fd2f12b9ad0f3#1
+- symbol:rust:crate.variants.disk_v2.writer.BufferWriter.validate_last_write:Method#95912877bd6ec3cd2b89e9a596a23d76d813158021ed71e007b49774bdf45794#1
+- symbol:rust:crate.topology.channel.sender.UsageAccounting.record:Method#c071ea9c324fea988f196df8db7eddccc0001231d5bf5c66ba26b4c44961f0b1#1
+- symbol:rust:crate.sinks.util.retries.FibonacciRetryPolicy.Policy<Req,Res,Error>.retry:Method#baa6ab5d5ef6fb57daa1c96bb36f205152eeb2463bed2ee00d1cb18f8c1738d3#1
+- symbol:rust:crate.variants.disk_v2.writer.BufferWriter.apply_writer_checkpoint_scan:Method#11af5da7738d47c808b8e73b109ae42e6f3c72d4d88b074db3b6a0aceeb3f27a#1
+- symbol:rust:crate.sinks.util.batch.BatchConfig.validate:Method#84781f99c4bdc230f16bf37c96bf7f89617c385c524255e7f4f6b96303b1ed8b#1
+- symbol:rust:crate.variants.disk_v2.tests.model.filesystem.TestFilesystem.Filesystem.open_file_writable_atomic:Method#ce49d68ba4b705c04603246bb325774604c353248b10e7320c71f3ad970dad58#1
+- symbol:rust:crate.finalization.BatchStatusReceiver.Future.poll:Method#928923da3217b056ec2b5cc58cd6aecab6cc0f8960808c74e9995c1ebc47bc22#1
+- symbol:rust:crate.variants.disk_v2.checkpoint_recovery.BufferReader.try_next_checkpoint_record:Method#d560a8c726a7a2c0d16da030b2cc0aec5883787b2227a252997bbfe1dca27b38#1
+- symbol:rust:crate.variants.disk_v2.checkpoint_recovery.BufferReader.classify_checkpoint_data_file:Method#1be19f1d7dcbdec385c02da400c7353443574c3fab4b668ee4d3284237fddfc1#1
+- symbol:rust:crate.topology.channel.limited_queue.LimitedReceiver.next:Method#d4f3babd20bff946b678983f01c216e6a5795147aa863be9767ae6c8fe3ce066#1
+- symbol:rust:crate.sinks.util.retries.FibonacciRetryPolicy.Policy<Req,Res,Error>.retry:Method#f7ee109862095a7282ade76227554f8fae783adc6a8d74ced8ee56c3dea4594a#1
+- symbol:rust:crate.variants.disk_v2.io.File.AsyncFile.truncate:Method#66897020142591b4db6e49869dd2467c9e02543b0e20146596a7731b3927e70b#1
+- symbol:rust:crate.sinks.util.batch.SinkBatchSettings.TIMEOUT_SECS:Constant#195464cb05f6c530ec6222256b82b7a5f5abaaf74a68dcd6ceb2840565890168#1
+- symbol:rust:crate.variants.disk_v2.writer.BufferWriter.validate_last_write:Method#7f9da486c5fd856c090f534e113c10519394245e5bf1f18a8ad89ac7d0fbfb7c#1
+- symbol:rust:crate.finalization.BatchNotifier.maybe_new_with_receiver:Method#919e7c47b7712e7aea6126d08ab2bd8f059eef53ce608aea27a028b24c4aa2ba#1
+- symbol:rust:crate.variants.disk_v2.reader.BufferReader.seek_to_next_record:Method#11dfa9a7ecd4fd61d37fed406c46f5c9cbf1ca3383ce2d2bf7b92d54e29988a8#1
+- symbol:rust:crate.variants.disk_v2.checkpoint_recovery.BufferReader.classify_checkpoint_data_file:Method#63985e624d242f9f15555532eb83b8906867ee7dc4caca62a741bccffcc13eb4#1
+- symbol:rust:crate.variants.disk_v2.writer.BufferWriter.reconcile_current_data_file_with_checkpoint:Method#5f3a99bc92fc323f6328caa0f4c5ed4a22a1dcfe53310009d70928800e08f73d#1
+- symbol:rust:crate.sinks.util.retries.FibonacciRetryPolicy.Policy<Req,Res,Error>.retry:Method#37d0e4c24c2cacafbb8ddcee3a62e86b845743e0d01cf37331e32ef727a2f3f8#1
+- symbol:rust:crate.variants.disk_v2.ledger.Ledger.load_or_create:Method#b2b2415f23c1b37239121d9c00c2ec28b4606eeb63711ffb10f1a873ee896d32#1
+- symbol:rust:crate.sinks.util.batch.FinalizersBatch.Batch.push:Method#1fec3d2659403872fade01ab3a1ef2ae7bba5f4756d1ce47ff621ec3be2d072c#1
+- symbol:rust:crate.variants.disk_v2.writer.BufferWriter.ensure_ready_for_write:Method#2f9016818c4c27f802736aa8baf82745184b91cf9826e54922b459f1e3ce4634#1
+- symbol:rust:crate.finalization.BatchStatus.update:Method#d5bb22500b317b78a60e78c741e21d3611bb881caa5a5ce26c38297638af7ae5#1
+- symbol:rust:crate.variants.in_memory.MemoryBuffer.IntoBuffer<T>.into_buffer_parts:Method#80c2a8e74eb4bfb2b564003e723b64abd17626b2da48b4509739c231ce37db50#1
+- symbol:rust:crate.variants.disk_v2.checkpoint_recovery.BufferReader.find_checkpoint_reader_file_id:Method#f129e8f2365f007a577376addf9e07032302ea6525c8b9655a06feb667330dba#1
+- symbol:rust:crate.variants.disk_v2.reader.BufferReader.next:Method#4549c4eabe3887738bd12b763eb3b9b5d30690e22ba7ca5d1528d22b5d551251#1
+- symbol:rust:crate.sinks.util.retries.FibonacciRetryPolicy.Policy<Req,Res,Error>.retry:Method#d2a1cdefe73bc2ca8cef913320f97c60708c479ec7076d0a1fdff4d7aca644a8#1
+- symbol:rust:crate.variants.disk_v2.writer.BufferWriter.recover_successor_data_file_from_stale_checkpoint:Method#f02bd17f37ca5b06e8a0ad358d5a80fb5be67e1ad003367361c73d2a3e2560d4#1
+fill_points:
+  ? symbol:rust:crate.finalization.BatchNotifier.maybe_new_with_receiver:Method#919e7c47b7712e7aea6126d08ab2bd8f059eef53ce608aea27a028b24c4aa2ba#1
+  : location: lib/vector-common/src/finalization.rs:278
+    rank: 153
+    score: 2
+    contributions:
+      downstream_calls: 2
+  symbol:rust:crate.finalization.BatchStatus.update:Method#d5bb22500b317b78a60e78c741e21d3611bb881caa5a5ce26c38297638af7ae5#1:
+    location: lib/vector-common/src/finalization.rs:376
+    rank: 304
+    score: 0
+    contributions: {}
+  symbol:rust:crate.finalization.BatchStatus.update:Method#fb7c92a01c3b43de737ffbcd4f2cac06cc9fa9e2ab0bf5e9a6dadf34402e3dfc#1:
+    location: lib/vector-common/src/finalization.rs:374
+    rank: 83
+    score: 4
+    contributions:
+      condition: 4
+  ? symbol:rust:crate.finalization.BatchStatusReceiver.Future.poll:Method#928923da3217b056ec2b5cc58cd6aecab6cc0f8960808c74e9995c1ebc47bc22#1
+  : location: lib/vector-common/src/finalization.rs:236
+    rank: 84
+    score: 4
+    contributions:
+      condition: 4
+  ? symbol:rust:crate.sinks.util.batch.BatchConfig.validate:Method#84781f99c4bdc230f16bf37c96bf7f89617c385c524255e7f4f6b96303b1ed8b#1
+  : location: src/sinks/util/batch.rs:165
+    rank: 89
+    score: 4
+    contributions:
+      condition: 4
+  ? symbol:rust:crate.sinks.util.batch.FinalizersBatch.Batch.push:Method#1fec3d2659403872fade01ab3a1ef2ae7bba5f4756d1ce47ff621ec3be2d072c#1
+  : location: src/sinks/util/batch.rs:478
+    rank: 197
+    score: 1
+    contributions:
+      downstream_calls: 1
+  ? symbol:rust:crate.sinks.util.batch.SinkBatchSettings.TIMEOUT_SECS:Constant#195464cb05f6c530ec6222256b82b7a5f5abaaf74a68dcd6ceb2840565890168#1
+  : location: src/sinks/util/batch.rs:36
+    rank: 90
+    score: 4
+    contributions:
+      condition: 4
+  ? symbol:rust:crate.sinks.util.retries.FibonacciRetryPolicy.Policy<Req,Res,Error>.retry:Method#37d0e4c24c2cacafbb8ddcee3a62e86b845743e0d01cf37331e32ef727a2f3f8#1
+  : location: src/sinks/util/retries.rs:232
+    rank: 62
+    score: 5
+    contributions:
+      downstream_calls: 5
+  ? symbol:rust:crate.sinks.util.retries.FibonacciRetryPolicy.Policy<Req,Res,Error>.retry:Method#baa6ab5d5ef6fb57daa1c96bb36f205152eeb2463bed2ee00d1cb18f8c1738d3#1
+  : location: src/sinks/util/retries.rs:181
+    rank: 24
+    score: 8
+    contributions:
+      condition: 4
+      downstream_calls: 4
+  ? symbol:rust:crate.sinks.util.retries.FibonacciRetryPolicy.Policy<Req,Res,Error>.retry:Method#d2a1cdefe73bc2ca8cef913320f97c60708c479ec7076d0a1fdff4d7aca644a8#1
+  : location: src/sinks/util/retries.rs:231
+    rank: 63
+    score: 5
+    contributions:
+      downstream_calls: 5
+  ? symbol:rust:crate.sinks.util.retries.FibonacciRetryPolicy.Policy<Req,Res,Error>.retry:Method#f7ee109862095a7282ade76227554f8fae783adc6a8d74ced8ee56c3dea4594a#1
+  : location: src/sinks/util/retries.rs:248
+    rank: 25
+    score: 8
+    contributions:
+      condition: 4
+      downstream_calls: 4
+  ? symbol:rust:crate.topology.channel.limited_queue.LimitedReceiver.next:Method#d4f3babd20bff946b678983f01c216e6a5795147aa863be9767ae6c8fe3ce066#1
+  : location: lib/vector-buffers/src/topology/channel/limited_queue.rs:431
+    rank: 52
+    score: 6
+    contributions:
+      condition: 4
+      decision_shape: 1
+      downstream_calls: 1
+  ? symbol:rust:crate.topology.channel.sender.UsageAccounting.record:Method#c071ea9c324fea988f196df8db7eddccc0001231d5bf5c66ba26b4c44961f0b1#1
+  : location: lib/vector-buffers/src/topology/channel/sender.rs:187
+    rank: 102
+    score: 4
+    contributions:
+      downstream_calls: 4
+  ? symbol:rust:crate.variants.disk_v2.checkpoint_recovery.BufferReader.classify_checkpoint_data_file:Method#1be19f1d7dcbdec385c02da400c7353443574c3fab4b668ee4d3284237fddfc1#1
+  : location: lib/vector-buffers/src/variants/disk_v2/checkpoint_recovery.rs:451
+    rank: 9
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  ? symbol:rust:crate.variants.disk_v2.checkpoint_recovery.BufferReader.classify_checkpoint_data_file:Method#63985e624d242f9f15555532eb83b8906867ee7dc4caca62a741bccffcc13eb4#1
+  : location: lib/vector-buffers/src/variants/disk_v2/checkpoint_recovery.rs:456
+    rank: 10
+    score: 9
+    contributions:
+      condition: 4
+      downstream_calls: 5
+  ? symbol:rust:crate.variants.disk_v2.checkpoint_recovery.BufferReader.find_checkpoint_reader_file_id:Method#f129e8f2365f007a577376addf9e07032302ea6525c8b9655a06feb667330dba#1
+  : location: lib/vector-buffers/src/variants/disk_v2/checkpoint_recovery.rs:385
+    rank: 11
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  ? symbol:rust:crate.variants.disk_v2.checkpoint_recovery.BufferReader.try_next_checkpoint_record:Method#d560a8c726a7a2c0d16da030b2cc0aec5883787b2227a252997bbfe1dca27b38#1
+  : location: lib/vector-buffers/src/variants/disk_v2/checkpoint_recovery.rs:572
+    rank: 164
+    score: 2
+    contributions:
+      downstream_calls: 2
+  ? symbol:rust:crate.variants.disk_v2.io.File.AsyncFile.truncate:Method#66897020142591b4db6e49869dd2467c9e02543b0e20146596a7731b3927e70b#1
+  : location: lib/vector-buffers/src/variants/disk_v2/io.rs:301
+    rank: 235
+    score: 1
+    contributions:
+      decision_shape: 1
+  ? symbol:rust:crate.variants.disk_v2.ledger.Ledger.load_or_create:Method#b2b2415f23c1b37239121d9c00c2ec28b4606eeb63711ffb10f1a873ee896d32#1
+  : location: lib/vector-buffers/src/variants/disk_v2/ledger.rs:784
+    rank: 166
+    score: 2
+    contributions:
+      downstream_calls: 2
+  ? symbol:rust:crate.variants.disk_v2.reader.BufferReader.next:Method#4549c4eabe3887738bd12b763eb3b9b5d30690e22ba7ca5d1528d22b5d551251#1
+  : location: lib/vector-buffers/src/variants/disk_v2/reader.rs:1140
+    rank: 44
+    score: 7
+    contributions:
+      downstream_calls: 7
+  ? symbol:rust:crate.variants.disk_v2.reader.BufferReader.seek_to_next_record:Method#11dfa9a7ecd4fd61d37fed406c46f5c9cbf1ca3383ce2d2bf7b92d54e29988a8#1
+  : location: lib/vector-buffers/src/variants/disk_v2/reader.rs:859
+    rank: 13
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  ? symbol:rust:crate.variants.disk_v2.tests.model.ReaderModelState.transition_to_idle:Method#8d439dcddb4dcdf19068bb4b6cd50bc17d80dbabcd9b317ef29fd2f12b9ad0f3#1
+  : location: lib/vector-buffers/src/variants/disk_v2/tests/model/mod.rs:271
+    rank: 621
+    score: 0
+    contributions: {}
+  ? symbol:rust:crate.variants.disk_v2.tests.model.filesystem.TestFilesystem.Filesystem.open_file_writable_atomic:Method#ce49d68ba4b705c04603246bb325774604c353248b10e7320c71f3ad970dad58#1
+  : location: lib/vector-buffers/src/variants/disk_v2/tests/model/filesystem.rs:357
+    rank: 255
+    score: 1
+    contributions:
+      downstream_calls: 1
+  ? symbol:rust:crate.variants.disk_v2.writer.BufferWriter.apply_writer_checkpoint_scan:Method#11af5da7738d47c808b8e73b109ae42e6f3c72d4d88b074db3b6a0aceeb3f27a#1
+  : location: lib/vector-buffers/src/variants/disk_v2/writer.rs:1184
+    rank: 152
+    score: 3
+    contributions:
+      downstream_calls: 3
+  ? symbol:rust:crate.variants.disk_v2.writer.BufferWriter.ensure_ready_for_write:Method#2f9016818c4c27f802736aa8baf82745184b91cf9826e54922b459f1e3ce4634#1
+  : location: lib/vector-buffers/src/variants/disk_v2/writer.rs:1647
+    rank: 133
+    score: 4
+    contributions:
+      downstream_calls: 4
+  ? symbol:rust:crate.variants.disk_v2.writer.BufferWriter.reconcile_current_data_file_with_checkpoint:Method#5f3a99bc92fc323f6328caa0f4c5ed4a22a1dcfe53310009d70928800e08f73d#1
+  : location: lib/vector-buffers/src/variants/disk_v2/writer.rs:1228
+    rank: 683
+    score: 0
+    contributions: {}
+  ? symbol:rust:crate.variants.disk_v2.writer.BufferWriter.recover_successor_data_file_from_stale_checkpoint:Method#f02bd17f37ca5b06e8a0ad358d5a80fb5be67e1ad003367361c73d2a3e2560d4#1
+  : location: lib/vector-buffers/src/variants/disk_v2/writer.rs:1058
+    rank: 690
+    score: 0
+    contributions: {}
+  ? symbol:rust:crate.variants.disk_v2.writer.BufferWriter.validate_last_write:Method#7f9da486c5fd856c090f534e113c10519394245e5bf1f18a8ad89ac7d0fbfb7c#1
+  : location: lib/vector-buffers/src/variants/disk_v2/writer.rs:1357
+    rank: 714
+    score: 0
+    contributions: {}
+  ? symbol:rust:crate.variants.disk_v2.writer.BufferWriter.validate_last_write:Method#95912877bd6ec3cd2b89e9a596a23d76d813158021ed71e007b49774bdf45794#1
+  : location: lib/vector-buffers/src/variants/disk_v2/writer.rs:1400
+    rank: 5
+    score: 12
+    contributions:
+      condition: 4
+      downstream_calls: 8
+  ? symbol:rust:crate.variants.in_memory.MemoryBuffer.IntoBuffer<T>.into_buffer_parts:Method#80c2a8e74eb4bfb2b564003e723b64abd17626b2da48b4509739c231ce37db50#1
+  : location: lib/vector-buffers/src/variants/in_memory.rs:43
+    rank: 273
+    score: 1
+    contributions:
+      downstream_calls: 1
+points:
+  vector-0001:
+    selected_by: top
+    rank: 1
+    score: 13
+    contributions:
+      condition: 4
+      decision_shape: 1
+      downstream_calls: 8
+  vector-0002:
+    selected_by: top
+    rank: 6
+    score: 10
+    contributions:
+      condition: 4
+      decision_shape: 1
+      downstream_calls: 5
+  vector-0003:
+    selected_by: top
+    rank: 85
+    score: 4
+    contributions:
+      condition: 4
+  vector-0004:
+    selected_by: top
+    rank: 80
+    score: 4
+    contributions:
+      condition: 4
+  vector-0005:
+    selected_by: top
+    rank: 2
+    score: 12
+    contributions:
+      condition: 4
+      downstream_calls: 8
+  vector-0006:
+    selected_by: top
+    rank: 7
+    score: 9
+    contributions:
+      condition: 4
+      decision_shape: 1
+      downstream_calls: 4
+  vector-0007:
+    selected_by: top
+    rank: 86
+    score: 4
+    contributions:
+      condition: 4
+  vector-0008:
+    selected_by: top
+    rank: 81
+    score: 4
+    contributions:
+      condition: 4
+  vector-0009:
+    selected_by: top
+    rank: 3
+    score: 12
+    contributions:
+      condition: 4
+      downstream_calls: 8
+  vector-0010:
+    selected_by: top
+    rank: 8
+    score: 9
+    contributions:
+      condition: 4
+      decision_shape: 1
+      downstream_calls: 4
+  vector-0011:
+    selected_by: top
+    rank: 87
+    score: 4
+    contributions:
+      condition: 4
+  vector-0012:
+    selected_by: top
+    rank: 82
+    score: 4
+    contributions:
+      condition: 4
+  vector-0013:
+    selected_by: top
+    rank: 4
+    score: 12
+    contributions:
+      condition: 4
+      downstream_calls: 8
+  vector-0014:
+    selected_by: top
+    rank: 23
+    score: 8
+    contributions:
+      condition: 4
+      downstream_calls: 4
+  vector-0015:
+    selected_by: top
+    rank: 88
+    score: 4
+    contributions:
+      condition: 4
+  vector-0016:
+    selected_by: random
+    rank: 352
+    score: 0
+    contributions: {}
+  vector-0017:
+    selected_by: random
+    rank: 194
+    score: 1
+    contributions:
+      decision_shape: 1
+  vector-0018:
+    selected_by: random
+    rank: 254
+    score: 1
+    contributions:
+      downstream_calls: 1
+  vector-0019:
+    selected_by: random
+    rank: 161
+    score: 2
+    contributions:
+      downstream_calls: 2
+  vector-0020:
+    selected_by: random
+    rank: 347
+    score: 0
+    contributions: {}
+  vector-0021:
+    selected_by: random
+    rank: 642
+    score: 0
+    contributions: {}
+  vector-0022:
+    selected_by: random
+    rank: 523
+    score: 0
+    contributions: {}
+  vector-0023:
+    selected_by: random
+    rank: 389
+    score: 0
+    contributions: {}
+  vector-0024:
+    selected_by: random
+    rank: 190
+    score: 1
+    contributions:
+      downstream_calls: 1
+  vector-0025:
+    selected_by: random
+    rank: 413
+    score: 0
+    contributions: {}
+  vector-0026:
+    selected_by: random
+    rank: 193
+    score: 1
+    contributions:
+      downstream_calls: 1
+  vector-0027:
+    selected_by: random
+    rank: 406
+    score: 0
+    contributions: {}
+  vector-0028:
+    selected_by: random
+    rank: 637
+    score: 0
+    contributions: {}
+  vector-0029:
+    selected_by: random
+    rank: 402
+    score: 0
+    contributions: {}
+  vector-0030:
+    selected_by: random
+    rank: 408
+    score: 0
+    contributions: {}

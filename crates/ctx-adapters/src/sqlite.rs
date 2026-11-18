@@ -8,6 +8,8 @@ mod context;
 mod federation;
 mod graph;
 mod index;
+mod repair;
+pub use repair::{HistoricalSymbol, SymbolSuccessor};
 mod type_inference;
 mod verification;
 

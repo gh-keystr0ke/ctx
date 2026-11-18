@@ -14,7 +14,9 @@ use ctx_core::{
     business::{BusinessDocument, BusinessKind},
     domain::NodeKind,
     graph::{GraphNode, GraphSnapshot, find_symbols},
-    indexing::{FileChange, IndexPlan, RepositorySnapshot, plan_incremental_index},
+    indexing::{
+        FileChange, IndexPlan, PlannedNodeAttributes, RepositorySnapshot, plan_incremental_index,
+    },
 };
 use serde::Serialize;
 
@@ -39,6 +41,14 @@ pub struct ContextIssue {
     pub locator: String,
     pub message: String,
     pub suggestions: Vec<String>,
+    #[serde(skip)]
+    pub link: Option<ContextLink>,
+}
+
+#[derive(Debug)]
+pub struct ContextLink {
+    pub symbol: String,
+    pub test: bool,
 }
 
 impl WorktreeSnapshot {
@@ -76,6 +86,19 @@ impl WorktreeSnapshot {
         let plan = plan_incremental_index(&RepositorySnapshot::default(), &analyses, &changes)
             .map_err(IndexError::from)?;
         Ok(Self { plan, documents })
+    }
+
+    #[must_use]
+    pub fn contains_unique_symbol(&self, canonical_path: &str) -> bool {
+        self.plan
+            .nodes_to_write
+            .iter()
+            .filter(|node| {
+                matches!(&node.attributes, PlannedNodeAttributes::Symbol { canonical_path: path, .. } if path == canonical_path)
+            })
+            .take(2)
+            .count()
+            == 1
     }
 
     /// Checks exact context mappings and offers canonical names for unmatched symbols.
@@ -122,9 +145,15 @@ impl WorktreeSnapshot {
                     locator: "feature".to_owned(),
                     message: format!("feature '{feature}' was not found"),
                     suggestions: Vec::new(),
+                    link: None,
                 });
             }
-            for link in document.implementation.iter().chain(&document.tests) {
+            for (link, test) in document
+                .implementation
+                .iter()
+                .map(|link| (link, false))
+                .chain(document.tests.iter().map(|link| (link, true)))
+            {
                 let symbol = link.symbol.as_str();
                 if graph.nodes.keys().any(|key| key.as_str() == symbol)
                     || canonical.get(symbol) == Some(&1)
@@ -149,6 +178,10 @@ impl WorktreeSnapshot {
                     locator: link.locator.clone(),
                     message,
                     suggestions,
+                    link: Some(ContextLink {
+                        symbol: symbol.to_owned(),
+                        test,
+                    }),
                 });
             }
         }

@@ -3541,3 +3541,38 @@ fn repair_plan_reports_broken_links_and_keeps_the_index_intact() {
     assert_eq!(fs::read(&database).unwrap(), before);
     assert_eq!(fs::read_to_string(path).unwrap(), invalid);
 }
+
+#[test]
+fn repair_plan_distinguishes_indexed_moves_from_unproven_renames() {
+    let repository = MixedLanguageRepository::new();
+    repository.ctx(&["init"]);
+    let root = repository.root();
+    fs::create_dir_all(root.join(".context/requirements")).unwrap();
+    fs::write(
+        root.join(".context/requirements/example.yaml"),
+        "id: REQ-EXAMPLE\nstatement: Keep the helper.\nimplementation:\n  - symbol: app.helper\n  - symbol: app.run\n",
+    )
+    .unwrap();
+    run_git(root, &["add", ".context"]);
+    run_git(root, &["commit", "-qm", "record mappings"]);
+    repository.ctx(&["index"]);
+
+    run_git(root, &["mv", "src/app.py", "src/moved.py"]);
+    fs::write(
+        root.join("src/moved.py"),
+        "def renamed():\n    helper()\n\ndef helper():\n    return 1\n",
+    )
+    .unwrap();
+    run_git(root, &["add", "src/moved.py"]);
+    run_git(root, &["commit", "-qm", "move helper and rename run"]);
+    repository.ctx(&["index"]);
+
+    let plan = repository.ctx(&["repair", "plan"]);
+    assert_eq!(plan["links"][0]["original"], "app.helper");
+    assert_eq!(plan["links"][0]["class"], "R1");
+    assert_eq!(plan["links"][0]["replacement"], "moved.helper");
+    assert!(plan["links"][0]["commit"].is_string());
+    assert_eq!(plan["links"][1]["original"], "app.run");
+    assert_eq!(plan["links"][1]["class"], "R4");
+    assert!(plan["links"][1]["replacement"].is_null());
+}

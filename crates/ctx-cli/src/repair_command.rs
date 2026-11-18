@@ -4,7 +4,8 @@ use ctx_app::{
     ports::{GitRepository, GraphStore},
     status::index_freshness,
 };
-use ctx_core::repair::indexed_drift;
+use ctx_core::{domain::RepositoryId, repair::indexed_drift};
+use serde::Serialize;
 use serde_json::json;
 
 use crate::{Cli, CliError, database_path};
@@ -31,7 +32,8 @@ pub(crate) fn run(cli: &Cli, git: &GitRepo, command: &RepairCommand) -> Result<(
 }
 
 fn plan(cli: &Cli, git: &GitRepo, fail_on_drift: bool) -> Result<(), CliError> {
-    let issues = WorktreeSnapshot::read(git)?.issues();
+    let snapshot = WorktreeSnapshot::read(git)?;
+    let issues = snapshot.issues();
     let path = database_path(git.root())?;
     let store = SqliteStore::open_preview(&path, git.context_root())?;
     let repository = git.descriptor()?;
@@ -40,6 +42,11 @@ fn plan(cli: &Cli, git: &GitRepo, fail_on_drift: bool) -> Result<(), CliError> {
         indexed_drift(&store.load_graph(&repository.id)?)
     } else {
         Default::default()
+    };
+    let links = if freshness.commit.as_ref() == Some(&freshness.head) {
+        link_repairs(&snapshot, &issues, &store, &repository.id)?
+    } else {
+        link_repairs_without_history(&issues)
     };
     let count = issues.len()
         + drift.stale_claims.len()
@@ -51,6 +58,7 @@ fn plan(cli: &Cli, git: &GitRepo, fail_on_drift: bool) -> Result<(), CliError> {
             serde_json::to_string_pretty(&json!({
                 "validation_issues": issues,
                 "index": freshness,
+                "links": links,
                 "indexed": drift,
                 "count": count,
             }))?
@@ -61,6 +69,13 @@ fn plan(cli: &Cli, git: &GitRepo, fail_on_drift: bool) -> Result<(), CliError> {
         }
         for issue in &issues {
             println!("{}#{}: {}", issue.path, issue.locator, issue.message);
+        }
+        for link in &links {
+            let replacement = link
+                .replacement
+                .as_deref()
+                .map_or_else(String::new, |target| format!(" -> {target}"));
+            println!("{} {}{replacement}", link.class, link.original);
         }
         for claim in &drift.stale_claims {
             println!("R5 stale claim: {claim}");
@@ -80,4 +95,60 @@ fn plan(cli: &Cli, git: &GitRepo, fail_on_drift: bool) -> Result<(), CliError> {
         return Err(CliError::CheckFailed);
     }
     Ok(())
+}
+
+#[derive(Serialize)]
+struct LinkRepair<'a> {
+    class: &'static str,
+    path: &'a str,
+    locator: &'a str,
+    original: &'a str,
+    #[serde(skip)]
+    test: bool,
+    replacement: Option<String>,
+    commit: Option<String>,
+}
+
+fn link_repairs_without_history(
+    issues: &[ctx_adapters::worktree::ContextIssue],
+) -> Vec<LinkRepair<'_>> {
+    issues
+        .iter()
+        .filter_map(|issue| {
+            issue.link.as_ref().map(|link| LinkRepair {
+                class: "R3",
+                path: &issue.path,
+                locator: &issue.locator,
+                original: &link.symbol,
+                test: link.test,
+                replacement: None,
+                commit: None,
+            })
+        })
+        .collect()
+}
+
+fn link_repairs<'a>(
+    snapshot: &WorktreeSnapshot,
+    issues: &'a [ctx_adapters::worktree::ContextIssue],
+    store: &SqliteStore,
+    repository: &RepositoryId,
+) -> Result<Vec<LinkRepair<'a>>, CliError> {
+    let mut repairs = link_repairs_without_history(issues);
+    for repair in &mut repairs {
+        let Some(history) = store.historical_symbol(repository, repair.original)? else {
+            continue;
+        };
+        if let Some(successor) = history.successor
+            && snapshot.contains_unique_symbol(&successor.canonical_path)
+        {
+            repair.class = if repair.test { "R2" } else { "R1" };
+            repair.replacement = Some(successor.canonical_path);
+            repair.commit = Some(successor.changed_at);
+        } else if let Some(commit) = history.retired_at {
+            repair.class = "R4";
+            repair.commit = Some(commit);
+        }
+    }
+    Ok(repairs)
 }

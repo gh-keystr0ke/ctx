@@ -149,8 +149,8 @@ Safe planning recovered 0 of 8 previously edited links across the ingestion
 move, the inference command move, and two renamed test groups. The original
 code commits are `3592730`, `ce9d872`, `14f2752`, and `53d7e67`. The case
 associated with `3a61aaa` retained the old wrapper and did not produce a broken
-link. Synthetic moves and pure test renames succeeded. The automatic replay
-result did not meet the 80% target.
+link. Synthetic moves and pure test renames succeeded. The original eight-link replay mixed mechanical and behavioral changes.
+See the classified replay below for the expanded measure.
 
 #### Repair replay classification
 
@@ -167,8 +167,24 @@ comparing them with the repair plan.
 
 Seven link edits exercise review, where automatic edits must stay at zero.
 The remaining edit is a confirmed move with refactoring. Safe repair missed
-that move. Keep it as a recall case and add independently classified pure
-moves and renames before interpreting the 80% target.
+that move.
+
+The expanded replay adds nine historical moves with unchanged function
+bodies. The parent and resulting source revisions were indexed in separate
+Git clones. For `f52a3e5`, the old context file was restored before applying
+the repair to replay the broken link.
+
+| Code change | Eligible links | Correct automatic repairs |
+| --- | ---: | ---: |
+| `f52a3e5` | 1 | 1 |
+| `4137b33` | 8 | 8 |
+| `ce9d872` | 1 | 0 |
+| Total | 10 | 9 |
+
+Recall for the expanded R1 replay was 90%. Each applied link matched its
+expected successor. The original seven behavior-changing links had no
+automatic replacements. The synthetic regression covers R2 and an ambiguous
+same-body case. This historical sample has no pure test rename.
 
 #### Ranking v2 on tuning projects
 

@@ -328,13 +328,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 5a756fc482462a5ba3157af98bb206312aaf7e04221bcd83485fa28dfbca51bb
-  label: unclear
-  category: null
-  evidence: []
+  label: significant
+  category: permission
+  evidence:
+  - type: docs
+    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/onboard/managing-team-channel-membership-using-ad-ldap-sync-groups.rst#L15
+    quote: "On teams that are managed by synchronized groups, users outside of the group are restricted from:"
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: The guide lists team and email invite links. Group-synchronized members are managed through the group.
 - id: mattermost-0016
   anchor: symbol:go:server.channels.app.App.IsDeactivatedUserEmail:Method#d6c9c306604e5087cc2c5a00633b3ec377f3ac6b7863f5d3040272e9f1f03ed8#1
   location: server/channels/app/team.go:1560

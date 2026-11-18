@@ -1241,16 +1241,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 0cd7b299aa3980718850a1456aa27894d725e51045c33d5f8da581c130443ffd
-  label: unclear
-  category: null
+  label: significant
+  category: limit
   evidence:
   - type: docs
-    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/api_docs/http-headers.md#L89
-    quote: '[Zulip''s rate limiting rules are configurable][rate-limiting-rules],'
+    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/docs/production/securing-your-zulip-server.md#L138
+    quote: "The `RATE_LIMITING` setting can be set to `False` to completely disable all rate-limiting."
   verified_by: codex-work
   second_label: unclear
   second_by: codex-work-second
-  note: null
+  note: The administrator setting directly controls this bypass.
 - id: zulip-0061
   anchor: symbol:python:corporate.lib.stripe.BillingSession.get_initial_upgrade_context:Method#401f6285529087b6bd4e7e6bada711044242937dd65742133133d27d4f9bbea2#1
   location: corporate/lib/stripe.py:2940

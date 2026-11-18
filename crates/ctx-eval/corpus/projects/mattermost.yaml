@@ -85,13 +85,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 8bdbcf1835de10472429f4411a8313bd17e205fc4cdcab71a2563d58408b94f7
-  label: unclear
-  category: null
-  evidence: []
+  label: significant
+  category: limit
+  evidence:
+  - type: docs
+    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/end-user-guide/collaborate/invite-people.rst#L55
+    quote: Invitation links sent by email expire after 48 hours and can only be used once.
   verified_by: codex-work
   second_label: unclear
   second_by: codex-work-second
-  note: null
+  note: The pinned guide confirms expiry. This branch rejects an expired token. The original second label is retained for agreement.
 - id: mattermost-0004
   anchor: symbol:go:server.channels.app.App.AddChannelMember:Method#5e2dac38c1b48d3eb28b3b66cfc503da9bef51f398ff42f0620a62d67b81e5b5#1
   location: server/channels/app/channel.go:2071

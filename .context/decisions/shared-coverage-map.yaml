@@ -1,0 +1,14 @@
+id: ADR-COVERAGE-002
+type: decision
+feature: FEAT-INDEXING
+title: Store coverage state with the context store
+status: accepted
+decision: >
+  Store coverage state in sorted module files under .ctx-coverage in the active
+  context store. SQLite may cache this state. A map entry records its decision
+  anchor, workflow state, evidence references and the knowledge document that
+  explains it, if any. Optional anchors on existing decision and invariant
+  documents associate accepted knowledge with individual points. Reopen a
+  considered point when its fingerprint or associated knowledge changes.
+  Structural coverage reports its numerator and denominator. Behavioral
+  coverage reports point counts and states. MCP coverage queries are read-only.

@@ -1,0 +1,14 @@
+id: ADR-REPAIR-001
+type: decision
+feature: FEAT-INDEXING
+title: Apply safe context repairs from verified symbol identity
+status: accepted
+decision: >
+  Automatically replace a broken symbol or test link under the safe policy only
+  when committed identity evidence establishes one successor. Validate changes
+  with context check and a worktree preview before accepting a repair. Preserve
+  provenance and roll back incomplete or invalid changes. Review wording,
+  removals and merges explicitly. Use stale claim verification for R5. For R7
+  compare active documents at similarity 0.6, retain the document with more
+  code links or the lower ID on ties, and let the reviewer write the combined
+  wording. Union the code links and mark the other document superseded.

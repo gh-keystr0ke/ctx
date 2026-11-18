@@ -1,0 +1,15 @@
+id: ADR-COVERAGE-003
+type: decision
+feature: FEAT-INDEXING
+title: Validate coverage research against bounded evidence
+status: accepted
+decision: >
+  Compile a deterministic evidence package and request one typed judgment per
+  investigated gap through the configured agent. Check citations against the
+  supplied package. An Established judgment may resolve a gap only if it cites
+  a current, active assertion linked to the symbol and attributable to the
+  specific behavior. Retain provenance for the source and the agent run.
+  Present unresolved judgments through bounded developer questions. Save new
+  developer explanations through the existing knowledge candidate workflow.
+  Coverage reports may display suspected divergence with evidence from both
+  sides. Agent failure leaves deterministic analysis available.

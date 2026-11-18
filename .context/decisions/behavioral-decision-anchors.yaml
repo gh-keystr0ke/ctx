@@ -1,0 +1,13 @@
+id: ADR-COVERAGE-001
+type: decision
+feature: FEAT-INDEXING
+title: Extract behavioral decisions and track their identity across revisions
+status: accepted
+decision: >
+  The Python, Rust and Go analyzers expose decision points and the regions they
+  control in the normalized IR. A point uses its enclosing symbol's stable key,
+  a normalized subtree fingerprint and an ordinal among equivalent points.
+  Source positions are display evidence. Symbol identity can preserve anchors
+  through moves. A changed fingerprint requires review, and ambiguous matches
+  are reported explicitly. Rank points using deterministic condition and
+  consequence signals, with conservative suppression of routine checks.

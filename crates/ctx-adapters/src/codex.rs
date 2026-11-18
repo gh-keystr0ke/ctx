@@ -62,6 +62,14 @@ impl SubprocessTransport {
         let started = std::time::Instant::now();
         let mut command = Command::new(&self.binary);
         command.arg("exec");
+        if timeout.is_some() {
+            command.args([
+                "--sandbox",
+                "read-only",
+                "--skip-git-repo-check",
+                "--ephemeral",
+            ]);
+        }
         if let Some(model) = &self.model {
             command.arg("--model").arg(model);
         }

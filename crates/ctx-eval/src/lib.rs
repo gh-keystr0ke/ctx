@@ -8,6 +8,7 @@
 
 pub mod cases;
 pub mod corpus;
+mod coverage_cases;
 pub mod harness;
 pub mod report;
 pub mod runner;

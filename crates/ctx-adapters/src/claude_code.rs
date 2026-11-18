@@ -66,6 +66,9 @@ impl SubprocessTransport {
         let started = std::time::Instant::now();
         let mut command = Command::new(&self.binary);
         command.arg("-p").arg("--safe-mode");
+        if timeout.is_some() {
+            command.args(["--tools", ""]);
+        }
         if let Some(model) = &self.model {
             command.arg("--model").arg(model);
         }

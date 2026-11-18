@@ -207,3 +207,21 @@ fn run_context(
         .context(&repository.id, &request)
         .map_err(HarnessError::from)
 }
+
+pub(crate) fn coverage_graph(source: &str) -> Result<ctx_core::graph::GraphSnapshot, HarnessError> {
+    use ctx_app::ports::GraphStore as _;
+
+    let directory = tempfile::tempdir()?;
+    let root = directory.path();
+    init_repository(root)?;
+    write_files(root, &[
+        ("src/app.py", source.to_owned()),
+        (".context/invariants/retry.yaml", "id: INV-RETRY\nstatement: First retry skips delay.\nimplementation:\n  - symbol: app.retry\n".to_owned()),
+    ])?;
+    commit_all(root, "coverage fixture")?;
+    let git = GitRepo::discover(root)?;
+    let analyzer = AnalyzerRegistry::builtins(root, &git.source_scope().languages)?;
+    let mut store = SqliteStore::open(&root.join("test.db"), root)?;
+    run_index(&git, &analyzer, &mut store)?;
+    Ok(store.load_graph(&git.descriptor()?.id)?)
+}

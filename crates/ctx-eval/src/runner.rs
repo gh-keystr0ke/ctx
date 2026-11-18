@@ -53,5 +53,9 @@ pub fn evaluate_case(case: &EvaluationCase) -> CaseReport {
 /// Runs the full corpus in deterministic order.
 #[must_use]
 pub fn run_corpus() -> Vec<CaseReport> {
-    cases::corpus().iter().map(evaluate_case).collect()
+    cases::corpus()
+        .iter()
+        .map(evaluate_case)
+        .chain(crate::coverage_cases::run())
+        .collect()
 }

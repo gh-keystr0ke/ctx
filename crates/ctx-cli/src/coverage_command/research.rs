@@ -22,7 +22,7 @@ use crate::{Cli, CliError, agent_dispatch::ConfiguredAgent};
 
 #[derive(Debug, Args)]
 pub(super) struct ResearchOptions {
-    #[arg(long, default_value = "claude")]
+    #[arg(long)]
     agent: String,
     #[arg(long)]
     model: Option<String>,

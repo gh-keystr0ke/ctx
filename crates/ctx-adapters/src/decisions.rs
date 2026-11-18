@@ -135,14 +135,16 @@ fn go_error_passthrough(condition: &str, consequence: Option<Node<'_>>, source: 
         return false;
     };
     let mut children = statements.walk();
-    let mut components = condition.split_whitespace();
-    let Some(error) = components
-        .next()
-        .filter(|name| name.to_ascii_lowercase().ends_with("err"))
-    else {
+    let Some((subject, comparison)) = condition.split_once("!=") else {
         return false;
     };
-    if !components.eq(["!=", "nil"]) {
+    let error = subject.trim();
+    if comparison.trim() != "nil"
+        || !error.to_ascii_lowercase().ends_with("err")
+        || !error
+            .chars()
+            .all(|character| character.is_alphanumeric() || character == '_')
+    {
         return false;
     }
     let mut has_return = false;

@@ -81,7 +81,7 @@ evidence. Trivial includes routine type or emptiness checks, error propagation, 
     );
     let mut draft = agent
         .label(&prompt)
-        .unwrap_or_else(|error| unclear(format!("agent response failed: {error}")));
+        .unwrap_or_else(|_| unclear("agent response was unavailable or invalid".to_owned()));
     if draft
         .evidence
         .iter()

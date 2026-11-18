@@ -147,9 +147,11 @@ fn run_with_deadline(
         process::Stdio,
         time::{Duration, Instant},
     };
+    let directory = tempfile::tempdir()?;
     let mut stdout = tempfile::tempfile()?;
     let mut stderr = tempfile::tempfile()?;
     command
+        .current_dir(directory.path())
         .stdin(Stdio::null())
         .stdout(stdout.try_clone()?)
         .stderr(stderr.try_clone()?);

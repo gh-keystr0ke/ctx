@@ -151,3 +151,21 @@ code commits are `3592730`, `ce9d872`, `14f2752`, and `53d7e67`. The case
 associated with `3a61aaa` retained the old wrapper and did not produce a broken
 link. Synthetic moves and pure test renames succeeded. The automatic replay
 result did not meet the 80% target.
+
+#### Repair replay classification
+
+The 0/8 result measures all historical link edits. It is not the R1–R2 recall
+denominator. The cases below were classified from the source diffs before
+comparing them with the repair plan.
+
+| Source change | Link edits | Classification | Evidence |
+| --- | ---: | --- | --- |
+| `3592730` | 2 | Contract change | The move also replaced the CLI parameters with scoped ingestion options and changed dispatch. |
+| `14f2752` | 3 | Changed test behavior | The replacement test checks the new `--safe-mode` argument and its prompt position. |
+| `53d7e67` | 2 | Changed test behavior | Rejection of invalid or incomplete results changed to retry and keep usable decisions. |
+| `ce9d872` | 1 | Move with local refactoring | The signature and type inference flow survive. Reporting code moved into helpers. |
+
+Seven link edits exercise review, where automatic edits must stay at zero.
+The remaining edit is a confirmed move with refactoring. Safe repair missed
+that move. Keep it as a recall case and add independently classified pure
+moves and renames before interpreting the 80% target.

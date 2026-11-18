@@ -184,6 +184,8 @@ pub struct ReviewReport {
     /// threshold. Recall-first by design — see
     /// [`crate::impact::related_tests_broad`].
     pub tests_to_run: Vec<NodeSummary>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub new_behavioral_decisions: Vec<crate::coverage::NewDecision>,
 }
 
 /// Controls whether [`build_review_findings`] also computes
@@ -315,6 +317,7 @@ pub fn build_review_findings(graph: &GraphSnapshot, input: &ReviewInput) -> Revi
         stale_relationships,
         suppressed_non_behavioral_changes: suppressed,
         tests_to_run,
+        new_behavioral_decisions: crate::coverage::new_decisions(graph, input),
     }
 }
 

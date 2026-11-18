@@ -1244,11 +1244,15 @@ fn explain(
     let repository = git.descriptor()?;
     let (store, freshness) = worktree_command::query_store(cli, git, &repository.id, preview)?;
     let explanations = QueryService::new(&store).explain(&repository.id, target)?;
+    let gaps = coverage_command::explain(git, &store, &repository.id, &explanations)?;
     let traces = want_trace
         .then(|| traces_for_implementation(cli, git, &store, &explanations, &freshness))
         .transpose()?;
     if cli.json {
         let mut payload = json!({"query": target, "matches": explanations, "index": freshness});
+        if !gaps.is_empty() {
+            payload["behavioral"] = json!(gaps);
+        }
         if let Some(traces) = &traces {
             payload["traces"] = serde_json::to_value(traces)?;
         }
@@ -1315,6 +1319,7 @@ fn explain(
             println!();
         }
     }
+    coverage_command::print_explanation(&gaps);
     if let Some(traces) = &traces {
         println!("Traces:");
         if traces.is_empty() {

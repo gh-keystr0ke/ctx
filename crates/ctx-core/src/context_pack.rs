@@ -352,6 +352,9 @@ fn expand_candidates(
             }
         }
     }
+    for document in crate::coverage::explanation_document_keys(graph, &distances) {
+        distances.entry(document).or_insert(1);
+    }
     let mut candidates = distances
         .into_iter()
         .filter_map(|(key, distance)| {

@@ -1,9 +1,12 @@
 use std::path::{Path, PathBuf};
 
 use clap::Subcommand;
-use ctx_adapters::{git::GitRepo, sqlite::SqliteStore};
-use ctx_app::report::ReportService;
-use ctx_report::{HtmlRenderer, MarkdownRenderer, ReportRenderer};
+use ctx_adapters::{coverage_store::CoverageStore, git::GitRepo, sqlite::SqliteStore};
+use ctx_app::{
+    ports::{GitRepository, GraphStore},
+    report::{ReportData, ReportService},
+};
+use ctx_report::{HtmlRenderer, MarkdownRenderer, RenderedReport, ReportRenderer};
 use serde_json::json;
 
 use crate::{Cli, CliError, database_path};
@@ -41,7 +44,11 @@ pub fn report(cli: &Cli, git: &GitRepo, command: &ReportCommand) -> Result<(), C
         service.build()?
     };
     let (format, requested, rendered) = match command {
-        ReportCommand::Html { out, .. } => ("html", out.as_deref(), HtmlRenderer.render(&data)?),
+        ReportCommand::Html { out, .. } => (
+            "html",
+            out.as_deref(),
+            html_with_coverage(git, &store, &data)?,
+        ),
         ReportCommand::Markdown { out } => {
             ("markdown", out.as_deref(), MarkdownRenderer.render(&data)?)
         }
@@ -75,6 +82,19 @@ pub fn report(cli: &Cli, git: &GitRepo, command: &ReportCommand) -> Result<(), C
         );
     }
     Ok(())
+}
+
+fn html_with_coverage(
+    git: &GitRepo,
+    store: &SqliteStore,
+    data: &ReportData,
+) -> Result<RenderedReport, CliError> {
+    let graph = store.load_graph(&git.descriptor()?.id)?;
+    let selected = graph.nodes.keys().cloned().collect();
+    let coverage = ctx_core::coverage::analyze_coverage(&graph, &selected);
+    let records = CoverageStore::new(git.context_root()).read()?;
+    let gaps = ctx_core::coverage::gap_report(&graph, &coverage.decisions, &records, &selected);
+    Ok(HtmlRenderer.render_with_coverage(data, Some((&coverage, &gaps)))?)
 }
 
 fn resolve_output(root: &Path, requested: Option<&Path>, format: &str) -> PathBuf {

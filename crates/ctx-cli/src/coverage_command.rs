@@ -244,3 +244,69 @@ fn scope(
         .map(|node| node.stable_key.clone())
         .collect()
 }
+
+pub(crate) fn explain(
+    git: &GitRepo,
+    store: &ctx_adapters::sqlite::SqliteStore,
+    repository: &ctx_core::domain::RepositoryId,
+    explanations: &[ctx_core::explain::Explanation],
+) -> Result<Vec<serde_json::Value>, CliError> {
+    let graph = store.load_graph(repository)?;
+    let mut selected = BTreeSet::new();
+    let mut documents = BTreeSet::new();
+    for subject in explanations
+        .iter()
+        .flat_map(|explanation| &explanation.subjects)
+    {
+        let Ok(key) = StableKey::new(subject.stable_key.clone()) else {
+            continue;
+        };
+        match graph.nodes.get(&key).map(|node| &node.attributes) {
+            Some(PlannedNodeAttributes::Symbol { .. }) => {
+                selected.insert(key);
+            }
+            Some(PlannedNodeAttributes::Business { anchors, id, .. }) => {
+                documents.insert(id);
+                selected.extend(anchors.iter().map(|anchor| anchor.symbol.clone()));
+            }
+            _ => {}
+        }
+    }
+    if selected.is_empty() {
+        return Ok(Vec::new());
+    }
+    let report = analyze_coverage(&graph, &selected);
+    let records = CoverageStore::new(git.context_root()).read()?;
+    let gaps = gap_report(&graph, &report.decisions, &records, &selected);
+    gaps.gaps
+        .into_iter()
+        .filter(|gap| gap.state != GapState::SuspectedDivergence)
+        .filter(|gap| {
+            documents.is_empty()
+                || gap
+                    .document
+                    .as_ref()
+                    .is_some_and(|doc| documents.contains(&doc.id))
+        })
+        .map(|gap| serde_json::to_value(gap).map_err(CliError::from))
+        .collect()
+}
+
+pub(crate) fn print_explanation(gaps: &[serde_json::Value]) {
+    if gaps.is_empty() {
+        return;
+    }
+    println!("Behavioral decisions:");
+    for gap in gaps {
+        let file = gap["point"]["file"].as_str().unwrap_or_default();
+        let line = gap["point"]["range"]["start_line"]
+            .as_u64()
+            .unwrap_or_default();
+        let state = gap["state"].as_str().unwrap_or_default();
+        let condition = gap["point"]["condition"].as_str().unwrap_or_default();
+        println!("  {file}:{line} [{state}] {condition}");
+        if let Some(anchor) = gap["point"].get("anchor") {
+            println!("    anchor {anchor}");
+        }
+    }
+}

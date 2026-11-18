@@ -3670,6 +3670,11 @@ fn coverage_distinguishes_explicit_explanations_from_stale_anchors() {
     let report = repository.ctx(&["coverage", "--symbol", "app.retry"]);
     assert_eq!(report["behavioral"]["gaps"][0]["state"], "reopened");
     assert_eq!(report["behavioral"]["stale_anchors"][0], *anchor);
+    let review = repository.ctx(&["review", "--base", "HEAD~1", "-v"]);
+    assert_eq!(
+        review["new_behavioral_decisions"][0]["condition"],
+        "attempt == 1"
+    );
 }
 
 #[test]

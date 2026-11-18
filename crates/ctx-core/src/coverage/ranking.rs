@@ -210,7 +210,7 @@ fn effects(node: &GraphNode, area: Option<SourceRange>) -> i64 {
             .sum::<i64>()
 }
 
-fn semantic_weight(condition: &str) -> i64 {
+pub(super) fn semantic_weight(condition: &str) -> i64 {
     let condition = condition.to_ascii_lowercase();
     let terms = [
         "attempt",

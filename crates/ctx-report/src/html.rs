@@ -5,7 +5,11 @@ use ctx_app::report::{
     ReportSymbol,
 };
 use ctx_core::{
-    artifact::Artifact, domain::StableKey, graph::NodeSummary, indexing::PlannedNodeAttributes,
+    artifact::Artifact,
+    coverage::{Coverage, GapReport, GapState},
+    domain::StableKey,
+    graph::NodeSummary,
+    indexing::PlannedNodeAttributes,
 };
 
 use crate::{
@@ -23,8 +27,22 @@ pub struct HtmlRenderer;
 
 impl ReportRenderer for HtmlRenderer {
     fn render(&self, data: &ReportData) -> Result<RenderedReport, RenderError> {
+        self.render_with_coverage(data, None)
+    }
+}
+
+impl HtmlRenderer {
+    /// Renders a report with an optional coverage view.
+    ///
+    /// # Errors
+    /// Returns an error if the report data cannot be serialized.
+    pub fn render_with_coverage(
+        &self,
+        data: &ReportData,
+        coverage: Option<(&Coverage, &GapReport<'_>)>,
+    ) -> Result<RenderedReport, RenderError> {
         let mut report = RenderedReport::new(ReportFormat::Html, &data.meta.source_commit);
-        report.insert("index.html", render_index(data)?);
+        report.insert("index.html", render_index(data, coverage)?);
         report.insert("tree.html", render_tree(data)?);
         report.insert(
             "search-index.json",
@@ -48,7 +66,10 @@ impl ReportRenderer for HtmlRenderer {
     }
 }
 
-fn render_index(data: &ReportData) -> Result<String, RenderError> {
+fn render_index(
+    data: &ReportData,
+    coverage: Option<(&Coverage, &GapReport<'_>)>,
+) -> Result<String, RenderError> {
     let mut body = String::new();
     write!(
         body,
@@ -67,6 +88,9 @@ fn render_index(data: &ReportData) -> Result<String, RenderError> {
         data.meta.knowledge.stale_semantic_edges
     )
     .expect("string write");
+    if let Some((coverage, gaps)) = coverage {
+        render_coverage(&mut body, coverage, gaps);
+    }
     body.push_str("<section><div class=\"section-heading\"><h2>Catalogs</h2><a href=\"tree.html\">Browse source tree →</a></div><div class=\"cards\">");
     for catalog in &data.catalogs {
         write!(
@@ -139,6 +163,53 @@ fn render_catalog(catalog: &ReportCatalog) -> String {
     }
     body.push_str("</section>");
     page(kind_name(catalog.kind), "../", &body)
+}
+
+fn render_coverage(body: &mut String, coverage: &Coverage, gaps: &GapReport<'_>) {
+    let percent = coverage
+        .structural_percent
+        .map_or_else(|| "n/a".to_owned(), |value| format!("{value:.1}%"));
+    write!(body, "<section><h2>Context coverage</h2><p>Structural coverage {percent} ({} mapped / {} analyzed symbols)</p><p>{} behavioral decisions</p><ul>",
+        coverage.mapped_symbols, coverage.analyzed_symbols, coverage.decisions.len()).expect("string write");
+    for (state, count) in &gaps.counts {
+        write!(body, "<li>{state:?} {count}</li>").expect("string write");
+    }
+    write!(
+        body,
+        "</ul><p>{} stale anchors</p>",
+        gaps.stale_anchors.len()
+    )
+    .expect("string write");
+    for gap in gaps
+        .gaps
+        .iter()
+        .filter(|gap| gap.state == GapState::SuspectedDivergence)
+    {
+        write!(
+            body,
+            "<article><h3>Suspected divergence in {}</h3><p>{}:{}</p>",
+            html(&gap.point.symbol),
+            html(&gap.point.file),
+            gap.point.range.start_line
+        )
+        .expect("string write");
+        if let Some(research) = gap.record.and_then(|record| record.research.as_ref()) {
+            write!(body, "<p>{}</p><ul>", html(&research.judgment.explanation))
+                .expect("string write");
+            for evidence in &research.evidence {
+                write!(
+                    body,
+                    "<li><code>{}</code> {}</li>",
+                    html(&evidence.source),
+                    html(&evidence.excerpt)
+                )
+                .expect("string write");
+            }
+            body.push_str("</ul>");
+        }
+        body.push_str("</article>");
+    }
+    body.push_str("</section>");
 }
 
 fn render_tree(data: &ReportData) -> Result<String, RenderError> {

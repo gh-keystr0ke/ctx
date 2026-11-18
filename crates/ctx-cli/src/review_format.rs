@@ -71,6 +71,15 @@ fn change_label(kind: ChangeKind) -> &'static str {
 
 pub(crate) fn print_text(report: &ReviewReport, verbose: bool, show_tests: bool) {
     println!("{}", summary(report));
+    if verbose && !report.new_behavioral_decisions.is_empty() {
+        println!("New unexplained decisions:");
+        for decision in &report.new_behavioral_decisions {
+            println!(
+                "  {}:{} {}",
+                decision.file, decision.line, decision.condition
+            );
+        }
+    }
     for group in &report.findings_by_intent {
         let intent = &group.affected_intent;
         let name = intent.name.split_whitespace().collect::<Vec<_>>().join(" ");

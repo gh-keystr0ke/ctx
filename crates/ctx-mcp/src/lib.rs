@@ -1,5 +1,7 @@
 //! Thin Model Context Protocol adapter over the existing `ctx-app` use cases.
 
+mod coverage;
+
 use std::io::{self, BufRead, Write};
 
 use ctx_adapters::{
@@ -104,7 +106,9 @@ impl<'a> McpServer<'a> {
             self.git,
             &self.store,
             &self.repository,
-            name != "get_status" && self.git.auto_index() != AutoIndex::Never,
+            name != "get_status"
+                && !coverage::TOOLS.contains(&name)
+                && self.git.auto_index() != AutoIndex::Never,
         );
         let result = match freshness {
             Ok(freshness) => {
@@ -179,6 +183,9 @@ impl<'a> McpServer<'a> {
                     )
                     .map_err(|error| error.to_string())?;
                 serde_json::to_value(result).map_err(|error| error.to_string())
+            }
+            _ if coverage::TOOLS.contains(&name) => {
+                coverage::execute(name, arguments, &self.store, &self.repository)
             }
             _ => Err(format!("unknown tool '{name}'")),
         }
@@ -323,7 +330,7 @@ fn decode<T: for<'de> Deserialize<'de>>(value: Value) -> Result<T, String> {
 }
 
 fn tool_definitions() -> Vec<Value> {
-    vec![
+    let mut tools = vec![
         json!({
             "name": "get_status",
             "title": "Inspect the ctx index",
@@ -383,7 +390,9 @@ fn tool_definitions() -> Vec<Value> {
             },
             "annotations": {"readOnlyHint": true, "openWorldHint": false}
         }),
-    ]
+    ];
+    tools.extend(coverage::definitions());
+    tools
 }
 
 fn object_schema(field: &str, description: &str) -> Value {
@@ -465,7 +474,10 @@ mod tests {
                 "get_impact",
                 "explain_relation",
                 "find_requirements",
-                "review_change"
+                "review_change",
+                "get_coverage",
+                "list_gaps",
+                "explain_gap"
             ]
         );
         assert_eq!(

@@ -1,6 +1,10 @@
 //! Structural mappings and ranked behavioral points in an indexed graph.
 
+mod new_decisions;
 mod ranking;
+
+pub use new_decisions::NewDecision;
+pub(crate) use new_decisions::{explanation_document_keys, new_decisions};
 pub mod research;
 mod state;
 
@@ -167,4 +171,38 @@ fn active_intent(node: &GraphNode) -> bool {
         NodeKind::Requirement | NodeKind::Invariant | NodeKind::Decision
     ) && matches!(&node.attributes, PlannedNodeAttributes::Business { status, .. }
             if matches!(status.as_str(), "active" | "accepted" | "approved"))
+}
+
+pub(crate) fn confirmed_anchors(graph: &GraphSnapshot) -> BTreeSet<DecisionAnchor> {
+    graph
+        .nodes
+        .values()
+        .filter(|node| active_intent(node))
+        .flat_map(|node| match &node.attributes {
+            PlannedNodeAttributes::Business { anchors, .. } => anchors.as_slice(),
+            _ => &[],
+        })
+        .filter(|anchor| is_current_anchor(graph, anchor))
+        .cloned()
+        .collect()
+}
+
+fn is_current_anchor(graph: &GraphSnapshot, anchor: &DecisionAnchor) -> bool {
+    if anchor.ordinal == 0 {
+        return false;
+    }
+    graph.nodes.get(&anchor.symbol).is_some_and(|node| {
+        if let PlannedNodeAttributes::Symbol {
+            decision_points, ..
+        } = &node.attributes
+        {
+            decision_points
+                .iter()
+                .filter(|point| point.fingerprint == anchor.fingerprint)
+                .nth(anchor.ordinal - 1)
+                .is_some()
+        } else {
+            false
+        }
+    })
 }

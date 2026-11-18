@@ -45,6 +45,16 @@ impl Default for SubprocessTransport {
 
 impl AgentTransport for SubprocessTransport {
     fn run(&self, prompt: &str) -> Result<String, AgentContractError> {
+        self.run_with_timeout(prompt, None)
+    }
+}
+
+impl SubprocessTransport {
+    pub(crate) fn run_with_timeout(
+        &self,
+        prompt: &str,
+        timeout: Option<std::time::Duration>,
+    ) -> Result<String, AgentContractError> {
         tracing::debug!(
             agent = "antigravity",
             binary = self.binary,
@@ -58,7 +68,7 @@ impl AgentTransport for SubprocessTransport {
             command.arg("--model").arg(model);
         }
         command.arg(prompt);
-        let output = agent_contract::run_subprocess(&mut command, &self.binary)?;
+        let output = agent_contract::run_subprocess(&mut command, &self.binary, timeout)?;
         tracing::debug!(
             agent = "antigravity",
             status = ?output.status.code(),

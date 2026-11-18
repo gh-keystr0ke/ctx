@@ -1,13 +1,11 @@
 //! One composition point for selecting a supported agent CLI.
 
-use std::env;
+use std::path::Path;
 
-use ctx_adapters::{
-    antigravity::{AntigravityAgent, SubprocessTransport as AntigravityTransport},
-    claude_code::{ClaudeCodeAgent, SubprocessTransport as ClaudeTransport},
-    codex::{CodexAgent, SubprocessTransport as CodexTransport},
+use ctx_adapters::agent_registry;
+use ctx_app::ports::{
+    KnowledgeReviewAgent, PortError, ResearchAgent, SemanticAgent, StaleClaimReviewAgent,
 };
-use ctx_app::ports::{KnowledgeReviewAgent, PortError, SemanticAgent, StaleClaimReviewAgent};
 use ctx_core::{
     knowledge::{AgentOutcome, ClusterReview, KnowledgeCandidate},
     neighborhood::ArtifactNeighborhood,
@@ -16,14 +14,8 @@ use ctx_core::{
 
 use crate::agent_pacing::AgentPacer;
 
-enum AgentKind {
-    Claude(ClaudeCodeAgent<ClaudeTransport>),
-    Codex(CodexAgent<CodexTransport>),
-    Antigravity(AntigravityAgent<AntigravityTransport>),
-}
-
 pub(crate) struct ConfiguredAgent {
-    inner: AgentKind,
+    inner: agent_registry::ConfiguredAgent,
     pacer: Option<AgentPacer>,
 }
 
@@ -34,37 +26,20 @@ impl ConfiguredAgent {
         verbose: bool,
         siga_siga: bool,
     ) -> Result<Self, String> {
-        let inner = match name {
-            "claude" => AgentKind::Claude(ClaudeCodeAgent::new(
-                ClaudeTransport::new(
-                    binary("CTX_CLAUDE_CLI_BINARY", "claude"),
-                    verbose,
-                    model.clone(),
-                ),
-                model,
-            )),
-            "codex" => AgentKind::Codex(CodexAgent::new(
-                CodexTransport::new(
-                    binary("CTX_CODEX_CLI_BINARY", "codex"),
-                    verbose,
-                    model.clone(),
-                ),
-                model,
-            )),
-            "antigravity" => AgentKind::Antigravity(AntigravityAgent::new(
-                AntigravityTransport::new(
-                    binary("CTX_ANTIGRAVITY_CLI_BINARY", "agy"),
-                    verbose,
-                    model.clone(),
-                ),
-                model,
-            )),
-            other => return Err(other.to_owned()),
-        };
         Ok(Self {
-            inner,
+            inner: agent_registry::ConfiguredAgent::from_name(name, model, verbose)?,
             pacer: siga_siga.then(AgentPacer::night_mode),
         })
+    }
+
+    pub(crate) fn with_ledger(mut self, root: &Path) -> Self {
+        self.inner = self.inner.with_ledger(&root.join(".ctx/logs/agents"));
+        self
+    }
+
+    pub(crate) fn with_timeout(mut self, timeout: std::time::Duration) -> Self {
+        self.inner = self.inner.with_timeout(timeout);
+        self
     }
 
     fn pace(&self) {
@@ -74,27 +49,14 @@ impl ConfiguredAgent {
     }
 }
 
-fn binary(variable: &str, default: &str) -> String {
-    env::var(variable).unwrap_or_else(|_| default.to_owned())
-}
-
 impl SemanticAgent for ConfiguredAgent {
     fn input_fingerprint(
         &self,
         neighborhood: &ArtifactNeighborhood,
         allow_ungrounded_symbols: bool,
     ) -> String {
-        match &self.inner {
-            AgentKind::Claude(agent) => {
-                agent.input_fingerprint(neighborhood, allow_ungrounded_symbols)
-            }
-            AgentKind::Codex(agent) => {
-                agent.input_fingerprint(neighborhood, allow_ungrounded_symbols)
-            }
-            AgentKind::Antigravity(agent) => {
-                agent.input_fingerprint(neighborhood, allow_ungrounded_symbols)
-            }
-        }
+        self.inner
+            .input_fingerprint(neighborhood, allow_ungrounded_symbols)
     }
 
     fn analyze(
@@ -104,28 +66,15 @@ impl SemanticAgent for ConfiguredAgent {
         allow_ungrounded_symbols: bool,
     ) -> Result<AgentOutcome, PortError> {
         self.pace();
-        match &self.inner {
-            AgentKind::Claude(agent) => {
-                agent.analyze(neighborhood, produced_at, allow_ungrounded_symbols)
-            }
-            AgentKind::Codex(agent) => {
-                agent.analyze(neighborhood, produced_at, allow_ungrounded_symbols)
-            }
-            AgentKind::Antigravity(agent) => {
-                agent.analyze(neighborhood, produced_at, allow_ungrounded_symbols)
-            }
-        }
+        self.inner
+            .analyze(neighborhood, produced_at, allow_ungrounded_symbols)
     }
 }
 
 impl KnowledgeReviewAgent for ConfiguredAgent {
     fn review(&self, candidates: &[KnowledgeCandidate]) -> Result<ClusterReview, PortError> {
         self.pace();
-        match &self.inner {
-            AgentKind::Claude(agent) => agent.review(candidates),
-            AgentKind::Codex(agent) => agent.review(candidates),
-            AgentKind::Antigravity(agent) => agent.review(candidates),
-        }
+        self.inner.review(candidates)
     }
 }
 
@@ -135,11 +84,17 @@ impl StaleClaimReviewAgent for ConfiguredAgent {
         claims: &[StaleClaim],
     ) -> Result<Vec<StaleClaimVerdict>, PortError> {
         self.pace();
-        match &self.inner {
-            AgentKind::Claude(agent) => agent.review_stale_claims(claims),
-            AgentKind::Codex(agent) => agent.review_stale_claims(claims),
-            AgentKind::Antigravity(agent) => agent.review_stale_claims(claims),
-        }
+        self.inner.review_stale_claims(claims)
+    }
+}
+
+impl ResearchAgent for ConfiguredAgent {
+    fn research(
+        &self,
+        input: &ctx_core::coverage::research::ResearchInput,
+    ) -> Result<ctx_core::coverage::research::ResearchJudgment, PortError> {
+        self.pace();
+        self.inner.research(input)
     }
 }
 

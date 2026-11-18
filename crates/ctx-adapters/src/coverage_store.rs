@@ -139,6 +139,7 @@ mod tests {
             document: None,
             citations: Vec::new(),
             note: None,
+            research: None,
         };
         store
             .record("source.py", make_record(2, GapState::Unknown))

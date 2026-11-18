@@ -855,3 +855,13 @@ pub trait StaleClaimStore {
         timestamp: &str,
     ) -> Result<bool, PortError>;
 }
+
+/// Evaluates one bounded, caller-supplied package about a behavioral decision.
+pub trait ResearchAgent {
+    /// # Errors
+    /// Returns an error if the model fails or provides an invalid judgment.
+    fn research(
+        &self,
+        input: &ctx_core::coverage::research::ResearchInput,
+    ) -> Result<ctx_core::coverage::research::ResearchJudgment, PortError>;
+}

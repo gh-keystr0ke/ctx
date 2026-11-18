@@ -269,7 +269,8 @@ pub(super) fn verify_knowledge_auto(
         }
     };
     let review_agent = ConfiguredAgent::from_name(agent, model, cli.verbose > 0, cli.pace_agent())
-        .map_err(CliError::UnsupportedAgent)?;
+        .map_err(CliError::UnsupportedAgent)?
+        .with_ledger(git.root());
     let report = KnowledgeVerificationService::new(&mut store, &writer).auto_with_progress(
         &repository.id,
         id_prefix,
@@ -395,7 +396,8 @@ pub(super) fn verify_stale(
 
     eprintln!("Reviewing {} stale claim(s) via {agent}...", claims.len());
     let review_agent = ConfiguredAgent::from_name(agent, model, cli.verbose > 0, cli.pace_agent())
-        .map_err(CliError::UnsupportedAgent)?;
+        .map_err(CliError::UnsupportedAgent)?
+        .with_ledger(git.root());
     let (report, results) = VerificationService::new(&mut store).review_stale_claims(
         &repository.id,
         &head,

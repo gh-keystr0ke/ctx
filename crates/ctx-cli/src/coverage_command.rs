@@ -1,6 +1,8 @@
+mod research;
+
 use std::{collections::BTreeSet, path::Path};
 
-use clap::Args;
+use clap::{Args, Subcommand};
 use ctx_adapters::{coverage_store::CoverageStore, git::GitRepo};
 use ctx_app::ports::{GitRepository, GraphStore, ReviewRepository};
 use ctx_core::{
@@ -27,6 +29,14 @@ pub(crate) struct Options {
     /// Scope to source paths changed since this revision.
     #[arg(long)]
     base: Option<String>,
+    #[command(subcommand)]
+    action: Option<Action>,
+}
+
+#[derive(Debug, Subcommand)]
+enum Action {
+    /// Investigate selected gaps with an explicitly chosen CLI agent.
+    Research(research::ResearchOptions),
 }
 
 pub(crate) fn run(cli: &Cli, git: &GitRepo, options: &Options) -> Result<(), CliError> {
@@ -55,6 +65,14 @@ pub(crate) fn run(cli: &Cli, git: &GitRepo, options: &Options) -> Result<(), Cli
         .collect();
     let records = CoverageStore::new(git.context_root()).read()?;
     let gaps = gap_report(&graph, &report.decisions, &records, &scoped);
+    if let Some(Action::Research(options)) = &options.action {
+        let commit = freshness
+            .commit
+            .as_ref()
+            .filter(|commit| *commit == &freshness.head)
+            .ok_or_else(|| std::io::Error::other("index HEAD before researching coverage"))?;
+        return research::run(cli, git, &graph, &gaps, commit.as_str(), options);
+    }
     let actionable = |state| matches!(state, GapState::Open | GapState::Reopened | GapState::Asked);
     let open_candidates = gaps.gaps.iter().filter(|gap| actionable(gap.state)).count();
     if cli.json {

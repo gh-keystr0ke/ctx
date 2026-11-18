@@ -1480,7 +1480,8 @@ fn enrich(
         };
     let configured_agent =
         ConfiguredAgent::from_name(agent, model, cli.verbose > 0, cli.pace_agent())
-            .map_err(CliError::UnsupportedAgent)?;
+            .map_err(CliError::UnsupportedAgent)?
+            .with_ledger(git.root());
     let report = match options.scope {
         IngestScopeArg::All => EnrichRunner::new(&configured_agent, &mut store).run_with_progress(
             &repository.id,

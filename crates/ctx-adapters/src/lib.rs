@@ -1,6 +1,7 @@
 //! Concrete adapters around the deterministic `ctx-core` domain.
 
 pub mod agent_contract;
+pub mod agent_registry;
 pub mod analyzer;
 pub mod antigravity;
 pub mod business_context;

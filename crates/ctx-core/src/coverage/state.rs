@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
 
-use super::{DecisionAnchor, RankedDecision, active_intent};
+use super::{DecisionAnchor, RankedDecision, active_intent, research::ResearchJudgment};
 use crate::{domain::StableKey, graph::GraphSnapshot, indexing::PlannedNodeAttributes};
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
@@ -32,9 +32,11 @@ pub struct CoverageRecord {
     pub citations: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub note: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub research: Option<ResearchJudgment>,
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct DocumentEvidence {
     pub id: String,

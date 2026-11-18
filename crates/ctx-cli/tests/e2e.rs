@@ -3671,3 +3671,59 @@ fn coverage_distinguishes_explicit_explanations_from_stale_anchors() {
     assert_eq!(report["behavioral"]["gaps"][0]["state"], "reopened");
     assert_eq!(report["behavioral"]["stale_anchors"][0], *anchor);
 }
+
+#[test]
+fn coverage_research_uses_a_current_assertion_and_handles_agent_failure() {
+    let repository = MixedLanguageRepository::new();
+    repository.ctx(&["init"]);
+    let root = repository.root();
+    fs::write(
+        root.join("src/app.py"),
+        "def retry(attempt):\n    if attempt == 0:\n        return None\n    return 1\n",
+    )
+    .unwrap();
+    let context = root.join(".context/invariants");
+    fs::create_dir_all(&context).unwrap();
+    fs::write(
+        context.join("retry.yaml"),
+        "id: INV-RETRY\nstatement: First retry skips delay.\nimplementation:\n  - symbol: app.retry\n",
+    ).unwrap();
+    run_git(root, &["add", ".context", "src"]);
+    run_git(root, &["commit", "-qm", "document retry"]);
+    repository.ctx(&["index"]);
+
+    let binary = root.join("fake-agent");
+    let env = &[("CTX_CODEX_CLI_BINARY", binary.to_str().unwrap())];
+    let args = &[
+        "coverage",
+        "--symbol",
+        "app.retry",
+        "research",
+        "--agent",
+        "codex",
+        "--max-questions",
+        "1",
+    ];
+    let unavailable = run_ctx(root, env, args);
+    assert_eq!(unavailable["results"][0]["outcome"], "unavailable");
+    assert_eq!(
+        repository.ctx(&["coverage", "--symbol", "app.retry"])["open_candidates"],
+        1
+    );
+
+    write_executable_script(
+        &binary,
+        r#"#!/bin/sh
+printf '%s\n' '{"class":"established","explanation":"First retry skips delay.","citations":[{"id":"E2","quote":"First retry skips delay."}]}'
+"#,
+    );
+    let verified = run_ctx(root, env, args);
+    assert_eq!(verified["results"][0]["outcome"], "auto-resolved");
+    let report = repository.ctx(&["coverage", "--symbol", "app.retry"]);
+    assert_eq!(
+        report["behavioral"]["gaps"][0]["document"]["id"],
+        "INV-RETRY"
+    );
+    assert_eq!(report["open_candidates"], 0);
+    assert_eq!(run_ctx(root, env, args)["results"], json!([]));
+}

@@ -195,6 +195,38 @@ impl GitRepo {
         &self.root
     }
 
+    /// Returns bounded history subjects for a committed source range.
+    ///
+    /// # Errors
+    /// Returns a port error when Git cannot read the range.
+    pub fn decision_history(
+        &self,
+        revision: &str,
+        file: &str,
+        start: usize,
+        end: usize,
+    ) -> Result<Vec<(String, String)>, PortError> {
+        let range = format!("{start},{end}:{file}");
+        let bytes = self
+            .output(&[
+                "log",
+                "-3",
+                "--no-patch",
+                "--format=%H%x09%s",
+                "-L",
+                &range,
+                revision,
+            ])
+            .map_err(port_error)?;
+        Ok(String::from_utf8_lossy(&bytes)
+            .lines()
+            .filter_map(|line| {
+                let (id, subject) = line.split_once('\t')?;
+                Some((id.to_owned(), subject.to_owned()))
+            })
+            .collect())
+    }
+
     /// Where `.context/` and `.ctx-candidates/` currently live: `root`
     /// unless a local registry entry (`ctx context-store set`, `ADR-CTX-050`)
     /// redirects them to a separate location.

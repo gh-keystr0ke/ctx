@@ -1,6 +1,7 @@
 //! Structural mappings and ranked behavioral points in an indexed graph.
 
 mod ranking;
+pub mod research;
 mod state;
 
 pub use state::{CoverageRecord, DocumentEvidence, Gap, GapReport, GapState, gap_report};

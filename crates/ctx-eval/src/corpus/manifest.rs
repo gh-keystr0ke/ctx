@@ -6,7 +6,8 @@ use std::collections::BTreeMap;
 pub struct Project {
     pub schema: u32,
     pub guide_version: u32,
-    pub project: String,
+    #[serde(rename = "project")]
+    pub name: String,
     pub language: Language,
     pub role: Role,
     pub repository: String,

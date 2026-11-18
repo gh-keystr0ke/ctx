@@ -4,6 +4,10 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
 
+/// Validates the labeling guide, project manifests, and selection files.
+///
+/// # Errors
+/// Returns the path and reason for the first unreadable or invalid file.
 pub fn check(root: &Path) -> Result<(), String> {
     let guide = read(&root.join("LABELING.md"))?;
     let version = guide
@@ -28,7 +32,10 @@ pub fn check(root: &Path) -> Result<(), String> {
             let selection: Selection = parse(&path)?;
             check_selection(&manifest, &selection)
                 .map_err(|error| format!("{}: {error}", path.display()))?;
-        } else if name.ends_with(".yaml") {
+        } else if path
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("yaml"))
+        {
             let manifest: Project = parse(&path)?;
             check_project(&manifest, version)
                 .map_err(|error| format!("{}: {error}", path.display()))?;

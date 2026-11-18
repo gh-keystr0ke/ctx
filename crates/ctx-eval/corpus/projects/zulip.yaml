@@ -1254,132 +1254,266 @@ points:
 - id: zulip-0061
   anchor: symbol:python:corporate.lib.stripe.BillingSession.get_initial_upgrade_context:Method#401f6285529087b6bd4e7e6bada711044242937dd65742133133d27d4f9bbea2#1
   location: corporate/lib/stripe.py:2940
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: permission
+    evidence: []
+    reason: The branch lets sponsored customers and customers with pending sponsorship proceed to self-hosted Basic or Business upgrades and redirects other tier requests to sponsorship. The package contains no documentation, specification, or issue directly about this rule.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 7c9e798c7499d44e24c260b4953468ed82abd80714508d060824a457daf40d01
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: zulip-0062
   anchor: symbol:python:corporate.lib.stripe.BillingSession.invoice_plan:Method#55ef783ed147c52fa50495ead7b217a626320fe1b04d1263c4728fa74666e23a#1
   location: corporate/lib/stripe.py:3570
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: null
+    evidence:
+    - E1
+    - E5
+    reason: The guard limits this invoicing path to paid plans. The supplied documentation covers upgrades after initial invoice payment and how to test renewals, but does not directly establish this eligibility rule.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 3acd7a1bb36c5d1a6a0352ca4575126b0393180d928787c0914d7793c3f51b10
+  label: unclear
   category: null
-  evidence: []
-  verified_by: null
+  evidence:
+  - type: docs
+    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/starlight_help/src/content/include/_PayByInvoiceSteps.mdx#L12
+    quote: 1. Your plan will be upgraded when the initial invoice is paid.
+  - type: docs
+    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/docs/subsystems/billing.md#L89
+    quote: '- Renewals can be tested by calling `./manage.py invoice_plans --date'
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: zulip-0063
   anchor: symbol:python:zerver.actions.message_send.check_can_send_direct_message:Function#16de41acaef7b9aee0530ab72fdd07f8b2346a4956abfb490ce6dc655f4d6f1d#1
   location: zerver/actions/message_send.py:1766
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: permission
+    evidence:
+    - E1
+    reason: E1 documents configurable direct message permissions, but the excerpt does not specify that a system-group restriction is satisfied when any participant has the required role.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: ac3da2e610c3a968785bbb94b07b4ea1727803643575252b364c68d51ee50075
+  label: unclear
   category: null
-  evidence: []
-  verified_by: null
+  evidence:
+  - type: docs
+    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/starlight_help/src/content/docs/restrict-direct-messages.mdx#L68
+    quote: 1. Under **Direct message permissions**, remove any configured roles, groups
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: zulip-0064
   anchor: symbol:python:zerver.actions.message_send.check_can_send_direct_message:Function#3b9d588a5e842629dac29ea6c541cb0a371dc401626d635c420381d02e40a891#1
   location: zerver/actions/message_send.py:1782
-  draft: null
-  drafted_by: null
-  label: null
-  category: null
-  evidence: []
-  verified_by: null
+  draft:
+    label: unclear
+    category: permission
+    evidence:
+    - E7
+    - E8
+    reason: The code checks the sender’s role against the configured direct message initiator group. The excerpts document direct message permissions generally, but neither directly describes this initiator role check.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 44f62e3759907eb86856063251c2f267dfe9605a66abbbc0789c03b82529db4b
+  label: significant
+  category: permission
+  evidence:
+  - type: docs
+    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/starlight_help/src/content/docs/restrict-direct-messages.mdx#L33
+    quote: Regardless of how these settings are configured, users can always send direct messages
+  - type: docs
+    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/starlight_help/src/content/docs/restrict-direct-messages.mdx#L68
+    quote: 1. Under **Direct message permissions**, remove any configured roles, groups
+  - type: docs
+    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/starlight_help/src/content/docs/restrict-direct-messages.mdx#L19
+    quote: Who can **start** a direct message conversation.
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: zulip-0065
   anchor: symbol:python:zerver.actions.message_send.check_can_send_direct_message:Function#72f522d211ac768ba1f5b0e59ec206ca265a4d65378933782118aad6aa2756b9#1
   location: zerver/actions/message_send.py:1768
-  draft: null
-  drafted_by: null
-  label: null
-  category: null
-  evidence: []
-  verified_by: null
+  draft:
+    label: unclear
+    category: permission
+    evidence:
+    - E7
+    - E8
+    reason: The excerpts describe configurable direct-message permissions but do not establish the specific rule that at least one participant, including the sender, must qualify under the configured system group.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: cb4c16154d7b29a4937f98d4a819cc9426c1f6b825491acc9d1699e62c0ce86d
+  label: significant
+  category: permission
+  evidence:
+  - type: docs
+    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/starlight_help/src/content/docs/restrict-direct-messages.mdx#L33
+    quote: Regardless of how these settings are configured, users can always send direct messages
+  - type: docs
+    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/starlight_help/src/content/docs/restrict-direct-messages.mdx#L68
+    quote: 1. Under **Direct message permissions**, remove any configured roles, groups
+  - type: docs
+    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/starlight_help/src/content/docs/restrict-direct-messages.mdx#L17
+    quote: must include at least one user who can authorize the conversation (the sender
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: zulip-0066
   anchor: symbol:python:zerver.actions.message_send.check_can_send_direct_message:Function#d09744aafa1107e43fa1cfd10a39170cdb210617dc0f276d9c1a9c0e6c7252fa#1
   location: zerver/actions/message_send.py:1778
-  draft: null
-  drafted_by: null
-  label: null
-  category: null
-  evidence: []
-  verified_by: null
+  draft:
+    label: unclear
+    category: permission
+    evidence: []
+    reason: The branch denies a direct message when neither the sender nor any recipient belongs to the configured permission group. None of the supplied excerpts directly documents that rule.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 0cef456590982097f91805d97aa41f4f081d758674559021a422599a0e71e96d
+  label: significant
+  category: permission
+  evidence:
+  - type: docs
+    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/starlight_help/src/content/docs/restrict-direct-messages.mdx#L17
+    quote: must include at least one user who can authorize the conversation (the sender
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: zulip-0067
   anchor: symbol:python:zerver.actions.message_send.create_user_messages:Function#4d3286c71e2d250306a5fbcd482bb09b357d3272d9350b0e6ca610bec9e18cf7#1
   location: zerver/actions/message_send.py:923
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: state-transition
+    evidence:
+    - E4
+    reason: The branch sets the initial read flag for explicitly selected recipients and recipients outside a supplied unread allowlist. E4 discusses read status but does not document either recipient-selection rule.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 780ff7e284f4a5f902b6a934653909bea67eb41ac368d2cee0b565a8d8e9f1eb
+  label: unclear
   category: null
-  evidence: []
-  verified_by: null
+  evidence:
+  - type: docs
+    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/docs/subsystems/sending-messages.md#L353
+    quote: that the messages have not been marked as read by the user). This is
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: zulip-0068
   anchor: symbol:python:zerver.lib.rate_limiter.RateLimitResult.__init__:Method#137636bd842c841e8dd3ce35a78742027ad31647327d57fe28f175755f7bc588#1
   location: zerver/lib/rate_limiter.py:309
-  draft: null
-  drafted_by: null
-  label: null
-  category: null
-  evidence: []
-  verified_by: null
+  draft:
+    label: trivial
+    category: validation
+    evidence:
+    - E7
+    - E8
+    reason: The constructor asserts that an over-limit result has zero remaining calls. The supplied documentation discusses rate-limit headers generally without specifying this invariant.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 178ea9e946f84ac34c6066316ad3b629a3626676c504bb55d0368e2518418a2a
+  label: trivial
+  category: validation
+  evidence:
+  - type: docs
+    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/api_docs/http-headers.md#L74
+    quote: '## Rate-limiting response headers'
+  - type: docs
+    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/api_docs/http-headers.md#L76
+    quote: To help clients avoid exceeding rate limits, Zulip sets the following
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: zulip-0069
   anchor: symbol:python:zerver.lib.streams.access_requested_group_permissions_for_streams:Function#d1bb3cf4579d9d7e4424be174a61c704414123a86c5edc3f9b4d3c69cb5994a4#1
   location: zerver/lib/streams.py:1635
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: default
+    evidence: []
+    reason: When a permission defaults to the channel creator, the code makes that creator the sole member of an anonymous group. None of the supplied documentation directly describes this default.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 471b822b47ad41035fdabb2ce741b57ca853227ee7cc472a2bdcfcb88bf65c84
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: zulip-0070
   anchor: symbol:python:zerver.lib.streams.get_stream_permission_policy_key:Function#e6f1d727a752ef7964dd11793d4ed7fd16de4be89c1a30ef942d40a6718ccc2e#1
   location: zerver/lib/streams.py:121
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: permission
+    evidence: []
+    reason: The condition selects a permission policy by matching three channel flags. The supplied documentation does not describe this mapping or require an exact match.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: f78cd52e849184c6c367042bb4e1bc5c78769d49e005e99cfe4d3785d46992bb
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: zulip-0071
   anchor: symbol:python:zerver.lib.streams.has_metadata_access_to_channel_via_groups:Function#b84f4b4ad8be9c02ebc3a535f851d9979eb2b8800e4852c152fe4ae49f6c085b#1
   location: zerver/lib/streams.py:925
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: permission
+    evidence:
+    - E1
+    - E7
+    reason: The branch denies channel metadata access to guests when a relevant permission setting disallows the everyone group. The excerpts discuss subscription permissions and content access but do not directly document this guest restriction.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: cd607086f723d607d27e05e5d6ce2d700a76848675cf18317539ea27335c659e
+  label: unclear
   category: null
-  evidence: []
-  verified_by: null
+  evidence:
+  - type: docs
+    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/starlight_help/src/content/docs/configure-who-can-subscribe.mdx#L22
+    quote: 'This permission grants access to channel content: users who are allowed to'
+  - type: docs
+    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/starlight_help/src/content/docs/configure-who-can-subscribe.mdx#L14
+    quote: You can give users permission to subscribe to a channel. Everyone other than
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null

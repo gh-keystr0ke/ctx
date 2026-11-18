@@ -1228,144 +1228,292 @@ points:
 - id: mattermost-0061
   anchor: symbol:go:server.channels.app.App.AppendABACEtag:Method#fd209d53353a528808df7126e6d818add5b3a02e4aad5abb2ddc44dce7380aea#1
   location: server/channels/app/post.go:1581
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: null
+    evidence:
+    - E1
+    - E2
+    - E3
+    reason: The documentation establishes that a System Admin must enable ABAC, but the package contains no documentation, specification, or issue directly addressing whether the base ETag is returned unchanged when ABAC is disabled.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 51b91be7bb0a5aa64abc561a47f823f41c6d7b7e10db692c65bc47af1f119d06
+  label: unclear
   category: null
-  evidence: []
-  verified_by: null
+  evidence:
+  - type: docs
+    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/manage/admin/abac-channel-access-rules.rst#L26
+    quote: '- :doc:`Attribute-Based Access Control (ABAC) </administration-guide/manage/admin/attribute-based-access-control>` must be enabled by a System Admin in **System Console > System Attributes > Attribute-Based Access**.'
+  - type: docs
+    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/manage/admin/abac-channel-access-rules.rst#L149
+    quote: '- :doc:`Attribute-Based Access Control (ABAC) </administration-guide/manage/admin/attribute-based-access-control>` must be enabled by a System Admin in **System Console > System Attributes > Attribute-Based Access**.'
+  - type: docs
+    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/manage/admin/abac-team-channel-policies.rst#L29
+    quote: '- :doc:`Attribute-Based Access Control (ABAC) </administration-guide/manage/admin/attribute-based-access-control>` must be enabled by a System Admin in **System Console > System Attributes > Attribute-Based Access**.'
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: mattermost-0062
   anchor: symbol:go:server.channels.app.App.FilterPostsByChannelPermissions:Method#71eb3d9dcf243cbbb680dac7274e08656197c547529751f53e458c829bc2d539#1
   location: server/channels/app/post.go:2601
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: error-handling
+    evidence:
+    - E2
+    reason: The branch continues after a 404 from GetChannels and propagates other errors. E2 describes legitimate API 404 responses in general and does not specify this channel lookup behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: dce087c0c9455df7bbca90ad792d77ef4cb7b0f78a78759dd6da7ab42719db6e
+  label: unclear
   category: null
-  evidence: []
-  verified_by: null
+  evidence:
+  - type: docs
+    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/scale/performance-alerting.rst#L119
+    quote: Any 4xx or 5xx HTTP response status codes are counted as a REST API error. API errors themselves are not necessarily a problem. There are many legitimate reasons for an API error to occur, such as users’ sessions expiring or clients requesting to see if a resource exists and is being given a ``404 Not Found`` response. It is normal to have some API errors that scale with your installation base.
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: mattermost-0063
   anchor: symbol:go:server.channels.app.App.GetOrCreateDirectChannel:Method#27e7b41cbdd9252a5433668206c9f9381bf1b6628aa12d3008d9cda62b9dcd8a#1
   location: server/channels/app/channel.go:415
-  draft: null
-  drafted_by: null
-  label: null
-  category: null
-  evidence: []
-  verified_by: null
+  draft:
+    label: significant
+    category: permission
+    evidence:
+    - E1
+    reason: The branch applies the documented team-only restriction on starting cross-team direct messages. The code also exempts sessions with system management permission.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 40030660d71d879a6083fbd6a3a63d434b754ab97d04e6e13609bcee91215cad
+  label: significant
+  category: permission
+  evidence:
+  - type: docs
+    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/end-user-guide/collaborate/channel-types.rst#L43
+    quote: You can start a direct message with people on other teams :ref:`unless the system admin has disabled your ability to do so <administration-guide/configure/site-configuration-settings:enable users to open direct message channels with>`.
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: mattermost-0064
   anchor: symbol:go:server.channels.app.App.GetPostIfAuthorized:Method#7f4bfaab54fa4afcb97b833fdb26106fc6a4b26a0cc9cb1827e881c25a13d39b#1
   location: server/channels/app/post.go:3040
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: permission
+    evidence:
+    - E3
+    - E8
+    reason: The documentation describes permission scopes and inheritance generally. It does not directly address using the team-level ReadPublicChannel permission to read a post when the channel-level check fails, the channel is public, and compliance is disabled.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: f0633c39ca96e65a3ec9b1b5f5613b54ced449ff312e400cb6600c4285988c6d
+  label: unclear
   category: null
-  evidence: []
-  verified_by: null
+  evidence:
+  - type: docs
+    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/security-guide/zero-trust.rst#L111
+    quote: '- :doc:`Advanced Permissions Infrastructure </administration-guide/onboard/advanced-permissions-backend-infrastructure>` [Enterprise] — System-wide and team-override permission schemes control create, read, update, and delete capabilities per resource type. Channel-level controls restrict posting, reactions, and member management independently.'
+  - type: docs
+    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/onboard/advanced-permissions-backend-infrastructure.rst#L39
+    quote: When determining whether a user is allowed to carry out a given action in a given context, the union of the permissions of all roles that user has been assigned in the current context and its parent contexts is calculated. This enables permissions to cascade down the scope hierarchy. For example, if a users is granted the ``manage_public_channel_properties`` permission in a role in the system context, then the user h
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: mattermost-0065
   anchor: symbol:go:server.channels.app.App.GetTeamIdFromQuery:Method#e1650162fee9b537b2e17ed57c5d417cf841083b129b8b822c48a24d512007a4#1
   location: server/channels/app/team.go:2306
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: validation
+    evidence: []
+    reason: The code rejects expired invitation tokens during team ID lookup and attempts to delete them. The package provides no documentation, specification, or issue directly covering this behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 778f1961e6a0ee9e4a2b4d0d4f2c65f1845b2e109cb5067a8014688866a16d45
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: mattermost-0066
   anchor: symbol:go:server.channels.app.App.PatchChannelModerationsForChannel:Method#858b4e515fc661711d6330142367dcd87c7344945aa1970c8b6a940d03296e2c#1
   location: server/channels/app/channel.go:1290
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: permission
+    evidence:
+    - E4
+    reason: The branch returns HTTP 403 when a patch tries to enable a member permission absent from the higher-scoped role. E4 documents the moderation update operation but does not describe this restriction.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: b462148695d2b64bfa04856deb940286c3d39d5de3fc2fdb7fbb4230ae12bff2
+  label: unclear
   category: null
-  evidence: []
-  verified_by: null
+  evidence:
+  - type: docs
+    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/comply/embedded-json-audit-log-schema.rst#L255
+    quote: '| ``patchChannelModerations``        | Updating channel moderation settings                              |'
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: mattermost-0067
   anchor: symbol:go:server.channels.app.App.PatchChannelModerationsForChannel:Method#ca2e63f8578f4746b82ec10631640f6d395385208e4fba6f6d8937c68476dec9#1
   location: server/channels/app/channel.go:1293
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: permission
+    evidence:
+    - E2
+    - E3
+    - E4
+    reason: The branch returns HTTP 403 when a channel moderation patch tries to grant guests a permission denied at a higher scope. The evidence mentions moderation updates and system-wide guest permissions without directly documenting this restriction.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: b46459cba919aedfe2018f5647c827b23fd6a04bc577e7667b897be61337a8bf
+  label: unclear
   category: null
-  evidence: []
-  verified_by: null
+  evidence:
+  - type: docs
+    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/comply/embedded-json-audit-log-schema.rst#L255
+    quote: '| ``patchChannelModerations``        | Updating channel moderation settings                              |'
+  - type: docs
+    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/onboard/advanced-permissions.rst#L24
+    quote: 'You can set the default permissions granted to system admins, team admins, channel admins, guests (if enabled), and all members. The permissions granted in the System Scheme apply system-wide, meaning:'
+  - type: docs
+    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/onboard/advanced-permissions.rst#L26
+    quote: '- **Guests:** If Guest Accounts are enabled, permissions apply to guest users in all channels, in all teams.'
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: mattermost-0068
   anchor: symbol:go:server.channels.app.App.PatchChannelModerationsForChannel:Method#d66f62597687523c199100ea4226fb87290884e5e9a2a0301d16775ffa1d322b#1
   location: server/channels/app/channel.go:1368
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: state-transition
+    evidence:
+    - E3
+    reason: The branch deletes the channel scheme when neither the member nor guest moderation permissions differ from the higher-scoped scheme. E3 documents permission inheritance but does not specify this deletion rule.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: ea1c794e8a366e9d21b48b18e5f3125e05ccb2c3c2eb87d5d5138fe7042c5583
+  label: unclear
   category: null
-  evidence: []
-  verified_by: null
+  evidence:
+  - type: docs
+    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/onboard/advanced-permissions-backend-infrastructure.rst#L39
+    quote: When determining whether a user is allowed to carry out a given action in a given context, the union of the permissions of all roles that user has been assigned in the current context and its parent contexts is calculated. This enables permissions to cascade down the scope hierarchy. For example, if a users is granted the ``manage_public_channel_properties`` permission in a role in the system context, then the user h
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: mattermost-0069
   anchor: symbol:go:server.channels.app.App.SanitizeTeam:Method#938e7bcc9be150e939e29fdc9a41ba4749ef7b7166af9d2f2734c78b988f2f3c#1
   location: server/channels/app/team.go:2333
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: permission
+    evidence: []
+    reason: The branch skips team sanitization when the session has both permissions. The package contains no documentation, specification, or issue directly addressing that behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 1ff93a7b579bdb4a59b863401750b6a1347bb836003fc0c3310794ebd53be038
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: mattermost-0070
   anchor: symbol:go:server.channels.app.App.SetTeamIconFromMultiPartFile:Method#02ee7c37df55879aa80209fa5af1f7b64596448c50163c59cbe69f0a6251fd09#1
   location: server/channels/app/team.go:2391
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: limit
+    evidence:
+    - E1
+    reason: The code enforces the configured maximum image resolution for team icons. E1 documents a configurable resolution limit for attachments, and the package provides no direct documentation, specification, or issue covering team icons.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: d5c179882a6da53904c24ca68c99380335f506929aee340b6bf60d9d12eec39f
+  label: unclear
   category: null
-  evidence: []
-  verified_by: null
+  evidence:
+  - type: docs
+    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/manage/product-limits.rst#L33
+    quote: '":ref:`Attachment image resolution size <end-user-guide/collaborate/share-files-in-messages:attachment limits and sizes>`", "33 MP (mega pixels) or 8K resolution", "Configurable"'
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: mattermost-0071
   anchor: symbol:go:server.channels.app.App.TeamAccessControlled:Method#f1f83877a71f4680601b5fe9514a8ff77d884e79a3f7920d3d38bcb27708cd75#1
   location: server/channels/app/team.go:951
-  draft: null
-  drafted_by: null
-  label: null
-  category: null
-  evidence: []
-  verified_by: null
+  draft:
+    label: significant
+    category: permission
+    evidence:
+    - E2
+    reason: E2 explicitly documents that disabling the TeamMembershipAccessControl flag turns off team membership ABAC enforcement while leaving channel ABAC unaffected.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: d44d137d44b74c3fcb6e381feb61eb71df025a501ca4458f8f4cfe632f1fb3c3
+  label: significant
+  category: permission
+  evidence:
+  - type: docs
+    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/manage/admin/abac-team-membership.rst#L113
+    quote: Team membership ABAC is also gated by the ``TeamMembershipAccessControl`` feature flag, which is **enabled by default** from Mattermost v11.10. Disabling it turns off team enforcement without affecting channel ABAC. See the Mattermost developer documentation for details on `feature flags in a self-hosted deployment <https://developers.mattermost.com/contribute/more-info/server/feature-flags/#self-hosted-and-local-dev
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: mattermost-0072
   anchor: symbol:go:server.channels.app.App.updateChannelMemberRolesInternal:Method#faa45c569a76ab89837da97cfc8b8399c25a13d827e5d729d96dd2509fd95023#1
   location: server/channels/app/channel.go:1498
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: validation
+    evidence:
+    - E1
+    - E8
+    reason: The check rejects explicit assignment of built-in roles that are outside channel scope. The documentation identifies the role-update operation and describes channel roles, but neither excerpt directly documents this rejection rule.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 3ecf25e7b089cff02937d1af79c238bdba0a349b6b41bea3807c8119c096b4ee
+  label: unclear
   category: null
-  evidence: []
-  verified_by: null
+  evidence:
+  - type: docs
+    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/comply/embedded-json-audit-log-schema.rst#L271
+    quote: '| ``updateChannelMemberRoles``       | Updating channel member roles                                     |'
+  - type: docs
+    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/manage/admin/abac-channel-access-rules.rst#L125
+    quote: From Mattermost v11.8.0, channel admins can define channel-level permission rules for file upload and file download based on user attributes and channel role. Applicable roles include **channel admin**, **channel member**, and **channel guest**.
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null

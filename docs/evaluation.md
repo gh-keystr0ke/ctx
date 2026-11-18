@@ -196,3 +196,10 @@ Only four of 44 top positions had decisive labels. Three were significant.
 The precision pool remains incomplete. The 15/15 quotas are unchanged.
 The reviewer found four significant points that the drafts did not propose.
 No held-out results informed this ranking change.
+
+All 23 previously unsampled tuning positions were added and reviewed.
+After this pool extension, 10 of 44 positions had decisive labels, eight
+significant and two trivial. The other 34 require stronger evidence.
+Precision@5 on rated points was 80%, with only 22.7% of positions rated.
+The 80% pool completeness gate therefore still blocks interpretation of that
+precision figure. Pool labels did not change the quota or false-positive rate.

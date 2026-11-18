@@ -9,6 +9,7 @@ pub mod claude_code;
 pub mod codex;
 pub mod context_registry;
 mod database;
+mod decisions;
 pub mod federation;
 pub mod git;
 pub mod gitlab;

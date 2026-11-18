@@ -264,6 +264,7 @@ impl SqliteStore {
                 schema_tables,
                 api_endpoints,
                 external_calls,
+                decision_points,
             } = attributes
             else {
                 continue;
@@ -286,6 +287,7 @@ impl SqliteStore {
                     schema_tables,
                     api_endpoints,
                     external_calls,
+                    decision_points,
                 });
             }
         }
@@ -1010,6 +1012,7 @@ mod tests {
                         schema_tables: Vec::new(),
                         api_endpoints: Vec::new(),
                         external_calls: Vec::new(),
+                        decision_points: Vec::new(),
                     },
                     mutation: NodeMutationKind::Create,
                 },

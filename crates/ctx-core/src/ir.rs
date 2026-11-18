@@ -10,6 +10,29 @@ pub struct SourceRange {
     pub end_line: usize,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DecisionKind {
+    Branch,
+    Guard,
+    LiteralReturn,
+    DefaultValue,
+    ErrorHandling,
+    MatchArm,
+    Constant,
+}
+
+/// Syntax evidence relative to the enclosing symbol.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct DecisionPoint {
+    pub kind: DecisionKind,
+    pub fingerprint: String,
+    pub range: SourceRange,
+    pub condition: String,
+    pub regions: Vec<SourceRange>,
+    pub routine: bool,
+}
+
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SymbolKind {
@@ -330,6 +353,8 @@ pub struct SymbolDefinition {
     pub api_endpoints: Vec<ApiEndpoint>,
     #[serde(default)]
     pub external_calls: Vec<ExternalCall>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub decision_points: Vec<DecisionPoint>,
 }
 
 /// Language-neutral analysis for one complete source file version.

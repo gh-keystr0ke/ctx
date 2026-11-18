@@ -11,3 +11,9 @@ decision: >
   through moves. A changed fingerprint requires review, and ambiguous matches
   are reported explicitly. Rank points using deterministic condition and
   consequence signals, with conservative suppression of routine checks.
+implementation:
+  - symbol: ctx_core.ir.DecisionPoint
+  - symbol: ctx_adapters.decisions.extract
+tests:
+  - symbol: ctx_adapters.decisions.tests.extracts_guards_in_each_language_and_their_skipped_regions
+  - symbol: ctx_adapters.decisions.tests.ignores_line_offsets_and_whitespace_in_fingerprints

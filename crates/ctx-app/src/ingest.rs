@@ -1312,6 +1312,7 @@ mod tests {
                     schema_tables: Vec::new(),
                     api_endpoints: Vec::new(),
                     external_calls: Vec::new(),
+                    decision_points: Vec::new(),
                 },
             }
         }
@@ -1383,6 +1384,7 @@ mod tests {
                     schema_tables: Vec::new(),
                     api_endpoints: Vec::new(),
                     external_calls: Vec::new(),
+                    decision_points: Vec::new(),
                 },
             }
         }

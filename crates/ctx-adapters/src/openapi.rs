@@ -275,6 +275,7 @@ fn operation_symbol(namespace: &str, endpoint: ApiEndpoint) -> SymbolDefinition 
         schema_tables: Vec::new(),
         api_endpoints: vec![endpoint],
         external_calls: Vec::new(),
+        decision_points: Vec::new(),
     }
 }
 

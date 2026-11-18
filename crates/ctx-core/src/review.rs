@@ -1581,6 +1581,7 @@ mod tests {
             schema_tables: Vec::new(),
             api_endpoints: Vec::new(),
             external_calls: Vec::new(),
+            decision_points: Vec::new(),
         };
         let moved_in = SymbolDefinition {
             canonical_path: "billing.cancellation.SubscriptionService.cancel".to_owned(),
@@ -1749,6 +1750,7 @@ mod tests {
             schema_tables: Vec::new(),
             api_endpoints: Vec::new(),
             external_calls: Vec::new(),
+            decision_points: Vec::new(),
         };
         let after = SymbolDefinition {
             body_hash: "new-body".to_owned(),
@@ -1939,6 +1941,7 @@ mod tests {
             schema_tables: Vec::new(),
             api_endpoints: Vec::new(),
             external_calls: Vec::new(),
+            decision_points: Vec::new(),
         }
     }
 
@@ -1980,6 +1983,7 @@ mod tests {
                 schema_tables: Vec::new(),
                 api_endpoints: Vec::new(),
                 external_calls: Vec::new(),
+                decision_points: Vec::new(),
             },
         }
     }

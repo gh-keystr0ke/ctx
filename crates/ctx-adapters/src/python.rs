@@ -77,7 +77,7 @@ impl PythonAnalyzer {
         Ok(FileAnalysis {
             path: relative_path.to_owned(),
             language: "python".to_owned(),
-            analysis_version: "python-tree-sitter-v9".to_owned(),
+            analysis_version: "python-tree-sitter-v10".to_owned(),
             content_hash: blake3::hash(source.as_bytes()).to_hex().to_string(),
             symbols,
         })
@@ -270,7 +270,7 @@ fn type_position(source: &str, byte: usize, row: usize) -> TypePosition {
 
 impl LanguageAnalyzer for PythonAnalyzer {
     fn analysis_version(&self, _relative_path: &str) -> Result<String, PortError> {
-        Ok("python-tree-sitter-v9".to_owned())
+        Ok("python-tree-sitter-v10".to_owned())
     }
 
     fn analyze(&self, relative_path: &str) -> Result<FileAnalysis, PortError> {
@@ -1679,6 +1679,11 @@ fn parse_definition(
         schema_tables,
         api_endpoints,
         external_calls,
+        decision_points: if is_class {
+            Vec::new()
+        } else {
+            crate::decisions::extract(node, source)
+        },
     })
 }
 
@@ -2469,7 +2474,7 @@ def access():
 "#;
         let analysis =
             PythonAnalyzer::analyze_source("src/app/service.py", source).expect("import aliases");
-        assert_eq!(analysis.analysis_version, "python-tree-sitter-v9");
+        assert_eq!(analysis.analysis_version, "python-tree-sitter-v10");
         let access = analysis
             .symbols
             .iter()

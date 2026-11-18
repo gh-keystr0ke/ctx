@@ -78,7 +78,7 @@ impl GoAnalyzer {
         Ok(FileAnalysis {
             path: relative_path.to_owned(),
             language: "go".to_owned(),
-            analysis_version: "go-tree-sitter-v1".to_owned(),
+            analysis_version: "go-tree-sitter-v2".to_owned(),
             content_hash: blake3::hash(source.as_bytes()).to_hex().to_string(),
             symbols,
         })
@@ -87,7 +87,7 @@ impl GoAnalyzer {
 
 impl LanguageAnalyzer for GoAnalyzer {
     fn analysis_version(&self, _relative_path: &str) -> Result<String, PortError> {
-        Ok("go-tree-sitter-v1".to_owned())
+        Ok("go-tree-sitter-v2".to_owned())
     }
 
     fn analyze(&self, relative_path: &str) -> Result<FileAnalysis, PortError> {
@@ -197,6 +197,7 @@ fn collect_type_specs(
             schema_tables: Vec::new(),
             api_endpoints: Vec::new(),
             external_calls: Vec::new(),
+            decision_points: Vec::new(),
         });
     }
 }
@@ -232,6 +233,7 @@ fn collect_value_specs(
                 schema_tables: Vec::new(),
                 api_endpoints: Vec::new(),
                 external_calls: Vec::new(),
+                decision_points: crate::decisions::extract(spec, source),
             });
         }
     }
@@ -293,6 +295,7 @@ fn parse_function(
         schema_tables: Vec::new(),
         api_endpoints: Vec::new(),
         external_calls: Vec::new(),
+        decision_points: crate::decisions::extract(node, source),
     })
 }
 

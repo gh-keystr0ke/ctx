@@ -34,6 +34,8 @@ pub struct IndexedSymbol {
     pub api_endpoints: Vec<ApiEndpoint>,
     #[serde(default)]
     pub external_calls: Vec<ExternalCall>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub decision_points: Vec<crate::ir::DecisionPoint>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -185,6 +187,8 @@ pub enum PlannedNodeAttributes {
         api_endpoints: Vec<ApiEndpoint>,
         #[serde(default)]
         external_calls: Vec<ExternalCall>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        decision_points: Vec<crate::ir::DecisionPoint>,
     },
     ApiEndpoint {
         endpoint: ApiEndpoint,
@@ -536,6 +540,7 @@ fn write_symbol(
             schema_tables: definition.schema_tables.clone(),
             api_endpoints: definition.api_endpoints.clone(),
             external_calls: definition.external_calls.clone(),
+            decision_points: definition.decision_points.clone(),
         },
         mutation,
     });
@@ -557,6 +562,7 @@ fn write_symbol(
         schema_tables: definition.schema_tables.clone(),
         api_endpoints: definition.api_endpoints.clone(),
         external_calls: definition.external_calls.clone(),
+        decision_points: definition.decision_points.clone(),
     });
     plan.edges_to_create.push(structural_edge(
         file_key,
@@ -1407,6 +1413,7 @@ mod tests {
             schema_tables: Vec::new(),
             api_endpoints: Vec::new(),
             external_calls: Vec::new(),
+            decision_points: Vec::new(),
         }
     }
 
@@ -1484,6 +1491,7 @@ mod tests {
                 schema_tables: definition.schema_tables.clone(),
                 api_endpoints: definition.api_endpoints.clone(),
                 external_calls: definition.external_calls.clone(),
+                decision_points: definition.decision_points.clone(),
             }],
         }
     }

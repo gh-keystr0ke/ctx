@@ -77,7 +77,7 @@ impl RustAnalyzer {
         Ok(FileAnalysis {
             path: relative_path.to_owned(),
             language: "rust".to_owned(),
-            analysis_version: "rust-tree-sitter-v3".to_owned(),
+            analysis_version: "rust-tree-sitter-v4".to_owned(),
             content_hash: blake3::hash(source.as_bytes()).to_hex().to_string(),
             symbols,
         })
@@ -86,7 +86,7 @@ impl RustAnalyzer {
 
 impl LanguageAnalyzer for RustAnalyzer {
     fn analysis_version(&self, _relative_path: &str) -> Result<String, PortError> {
-        Ok("rust-tree-sitter-v3".to_owned())
+        Ok("rust-tree-sitter-v4".to_owned())
     }
 
     fn analyze(&self, relative_path: &str) -> Result<FileAnalysis, PortError> {
@@ -241,6 +241,11 @@ fn parse_named_item(
         schema_tables: Vec::new(),
         api_endpoints: Vec::new(),
         external_calls: Vec::new(),
+        decision_points: if kind == SymbolKind::Constant {
+            crate::decisions::extract(node, source)
+        } else {
+            Vec::new()
+        },
     })
 }
 
@@ -278,6 +283,7 @@ fn parse_function(
         schema_tables: Vec::new(),
         api_endpoints: Vec::new(),
         external_calls: Vec::new(),
+        decision_points: crate::decisions::extract(node, source),
     })
 }
 
@@ -312,6 +318,7 @@ fn parse_function_signature(
         schema_tables: Vec::new(),
         api_endpoints: Vec::new(),
         external_calls: Vec::new(),
+        decision_points: Vec::new(),
     })
 }
 

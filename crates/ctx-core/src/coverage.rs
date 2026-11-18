@@ -30,6 +30,7 @@ pub const RANKING_VERSION: &str = RankingVersion::Current.name();
 #[derive(Clone, Copy, Eq, PartialEq)]
 pub enum RankingVersion {
     Initial,
+    Previous,
     Current,
 }
 
@@ -38,7 +39,8 @@ impl RankingVersion {
     pub const fn name(self) -> &'static str {
         match self {
             Self::Initial => "v0",
-            Self::Current => "v1",
+            Self::Previous => "v1",
+            Self::Current => "v2",
         }
     }
 }
@@ -131,6 +133,7 @@ pub fn analyze_with_ranking(
             *ordinal += 1;
             let contributions = ranker.contributions(symbol, point, mapped.is_some(), version);
             let score = contributions.values().sum();
+            let ask = asks_question(point, version, score, &contributions);
             decisions.push(RankedDecision {
                 anchor: DecisionAnchor {
                     symbol: symbol.stable_key.clone(),
@@ -143,9 +146,7 @@ pub fn analyze_with_ranking(
                 range: point.range,
                 condition: point.condition.clone(),
                 score,
-                ask: !(point.routine
-                    || version == RankingVersion::Current && point.routine_extended)
-                    && score >= 4,
+                ask,
                 contributions,
                 effects: ranking::evidence(symbol, point, version),
             });
@@ -165,6 +166,24 @@ pub fn analyze_with_ranking(
         mapped_intents,
         decisions,
     }
+}
+
+fn asks_question(
+    point: &crate::ir::DecisionPoint,
+    version: RankingVersion,
+    score: i64,
+    contributions: &BTreeMap<&str, i64>,
+) -> bool {
+    let routine = point.routine || (version != RankingVersion::Initial && point.routine_extended);
+    let corroborated = [
+        "condition",
+        "direct_effects",
+        "external_sdk_calls",
+        "entrypoint_reach",
+    ]
+    .iter()
+    .any(|signal| contributions.contains_key(signal));
+    !routine && score >= 4 && (version != RankingVersion::Current || corroborated)
 }
 
 #[allow(clippy::cast_precision_loss)]
@@ -236,4 +255,30 @@ fn is_current_anchor(graph: &GraphSnapshot, anchor: &DecisionAnchor) -> bool {
             false
         }
     })
+}
+
+#[cfg(test)]
+mod ranking_tests {
+    use super::*;
+    use crate::ir::DecisionPoint;
+
+    #[test]
+    fn downstream_call_count_alone_does_not_trigger_a_question() {
+        let point = DecisionPoint {
+            kind: DecisionKind::Guard,
+            fingerprint: String::new(),
+            range: SourceRange::default(),
+            condition: String::new(),
+            regions: Vec::new(),
+            routine: false,
+            routine_extended: false,
+            controlled_calls: Vec::new(),
+            sdk_calls: Vec::new(),
+        };
+        let mut signals = BTreeMap::from([("downstream_calls", 8), ("decision_shape", 1)]);
+        assert!(asks_question(&point, RankingVersion::Previous, 9, &signals));
+        assert!(!asks_question(&point, RankingVersion::Current, 9, &signals));
+        signals.insert("direct_effects", 5);
+        assert!(asks_question(&point, RankingVersion::Current, 14, &signals));
+    }
 }

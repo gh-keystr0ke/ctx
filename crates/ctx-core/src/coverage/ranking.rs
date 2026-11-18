@@ -96,7 +96,7 @@ impl<'a> Ranker<'a> {
         if reach > 0 {
             contributions.insert("entrypoint_reach", reach);
         }
-        if version == RankingVersion::Current && !point.sdk_calls.is_empty() {
+        if version != RankingVersion::Initial && !point.sdk_calls.is_empty() {
             let count = i64::try_from(point.sdk_calls.len().min(2)).unwrap_or_default();
             contributions.insert("external_sdk_calls", count * 3);
         }

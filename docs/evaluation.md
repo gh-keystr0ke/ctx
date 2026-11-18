@@ -169,3 +169,14 @@ Seven link edits exercise review, where automatic edits must stay at zero.
 The remaining edit is a confirmed move with refactoring. Safe repair missed
 that move. Keep it as a recall case and add independently classified pure
 moves and renames before interpreting the 80% target.
+
+#### Ranking v2 on tuning projects
+
+Of the 16 trivial points selected for questions by v1, 15 had downstream
+call weight. V2 requires a product-related condition, direct effect, SDK call,
+or entrypoint signal before call graph size can contribute to a question.
+The number of trivial points selected fell from 16/49 (32.7%) to 2/49 (4.1%).
+Only four of 44 top positions had decisive labels. Three were significant.
+The precision pool remains incomplete. The 15/15 quotas are unchanged.
+The reviewer found four significant points that the drafts did not propose.
+No held-out results informed this ranking change.

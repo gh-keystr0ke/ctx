@@ -115,6 +115,7 @@ fn score_project(
         .map(|point| (point.anchor.as_str(), point))
         .collect();
     let mut counts = Counts::default();
+    let mut errors = BTreeMap::new();
     for point in &project.points {
         let ranked = by_anchor
             .get(&point.anchor)
@@ -131,12 +132,16 @@ fn score_project(
             Some(Label::Trivial) => {
                 counts.trivial += 1;
                 counts.asked_trivial += usize::from(ranked.ask);
+                if ranked.ask && project.role == Role::Tuning {
+                    for feature in ranked.contributions.keys() {
+                        *errors.entry((*feature).to_owned()).or_default() += 1;
+                    }
+                }
             }
             _ => {}
         }
     }
     let mut missing = Vec::new();
-    let mut errors = BTreeMap::new();
     for anchor in top_five(project, ranked) {
         counts.top += 1;
         match labeled
@@ -144,14 +149,7 @@ fn score_project(
             .and_then(|point| point.label.filter(|_| point.verified_by.is_some()))
         {
             Some(Label::Significant) => counts.top_significant += 1,
-            Some(Label::Trivial) => {
-                counts.top_trivial += 1;
-                if project.role == Role::Tuning {
-                    for feature in by_anchor[&anchor].contributions.keys() {
-                        *errors.entry((*feature).to_owned()).or_default() += 1;
-                    }
-                }
-            }
+            Some(Label::Trivial) => counts.top_trivial += 1,
             _ => missing.push(anchor),
         }
     }

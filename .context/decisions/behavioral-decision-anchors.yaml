@@ -11,6 +11,8 @@ decision: >
   through moves. A changed fingerprint requires review, and ambiguous matches
   are reported explicitly. Rank points using deterministic condition and
   consequence signals, with conservative suppression of routine checks.
+  Call graph size requires a separate condition or consequence signal before
+  it can contribute to asking a question.
 implementation:
   - symbol: ctx_core.coverage.analyze_coverage
   - symbol: ctx_cli.coverage_command.run
@@ -18,6 +20,7 @@ implementation:
   - symbol: ctx_adapters.decisions.extract
   - symbol: ctx_adapters.decisions.sdk.attach
 tests:
+  - symbol: ctx_core.coverage.ranking_tests.downstream_call_count_alone_does_not_trigger_a_question
   - symbol: ctx_adapters.decisions.sdk.tests.distinguishes_explicit_sdk_namespaces_from_local_calls
   - symbol: ctx_adapters.decisions.tests.extracts_guards_in_each_language_and_their_skipped_regions
   - symbol: ctx_adapters.decisions.tests.ignores_line_offsets_and_whitespace_in_fingerprints

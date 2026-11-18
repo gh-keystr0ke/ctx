@@ -20,3 +20,4 @@ tests:
   - symbol: ctx_adapters.decisions.tests.extracts_guards_in_each_language_and_their_skipped_regions
   - symbol: ctx_adapters.decisions.tests.ignores_line_offsets_and_whitespace_in_fingerprints
   - symbol: crates.ctx-cli.tests.e2e.coverage_reports_structural_mappings_and_unexplained_decisions_separately
+  - symbol: ctx_adapters.rust.where_predicate_tests.analyzes_valid_dyn_predicates_without_shifting_decision_ranges

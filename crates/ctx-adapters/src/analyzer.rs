@@ -109,7 +109,10 @@ impl AnalyzerRegistry {
                 .parse(source, None)
                 .ok_or_else(|| (1, "parser did not return a syntax tree".to_owned()))?;
             let mut node = tree.root_node();
-            if node.has_error() {
+            if node.has_error()
+                && !(module.language() == "rust"
+                    && crate::rust::accepts_tree(&mut parser, &tree, source))
+            {
                 while !node.is_error() && !node.is_missing() {
                     let mut cursor = node.walk();
                     let child = node

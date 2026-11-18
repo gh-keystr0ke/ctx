@@ -57,7 +57,7 @@ impl RustAnalyzer {
         let tree = parser
             .parse(source, None)
             .ok_or_else(|| RustAnalysisError::Parse(relative_path.to_owned()))?;
-        if tree.root_node().has_error() {
+        if !accepts_tree(&mut parser, &tree, source) {
             return Err(RustAnalysisError::Syntax(relative_path.to_owned()));
         }
         let module = module_path(relative_path);
@@ -77,16 +77,65 @@ impl RustAnalyzer {
         Ok(FileAnalysis {
             path: relative_path.to_owned(),
             language: "rust".to_owned(),
-            analysis_version: "rust-tree-sitter-v4".to_owned(),
+            analysis_version: "rust-tree-sitter-v5".to_owned(),
             content_hash: blake3::hash(source.as_bytes()).to_hex().to_string(),
             symbols,
         })
     }
 }
 
+// The grammar can reject an unparenthesized dyn type at the left of a
+// where predicate. Validate the equivalent parenthesized form and keep the
+// original tree so every recorded source range still points to the file.
+pub(crate) fn accepts_tree(parser: &mut Parser, tree: &tree_sitter::Tree, source: &str) -> bool {
+    let root = tree.root_node();
+    if !root.has_error() {
+        return true;
+    }
+    let mut insertions = Vec::new();
+    if !collect_dyn_predicates(root, source, &mut insertions) || insertions.is_empty() {
+        return false;
+    }
+    insertions.sort_unstable();
+    let mut normalized = source.to_owned();
+    for (offset, character) in insertions.into_iter().rev() {
+        normalized.insert(offset, character);
+    }
+    parser
+        .parse(normalized, None)
+        .is_some_and(|tree| !tree.root_node().has_error())
+}
+
+fn collect_dyn_predicates(node: Node<'_>, source: &str, edits: &mut Vec<(usize, char)>) -> bool {
+    if !node.has_error() {
+        return true;
+    }
+    if node.is_error() || node.is_missing() {
+        let left = node
+            .next_named_sibling()
+            .filter(|next| next.kind() == "where_predicate")
+            .and_then(|next| next.child_by_field_name("left"));
+        let text = source.get(node.byte_range()).unwrap_or_default().trim();
+        if node.is_error()
+            && node
+                .parent()
+                .is_some_and(|parent| parent.kind() == "where_clause")
+            && (text == "dyn" || text.starts_with("dyn "))
+            && let Some(left) = left
+        {
+            edits.extend([(node.start_byte(), '('), (left.end_byte(), ')')]);
+            return true;
+        }
+        return false;
+    }
+    let mut cursor = node.walk();
+    node.children(&mut cursor)
+        .all(|child| collect_dyn_predicates(child, source, edits))
+}
+
 impl LanguageAnalyzer for RustAnalyzer {
     fn analysis_version(&self, _relative_path: &str) -> Result<String, PortError> {
-        Ok("rust-tree-sitter-v4".to_owned())
+        Ok("rust-tree-sitter-v5".to_owned())
     }
 
     fn analyze(&self, relative_path: &str) -> Result<FileAnalysis, PortError> {
@@ -780,5 +829,23 @@ impl From<u16> for Error {
                 files.push(path);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod where_predicate_tests {
+    use super::*;
+
+    #[test]
+    fn analyzes_valid_dyn_predicates_without_shifting_decision_ranges() {
+        let source = "fn retry(attempt: u8) -> u8 where dyn Trait + Send: Bound { if attempt == 0 { return 0; } 1 }";
+        let analysis = RustAnalyzer::analyze_source("src/lib.rs", source).unwrap();
+        let point = &analysis.symbols[0].decision_points[0];
+        assert_eq!(
+            &source[point.range.start_byte..point.range.end_byte],
+            "if attempt == 0 { return 0; }"
+        );
+        let invalid = source.replace("return 0;", "return @;");
+        assert!(RustAnalyzer::analyze_source("src/lib.rs", &invalid).is_err());
     }
 }

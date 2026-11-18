@@ -3727,3 +3727,65 @@ printf '%s\n' '{"class":"established","explanation":"First retry skips delay.","
     assert_eq!(report["open_candidates"], 0);
     assert_eq!(run_ctx(root, env, args)["results"], json!([]));
 }
+
+#[test]
+fn coverage_ask_preserves_dispositions_and_stages_anchored_knowledge() {
+    let repository = MixedLanguageRepository::new();
+    repository.ctx(&["init"]);
+    let root = repository.root();
+    fs::write(
+        root.join("src/app.py"),
+        "def retry(attempt):\n    if attempt == 0:\n        return None\n    if attempt == 1:\n        return 1\n    return 2\n",
+    ).unwrap();
+    run_git(root, &["add", "src"]);
+    run_git(root, &["commit", "-qm", "introduce retry"]);
+    repository.ctx(&["index"]);
+
+    let ask = |answers: &str| {
+        use std::{io::Write as _, process::Stdio};
+        let mut child = Command::new(env!("CARGO_BIN_EXE_ctx"))
+            .current_dir(root)
+            .args(["--json", "coverage", "--symbol", "app.retry", "ask"])
+            .stdin(Stdio::piped())
+            .stderr(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap();
+        child
+            .stdin
+            .take()
+            .unwrap()
+            .write_all(answers.as_bytes())
+            .unwrap();
+        let output = child.wait_with_output().unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        serde_json::from_slice::<Value>(&output.stdout).unwrap()
+    };
+    let report =
+        ask("unknown\nanswer The scheduler retries after one second on the second attempt.\n");
+    assert_eq!(report["answers"][0]["state"], "unknown");
+    assert_eq!(report["answers"][1]["state"], "asked");
+    assert_eq!(ask("")["answers"], json!([]));
+
+    let pending = repository.ctx(&["verify", "--knowledge"]);
+    let fingerprint = pending[0]["fingerprint"].as_str().unwrap();
+    assert_eq!(pending[0]["anchors"][0], report["answers"][1]["anchor"]);
+    repository.ctx(&[
+        "verify",
+        "--knowledge",
+        "--accept",
+        fingerprint,
+        "--id",
+        "INV-RETRY",
+    ]);
+    run_git(root, &["add", ".context"]);
+    run_git(root, &["commit", "-qm", "accept knowledge"]);
+    repository.ctx(&["index"]);
+    let coverage = repository.ctx(&["coverage", "--symbol", "app.retry"]);
+    assert_eq!(coverage["behavioral"]["counts"]["unknown"], 1);
+    assert_eq!(coverage["behavioral"]["counts"]["explained"], 1);
+}

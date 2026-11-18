@@ -51,6 +51,8 @@ pub struct KnowledgeCandidate {
     /// this grounding for `implementation_candidates`/`test_candidates`.
     pub implementation_candidates: Vec<String>,
     pub test_candidates: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub anchors: Vec<crate::coverage::DecisionAnchor>,
     pub provenance: AgentProvenance,
 }
 
@@ -213,6 +215,7 @@ mod tests {
             evidence: Vec::new(),
             implementation_candidates: Vec::new(),
             test_candidates: Vec::new(),
+            anchors: Vec::new(),
             provenance: AgentProvenance {
                 producer: "test".to_owned(),
                 model: None,

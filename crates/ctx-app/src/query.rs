@@ -406,6 +406,7 @@ mod tests {
                 evidence: Vec::new(),
                 implementation_candidates: Vec::new(),
                 test_candidates: Vec::new(),
+                anchors: Vec::new(),
                 provenance: AgentProvenance {
                     producer: "claude-code".to_owned(),
                     model: Some("claude-sonnet-5".to_owned()),

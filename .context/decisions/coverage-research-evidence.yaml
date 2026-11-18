@@ -17,7 +17,9 @@ implementation:
   - symbol: ctx_adapters.agent_registry.ConfiguredAgent
   - symbol: ctx_core.coverage.research.ResearchInput.validate
   - symbol: ctx_cli.coverage_command.research.run
+  - symbol: ctx_cli.coverage_command.ask.ask
 tests:
+  - symbol: crates.ctx-cli.tests.e2e.coverage_ask_preserves_dispositions_and_stages_anchored_knowledge
   - symbol: crates.ctx-cli.tests.e2e.coverage_research_uses_a_current_assertion_and_handles_agent_failure
   - symbol: ctx_core.coverage.research.tests.rejects_unverified_citations_and_downgrades_test_only_explanations
   - symbol: ctx_adapters.agent_registry.tests.records_failed_requests_without_prompt_contents

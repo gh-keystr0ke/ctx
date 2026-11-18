@@ -1,12 +1,16 @@
+mod ask;
 mod research;
 
 use std::{collections::BTreeSet, path::Path};
 
 use clap::{Args, Subcommand};
 use ctx_adapters::{coverage_store::CoverageStore, git::GitRepo};
-use ctx_app::ports::{GitRepository, GraphStore, ReviewRepository};
+use ctx_app::{
+    ports::{GitRepository, GraphStore, ReviewRepository},
+    status::IndexFreshness,
+};
 use ctx_core::{
-    coverage::{GapState, analyze_coverage, gap_report, structural_mappings},
+    coverage::{Coverage, GapReport, GapState, analyze_coverage, gap_report, structural_mappings},
     domain::StableKey,
     graph::GraphSnapshot,
     indexing::{FileChange, PlannedNodeAttributes},
@@ -37,6 +41,8 @@ pub(crate) struct Options {
 enum Action {
     /// Investigate selected gaps with an explicitly chosen CLI agent.
     Research(research::ResearchOptions),
+    /// Ask the developer about unresolved decision points.
+    Ask(ask::AskOptions),
 }
 
 pub(crate) fn run(cli: &Cli, git: &GitRepo, options: &Options) -> Result<(), CliError> {
@@ -46,33 +52,47 @@ pub(crate) fn run(cli: &Cli, git: &GitRepo, options: &Options) -> Result<(), Cli
     let changed = changed_paths(git, options.base.as_deref())?;
     let scoped = scope(&graph, options, changed.as_ref());
     let report = analyze_coverage(&graph, &scoped);
-    let analyzed_files: BTreeSet<_> = graph
-        .nodes
-        .values()
-        .filter_map(|node| {
-            if let PlannedNodeAttributes::File { path, .. } = &node.attributes {
-                Some(path.as_str())
-            } else {
-                None
-            }
-        })
-        .collect();
-    let unanalyzed: Vec<_> = git
-        .all_source_files()?
-        .into_iter()
-        .filter(|path| matches_path(path, options, changed.as_ref()))
-        .filter(|path| !analyzed_files.contains(path.as_str()))
-        .collect();
     let records = CoverageStore::new(git.context_root()).read()?;
     let gaps = gap_report(&graph, &report.decisions, &records, &scoped);
-    if let Some(Action::Research(options)) = &options.action {
+    if let Some(action) = &options.action {
         let commit = freshness
             .commit
             .as_ref()
             .filter(|commit| *commit == &freshness.head)
-            .ok_or_else(|| std::io::Error::other("index HEAD before researching coverage"))?;
-        return research::run(cli, git, &graph, &gaps, commit.as_str(), options);
+            .ok_or_else(|| std::io::Error::other("index HEAD before changing coverage state"))?;
+        match action {
+            Action::Research(options) => {
+                return research::run(cli, git, &graph, &gaps, commit.as_str(), options);
+            }
+            Action::Ask(options) => {
+                if let Some(agent) = &options.agent {
+                    research::research_gaps(
+                        cli,
+                        git,
+                        &graph,
+                        &gaps,
+                        commit.as_str(),
+                        &research::ResearchOptions::for_ask(agent),
+                    )?;
+                }
+                let records = CoverageStore::new(git.context_root()).read()?;
+                let gaps = gap_report(&graph, &report.decisions, &records, &scoped);
+                return ask::ask(cli, git, &graph, &gaps, commit.as_str(), options);
+            }
+        }
     }
+    let unanalyzed = unanalyzed_paths(git, &graph, options, changed.as_ref())?;
+    print_report(cli, options, &freshness, &report, &gaps, &unanalyzed)
+}
+
+fn print_report(
+    cli: &Cli,
+    options: &Options,
+    freshness: &IndexFreshness,
+    report: &Coverage,
+    gaps: &GapReport<'_>,
+    unanalyzed: &[String],
+) -> Result<(), CliError> {
     let actionable = |state| matches!(state, GapState::Open | GapState::Reopened | GapState::Asked);
     let open_candidates = gaps.gaps.iter().filter(|gap| actionable(gap.state)).count();
     if cli.json {
@@ -125,6 +145,31 @@ pub(crate) fn run(cli: &Cli, git: &GitRepo, options: &Options) -> Result<(), Cli
         }
     }
     Ok(())
+}
+
+fn unanalyzed_paths(
+    git: &GitRepo,
+    graph: &GraphSnapshot,
+    options: &Options,
+    changed: Option<&BTreeSet<String>>,
+) -> Result<Vec<String>, CliError> {
+    let analyzed_files: BTreeSet<_> = graph
+        .nodes
+        .values()
+        .filter_map(|node| {
+            if let PlannedNodeAttributes::File { path, .. } = &node.attributes {
+                Some(path.as_str())
+            } else {
+                None
+            }
+        })
+        .collect();
+    Ok(git
+        .all_source_files()?
+        .into_iter()
+        .filter(|path| matches_path(path, options, changed))
+        .filter(|path| !analyzed_files.contains(path.as_str()))
+        .collect())
 }
 
 fn changed_paths(git: &GitRepo, base: Option<&str>) -> Result<Option<BTreeSet<String>>, CliError> {

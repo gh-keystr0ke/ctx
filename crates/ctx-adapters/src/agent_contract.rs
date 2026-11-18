@@ -551,6 +551,7 @@ fn to_outcome(
                 return None;
             }
             Some(KnowledgeCandidate {
+                anchors: Vec::new(),
                 fingerprint: KnowledgeCandidate::fingerprint_for(
                     candidate.kind,
                     &candidate.statement,
@@ -1366,6 +1367,7 @@ mod tests {
             }],
             implementation_candidates: Vec::new(),
             test_candidates: Vec::new(),
+            anchors: Vec::new(),
             provenance: AgentProvenance {
                 producer: "test-agent".to_owned(),
                 model: None,

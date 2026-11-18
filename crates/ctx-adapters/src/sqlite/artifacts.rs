@@ -1302,6 +1302,7 @@ mod tests {
             }],
             implementation_candidates: vec!["SubscriptionService.cancel".to_owned()],
             test_candidates: vec!["test_cancel_preserves_access".to_owned()],
+            anchors: Vec::new(),
             provenance: AgentProvenance {
                 producer: "claude-code".to_owned(),
                 model: Some("claude-sonnet-5".to_owned()),
@@ -1344,6 +1345,7 @@ mod tests {
             }],
             implementation_candidates: Vec::new(),
             test_candidates: Vec::new(),
+            anchors: Vec::new(),
             provenance: AgentProvenance {
                 producer: "claude-code".to_owned(),
                 model: None,
@@ -1421,6 +1423,7 @@ mod tests {
             }],
             implementation_candidates: Vec::new(),
             test_candidates: Vec::new(),
+            anchors: Vec::new(),
             provenance: AgentProvenance {
                 producer: "claude-code".to_owned(),
                 model: None,

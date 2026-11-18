@@ -612,6 +612,7 @@ mod tests {
             }],
             implementation_candidates: Vec::new(),
             test_candidates: Vec::new(),
+            anchors: Vec::new(),
             provenance: AgentProvenance {
                 producer: "test".to_owned(),
                 model: None,

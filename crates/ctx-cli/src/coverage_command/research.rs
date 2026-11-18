@@ -29,6 +29,17 @@ pub(super) struct ResearchOptions {
     timeout_ms: u64,
 }
 
+impl ResearchOptions {
+    pub(super) fn for_ask(agent: &str) -> Self {
+        Self {
+            agent: agent.to_owned(),
+            model: None,
+            max_questions: 5,
+            timeout_ms: 30_000,
+        }
+    }
+}
+
 pub(super) fn run(
     cli: &Cli,
     git: &GitRepo,
@@ -37,6 +48,29 @@ pub(super) fn run(
     revision: &str,
     options: &ResearchOptions,
 ) -> Result<(), CliError> {
+    let outcomes = research_gaps(cli, git, graph, gaps, revision, options)?;
+    if cli.json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&json!({"results": outcomes}))?
+        );
+    } else {
+        println!(
+            "Coverage research attempted {} decision(s).",
+            outcomes.len()
+        );
+    }
+    Ok(())
+}
+
+pub(super) fn research_gaps(
+    cli: &Cli,
+    git: &GitRepo,
+    graph: &GraphSnapshot,
+    gaps: &GapReport<'_>,
+    revision: &str,
+    options: &ResearchOptions,
+) -> Result<Vec<serde_json::Value>, CliError> {
     let agent = ConfiguredAgent::from_name(
         &options.agent,
         options.model.clone(),
@@ -56,11 +90,40 @@ pub(super) fn run(
                 gap.state,
                 GapState::Open | GapState::Reopened | GapState::Asked
             ) && (gap.state == GapState::Reopened
-                || gap.record.is_none_or(|record| record.research.is_none()))
+                || gap.record.is_none_or(|record| {
+                    record.research.is_none()
+                        || record
+                            .note
+                            .as_deref()
+                            .is_some_and(|note| note.starts_with("additional source: "))
+                }))
         })
         .take(options.max_questions)
     {
-        let input = evidence_for(git, graph, gap.point, revision)?;
+        let mut input = evidence_for(git, graph, gap.point, revision)?;
+        if let Some(reference) = gap
+            .record
+            .and_then(|record| record.note.as_deref())
+            .and_then(|note| note.strip_prefix("additional source: "))
+        {
+            let excerpt = graph
+                .nodes
+                .values()
+                .find_map(|node| match &node.attributes {
+                    PlannedNodeAttributes::Business { id, body, .. } if id == reference => {
+                        Some(body.clone())
+                    }
+                    _ => None,
+                })
+                .or_else(|| git.source_at(revision, reference).ok().flatten());
+            add_evidence(
+                &mut input.evidence,
+                EvidenceKind::Developer,
+                reference.to_owned(),
+                excerpt.as_deref().unwrap_or(reference),
+                None,
+            );
+        }
         let judgment = match agent.research(&input) {
             Ok(judgment) => judgment,
             Err(error) => {
@@ -97,18 +160,7 @@ pub(super) fn run(
         store.record(&gap.point.file, record)?;
         outcomes.push(json!({"anchor": gap.point.anchor, "outcome": state}));
     }
-    if cli.json {
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&json!({"results": outcomes}))?
-        );
-    } else {
-        println!(
-            "Coverage research attempted {} decision(s).",
-            outcomes.len()
-        );
-    }
-    Ok(())
+    Ok(outcomes)
 }
 
 pub(super) fn evidence_for(

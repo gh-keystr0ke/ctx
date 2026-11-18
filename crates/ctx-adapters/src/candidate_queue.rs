@@ -316,6 +316,7 @@ mod tests {
             }],
             implementation_candidates: vec!["module.function".to_owned()],
             test_candidates: vec!["module.tests.covers_it".to_owned()],
+            anchors: Vec::new(),
             provenance: AgentProvenance {
                 producer: "claude-code".to_owned(),
                 model: None,

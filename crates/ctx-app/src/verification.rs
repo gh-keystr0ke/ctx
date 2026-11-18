@@ -504,7 +504,8 @@ where
         on_progress: &mut dyn FnMut(usize, usize, &CandidateCluster),
         on_result: &mut dyn FnMut(usize, usize, &[ReviewedCandidate]),
     ) -> Result<AutoVerifyReport, VerificationError> {
-        let pending = self.candidates(repository)?;
+        let mut pending = self.candidates(repository)?;
+        pending.retain(|candidate| candidate.anchors.is_empty());
         let mut report = AutoVerifyReport::default();
         if pending.is_empty() {
             return Ok(report);
@@ -696,6 +697,7 @@ where
             return Ok(CandidateOutcome::SkippedPossibleDuplicate { existing_id });
         }
         let merged = KnowledgeCandidate {
+            anchors: Vec::new(),
             fingerprint: accepted[0].fingerprint.clone(),
             kind,
             statement: merged_statement.to_owned(),
@@ -761,7 +763,7 @@ fn candidate_to_document(candidate: &KnowledgeCandidate, document_id: &str) -> B
         visibility: ctx_core::business::Visibility::Private,
         feature: None,
         implementation_expected: true,
-        anchors: Vec::new(),
+        anchors: candidate.anchors.clone(),
         implementation: to_links(&candidate.implementation_candidates),
         tests: to_links(&candidate.test_candidates),
         source_uri: String::new(),
@@ -901,6 +903,7 @@ mod knowledge_tests {
             }],
             implementation_candidates: vec!["SubscriptionService.cancel".to_owned()],
             test_candidates: Vec::new(),
+            anchors: Vec::new(),
             provenance: AgentProvenance {
                 producer: "test".to_owned(),
                 model: None,

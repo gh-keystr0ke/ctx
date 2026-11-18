@@ -12,8 +12,11 @@ decision: >
   are reported explicitly. Rank points using deterministic condition and
   consequence signals, with conservative suppression of routine checks.
 implementation:
+  - symbol: ctx_core.coverage.analyze_coverage
+  - symbol: ctx_cli.coverage_command.run
   - symbol: ctx_core.ir.DecisionPoint
   - symbol: ctx_adapters.decisions.extract
 tests:
   - symbol: ctx_adapters.decisions.tests.extracts_guards_in_each_language_and_their_skipped_regions
   - symbol: ctx_adapters.decisions.tests.ignores_line_offsets_and_whitespace_in_fingerprints
+  - symbol: crates.ctx-cli.tests.e2e.coverage_reports_structural_mappings_and_unexplained_decisions_separately

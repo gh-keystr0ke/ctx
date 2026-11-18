@@ -8,6 +8,7 @@ pub mod artifact_scope;
 pub mod business;
 pub mod codedoc;
 pub mod context_pack;
+pub mod coverage;
 pub mod domain;
 pub mod explain;
 pub mod graph;

@@ -59,6 +59,7 @@ mod agent_dispatch;
 mod agent_pacing;
 mod artifacts_command;
 mod commit_hook;
+mod coverage_command;
 mod diagnostics;
 mod federation_command;
 mod hooks_command;
@@ -156,6 +157,8 @@ enum Command {
         #[arg(long)]
         quiet: bool,
     },
+    /// Report structural coverage and ranked behavioral decisions.
+    Coverage(coverage_command::Options),
     /// Find and repair context drift.
     Repair {
         #[command(subcommand)]
@@ -663,6 +666,7 @@ fn run(cli: &Cli, git: &GitRepo) -> Result<(), CliError> {
                 index(cli, git, *from_head, *quiet)
             }
         }
+        Command::Coverage(options) => coverage_command::run(cli, git, options),
         Command::Repair { command } => repair_command::run(cli, git, command),
         Command::Check => worktree_command::check(cli, git),
         Command::Hooks { command } => hooks_command::run(cli, git, command),
@@ -727,6 +731,7 @@ impl Command {
             Self::InferTypes { .. } => "infer-types",
             Self::Status => "status",
             Self::Check => "check",
+            Self::Coverage(_) => "coverage",
             Self::Repair { .. } => "repair",
             Self::Impact { .. } => "impact",
             Self::Explain { .. } => "explain",

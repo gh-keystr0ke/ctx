@@ -10,6 +10,13 @@ pub struct SourceRange {
     pub end_line: usize,
 }
 
+impl SourceRange {
+    #[must_use]
+    pub const fn encloses(self, other: Self) -> bool {
+        self.start_byte <= other.start_byte && self.end_byte >= other.end_byte
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DecisionKind {
@@ -31,6 +38,8 @@ pub struct DecisionPoint {
     pub condition: String,
     pub regions: Vec<SourceRange>,
     pub routine: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub controlled_calls: Vec<String>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]

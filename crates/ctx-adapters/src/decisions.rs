@@ -90,6 +90,7 @@ fn decision(node: Node<'_>, source: &[u8]) -> Option<DecisionPoint> {
         condition: text.chars().take(240).collect(),
         regions,
         routine,
+        controlled_calls: Vec::new(),
     })
 }
 

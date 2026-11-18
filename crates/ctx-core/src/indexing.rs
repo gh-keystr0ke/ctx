@@ -540,7 +540,7 @@ fn write_symbol(
             schema_tables: definition.schema_tables.clone(),
             api_endpoints: definition.api_endpoints.clone(),
             external_calls: definition.external_calls.clone(),
-            decision_points: definition.decision_points.clone(),
+            decision_points: decision_points_with_calls(definition),
         },
         mutation,
     });
@@ -562,7 +562,7 @@ fn write_symbol(
         schema_tables: definition.schema_tables.clone(),
         api_endpoints: definition.api_endpoints.clone(),
         external_calls: definition.external_calls.clone(),
-        decision_points: definition.decision_points.clone(),
+        decision_points: decision_points_with_calls(definition),
     });
     plan.edges_to_create.push(structural_edge(
         file_key,
@@ -602,6 +602,26 @@ fn exact_canonical_match<'a>(
             && symbol.canonical_path == definition.canonical_path
             && symbol.kind == definition.kind
     })
+}
+
+fn decision_points_with_calls(definition: &SymbolDefinition) -> Vec<crate::ir::DecisionPoint> {
+    let mut points = definition.decision_points.clone();
+    for point in &mut points {
+        point.controlled_calls = definition
+            .calls
+            .iter()
+            .filter(|call| {
+                point
+                    .regions
+                    .iter()
+                    .any(|region| region.encloses(call.range))
+            })
+            .map(|call| call.callee.clone())
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect();
+    }
+    points
 }
 
 fn match_symbols(
@@ -1491,7 +1511,7 @@ mod tests {
                 schema_tables: definition.schema_tables.clone(),
                 api_endpoints: definition.api_endpoints.clone(),
                 external_calls: definition.external_calls.clone(),
-                decision_points: definition.decision_points.clone(),
+                decision_points: decision_points_with_calls(definition),
             }],
         }
     }

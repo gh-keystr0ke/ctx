@@ -3589,3 +3589,40 @@ fn repair_plan_distinguishes_indexed_moves_from_unproven_renames() {
         serde_json::json!([])
     );
 }
+
+#[test]
+fn coverage_reports_structural_mappings_and_unexplained_decisions_separately() {
+    let repository = MixedLanguageRepository::new();
+    repository.ctx(&["init"]);
+    let root = repository.root();
+    fs::write(
+        root.join("src/app.py"),
+        "def retry(attempt):\n    if attempt == 0:\n        return None\n    return 1\n",
+    )
+    .unwrap();
+    let context = root.join(".context/requirements");
+    fs::create_dir_all(&context).unwrap();
+    fs::write(
+        context.join("retry.yaml"),
+        "id: REQ-RETRY\nstatement: Support retries.\nimplementation:\n  - symbol: app.retry\n",
+    )
+    .unwrap();
+    run_git(root, &["add", ".context", "src"]);
+    run_git(root, &["commit", "-qm", "introduce retry"]);
+    repository.ctx(&["index"]);
+
+    let report = repository.ctx(&["coverage", "--requirement", "REQ-RETRY"]);
+    let coverage = &report["coverage"];
+    assert_eq!(coverage["mapped_symbols"], 1);
+    assert_eq!(coverage["analyzed_symbols"], 1);
+    assert_eq!(coverage["structural_percent"], 100.0);
+    assert!(report["open_candidates"].as_u64().unwrap() > 0);
+    assert_eq!(coverage["decisions"][0]["kind"], "guard");
+    assert_eq!(coverage["decisions"][0]["anchor"]["ordinal"], 1);
+    assert_eq!(
+        report,
+        repository.ctx(&["coverage", "--requirement", "REQ-RETRY"])
+    );
+    let changed = repository.ctx(&["coverage", "--base", "HEAD~1"]);
+    assert_eq!(changed["coverage"]["analyzed_symbols"], 1);
+}

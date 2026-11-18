@@ -3575,4 +3575,17 @@ fn repair_plan_distinguishes_indexed_moves_from_unproven_renames() {
     assert_eq!(plan["links"][1]["original"], "app.run");
     assert_eq!(plan["links"][1]["class"], "R4");
     assert!(plan["links"][1]["replacement"].is_null());
+
+    let applied = repository.ctx(&["repair", "apply", "--policy", "safe"]);
+    assert_eq!(applied["applied"].as_array().unwrap().len(), 1);
+    let path = root.join(".context/requirements/example.yaml");
+    let repaired = fs::read_to_string(path).unwrap();
+    assert!(repaired.contains("statement: Keep the helper."));
+    assert!(repaired.contains("# repair:identity-rename "));
+    assert!(repaired.contains("- symbol: moved.helper"));
+    assert!(repaired.contains("- symbol: app.run"));
+    assert_eq!(
+        repository.ctx(&["repair", "apply", "--policy", "safe"])["applied"],
+        serde_json::json!([])
+    );
 }

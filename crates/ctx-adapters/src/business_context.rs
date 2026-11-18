@@ -167,7 +167,7 @@ pub(crate) fn parse_context_blobs(
         .collect()
 }
 
-fn parse_document(
+pub(crate) fn parse_document(
     root: &Path,
     path: &Path,
     content: &str,

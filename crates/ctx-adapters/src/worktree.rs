@@ -22,7 +22,7 @@ use serde::Serialize;
 
 use crate::{
     analyzer::AnalyzerRegistry,
-    business_context::YamlBusinessContextReader,
+    business_context::{YamlBusinessContextReader, parse_document},
     git::GitRepo,
     local_index::{InvalidFile, LocalIndexError, LocalIndexReport},
     sqlite::SqliteStore,
@@ -186,6 +186,45 @@ impl WorktreeSnapshot {
             }
         }
         issues
+    }
+
+    /// Replaces one parsed context file in the in-memory snapshot.
+    ///
+    /// # Errors
+    /// Returns an error if the proposed document differs beyond the specified links.
+    pub fn preview_link_edits(
+        &mut self,
+        root: &std::path::Path,
+        path: &std::path::Path,
+        contents: &str,
+        replacements: &BTreeMap<&str, (&str, &str)>,
+    ) -> Result<(), std::io::Error> {
+        let parsed = parse_document(root, path, contents).map_err(std::io::Error::other)?;
+        let document = self
+            .documents
+            .iter_mut()
+            .find(|doc| doc.source_uri == parsed.source_uri)
+            .ok_or_else(|| std::io::Error::other("context document disappeared from snapshot"))?;
+        let mut expected = document.clone();
+        for (locator, (original, replacement)) in replacements {
+            let link = expected
+                .implementation
+                .iter_mut()
+                .chain(&mut expected.tests)
+                .find(|link| link.locator == *locator && link.symbol == *original)
+                .ok_or_else(|| {
+                    std::io::Error::other(format!("context link changed at {locator}"))
+                })?;
+            (*replacement).clone_into(&mut link.symbol);
+        }
+        expected.content_hash.clone_from(&parsed.content_hash);
+        if expected != parsed {
+            return Err(std::io::Error::other(
+                "repair would modify unrelated context fields",
+            ));
+        }
+        *document = parsed;
+        Ok(())
     }
 
     /// Stores a snapshot in a freshly created preview database.

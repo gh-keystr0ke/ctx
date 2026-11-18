@@ -1,10 +1,15 @@
+mod apply;
+
 use clap::{Subcommand, ValueEnum};
 use ctx_adapters::{git::GitRepo, sqlite::SqliteStore, worktree::WorktreeSnapshot};
 use ctx_app::{
     ports::{GitRepository, GraphStore},
     status::index_freshness,
 };
-use ctx_core::{domain::RepositoryId, repair::indexed_drift};
+use ctx_core::{
+    domain::RepositoryId,
+    repair::{IndexedDrift, indexed_drift},
+};
 use serde::Serialize;
 use serde_json::json;
 
@@ -12,6 +17,11 @@ use crate::{Cli, CliError, database_path};
 
 #[derive(Debug, Subcommand)]
 pub(crate) enum RepairCommand {
+    /// Apply links backed by committed identity evidence.
+    Apply {
+        #[arg(long, value_enum)]
+        policy: RepairPolicy,
+    },
     /// Inspect context drift without writing changes.
     Plan {
         /// Return an error status if the plan finds drift.
@@ -21,12 +31,20 @@ pub(crate) enum RepairCommand {
 }
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
+pub(crate) enum RepairPolicy {
+    Safe,
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
 pub(crate) enum FailOn {
     Drift,
 }
 
 pub(crate) fn run(cli: &Cli, git: &GitRepo, command: &RepairCommand) -> Result<(), CliError> {
     match command {
+        RepairCommand::Apply {
+            policy: RepairPolicy::Safe,
+        } => apply::apply(cli, git),
         RepairCommand::Plan { fail_on } => plan(cli, git, fail_on.is_some()),
     }
 }
@@ -41,7 +59,7 @@ fn plan(cli: &Cli, git: &GitRepo, fail_on_drift: bool) -> Result<(), CliError> {
     let drift = if freshness.commit.is_some() {
         indexed_drift(&store.load_graph(&repository.id)?)
     } else {
-        Default::default()
+        IndexedDrift::default()
     };
     let links = if freshness.commit.as_ref() == Some(&freshness.head) {
         link_repairs(&snapshot, &issues, &store, &repository.id)?

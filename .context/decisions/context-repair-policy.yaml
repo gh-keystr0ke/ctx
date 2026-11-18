@@ -17,6 +17,7 @@ decision: >
 implementation:
   - symbol: ctx_core.repair.indexed_drift
   - symbol: ctx_cli.repair_command.run
+  - symbol: ctx_cli.repair_command.apply.apply
   - symbol: ctx_adapters.sqlite.repair.SqliteStore.historical_symbol
 tests:
   - symbol: crates.ctx-cli.tests.e2e.repair_plan_distinguishes_indexed_moves_from_unproven_renames

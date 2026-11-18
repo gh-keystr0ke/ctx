@@ -304,6 +304,7 @@ dependencies = [
  "ctx-adapters",
  "ctx-app",
  "ctx-core",
+ "regex",
  "serde",
  "serde_json",
  "tempfile",

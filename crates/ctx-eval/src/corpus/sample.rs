@@ -23,6 +23,12 @@ use super::{
 };
 
 pub(super) fn rank(cache: &Path, project: &Project) -> Result<Vec<RankedDecision>> {
+    let graph = index(cache, project)?;
+    let symbols = graph.nodes.keys().cloned().collect();
+    Ok(analyze_coverage(&graph, &symbols).decisions)
+}
+
+pub(super) fn index(cache: &Path, project: &Project) -> Result<ctx_core::graph::GraphSnapshot> {
     let checkout = fetch::checked_out(cache, project)?;
     let git = GitRepo::discover(&checkout)?;
     let scope = SourceScope {
@@ -38,14 +44,17 @@ pub(super) fn rank(cache: &Path, project: &Project) -> Result<Vec<RankedDecision
     let result = IndexRunner::new(&scoped, &analyzer, &mut store).run(&head.authored_at)?;
     if !result.failed_files.is_empty() {
         return Err(io::Error::other(format!(
-            "could not analyze {} corpus source file(s)",
-            result.failed_files.len()
+            "could not analyze corpus source files: {}",
+            result
+                .failed_files
+                .iter()
+                .map(|file| format!("{} ({})", file.path, file.error))
+                .collect::<Vec<_>>()
+                .join(", ")
         ))
         .into());
     }
-    let graph = store.load_graph(&scoped.descriptor()?.id)?;
-    let symbols = graph.nodes.keys().cloned().collect();
-    Ok(analyze_coverage(&graph, &symbols).decisions)
+    Ok(store.load_graph(&scoped.descriptor()?.id)?)
 }
 
 pub(super) fn freeze(project: &mut Project, ranked: &[RankedDecision]) -> Result<Selection> {

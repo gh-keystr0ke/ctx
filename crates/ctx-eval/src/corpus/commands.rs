@@ -35,6 +35,17 @@ enum Command {
         #[arg(long, requires = "extend")]
         fill: bool,
     },
+    Draft {
+        project: String,
+        #[arg(long)]
+        agent: String,
+        #[arg(long)]
+        model: Option<String>,
+        #[arg(long, default_value_t = 30)]
+        max_points: usize,
+        #[arg(long, default_value_t = 30_000)]
+        timeout_ms: u64,
+    },
     Review {
         project: String,
         #[arg(long)]
@@ -76,6 +87,20 @@ impl Cli {
                 extend,
                 fill,
             } => sample_project(root, &project, extend.as_deref(), fill),
+            Command::Draft {
+                project,
+                agent,
+                model,
+                max_points,
+                timeout_ms,
+            } => super::draft::draft(
+                root,
+                &project,
+                &agent,
+                model.as_deref(),
+                max_points,
+                std::time::Duration::from_millis(timeout_ms),
+            ),
             Command::Review {
                 project,
                 reviewer,

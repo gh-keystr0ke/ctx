@@ -2,6 +2,8 @@
 
 mod agreement;
 mod check;
+mod draft;
+mod evidence;
 mod fetch;
 mod manifest;
 mod review;

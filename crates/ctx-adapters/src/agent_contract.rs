@@ -388,6 +388,23 @@ establish observed behavior. Mark suspected_divergence only with code and a conf
         .map_err(AgentContractError::InvalidJson)
 }
 
+/// Runs and decodes a single corpus labeling request.
+///
+/// # Errors
+/// Returns an error for a failed request, oversized prompt, or invalid output.
+pub fn corpus_label<T: AgentTransport, R: DeserializeOwned>(
+    transport: &T,
+    prompt: &str,
+) -> Result<R, AgentContractError> {
+    if prompt.len() > 20_000 {
+        return Err(AgentContractError::PromptBudget(
+            "corpus label limit is 20000 bytes".to_owned(),
+        ));
+    }
+    let raw = run_agent_contract(transport, "corpus label", prompt)?;
+    parse_json_response(&raw, "corpus label")
+}
+
 /// Parses the one response object matching `T` while tolerating prose and
 /// markdown fences around it. Candidate boundaries are found with a small
 /// JSON-aware scanner so braces inside quoted strings never merge or

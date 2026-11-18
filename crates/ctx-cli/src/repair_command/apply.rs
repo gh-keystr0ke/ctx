@@ -175,16 +175,15 @@ fn scalar_position(text: &str, original: &str) -> Option<(usize, usize)> {
 
 fn write_edits(edits: &[Edit]) -> io::Result<()> {
     for (index, edit) in edits.iter().enumerate() {
-        if let Err(error) = replace(&edit.path, &edit.original, &edit.patched) {
+        if let Err(error) = persist_context_edit(&edit.path, &edit.original, &edit.patched) {
             for previous in edits[..index].iter().rev() {
-                replace(&previous.path, &previous.patched, &previous.original).map_err(
-                    |rollback| {
+                persist_context_edit(&previous.path, &previous.patched, &previous.original)
+                    .map_err(|rollback| {
                         io::Error::other(format!(
                             "{error}; rollback failed on {}: {rollback}",
                             previous.path.display()
                         ))
-                    },
-                )?;
+                    })?;
             }
             return Err(error);
         }
@@ -192,7 +191,7 @@ fn write_edits(edits: &[Edit]) -> io::Result<()> {
     Ok(())
 }
 
-fn replace(path: &Path, before: &str, after: &str) -> io::Result<()> {
+fn persist_context_edit(path: &Path, before: &str, after: &str) -> io::Result<()> {
     let directory = path
         .parent()
         .ok_or_else(|| io::Error::other("missing context directory"))?;

@@ -86,6 +86,8 @@ struct RawDocument {
     #[serde(default = "default_implementation_expected")]
     implementation_expected: bool,
     #[serde(default)]
+    anchors: Vec<ctx_core::coverage::DecisionAnchor>,
+    #[serde(default)]
     implementation: Vec<RawLink>,
     #[serde(default)]
     tests: Vec<RawLink>,
@@ -244,6 +246,7 @@ fn normalize_document(
         visibility: parse_visibility(&display_path, raw.visibility.as_deref())?,
         feature: raw.feature,
         implementation_expected: raw.implementation_expected,
+        anchors: raw.anchors,
         implementation: normalize_links(raw.implementation, "implementation"),
         tests: normalize_links(raw.tests, "tests"),
         source_uri,
@@ -370,6 +373,8 @@ struct WrittenDocument<'a> {
     implementation: Vec<WrittenLink<'a>>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     tests: Vec<WrittenLink<'a>>,
+    #[serde(skip_serializing_if = "<[_]>::is_empty")]
+    anchors: &'a [ctx_core::coverage::DecisionAnchor],
 }
 
 /// Maps `document`'s single normalized `body`/`title` back onto the
@@ -402,6 +407,7 @@ fn written_document(document: &BusinessDocument) -> WrittenDocument<'_> {
     };
     WrittenDocument {
         id: &document.id,
+        anchors: &document.anchors,
         kind,
         feature: document.feature.as_deref(),
         status: &document.status,
@@ -496,6 +502,7 @@ mod tests {
             visibility: Visibility::Private,
             feature: Some("FEAT-INDEXING".to_owned()),
             implementation_expected: true,
+            anchors: Vec::new(),
             implementation: vec![ExplicitSymbolLink {
                 symbol: "billing.subscription.SubscriptionService.cancel".to_owned(),
                 locator: "implementation[0]".to_owned(),

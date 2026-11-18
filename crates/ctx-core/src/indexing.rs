@@ -206,6 +206,8 @@ pub enum PlannedNodeAttributes {
         visibility: crate::business::Visibility,
         #[serde(default = "default_implementation_expected")]
         implementation_expected: bool,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        anchors: Vec<crate::coverage::DecisionAnchor>,
         body: String,
         feature: Option<String>,
         source_uri: String,

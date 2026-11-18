@@ -145,6 +145,7 @@ fn persist_document(
         status: document.status.clone(),
         visibility: document.visibility,
         implementation_expected: document.implementation_expected,
+        anchors: document.anchors.clone(),
         body: document.body.clone(),
         feature: document.feature.clone(),
         source_uri: document.source_uri.clone(),
@@ -759,6 +760,7 @@ mod tests {
             body: "Keep access until paid_until".to_owned(),
             status: "active".to_owned(),
             implementation_expected: true,
+            anchors: Vec::new(),
             visibility: ctx_core::business::Visibility::Public,
             feature: None,
             implementation: vec![ExplicitSymbolLink {
@@ -855,6 +857,7 @@ mod tests {
             body: "Design spike, no implementation yet.".to_owned(),
             status: "accepted".to_owned(),
             implementation_expected: false,
+            anchors: Vec::new(),
             visibility: ctx_core::business::Visibility::Private,
             feature: None,
             implementation: Vec::new(),
@@ -935,6 +938,7 @@ mod tests {
             body: "Keep access until paid_until".to_owned(),
             status: "active".to_owned(),
             implementation_expected: true,
+            anchors: Vec::new(),
             visibility: ctx_core::business::Visibility::Private,
             feature: None,
             implementation: vec![ExplicitSymbolLink {

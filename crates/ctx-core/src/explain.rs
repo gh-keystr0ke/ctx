@@ -297,6 +297,7 @@ mod tests {
                 status: "active".to_owned(),
                 visibility: crate::business::Visibility::Private,
                 implementation_expected: true,
+                anchors: Vec::new(),
                 body: "body".to_owned(),
                 feature: None,
                 source_uri: "context.yaml".to_owned(),

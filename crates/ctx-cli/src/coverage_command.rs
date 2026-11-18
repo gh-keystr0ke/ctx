@@ -1,10 +1,10 @@
 use std::{collections::BTreeSet, path::Path};
 
 use clap::Args;
-use ctx_adapters::git::GitRepo;
+use ctx_adapters::{coverage_store::CoverageStore, git::GitRepo};
 use ctx_app::ports::{GitRepository, GraphStore, ReviewRepository};
 use ctx_core::{
-    coverage::{analyze_coverage, structural_mappings},
+    coverage::{GapState, analyze_coverage, gap_report, structural_mappings},
     domain::StableKey,
     graph::GraphSnapshot,
     indexing::{FileChange, PlannedNodeAttributes},
@@ -53,7 +53,10 @@ pub(crate) fn run(cli: &Cli, git: &GitRepo, options: &Options) -> Result<(), Cli
         .filter(|path| matches_path(path, options, changed.as_ref()))
         .filter(|path| !analyzed_files.contains(path.as_str()))
         .collect();
-    let open_candidates = report.decisions.iter().filter(|point| point.ask).count();
+    let records = CoverageStore::new(git.context_root()).read()?;
+    let gaps = gap_report(&graph, &report.decisions, &records, &scoped);
+    let actionable = |state| matches!(state, GapState::Open | GapState::Reopened | GapState::Asked);
+    let open_candidates = gaps.gaps.iter().filter(|gap| actionable(gap.state)).count();
     if cli.json {
         println!(
             "{}",
@@ -66,6 +69,7 @@ pub(crate) fn run(cli: &Cli, git: &GitRepo, options: &Options) -> Result<(), Cli
                 },
                 "index": freshness,
                 "coverage": report,
+                "behavioral": gaps,
                 "open_candidates": open_candidates,
                 "unanalyzed_paths": unanalyzed,
             }))?
@@ -86,7 +90,13 @@ pub(crate) fn run(cli: &Cli, git: &GitRepo, options: &Options) -> Result<(), Cli
             report.decisions.len(),
             open_candidates
         );
-        for point in report.decisions.iter().filter(|point| point.ask).take(10) {
+        for gap in gaps
+            .gaps
+            .iter()
+            .filter(|gap| actionable(gap.state))
+            .take(10)
+        {
+            let point = gap.point;
             println!(
                 "{}:{} {} ({})",
                 point.file, point.range.start_line, point.condition, point.score

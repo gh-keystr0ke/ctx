@@ -442,6 +442,7 @@ mod stale_claim_tests {
             body: "Keep access until paid_until".to_owned(),
             status: "active".to_owned(),
             implementation_expected: true,
+            anchors: Vec::new(),
             visibility: Visibility::Public,
             feature: None,
             implementation: vec![ExplicitSymbolLink {

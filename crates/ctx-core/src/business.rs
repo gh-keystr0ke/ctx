@@ -89,6 +89,8 @@ pub struct BusinessDocument {
     /// document already is (PR-MAP-003). Defaults to `true`: absence never
     /// silently exempts a document from the mapping requirement.
     pub implementation_expected: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub anchors: Vec<crate::coverage::DecisionAnchor>,
     pub implementation: Vec<ExplicitSymbolLink>,
     pub tests: Vec<ExplicitSymbolLink>,
     pub source_uri: String,

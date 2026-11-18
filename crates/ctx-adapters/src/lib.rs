@@ -8,6 +8,7 @@ mod candidate_queue;
 pub mod claude_code;
 pub mod codex;
 pub mod context_registry;
+pub mod coverage_store;
 mod database;
 mod decisions;
 pub mod federation;

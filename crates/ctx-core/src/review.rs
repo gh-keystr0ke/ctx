@@ -1999,6 +1999,7 @@ mod tests {
                 status: "active".to_owned(),
                 visibility: crate::business::Visibility::Private,
                 implementation_expected: true,
+                anchors: Vec::new(),
                 body: "Keep paid access".to_owned(),
                 feature: None,
                 source_uri: "requirement.yaml".to_owned(),

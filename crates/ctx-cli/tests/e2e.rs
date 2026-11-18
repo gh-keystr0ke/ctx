@@ -3626,3 +3626,48 @@ fn coverage_reports_structural_mappings_and_unexplained_decisions_separately() {
     let changed = repository.ctx(&["coverage", "--base", "HEAD~1"]);
     assert_eq!(changed["coverage"]["analyzed_symbols"], 1);
 }
+
+#[test]
+fn coverage_distinguishes_explicit_explanations_from_stale_anchors() {
+    let repository = MixedLanguageRepository::new();
+    repository.ctx(&["init"]);
+    let root = repository.root();
+    let source = root.join("src/app.py");
+    fs::write(
+        &source,
+        "def retry(attempt):\n    if attempt == 0:\n        return None\n    return 1\n",
+    )
+    .unwrap();
+    run_git(root, &["add", "src"]);
+    run_git(root, &["commit", "-qm", "introduce retry"]);
+    repository.ctx(&["index"]);
+    let report = repository.ctx(&["coverage", "--symbol", "app.retry"]);
+    let anchor = &report["coverage"]["decisions"][0]["anchor"];
+    let context = root.join(".context/invariants");
+    fs::create_dir_all(&context).unwrap();
+    fs::write(
+        context.join("retry.yaml"),
+        format!("id: INV-RETRY\nstatement: The scheduler skips delay on the first attempt.\nanchors: [{anchor}]\n"),
+    ).unwrap();
+    run_git(root, &["add", ".context"]);
+    run_git(root, &["commit", "-qm", "explain retry guard"]);
+    repository.ctx(&["index"]);
+    let report = repository.ctx(&["coverage", "--symbol", "app.retry"]);
+    assert_eq!(report["behavioral"]["gaps"][0]["state"], "explained");
+    assert_eq!(
+        report["behavioral"]["gaps"][0]["document"]["id"],
+        "INV-RETRY"
+    );
+
+    fs::write(
+        source,
+        "def retry(attempt):\n    if attempt == 1:\n        return None\n    return 1\n",
+    )
+    .unwrap();
+    run_git(root, &["add", "src"]);
+    run_git(root, &["commit", "-qm", "change retry guard"]);
+    repository.ctx(&["index"]);
+    let report = repository.ctx(&["coverage", "--symbol", "app.retry"]);
+    assert_eq!(report["behavioral"]["gaps"][0]["state"], "reopened");
+    assert_eq!(report["behavioral"]["stale_anchors"][0], *anchor);
+}

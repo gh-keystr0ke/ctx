@@ -339,6 +339,7 @@ mod tests {
                 status: "active".to_owned(),
                 visibility: ctx_core::business::Visibility::Private,
                 implementation_expected: true,
+                anchors: Vec::new(),
                 body: "Cancellation preserves paid access.".to_owned(),
                 feature: None,
                 source_uri: "requirement.yaml".to_owned(),

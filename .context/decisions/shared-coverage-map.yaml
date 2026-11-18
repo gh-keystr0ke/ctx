@@ -12,3 +12,10 @@ decision: >
   considered point when its fingerprint or associated knowledge changes.
   Structural coverage reports its numerator and denominator. Behavioral
   coverage reports point counts and states. MCP coverage queries are read-only.
+implementation:
+  - symbol: ctx_core.coverage.state.gap_report
+  - symbol: ctx_adapters.coverage_store.CoverageStore.record
+  - symbol: ctx_cli.coverage_command.run
+tests:
+  - symbol: ctx_adapters.coverage_store.tests.persists_sorted_records_and_updates_one_anchor
+  - symbol: crates.ctx-cli.tests.e2e.coverage_distinguishes_explicit_explanations_from_stale_anchors

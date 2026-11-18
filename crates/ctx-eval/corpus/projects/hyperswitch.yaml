@@ -728,13 +728,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 221bfd0be64806c660d2af8676a1a69f9fad0a8bf54b58b2b747211001d4507b
-  label: unclear
-  category: null
-  evidence: []
+  label: significant
+  category: retry
+  evidence:
+  - type: docs
+    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/integration-guide/workflows/smart-retries/README.md#L43
+    quote: "3. Merchant needs to specify N = Number of retries permitted"
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: The GSM retry branch checks the remaining retry budget before trying another connector.
 - id: hyperswitch-0034
   anchor: symbol:rust:router.core.payments.operations.payment_response.PaymentResponse.PostUpdateTracker<F,PaymentData<F>,types::PaymentsIncrementalAuthorizationData>.update_tracker:Method#bbc5f56567afb65fa5906e522dd41d824d60244e307c90578914bf6a50c469c8#1
   location: crates/router/src/core/payments/operations/payment_response.rs:1249
@@ -1215,13 +1218,16 @@ points:
     evidence: []
     reason: agent response was unavailable or invalid
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
+  label: significant
+  category: retry
+  evidence:
+  - type: docs
+    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/integration-guide/workflows/smart-retries/3ds-step-up-retries.md#L14
+    quote: "we seamlessly step up the authentication and attempt the payment again with same payment processor"
   verified_by: codex-work
   second_label: unclear
   second_by: codex-work-second
-  note: null
+  note: The step-up branch retries an eligible non-3DS payment with 3DS on the same processor.
 - id: hyperswitch-0058
   anchor: symbol:rust:router.core.payments.operations.payment_session.PaymentSession.GetTracker<F,PaymentData<F>,api::PaymentsSessionRequest>.get_trackers:Method#f72ded31cc1db04b996f09e6db34cb5c80f3b3023d562e2a4266beecf90ca09e#1
   location: crates/router/src/core/payments/operations/payment_session.rs:75

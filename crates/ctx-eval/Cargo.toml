@@ -5,10 +5,15 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 publish = false
+default-run = "ctx-eval"
 
 [[bin]]
 name = "ctx-eval"
 path = "src/main.rs"
+
+[[bin]]
+name = "ctx-corpus"
+path = "src/bin/ctx-corpus.rs"
 
 [dependencies]
 chrono.workspace = true
@@ -19,6 +24,7 @@ serde.workspace = true
 serde_json.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
+yaml_serde.workspace = true
 
 [lints]
 workspace = true

@@ -7,6 +7,7 @@
 //! reporting a vanity pass count.
 
 pub mod cases;
+pub mod corpus;
 pub mod harness;
 pub mod report;
 pub mod runner;

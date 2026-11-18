@@ -44,6 +44,7 @@ jobs:
           summary="${summary//$'\n'/%0A}"
           echo "::error title=cargo test failure::$summary"
       - run: cargo run --locked -p ctx-eval
+      - run: cargo run --locked -p ctx-eval --bin ctx-corpus -- check
 
   msrv:
     runs-on: ubuntu-latest

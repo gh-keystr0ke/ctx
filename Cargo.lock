@@ -306,6 +306,7 @@ dependencies = [
  "serde_json",
  "tempfile",
  "thiserror",
+ "yaml_serde",
 ]
 
 [[package]]

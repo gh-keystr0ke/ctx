@@ -36,8 +36,15 @@ points:
 - id: vector-0001
   anchor: symbol:rust:crate.variants.disk_v2.tests.model.WriterModel.write_record:Method#7b0796615c0d7f0b70d49c778b30a91bcc936e6c7a8bd2c403aa9be635ea94f8#1
   location: lib/vector-buffers/src/variants/disk_v2/tests/model/mod.rs:664
-  draft: null
-  drafted_by: null
+  draft:
+    label: unclear
+    category: null
+    evidence: []
+    reason: agent response was unavailable or invalid
+  drafted_by:
+    agent: claude
+    model: null
+    prompt_fingerprint: 5cab03840fdb37c97aec33770856776d28ac1a13ffe813a971a080a0c3829deb
   label: null
   category: null
   evidence: []

@@ -387,3 +387,176 @@ points:
     score: 4
     contributions:
       downstream_calls: 4
+  hyperswitch-0031:
+    selected_by: fill
+    rank: 46
+    score: 7
+    contributions:
+      downstream_calls: 7
+  hyperswitch-0032:
+    selected_by: fill
+    rank: 470
+    score: 4
+    contributions:
+      condition: 4
+  hyperswitch-0033:
+    selected_by: fill
+    rank: 9
+    score: 9
+    contributions:
+      condition: 4
+      downstream_calls: 5
+  hyperswitch-0034:
+    selected_by: fill
+    rank: 722
+    score: 4
+    contributions:
+      condition: 4
+  hyperswitch-0035:
+    selected_by: fill
+    rank: 47
+    score: 7
+    contributions:
+      downstream_calls: 7
+  hyperswitch-0036:
+    selected_by: fill
+    rank: 2659
+    score: 0
+    contributions: {}
+  hyperswitch-0037:
+    selected_by: fill
+    rank: 11
+    score: 8
+    contributions:
+      downstream_calls: 8
+  hyperswitch-0038:
+    selected_by: fill
+    rank: 492
+    score: 4
+    contributions:
+      condition: 4
+  hyperswitch-0039:
+    selected_by: fill
+    rank: 48
+    score: 7
+    contributions:
+      downstream_calls: 7
+  hyperswitch-0040:
+    selected_by: fill
+    rank: 3680
+    score: 0
+    contributions: {}
+  hyperswitch-0041:
+    selected_by: fill
+    rank: 12
+    score: 8
+    contributions:
+      downstream_calls: 8
+  hyperswitch-0042:
+    selected_by: fill
+    rank: 3542
+    score: 0
+    contributions: {}
+  hyperswitch-0043:
+    selected_by: fill
+    rank: 107
+    score: 5
+    contributions:
+      downstream_calls: 5
+  hyperswitch-0044:
+    selected_by: fill
+    rank: 3417
+    score: 0
+    contributions: {}
+  hyperswitch-0045:
+    selected_by: fill
+    rank: 13
+    score: 8
+    contributions:
+      downstream_calls: 8
+  hyperswitch-0046:
+    selected_by: fill
+    rank: 3853
+    score: 0
+    contributions: {}
+  hyperswitch-0047:
+    selected_by: fill
+    rank: 108
+    score: 5
+    contributions:
+      downstream_calls: 5
+  hyperswitch-0048:
+    selected_by: fill
+    rank: 31
+    score: 8
+    contributions:
+      condition: 4
+      downstream_calls: 4
+  hyperswitch-0049:
+    selected_by: fill
+    rank: 14
+    score: 8
+    contributions:
+      downstream_calls: 8
+  hyperswitch-0050:
+    selected_by: fill
+    rank: 3752
+    score: 0
+    contributions: {}
+  hyperswitch-0051:
+    selected_by: fill
+    rank: 1210
+    score: 4
+    contributions:
+      condition: 4
+  hyperswitch-0052:
+    selected_by: fill
+    rank: 2031
+    score: 0
+    contributions: {}
+  hyperswitch-0053:
+    selected_by: fill
+    rank: 15
+    score: 8
+    contributions:
+      downstream_calls: 8
+  hyperswitch-0054:
+    selected_by: fill
+    rank: 3486
+    score: 0
+    contributions: {}
+  hyperswitch-0055:
+    selected_by: fill
+    rank: 1211
+    score: 4
+    contributions:
+      condition: 4
+  hyperswitch-0056:
+    selected_by: fill
+    rank: 2722
+    score: 0
+    contributions: {}
+  hyperswitch-0057:
+    selected_by: fill
+    rank: 16
+    score: 8
+    contributions:
+      downstream_calls: 8
+  hyperswitch-0058:
+    selected_by: fill
+    rank: 803
+    score: 4
+    contributions:
+      condition: 4
+  hyperswitch-0059:
+    selected_by: fill
+    rank: 1212
+    score: 4
+    contributions:
+      condition: 4
+  hyperswitch-0060:
+    selected_by: fill
+    rank: 1408
+    score: 1
+    contributions:
+      decision_shape: 1

@@ -31,360 +31,1242 @@ points:
 - id: hyperswitch-0001
   anchor: symbol:rust:router.core.payments.operations.payment_response.PaymentResponse.PostUpdateTracker<F,PaymentData<F>,types::PaymentsUpdatePostConfirmData>.update_tracker:Method#13799557877b43519a8bd0367a48381b83570c208184204da9d428a39d57015e#1
   location: crates/router/src/core/payments/operations/payment_response.rs:5364
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: null
+    evidence: []
+    reason: The code handles a payment resource update response and checks its success status. None of the supplied evidence directly documents this branch or establishes the behavior it controls.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 04c931ba3cc96b1a2e67a9f8d35e278d0a264f2184a23f88bfbd3c0794c6d7b7
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: hyperswitch-0002
   anchor: symbol:rust:router.core.routing.helpers.push_metrics_with_update_window_for_contract_based_routing:Function#69769c1c9beeca73fad7cbddd8147dcb86ba8ebd87a3f35b8a7b5dda517947f1#1
   location: crates/router/src/core/routing/helpers.rs:1524
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: null
+    evidence:
+    - E1
+    - E3
+    - E4
+    - E8
+    reason: The cited evidence describes when a payment is charged and what that status means. The snippet gates creation of a routing contract update event on the derived Charged status, but the package does not document that gate or establish whether the event serves only observability.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 0225f31e546d0cd93246f2047e2d1f0fa9e9eaae9723070883d64e8be12cafbb
+  label: unclear
   category: null
-  evidence: []
-  verified_by: null
+  evidence:
+  - type: docs
+    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/integration-guide/payment-suite/payments/manual-capture/README.md#L15
+    quote: 'symbols: manual_multiple with a pending capture and none charged gives AttemptStatus::CaptureInitiated, which maps to IntentStatus::Processing; a charged total equal to the authorized amount gives Charged, and a charged capture short of it gives PartialChargedAndChargeable = crates/router/src/core/payments/types.rs:133-146; crates/common_enums/src/transformers.rs:2128-2135'
+  - type: docs
+    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/about-hyperswitch/sdk-payment-flows.md#L305
+    quote: CaptureMethod --> |automatic| Charged
+  - type: docs
+    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/about-hyperswitch/sdk-payment-flows.md#L309
+    quote: Capture -->|Success| Charged
+  - type: docs
+    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/integration-guide/control-center/reporting/payments-report.md#L13
+    quote: '| `status`                       | The outcome of this attempt — e.g. `charged` (successful), `failed`, `pending`, `cancelled`, `requires_capture`.                                             |'
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: hyperswitch-0003
   anchor: symbol:rust:router.core.payments.operations.payment_response.PaymentResponse.PostUpdateTracker<F,PaymentData<F>,types::PaymentsUpdatePostConfirmData>.update_tracker:Method#872088b5c318f49223caa7fff7869faf46cb7abb42317607942d1da54ef71036#1
   location: crates/router/src/core/payments/operations/payment_response.rs:5365
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: state-transition
+    evidence:
+    - E4
+    reason: The branch enters the payment resource update path only when the connector reports success. E4 describes connector-dependent API outcomes in general but does not specify this update rule.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 19a579eca6ecdc999cc25476adc51b2022488415094d5c6e92be8251d5fc3465
+  label: unclear
   category: null
-  evidence: []
-  verified_by: null
+  evidence:
+  - type: docs
+    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/about-hyperswitch/hyperswitch-architecture/router.md#L16
+    quote: '* **Data Storage and Response**: Valid data is stored. If the API action is standalone, a success response is returned. If it involves connector calls, the response''s success or failure depends on the connector module''s status.​'
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: hyperswitch-0004
   anchor: symbol:rust:router.core.routing.helpers.enable_specific_routing_algorithm:Function#bd618ce11b9076a002cde62d2bcc6d5dac62347f4b0c2ab5acefe934568d240e#1
   location: crates/router/src/core/routing/helpers.rs:2093
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: null
+    evidence: []
+    reason: A supplied payload selects the specific dynamic routing setup. The excerpt omits the behavior when the payload is absent, and none of the supplied documentation directly describes this choice.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 2f7ef46ce64e0efca762fde5f45b708abdc3ec45c511336d813faafd54431895
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
-  second_label: null
-  second_by: null
+  verified_by: codex-work
+  second_label: unclear
+  second_by: codex-work-second
   note: null
 - id: hyperswitch-0005
   anchor: symbol:rust:router.core.payments.operations.payment_response.create_or_update_payment_method_from_payment_response:Function#2#578555433a37404cd8d7b62bf73ca2be33188e21a61c41cc5dfb97cba733bba5#1
   location: crates/router/src/core/payments/operations/payment_response.rs:3991
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: state-transition
+    evidence:
+    - E2
+    - E3
+    reason: The branch attempts deferred payment method creation when the payment attempt has no payment method ID. The documentation describes the ID for saved methods and its return on success, but does not specify when deferred creation should run.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: ae4e6fd4f5c1c9a26f6037ea59b1551a6a9f7c4ba6a7640c02dd6e292fb3b930
+  label: unclear
   category: null
-  evidence: []
-  verified_by: null
+  evidence:
+  - type: docs
+    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/integration-guide/control-center/reporting/payments-report.md#L42
+    quote: '| `payment_method_id`            | The identifier of the saved payment method used, if the customer paid with a previously saved payment method.                                                |'
+  - type: docs
+    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/integration-guide/payment-experience/pay-then-vault/README.md#L88
+    quote: '* **Result:** `payment_method_id` returned on success'
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: hyperswitch-0006
   anchor: symbol:rust:router.core.routing.helpers.push_metrics_with_update_window_for_success_based_routing:Function#03c2641d44efb7f6d3d6da3a8c5709c339a7047ad16099fb43891b8e779ca4b0#1
   location: crates/router/src/core/routing/helpers.rs:897
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: null
+    evidence: []
+    reason: trivial label requires a category
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: dfcedb891ca97aee1cecd38f9de2e779192b9c48a4fc73acbd988136e116db85
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
-  second_label: null
-  second_by: null
+  verified_by: codex-work
+  second_label: unclear
+  second_by: codex-work-second
   note: null
 - id: hyperswitch-0007
   anchor: symbol:rust:router.core.payments.routing.try_pre_routing_connectors:Function#9d036b9e7a21213239f3bc00de21f18f16047e473d04f716a94a2bf16084e07e#1
   location: crates/router/src/core/payments/routing.rs:1446
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: null
+    evidence: []
+    reason: The branch checks pre-routing results only when token data is absent and a payment method type is present. The supplied documentation does not address that condition, so its significance is unclear.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: bea3b619b12dc42627c981b089c4ad92802c6879c9cd2f82a91436ceebdbfaad
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: hyperswitch-0008
   anchor: symbol:rust:router.core.routing.helpers.push_metrics_with_update_window_for_success_based_routing:Function#9bb26e49be6b07a0ccac1ef0282523cfd92a3c663fb413caae6ac606a3f20c9c#1
   location: crates/router/src/core/routing/helpers.rs:898
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: null
+    evidence: []
+    reason: The condition skips the success-based routing branch when the enabled feature is None. The package contains no documentation, specification, or issue establishing the significance of that behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: be6f24aebd70d7b6171ca41995cd3b95d29a27264e80c15fe1123e43a71b8953
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: hyperswitch-0009
   anchor: symbol:rust:router.core.payments.transformers.payments_to_payments_response:Function#2#5845711007f64eb4e374287d5c8142b082a7b42564a4f9629aaf49e506631592#1
   location: crates/router/src/core/payments/transformers.rs:4069
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: state-transition
+    evidence:
+    - E4
+    reason: The code skips next-action evaluation for terminal payments. E4 documents when clients stop retrying payment retrieval and does not specify whether terminal responses omit next_action.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 56fd3e9843b29bb37abcdc61510d90db646fc2baab6994886ab346115db12bbe
+  label: unclear
   category: null
-  evidence: []
-  verified_by: null
+  evidence:
+  - type: docs
+    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/integration-guide/workflows/3ds-decision-manager/external-3ds-with-the-juspay-3ds-server.md#L500
+    quote: Read `payment_id` and `payment_intent_client_secret` from the return URL, then retrieve the payment, retrying until the status is terminal.
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: hyperswitch-0010
   anchor: symbol:rust:router.core.routing.helpers.default_specific_dynamic_routing_setup:Function#ad5969815f50f60763ede3cc8ca6f20741ba0beff0405293b3a5d0f8d5d21632#1
   location: crates/router/src/core/routing/helpers.rs:2252
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: null
+    evidence:
+    - E4
+    - E5
+    - E6
+    reason: The code gates Decision Engine setup on a configuration flag. The related docs describe enabling and disabling Debit Routing in the dashboard but do not specify when the setup call should run.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 2f74004778f04b3127161b9544a1bc14826fe19e149741a22b788941c9b5ea61
+  label: unclear
   category: null
-  evidence: []
-  verified_by: null
+  evidence:
+  - type: docs
+    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/integration-guide/workflows/intelligent-routing/least-cost-routing.md#L38
+    quote: 3. Wait for the confirmation message. Check that **Current state** changes to **Enabled** and the button changes to **Disable Debit Routing**.
+  - type: docs
+    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/integration-guide/workflows/intelligent-routing/least-cost-routing.md#L42
+    quote: <figure><img src="../../../.gitbook/assets/decision-engine-debit-routing-enabled.png" alt="Debit Routing page showing Current state as Enabled, the Debit routing enabled confirmation, and the Disable Debit Routing button"><figcaption><p>Confirm that Debit Routing is Enabled after saving the change.</p></figcaption></figure>
+  - type: docs
+    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/integration-guide/workflows/intelligent-routing/least-cost-routing.md#L48
+    quote: 3. Wait for the confirmation message. Check that **Current state** changes to **Disabled** and the button changes back to **Enable Debit Routing**.
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: hyperswitch-0011
   anchor: symbol:rust:router.core.payments.transformers.payments_to_payments_response:Function#2#ba30d4fe72ef2d12e5cef0c1a9706924d115b5297b07bc636314b6cd31488516#1
   location: crates/router/src/core/payments/transformers.rs:4048
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: null
+    evidence: []
+    reason: The branch reads redirect data when the operation is start-pay and authentication data is present. None of the supplied excerpts documents that condition or its intended behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 9cc81f32a9d7e626ddf0d85962b165f754a7b10a53008a8f05c695ff4becfcfb
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: hyperswitch-0012
   anchor: symbol:rust:router.core.routing.helpers.disable_dynamic_routing_algorithm:Function#61f77c1e4d4cba423364a68172d7841402d1284130e6b4686759a6ef533eab4c#1
   location: crates/router/src/core/routing/helpers.rs:1983
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: state-transition
+    evidence:
+    - E6
+    reason: E6 documents the Debit Routing transition to Disabled but does not establish when the router calls the Decision Engine to disable dynamic routing.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: b158532b7cdd63024ef08ea6e4c1b709db8b760c3463dcb6aa358ce49b20a1af
+  label: unclear
   category: null
-  evidence: []
-  verified_by: null
+  evidence:
+  - type: docs
+    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/integration-guide/workflows/intelligent-routing/least-cost-routing.md#L48
+    quote: 3. Wait for the confirmation message. Check that **Current state** changes to **Disabled** and the button changes back to **Enable Debit Routing**.
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: hyperswitch-0013
   anchor: symbol:rust:router.core.payments.routing.try_pre_routing_connectors:Function#9ac3f10b26e945121e7d3ffa5b978b3c2a01ba0fe6d1dc29007e2a2ab36e0225#1
   location: crates/router/src/core/payments/routing.rs:1483
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: retry
+    evidence: []
+    reason: The branch selects Apple Pay retry connectors when retry is enabled. The supplied documentation describes reporting fields and does not cover this routing behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 8c864aba9676b443dbf2be0babcffc3234355477af1d74a6a68d8b3b4d8a527c
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: hyperswitch-0014
   anchor: symbol:rust:router.core.routing.helpers.push_metrics_with_update_window_for_contract_based_routing:Function#1c76cb56e0de23cb1b3117095d0d2d1e9e93505c2f2ddcb6ebed5a1f93e7bd6a#1
   location: crates/router/src/core/routing/helpers.rs:1445
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: default
+    evidence: []
+    reason: The code skips contract-based routing when its configuration is absent or its enabled feature is None. The supplied documentation does not address this behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 45f4bdea58bbfb004777ff21f36d0723478a459e22cc2fa97f287c23608d7ca2
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: hyperswitch-0015
   anchor: symbol:rust:router.core.payments.helpers.GooglePayTokenDecryptor.verify_signature:Method#cdefa6a7431ce0b72b57f3facccfa3986a8287d2303b694849f4aa5e2f23f5a9#1
   location: crates/router/src/core/payments/helpers.rs:7962
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: validation
+    evidence:
+    - E4
+    reason: The code rejects Google Pay tokens with protocol versions other than ECv2 before verifying the signature. E4 shows an ECv2 token example but does not specify which versions the verifier accepts.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 0bb137a745f194596418267d99dfbb4db276702afead8df0b419941b012467e5
+  label: unclear
   category: null
-  evidence: []
-  verified_by: null
+  evidence:
+  - type: docs
+    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/integration-space/prism/api-reference/domain-schema/README.md#L84
+    quote: '| `GooglePay` | Google Pay payment method with tokenized card data. | `{"gp_payment_token": {"signature": "sig_123", "protocol_version": "ECv2"}}` | `PaymentMethod`, `GpaySessionTokenResponse` |'
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: hyperswitch-0016
   anchor: symbol:rust:router.core.payments.operations.payment_create.PaymentCreate.ValidateRequest<F,api::PaymentsRequest,PaymentData<F>>.validate_request:Method#9def16c1dd38e0321a7b58777871eaae8d5dd01e0001747e905d15a8c3cfa19a#1
   location: crates/router/src/core/payments/operations/payment_create.rs:1251
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: validation
+    evidence: []
+    reason: The call validates recurring details, a payment token, and a mandate ID. The helper body is absent, and the supplied documentation does not describe which inputs the helper accepts or rejects.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 999914dcf0f9914fea8edd34ba299591b017bfc1b2511c010f021015b59b4096
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: hyperswitch-0017
   anchor: symbol:rust:router.core.payments.helpers.should_execute_based_on_rollout_with_precedence:Function#7a39e817ba372b1ef9719b251b5d1df5a87c02a6c33a3b90a3531ca999907552#1
   location: crates/router/src/core/payments/helpers.rs:2977
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: default
+    evidence: []
+    reason: The branch tries the next rollout key when the cached sentinel indicates the current key is absent. The package contains no documentation, specification, or issue that directly addresses this fallback.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 040c7d4654ac90f8024ee93486fbe15b5a9921a5b8fb7d3ed972b666c5f4f119
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: hyperswitch-0018
   anchor: symbol:rust:router.core.payments.flows.session_flow.PaymentsSessionRouterData.Feature<api::Session,types::PaymentsSessionData>.create_connector_customer:Method#74a6449fef6c95022a654dd35f4e3a8739f084eb16444e0cfb34fdf0f2006786#1
   location: crates/router/src/core/payments/flows/session_flow.rs:170
-  draft: null
-  drafted_by: null
-  label: null
-  category: null
+  draft:
+    label: trivial
+    category: error-handling
+    evidence: []
+    reason: The `?` operator propagates a conversion error before connector customer creation. The supplied documentation covers other behaviors.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: d9cd30f411e30806c0f40b953b7a48f53d8494a3bfcf8206483757d15952a02b
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
-  second_label: null
-  second_by: null
+  verified_by: codex-work
+  second_label: trivial
+  second_by: codex-work-second
   note: null
 - id: hyperswitch-0019
   anchor: symbol:rust:router.core.payments.helpers.get_token_pm_type_mandate_details:Function#f543c999ac19868bbeed978e170688055203181aed1fda6e0b65808a0ce19568#1
   location: crates/router/src/core/payments/helpers.rs:638
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: null
+    evidence: []
+    reason: The branch passes through the request’s payment method and type and sets the other tuple entries to None. The package contains no documentation, specification, or issue explaining that behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 43538fa74754da017ab140fcfaac38ebf095f9f35ace5134ee8230ae526b5348
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: hyperswitch-0020
   anchor: symbol:rust:router.core.payments.helpers.create_or_find_address_for_payment_by_request:Function#c5cfb99d775b7f4ac16c78b42f8cf50da290f04d3738fa342631e4e03fbc12c3#1
   location: crates/router/src/core/payments/helpers.rs:343
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: trivial
+    category: error-handling
+    evidence: []
+    reason: The code inserts a payment address and routinely propagates insertion failures as an internal server error.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 29356d8049fa607a75d0128623eef9a785b8e0defa68d3b315a69716fe76c2e3
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: hyperswitch-0021
   anchor: symbol:rust:router.core.routing.helpers.default_specific_dynamic_routing_setup:Function#3425c35c227dc3645cb082d570b78162cdadb689ea597d13d90d8f2bd2050df6#1
   location: crates/router/src/core/routing/helpers.rs:2253
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: null
+    evidence: []
+    reason: The configuration flag controls whether decision engine setup runs. The package contains no documentation, specification, or issue that establishes when setup should run.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: f5760d691874db8076bdf5b074b60c3e904034f199b5a1c5996c69be479fc63a
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: hyperswitch-0022
   anchor: symbol:rust:router.core.payments.helpers.override_setup_future_usage_to_on_session:Function#5e6cc92a8d5269a3d037ee01e4ef6537e93b306f05db5a0d92da9de58266791f#1
   location: crates/router/src/core/payments/helpers.rs:9763
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: state-transition
+    evidence: []
+    reason: When the payment method type matches the merchant's skip-saving configuration, the code sets applied future usage to OnSession to avoid creating a connector mandate. The supplied documentation does not describe this override.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 516638f4951dd945a91da22bab47a7412e6550917b1942c0bc0cd470ce083ffa
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
-  second_label: null
-  second_by: null
+  verified_by: codex-work
+  second_label: unclear
+  second_by: codex-work-second
   note: null
 - id: hyperswitch-0023
   anchor: symbol:rust:router.core.payments.tokenization.pre_payment_tokenization:Function#d13843ea3737bff765f330370db67bd0e8fc8b6a5ef96d4b179844ffb6327f98#1
   location: crates/router/src/core/payments/tokenization.rs:1305
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: null
+    evidence: []
+    reason: trivial label requires a category
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: ae9f50795c00ad98fe214312988d7cb5768db62aefbd3c20831c24f1f53d7d53
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: hyperswitch-0024
   anchor: symbol:rust:router.core.payments.operations.payment_response.PaymentResponse.PostUpdateTracker<F,PaymentData<F>,types::PaymentsUpdatePostConfirmData>.update_tracker:Method#2577ae0ebea05787e89089c10a116ef1ebcf6dcec8f5450410d54272b4e33f5e#1
   location: crates/router/src/core/payments/operations/payment_response.rs:5447
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: trivial
+    category: error-handling
+    evidence: []
+    reason: The code parses existing customer details when present and maps parsing failures to an internal server error. The supplied documentation does not address this behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 8bd96b29764490849b6b6dd08fc53081fe960cab288c99c636bf71027adbd011
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: hyperswitch-0025
   anchor: symbol:rust:router.core.payments.operations.payment_cancel_post_capture_sync.PaymentCancelPostCaptureSync.GetTracker<F,PaymentData<F>,id_type::PaymentId>.get_trackers:Method#0cfd0dc19962a8cb04ae4daa60a6c5eba5d541da1089124e65a2693a986834a2#1
   location: crates/router/src/core/payments/operations/payment_cancel_post_capture_sync.rs:102
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: null
+    evidence: []
+    reason: trivial label requires a category
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: c46e9704ba202b3bd047ba124ffe7ca75c9f271a96709d1b04b8c77faee297f9
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: hyperswitch-0026
   anchor: symbol:rust:router.core.payments.flows.authorize_flow.PaymentsAuthorizeRouterData.Feature<api::Authorize,types::PaymentsAuthorizeData>.pre_authentication_step:Method#cdd8eebf704aa4f55f3e1d59161f33a74821e4748e6c24cdef46d854067f68a9#1
   location: crates/router/src/core/payments/flows/authorize_flow.rs:515
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: null
+    evidence: []
+    reason: The connector flag selects whether pre-authentication handles a response without building a request or triggers the connector. The supplied documentation excerpts do not describe this behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: be619d675bc30abc07ac4b764c9081ac80432d970c4e1b8b3d693d43a19435b2
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: hyperswitch-0027
   anchor: symbol:rust:router.core.payments.helpers.fetch_card_details_from_external_vault:Function#9a51b5131739cea1fa0e04f1c36309f4fb58d20a6e988d51b8d7f050601a8e1e#1
   location: crates/router/src/core/payments/helpers.rs:3492
-  draft: null
-  drafted_by: null
-  label: null
-  category: null
+  draft:
+    label: trivial
+    category: error-handling
+    evidence: []
+    reason: The code converts the card inputs into a domain Card and propagates conversion failures as InternalServerError. The supplied documents describe card-number placeholders and example payloads.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: ac130cdaf055a46c0659f881e1eddd37fe88ba5e6acbf8443c22349b0f56dc65
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: hyperswitch-0028
   anchor: symbol:rust:router.core.payments.operations.payment_attempt_record.PaymentAttemptRecord.UpdateTracker<F,PaymentAttemptRecordData<F>,PaymentsAttemptRecordRequest>.update_trackers:Method#133fdb4c41a72f27777d222fd9b115bba3db7d3561e2b626f0ad1a2968c5f5a2#1
   location: crates/router/src/core/payments/operations/payment_attempt_record.rs:263
-  draft: null
-  drafted_by: null
-  label: null
-  category: null
+  draft:
+    label: trivial
+    category: error-handling
+    evidence: []
+    reason: The highlighted line calls a helper and propagates any error with `?`. None of the supplied documents describes the metadata update or its error handling.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 8eed6256aecbfe17e46f40dd9fc7521f9a9ea55c74d3fc45a526384f168b7e48
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: hyperswitch-0029
   anchor: symbol:rust:router.core.routing.helpers.fetch_dynamic_routing_configs:Function#b30bfed7af7e62db5237ba0530c7f91a827ecfb70401f89405cb7a8b1af16e3b#1
   location: crates/router/src/core/routing/helpers.rs:814
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: null
+    evidence: []
+    reason: trivial label requires a category
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 1216698ccd237a4269bcf03edde5099291f7eb79f0874b8f5c3cd41ddb2eb11e
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: hyperswitch-0030
   anchor: symbol:rust:router.core.payments.operations.payment_response.PaymentResponse.PostUpdateTracker<F,PaymentData<F>,types::PaymentsAuthorizeData>.save_pm_and_mandate:Method#2#46c442224f2eb1294a5c7d6c23f669a0c192767d9be33edbba4f509fc5e29bf9#1
   location: crates/router/src/core/payments/operations/payment_response.rs:913
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: null
+    evidence: []
+    reason: The branch handles mandates created by the connector, but the package contains no documentation, specification, or issue establishing the significance of this behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: d5b5d0a776b6939c6e2f425792970b5b871dd7f297c721d68d249af8a4862135
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
+  second_label: unclear
+  second_by: codex-work-second
+  note: null
+- id: hyperswitch-0031
+  anchor: symbol:rust:router.core.routing.helpers.push_metrics_with_update_window_for_contract_based_routing:Function#bf9fa3c8f72b83b2c2514dc23e4bc00ad822a6ada3d70e86a4ac19e304618977#1
+  location: crates/router/src/core/routing/helpers.rs:1446
+  draft:
+    label: unclear
+    category: null
+    evidence: []
+    reason: The guard skips the contract-based routing branch when the feature is set to None. The supplied documentation does not address this specific behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 3b23df3f5dc85ecd19991aa1680b2d6b00b57435570682de929399f62739bce8
+  label: unclear
+  category: null
+  evidence: []
+  verified_by: codex-work
+  second_label: unclear
+  second_by: codex-work-second
+  note: null
+- id: hyperswitch-0032
+  anchor: symbol:rust:router.core.payments.operations.payment_capture.PaymentCapture.GetTracker<F,payments::PaymentData<F>,api::PaymentsCaptureRequest>.get_trackers:Method#869fd20a589ffb68ceaf1919d89834a2b34c1f08d382ee4f7fa8682cbf68ee2e#1
+  location: crates/router/src/core/payments/operations/payment_capture.rs:179
+  draft:
+    label: unclear
+    category: null
+    evidence:
+    - E2
+    - E3
+    - E4
+    - E5
+    - E6
+    - E7
+    - E8
+    reason: The code retrieves the stored payment method billing address during capture. The cited documentation covers billing address availability, collection, and prefilling, but does not specify capture-time retrieval behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 7005c012191e4d03292b6f6334b16a7d290eb91b49d6d3610d02b29016cae6ca
+  label: unclear
+  category: null
+  evidence:
+  - type: docs
+    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/integration-guide/payment-experience/pay-then-vault/alternate-payment-method-widgets/hyperwidget-integration-guide.md#L20
+    quote: '| Payment Method | Region  | Type         | Supported flow          | Shipping Address availability | Billing address availability |'
+  - type: docs
+    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/integration-guide/payment-experience/pay-then-vault/mobile/android/README.md#L36
+    quote: <table data-view="cards"><thead><tr><th></th><th></th></tr></thead><tbody><tr><td><strong>Include New Fields</strong></td><td>Adapt swiftly to various use cases by adding new fields to the payment form, such as collecting billing addresses or zip codes for additional information.</td></tr><tr><td><strong>Prioritize Payment Methods</strong></td><td>Impact your payment mix and conversion rates by prioritizing or promot
+  - type: docs
+    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/integration-guide/payment-experience/pay-then-vault/mobile/cross-platform/react-native/react-native-reference.md#L295
+    quote: '| `PAYMENT_METHOD_INFO_BILLING_ADDRESS` | `{ country: string; state: string; postalCode: string }`                                                         | Billing address inputs             |'
+  - type: docs
+    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/integration-guide/payment-experience/pay-then-vault/mobile/cross-platform/react-native/react-native-with-rest-api-integration.md#L151
+    quote: '**Collect Billing Address From Wallet** should be enabled in the Hyperswitch Dashboard for wallet payment methods to work.'
+  - type: docs
+    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/integration-guide/payment-experience/payment/enable-alternate-payment-method-widgets/hyperwidget-integration-guide.md#L23
+    quote: '| Payment Method | Region  | Type         | Supported flow          | Shipping Address availability | Billing address availability |'
+  - type: docs
+    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/integration-guide/payment-experience/sdk-reference/js (1).md#L270
+    quote: '| `billingDetails (object)` | Specify customer''s billing details, which lets you pre-fill a customer’s name, email, phone number and address if required by payment method. Pre-filling as much information as possible streamlines the checkout process. |'
+  - type: docs
+    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/integration-guide/payment-experience/sdk-reference/js.md#L270
+    quote: '| `billingDetails (object)` | Specify customer''s billing details, which lets you pre-fill a customer’s name, email, phone number and address if required by payment method. Pre-filling as much information as possible streamlines the checkout process. |'
+  verified_by: codex-work
   second_label: null
   second_by: null
+  note: null
+- id: hyperswitch-0033
+  anchor: symbol:rust:router.core.payments.retry.do_gsm_actions:Function#2214548bcc9fac88729046b91c23599428f02a1934bce676b0112993d649da3b#1
+  location: crates/router/src/core/payments/retry.rs:158
+  draft:
+    label: unclear
+    category: retry
+    evidence: []
+    reason: The documentation assigns retry scheduling to Hyperswitch but does not directly describe the branch that retrieves the retry budget when GSM returns Retry.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 221bfd0be64806c660d2af8676a1a69f9fad0a8bf54b58b2b747211001d4507b
+  label: unclear
+  category: null
+  evidence: []
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: null
+- id: hyperswitch-0034
+  anchor: symbol:rust:router.core.payments.operations.payment_response.PaymentResponse.PostUpdateTracker<F,PaymentData<F>,types::PaymentsIncrementalAuthorizationData>.update_tracker:Method#bbc5f56567afb65fa5906e522dd41d824d60244e307c90578914bf6a50c469c8#1
+  location: crates/router/src/core/payments/operations/payment_response.rs:1249
+  draft:
+    label: unclear
+    category: null
+    evidence: []
+    reason: trivial label requires a category
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 9cd3e42dc70fea6aee7d18e9eba1f8dc5d644ef417dbb309676a60ec25bb1748
+  label: unclear
+  category: null
+  evidence: []
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: null
+- id: hyperswitch-0035
+  anchor: symbol:rust:router.core.routing.helpers.update_window_for_elimination_routing:Function#966ef96545aefe92098caf54d90a889c362722362c7fd723e203e5272c61380e#1
+  location: crates/router/src/core/routing/helpers.rs:1267
+  draft:
+    label: unclear
+    category: null
+    evidence:
+    - E1
+    - E2
+    - E8
+    reason: The guard skips elimination routing when the configured feature is None. The cited documentation describes dynamic routing generally and does not specify this behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 8dce2878e90b7a2a4d279ae12d6eb5b53d490e1b429f941c9ac8d5dd4823cb17
+  label: unclear
+  category: null
+  evidence:
+  - type: docs
+    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/README (2).md#L14
+    quote: <table data-card-size="large" data-view="cards"><thead><tr><th></th><th></th><th></th><th data-hidden></th><th data-hidden data-card-target data-type="content-ref"></th></tr></thead><tbody><tr><td><mark style="color:blue;"><strong>Payments Suite</strong></mark></td><td>An end-to-end orchestration layer that unifies payments across providers, networks, and channels. It enables seamless checkout, dynamic routing, retri
+  - type: docs
+    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/about-hyperswitch/readme-2.md#L17
+    quote: <table data-card-size="large" data-view="cards"><thead><tr><th></th><th></th><th></th><th data-hidden></th><th data-hidden data-card-target data-type="content-ref"></th></tr></thead><tbody><tr><td><mark style="color:blue;"><strong>Payments Suite</strong></mark></td><td>An end-to-end orchestration layer that unifies payments across providers, networks, and channels. It enables seamless checkout, dynamic routing, retri
+  - type: docs
+    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/about-hyperswitch/payment-suite.md#L47
+    quote: <table data-view="cards"><thead><tr><th align="center"></th><th></th><th data-hidden data-card-cover data-type="image">Cover image</th></tr></thead><tbody><tr><td align="center"><mark style="color:$primary;"><strong>Intelligent Routing</strong></mark></td><td>Dynamically switching between processors in real-time for every transaction to optimally maximise first attempt auth rates and minimise processing cost.</td><td
+  verified_by: codex-work
+  second_label: unclear
+  second_by: codex-work-second
+  note: null
+- id: hyperswitch-0036
+  anchor: symbol:rust:router.core.payments.operations.payment_confirm.PaymentConfirm.Domain<F,api::PaymentsRequest,PaymentData<F>>.create_payment_method:Method#6a8a09c6f5b6b451f4e97fd2d3a21c0d18e23ea4d41e0fb106de11d894ea9d30#1
+  location: crates/router/src/core/payments/operations/payment_confirm.rs:1194
+  draft:
+    label: unclear
+    category: permission
+    evidence: []
+    reason: The presence of customer acceptance gates entry to the modular payment method creation path, but none of the supplied documentation directly establishes that requirement.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 7c95aae56ef90447b6de56b67d6c2f0f8028eae8135d3cc85bc50681f20f50bf
+  label: unclear
+  category: null
+  evidence: []
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: null
+- id: hyperswitch-0037
+  anchor: symbol:rust:router.core.payments.flows.session_flow.PaymentsSessionRouterData.RouterDataSession.decide_flow:Method#286f61b2a22d7835b384d6a01c24fc4ed9ff005d792d1c2f446dcec9da628b0c#1
+  location: crates/router/src/core/payments/flows/session_flow.rs:1761
+  draft:
+    label: unclear
+    category: null
+    evidence:
+    - E2
+    - E3
+    reason: The docs describe domain validation for obtaining Apple Pay session tokens on payment links. The highlighted branch only dispatches Apple Pay metadata to a token creation helper, and the package does not directly document that routing decision.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: ff2363fc639f0d6b84328280846d94a25365a5bac3b78fafbfb7e4eda5fde3ea
+  label: unclear
+  category: null
+  evidence:
+  - type: docs
+    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/integration-guide/payment-experience/pay-then-vault/payment-links/setup-custom-domain.md#L109
+    quote: To enable wallet flows such as Apple Pay or Google Pay for payment links, domain validation from Apple or Google is required respectively to obtain session tokens. This validation can be facilitated by utilizing the custom domain feature available for payment links, which can be configured at the business profile level.
+  - type: docs
+    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/integration-guide/payment-experience/payment/payment-links/setup-custom-domain.md#L112
+    quote: To enable wallet flows such as Apple Pay or Google Pay for payment links, domain validation from Apple or Google is required respectively to obtain session tokens. This validation can be facilitated by utilizing the custom domain feature available for payment links, which can be configured at the business profile level.
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: null
+- id: hyperswitch-0038
+  anchor: symbol:rust:router.core.payments.operations.payment_complete_authorize.CompleteAuthorize.Domain<F,api::PaymentsRequest,PaymentData<F>>.fetch_payment_method:Method#c6748a528f4e447bf2565b53dc109e920eac7e5d637fd3d775f6aebeddedc524#1
+  location: crates/router/src/core/payments/operations/payment_complete_authorize.rs:462
+  draft:
+    label: unclear
+    category: null
+    evidence:
+    - E1
+    - E2
+    reason: The documentation explains the relationship between payment intents and attempts. It does not explain the processor-scoped lookup during complete authorization or establish whether that lookup enforces a policy.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 2199221f3900e460097c30ecfea0dc2e9792f8a9a1aa89c1973b61c1d8fa82d0
+  label: unclear
+  category: null
+  evidence:
+  - type: docs
+    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/about-hyperswitch/sdk-payment-flows.md#L244
+    quote: Hyperswitch uses the `PaymentIntent` object to track the status of a payment initiated by you. Since, Hyperswitch enables retrying a single payment multiple times across different processors until a successful transaction, we track each of these payment attempts through separate `PaymentAttempt` objects.
+  - type: docs
+    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/about-hyperswitch/sdk-payment-flows.md#L246
+    quote: While `PaymentIntent` and `PaymentAttempt` have their own state machines, the various states in `PaymentAttempt` are also constrained by their respective mapping to the `PaymentIntent` statuses.
+  verified_by: codex-work
+  second_label: unclear
+  second_by: codex-work-second
+  note: null
+- id: hyperswitch-0039
+  anchor: symbol:rust:router.core.routing.helpers.update_window_for_elimination_routing:Function#b35dd5aa06f5bc6f81b6a2370fbac645f630ad4dc6a93bcfcf5cc4c194e6e36d#1
+  location: crates/router/src/core/routing/helpers.rs:1266
+  draft:
+    label: trivial
+    category: validation
+    evidence: []
+    reason: The highlighted line checks whether the optional elimination routing reference is present. The supplied documentation does not directly specify this check.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 72a9cd06a48fe62fb6f2a1ef9eb6ebac0fd6da4a59a5c274ea41e6561c740491
+  label: unclear
+  category: null
+  evidence: []
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: null
+- id: hyperswitch-0040
+  anchor: symbol:rust:router.core.payments.routing.utils.convert_comparison:Function#eb803916ecb6f2a061d572dd3afe240086899bfc1d4e2ca8aaba679f2449684b#1
+  location: crates/router/src/core/payments/routing/utils.rs:2048
+  draft:
+    label: trivial
+    category: error-handling
+    evidence: []
+    reason: The `?` operator propagates any error returned by `convert_value`. The supplied documentation does not directly address this conversion or its error handling.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 7b8eff71ef5dc44b777a5fb363878b41ac83ede6152ae3f2bd221cb0513f7e30
+  label: trivial
+  category: error-handling
+  evidence: []
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: null
+- id: hyperswitch-0041
+  anchor: symbol:rust:router.core.payments.flows.session_flow.PaymentsSessionRouterData.RouterDataSession.decide_flow:Method#ee32c9e4d2ca00fc19c4db3f91d12b65a13660897b3c09c367390bf69231453a#1
+  location: crates/router/src/core/payments/flows/session_flow.rs:1751
+  draft:
+    label: unclear
+    category: null
+    evidence: []
+    reason: The code routes GpayMetadata to the Google Pay session-token creator. None of the supplied excerpts directly documents that routing decision.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: aeef4e17e861967cc32c3c4afe29dd9dae2981d71daca8aa7c21de67a5a3de64
+  label: unclear
+  category: null
+  evidence: []
+  verified_by: codex-work
+  second_label: unclear
+  second_by: codex-work-second
+  note: null
+- id: hyperswitch-0042
+  anchor: symbol:rust:router.core.payments.routing.transformers.Option.ForeignFrom<storage_enums::CaptureMethod>.foreign_from:Method#97b4ed697b536ef52fcd26555633083b2cd12699544ee342067c7ace150e5695#1
+  location: crates/router/src/core/payments/routing/transformers.rs:30
+  draft:
+    label: unclear
+    category: default
+    evidence: []
+    reason: The conversion returns None for unlisted capture methods, and the supplied documentation does not explain what this fallback means for routing.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 737f3d57a3dea0d3cb74735899c0c9d66c00937405daf35822561525d9f77957
+  label: unclear
+  category: null
+  evidence: []
+  verified_by: codex-work
+  second_label: unclear
+  second_by: codex-work-second
+  note: null
+- id: hyperswitch-0043
+  anchor: symbol:rust:router.core.routing.helpers.enable_dynamic_routing_algorithm:Function#74b190bfe30056a484acd459ff78d201aa598e7d001a38283620532888c4ee60#1
+  location: crates/router/src/core/routing/helpers.rs:2055
+  draft:
+    label: unclear
+    category: state-transition
+    evidence:
+    - E2
+    reason: The branch passes the configured elimination routing algorithm to the enablement helper. E2 describes dynamic routing generally, but the package contains no documentation, specification, or issue directly about this enablement behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 1f8531121dd882a5097905dc37eeb891da0378543f402c7fac38a3c28aa7d84d
+  label: unclear
+  category: null
+  evidence:
+  - type: docs
+    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/about-hyperswitch/payment-suite.md#L47
+    quote: <table data-view="cards"><thead><tr><th align="center"></th><th></th><th data-hidden data-card-cover data-type="image">Cover image</th></tr></thead><tbody><tr><td align="center"><mark style="color:$primary;"><strong>Intelligent Routing</strong></mark></td><td>Dynamically switching between processors in real-time for every transaction to optimally maximise first attempt auth rates and minimise processing cost.</td><td
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: null
+- id: hyperswitch-0044
+  anchor: symbol:rust:router.core.payments.routing.perform_contract_based_routing:Function#3c921eda3400da5c98b4ea53f563d7d28225d36a6d7ca9967164c31437eb4bcf#1
+  location: crates/router/src/core/payments/routing.rs:4580
+  draft:
+    label: trivial
+    category: observability
+    evidence: []
+    reason: The highlighted code wraps the contract-score call in a named routing event with engine and protocol metadata. The supplied documentation describes routing strategies and does not specify this event behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 22ebdd22ba55dd19d39e65a6436af4113c326ecc7ab9eef75b0653a1ed3e87e1
+  label: unclear
+  category: null
+  evidence: []
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: null
+- id: hyperswitch-0045
+  anchor: symbol:rust:router.core.payments.flows.session_flow.create_applepay_session_token:Function#db510f9ca5fbca088070883bb4636afde8011fb5e6b51a41e7874467c7cee45e#1
+  location: crates/router/src/core/payments/flows/session_flow.rs:282
+  draft:
+    label: unclear
+    category: null
+    evidence:
+    - E5
+    reason: The delayed-response branch returns no Apple Pay session data and omits the payment request. E5 describes the Apple Pay session token schema but does not address delayed responses.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: db9a51850793d6f31fab355a0df6360aaac0baa17fd88fd89ae4455eacbfb65e
+  label: unclear
+  category: null
+  evidence:
+  - type: docs
+    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/integration-space/prism/api-reference/domain-schema/README.md#L223
+    quote: '| `ApplepaySessionTokenResponse` | Apple Pay session data including session object and display message. | `{"session_data": {"epochTimestamp": 1234567890, "merchantIdentifier": "merchant.com.example"}, "display_message": "Pay Example Store"}` | `SessionToken`, `AppleWallet` |'
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: null
+- id: hyperswitch-0046
+  anchor: symbol:rust:router.core.payments.tokenization.save_payment_method:Function#270669b7e42d3e62f9fa9daa439d70561afa73c20393081fa14549a9291775b8#1
+  location: crates/router/src/core/payments/tokenization.rs:279
+  draft:
+    label: unclear
+    category: validation
+    evidence:
+    - E1
+    reason: The branch rejects Google Pay decrypt tokens with NotSupported. E1 describes who decrypts Google Pay tokens for Barclaycard but does not specify whether this tokenization path accepts them.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 1c793d34290808aad2449d3445b76b1bfb3a0ad90e241c93b15afb9687061532
+  label: unclear
+  category: null
+  evidence:
+  - type: docs
+    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/integration-space/connectors-integrations/available-connectors/barclaycard.md#L51
+    quote: 7. To accept Google Pay, decide first who decrypts the payment token, because the dashboard asks for a different set of fields for each. Under **Choose Configuration Method** you pick either **Payment Gateway**, where BarclayCard decrypts, or **Direct**, where Hyperswitch does.
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: null
+- id: hyperswitch-0047
+  anchor: symbol:rust:router.core.routing.helpers.enable_dynamic_routing_algorithm:Function#f95d39c067fe22a086a651cedae099278e2116f92ca56c2711c946cd6da7832c#1
+  location: crates/router/src/core/routing/helpers.rs:2039
+  draft:
+    label: unclear
+    category: state-transition
+    evidence:
+    - E6
+    - E7
+    reason: The branch clears the contract-based routing algorithm ID when enabling success-rate-based routing. E6 and E7 describe success-rate-based routing in general. Neither documents this transition.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 0c137a2f0f1c98d0f0eba2cb275a98ca2b50ce07a599b375fedc728d976b9880
+  label: unclear
+  category: null
+  evidence:
+  - type: docs
+    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/integration-guide/control-center/getting-started.md#L90
+    quote: '| **Intelligent Routing(Demo mode)** | Success-rate–based dynamic routing                               |'
+  - type: docs
+    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/README.md#L82
+    quote: Dynamically route transactions based on geography, cost, or success rate to reduce failures and fees.
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: null
+- id: hyperswitch-0048
+  anchor: symbol:rust:router.core.payments.tokenization.save_payment_method:Function#9a7c8c131fe46de0e7898ab26d146e4ea98dbd78abcaf1f935ad6803d295bc8a#1
+  location: crates/router/src/core/payments/tokenization.rs:410
+  draft:
+    label: unclear
+    category: permission
+    evidence: []
+    reason: The locker configuration controls whether the card is saved in the locker. The supplied documentation does not directly address the behavior when the locker is disabled.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 3d4fae8bdd7cb9f7672c453bea495168b5911443600a3f8393fe6f1b8f4218bb
+  label: unclear
+  category: null
+  evidence: []
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: null
+- id: hyperswitch-0049
+  anchor: symbol:rust:router.core.payments.flows.session_flow.create_gpay_session_token:Function#ecd209e6dbcb78923917bae9e79b237e2e85f877503e08525a4e0577eda3a572#1
+  location: crates/router/src/core/payments/flows/session_flow.rs:1084
+  draft:
+    label: unclear
+    category: null
+    evidence:
+    - E6
+    reason: E6 describes the general Google Pay session response. It does not document when a connector returns a delayed third-party SDK token or which next action accompanies it.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 1a591f4d85f689b542e1f508cdcdee1ddb865bc0750bd66a4013244c977cddf4
+  label: unclear
+  category: null
+  evidence:
+  - type: docs
+    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/integration-space/prism/api-reference/domain-schema/README.md#L222
+    quote: '| `GpaySessionTokenResponse` | Google Pay session configuration returned from session initialization API. | `{"merchant_info": {"merchant_name": "Example Store", "merchant_id": "123"}, "payment_methods": [{"type": "CARD"}], "transaction_info": {...}}` | `SessionToken`, `GooglePay` |'
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: null
+- id: hyperswitch-0050
+  anchor: symbol:rust:router.core.payments.routing.utils.fetch_de_euclid_routing_records_raw:Function#7ccbb25b5273c7a68a460ab73065d29d4a7d077d02afbdf117ee31dade1d6d9e#1
+  location: crates/router/src/core/payments/routing/utils.rs:1040
+  draft:
+    label: unclear
+    category: null
+    evidence: []
+    reason: The branch selects the active-only or unfiltered Decision Engine list endpoint based on active_only. The supplied documentation does not directly describe this behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: ea55e7bafd6d9aa2345c553f6bdb74876629cc7072fe5bb36ae81e7aaedb5a41
+  label: unclear
+  category: null
+  evidence: []
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: null
+- id: hyperswitch-0051
+  anchor: symbol:rust:router.core.routing.helpers.TxnStatus.ForeignFrom<common_enums::AttemptStatus>.foreign_from:Method#00fc4bc9c64ca151709ff73a363ebf043e41e9e5d89bad5e7bfc214fd7ab0ca2#1
+  location: crates/router/src/core/routing/helpers.rs:1802
+  draft:
+    label: unclear
+    category: null
+    evidence: []
+    reason: agent response was unavailable or invalid
+  drafted_by: null
+  label: unclear
+  category: null
+  evidence: []
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: null
+- id: hyperswitch-0052
+  anchor: symbol:rust:router.core.payments.helpers.add_connector_response_to_additional_payment_data:Function#0d53cf584cb1f8423323be7df21ce01ed8e60100aa29491d5de11b74148bf7b2#1
+  location: crates/router/src/core/payments/helpers.rs:8901
+  draft:
+    label: unclear
+    category: null
+    evidence: []
+    reason: agent response was unavailable or invalid
+  drafted_by: null
+  label: unclear
+  category: null
+  evidence: []
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: null
+- id: hyperswitch-0053
+  anchor: symbol:rust:router.core.payments.operations.payment_response.create_deferred_payment_method:Function#190f1ec9025f62c294a8c4eacc3d0648848512bc3bb7d176a14552d1379ee146#1
+  location: crates/router/src/core/payments/operations/payment_response.rs:3901
+  draft:
+    label: unclear
+    category: null
+    evidence: []
+    reason: agent response was unavailable or invalid
+  drafted_by: null
+  label: unclear
+  category: null
+  evidence: []
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: null
+- id: hyperswitch-0054
+  anchor: symbol:rust:router.core.payments.routing.perform_static_routing_v1:Function#3036c6790e5047fe767cb3737a0b188a3948a0da1bf7527c2cd769937694e382#1
+  location: crates/router/src/core/payments/routing.rs:1934
+  draft:
+    label: unclear
+    category: null
+    evidence: []
+    reason: agent response was unavailable or invalid
+  drafted_by: null
+  label: unclear
+  category: null
+  evidence: []
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: null
+- id: hyperswitch-0055
+  anchor: symbol:rust:router.core.routing.helpers.TxnStatus.ForeignFrom<common_enums::AttemptStatus>.foreign_from:Method#0ce0ee1632168b527dd255ebfaeb5fbeaf2d728c75a30ed510df745d1961a0ad#1
+  location: crates/router/src/core/routing/helpers.rs:1801
+  draft:
+    label: unclear
+    category: null
+    evidence: []
+    reason: agent response was unavailable or invalid
+  drafted_by: null
+  label: unclear
+  category: null
+  evidence: []
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: null
+- id: hyperswitch-0056
+  anchor: symbol:rust:router.core.payments.operations.payment_confirm.PaymentConfirm.GetTracker<F,PaymentData<F>,api::PaymentsRequest>.get_trackers:Method#ef1faca1d33cbc3bd786f090b224bd68f575c9ee1ee2926a8c6022509a3b1e45#1
+  location: crates/router/src/core/payments/operations/payment_confirm.rs:633
+  draft:
+    label: unclear
+    category: null
+    evidence: []
+    reason: agent response was unavailable or invalid
+  drafted_by: null
+  label: unclear
+  category: null
+  evidence: []
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: null
+- id: hyperswitch-0057
+  anchor: symbol:rust:router.core.payments.retry.do_gsm_actions:Function#5c232a540bc801a1100e8e178c5647cc30bddc634bc9a403e18821196fe47b14#1
+  location: crates/router/src/core/payments/retry.rs:122
+  draft:
+    label: unclear
+    category: null
+    evidence: []
+    reason: agent response was unavailable or invalid
+  drafted_by: null
+  label: unclear
+  category: null
+  evidence: []
+  verified_by: codex-work
+  second_label: unclear
+  second_by: codex-work-second
+  note: null
+- id: hyperswitch-0058
+  anchor: symbol:rust:router.core.payments.operations.payment_session.PaymentSession.GetTracker<F,PaymentData<F>,api::PaymentsSessionRequest>.get_trackers:Method#f72ded31cc1db04b996f09e6db34cb5c80f3b3023d562e2a4266beecf90ca09e#1
+  location: crates/router/src/core/payments/operations/payment_session.rs:75
+  draft:
+    label: unclear
+    category: null
+    evidence: []
+    reason: agent response was unavailable or invalid
+  drafted_by: null
+  label: unclear
+  category: null
+  evidence: []
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: null
+- id: hyperswitch-0059
+  anchor: symbol:rust:router.core.routing.helpers.TxnStatus.ForeignFrom<common_enums::AttemptStatus>.foreign_from:Method#0dd81c1915e8721c44882b3df9f5add01104f8dc755d6b06596bcb4089998879#1
+  location: crates/router/src/core/routing/helpers.rs:1787
+  draft:
+    label: unclear
+    category: null
+    evidence: []
+    reason: agent response was unavailable or invalid
+  drafted_by: null
+  label: unclear
+  category: null
+  evidence: []
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: null
+- id: hyperswitch-0060
+  anchor: symbol:rust:router.core.payments.helpers.decide_session_token_flow:Function#99e089876a306d60797152331510470394676237b80409e0810e05f71a14d46b#1
+  location: crates/router/src/core/payments/helpers.rs:8803
+  draft:
+    label: unclear
+    category: null
+    evidence: []
+    reason: agent response was unavailable or invalid
+  drafted_by: null
+  label: unclear
+  category: null
+  evidence: []
+  verified_by: codex-work
+  second_label: unclear
+  second_by: codex-work-second
   note: null

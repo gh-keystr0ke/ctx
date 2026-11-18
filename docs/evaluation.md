@@ -96,3 +96,58 @@ The destructive exit policy replayed 100 first-parent commits through
 `53188bc`. Each review compared a commit to its first parent. The replay
 produced no blocking findings or execution errors. A fixture with a dropped
 column separately verified the blocking exit code.
+
+## Decision point corpus
+
+The [labeling guide](../crates/ctx-eval/corpus/LABELING.md) defines the labels and edge cases.
+The operator pins revisions, creates samples, and starts draft runs.
+A reviewer checks the code and cited evidence. The second review hides the draft and first label.
+For this run, Codex performed both reviews as authorized. The procedure did not use independent human reviewers.
+
+The commands below use the development-tool binary.
+
+```sh
+corpus() { cargo run --locked -p ctx-eval --bin ctx-corpus -- "$@"; }
+```
+
+1. Pin each project and its evidence repositories in `corpus/projects/`. Run `corpus fetch PROJECT`.
+2. Run `corpus sample PROJECT`. Commit the v0 sample and fill order before changing the ranking rules.
+3. Run `corpus draft PROJECT --agent codex`. Drafting reads only the code and evidence package for each point.
+4. Run `corpus review PROJECT --reviewer NAME`. Use `corpus sample PROJECT --extend --fill` for fixed batches of ten.
+   Continue to the 15/15 quota or 60 points. Record a shortfall when the cap is reached.
+5. Run `corpus review PROJECT --reviewer NAME --second`. Then run `corpus agreement PROJECT --min 0.6`.
+6. If agreement is low, resolve ambiguous rules in the labeling guide. Update its version and review all affected points.
+7. Run `corpus check` and `corpus score --tuning`. Freeze the ranking before running `corpus score --gate`.
+   If the precision pool is incomplete, add its listed anchors with `corpus sample PROJECT --extend ANCHOR...`.
+
+Precision@5 uses reviewed labels from all sources, including the pool. The quota and trivial false-positive rate exclude the pool.
+
+### 0.9.0 release verification
+
+Release status is blocked. The first-party regression corpus passed 145 checks
+across 48 cases, including 12 deterministic coverage scenarios. Two coverage
+reports for the same indexed ctx revision matched byte for byte.
+
+All three tuning projects reached the 60-point limit. The second review used
+the same Codex session with the first labels hidden in the review interface.
+Agreement from this procedure does not measure agreement between independent
+reviewers.
+
+| Project | Significant | Trivial | Unclear | Second labels | Cohen's κ |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Zulip | 6 | 14 | 40 | 12 | 1.00 |
+| Mattermost | 3 | 31 | 26 | 12 | 1.00 |
+| Hyperswitch | 0 | 4 | 56 | 12 | 1.00 |
+
+Each project fell short of the 15/15 quota. Measured tuning precision@5 was
+20.0% on rated points, with an incomplete precision pool. The trivial
+false-positive rate was 32.7% (16 of 49). The held-out release score remained
+incomplete. Agent quota exhaustion interrupted its draft phase.
+
+The historical repair replay indexed the parent and result of each code change.
+Safe planning recovered 0 of 8 previously edited links across the ingestion
+move, the inference command move, and two renamed test groups. The original
+code commits are `3592730`, `ce9d872`, `14f2752`, and `53d7e67`. The case
+associated with `3a61aaa` retained the old wrapper and did not produce a broken
+link. Synthetic moves and pure test renames succeeded. The automatic replay
+result did not meet the 80% target.

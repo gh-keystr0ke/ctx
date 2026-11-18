@@ -415,3 +415,190 @@ points:
     rank: 801
     score: 0
     contributions: {}
+  zulip-0031:
+    selected_by: fill
+    rank: 637
+    score: 1
+    contributions:
+      decision_shape: 1
+  zulip-0032:
+    selected_by: fill
+    rank: 875
+    score: 0
+    contributions: {}
+  zulip-0033:
+    selected_by: fill
+    rank: 4
+    score: 13
+    contributions:
+      condition: 4
+      decision_shape: 1
+      downstream_calls: 8
+  zulip-0034:
+    selected_by: fill
+    rank: 1133
+    score: 0
+    contributions: {}
+  zulip-0035:
+    selected_by: fill
+    rank: 146
+    score: 5
+    contributions:
+      condition: 4
+      decision_shape: 1
+  zulip-0036:
+    selected_by: fill
+    rank: 563
+    score: 1
+    contributions:
+      decision_shape: 1
+  zulip-0037:
+    selected_by: fill
+    rank: 41
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  zulip-0038:
+    selected_by: fill
+    rank: 928
+    score: 0
+    contributions: {}
+  zulip-0039:
+    selected_by: fill
+    rank: 66
+    score: 8
+    contributions:
+      downstream_calls: 8
+  zulip-0040:
+    selected_by: fill
+    rank: 1195
+    score: 0
+    contributions: {}
+  zulip-0041:
+    selected_by: fill
+    rank: 638
+    score: 1
+    contributions:
+      decision_shape: 1
+  zulip-0042:
+    selected_by: fill
+    rank: 751
+    score: 1
+    contributions:
+      decision_shape: 1
+  zulip-0043:
+    selected_by: fill
+    rank: 5
+    score: 13
+    contributions:
+      condition: 4
+      decision_shape: 1
+      downstream_calls: 8
+  zulip-0044:
+    selected_by: fill
+    rank: 22
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  zulip-0045:
+    selected_by: fill
+    rank: 147
+    score: 5
+    contributions:
+      condition: 4
+      decision_shape: 1
+  zulip-0046:
+    selected_by: fill
+    rank: 649
+    score: 1
+    contributions:
+      decision_shape: 1
+  zulip-0047:
+    selected_by: fill
+    rank: 42
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  zulip-0048:
+    selected_by: fill
+    rank: 366
+    score: 1
+    contributions:
+      decision_shape: 1
+  zulip-0049:
+    selected_by: fill
+    rank: 80
+    score: 7
+    contributions:
+      decision_shape: 1
+      downstream_calls: 6
+  zulip-0050:
+    selected_by: fill
+    rank: 71
+    score: 7
+    contributions:
+      downstream_calls: 7
+  zulip-0051:
+    selected_by: fill
+    rank: 639
+    score: 1
+    contributions:
+      decision_shape: 1
+  zulip-0052:
+    selected_by: fill
+    rank: 1212
+    score: 0
+    contributions: {}
+  zulip-0053:
+    selected_by: fill
+    rank: 6
+    score: 13
+    contributions:
+      condition: 4
+      decision_shape: 1
+      downstream_calls: 8
+  zulip-0054:
+    selected_by: fill
+    rank: 204
+    score: 4
+    contributions:
+      condition: 4
+  zulip-0055:
+    selected_by: fill
+    rank: 148
+    score: 5
+    contributions:
+      condition: 4
+      decision_shape: 1
+  zulip-0056:
+    selected_by: fill
+    rank: 909
+    score: 0
+    contributions: {}
+  zulip-0057:
+    selected_by: fill
+    rank: 43
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  zulip-0058:
+    selected_by: fill
+    rank: 740
+    score: 1
+    contributions:
+      downstream_calls: 1
+  zulip-0059:
+    selected_by: fill
+    rank: 81
+    score: 7
+    contributions:
+      downstream_calls: 7
+  zulip-0060:
+    selected_by: fill
+    rank: 1087
+    score: 0
+    contributions: {}

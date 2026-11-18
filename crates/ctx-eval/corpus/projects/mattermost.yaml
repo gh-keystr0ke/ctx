@@ -30,360 +30,1198 @@ points:
 - id: mattermost-0001
   anchor: symbol:go:server.channels.app.App.AddChannelMember:Method#4f4bc6bf08dd6fd13b0349140963fd4fcc91960289a57b6603cf44ef67666a10#1
   location: server/channels/app/channel.go:2075
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: permission
+    evidence:
+    - E1
+    - E2
+    reason: The code returns HTTP 403 when adding a deactivated user to a channel. The documentation explains how DeleteAt marks deactivation but does not address channel membership.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 683c5916d31fabb3e01a2c5e523f5a43ce01446f73e44c3fdc0915a5cdeacb6c
+  label: unclear
   category: null
-  evidence: []
-  verified_by: null
+  evidence:
+  - type: docs
+    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/onboard/sso-saml-technical.rst#L105
+    quote: '- If the corresponding ``LdapSettings.IdAttribute`` is not found, the user is assumed to be deleted from the LDAP server, and deactivated from Mattermost by setting the ``Users.DeleteAt`` field to a valid timestamp.'
+  - type: docs
+    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/onboard/sso-saml-technical.rst#L110
+    quote: '- If the corresponding ``LdapSettings.EmailAttribute`` is not found, the user is assumed to be deleted from the LDAP server, and deactivated from Mattermost by setting the ``Users.DeleteAt`` field to a valid timestamp.'
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: mattermost-0002
   anchor: symbol:go:server.channels.app.App.MoveThread:Method#9ded100e1a34b436a7ff78e99a4360609511cfe5646f587dfb0895f3b493ff15#1
   location: server/channels/app/post.go:3568
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: permission
+    evidence: []
+    reason: Moving a thread with file attachments requires upload permission in the target channel. The package contains no documentation, specification, or issue that directly addresses this rule.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 9a28370b3be2d86ec14d4d19d42189f497e3ecaeafba775bebf195d3d547d65c
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
-  second_label: null
-  second_by: null
+  verified_by: codex-work
+  second_label: unclear
+  second_by: codex-work-second
   note: null
 - id: mattermost-0003
   anchor: symbol:go:server.channels.app.App.AddUserToTeamWithToken:Method#228c54dd9d63bd752a8b90782f4909a8550b7daf013689a070f35e3646ae0859#1
   location: server/channels/app/team.go:616
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: validation
+    evidence: []
+    reason: The code rejects expired team invitations and attempts to delete their tokens. The supplied documentation concerns LLM tokens and does not establish the intended behavior for expired invitations.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 8bdbcf1835de10472429f4411a8313bd17e205fc4cdcab71a2563d58408b94f7
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
-  second_label: null
-  second_by: null
+  verified_by: codex-work
+  second_label: unclear
+  second_by: codex-work-second
   note: null
 - id: mattermost-0004
   anchor: symbol:go:server.channels.app.App.AddChannelMember:Method#5e2dac38c1b48d3eb28b3b66cfc503da9bef51f398ff42f0620a62d67b81e5b5#1
   location: server/channels/app/channel.go:2071
-  draft: null
-  drafted_by: null
-  label: null
-  category: null
+  draft:
+    label: trivial
+    category: error-handling
+    evidence: []
+    reason: The highlighted branch returns the user lookup error unchanged.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: e5944e295b327373350f621017dfda3e50b082100d12fc45eb60326b64e730a0
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
-  second_label: null
-  second_by: null
+  verified_by: codex-work
+  second_label: trivial
+  second_by: codex-work-second
   note: null
 - id: mattermost-0005
   anchor: symbol:go:server.channels.app.App.CheckPostReminders:Method#63e2854e729894cdd002a8d6fed72c277e5b8447ed6bfe8afc3d4cebe786fb6d#1
   location: server/channels/app/post.go:3220
-  draft: null
-  drafted_by: null
-  label: null
-  category: null
+  draft:
+    label: trivial
+    category: error-handling
+    evidence: []
+    reason: The branch logs a system bot lookup failure and returns. E1 documents a release checksum and does not address this behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 8e83c85f843db6d3a9c831776c619c7d616685bea569b95b8c0324bc3b8ae077
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: mattermost-0006
   anchor: symbol:go:server.channels.app.App.AddUserToTeamWithToken:Method#08f8e7e7f81f154e8d7f9d701256715dcbcaf353a091bbc9f2b8dc66558fa69a#1
   location: server/channels/app/team.go:674
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: validation
+    evidence: []
+    reason: The code rejects an invitation when the token contains an email address that differs from the user's email address under a case-insensitive comparison. The supplied documentation does not address this behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 2a36b2f8b773adb486b6bbc1265b3485e207c88e7e4b73514fb8339bf632e7f2
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: mattermost-0007
   anchor: symbol:go:server.channels.app.App.AddChannelMember:Method#6e79f1c97bce7e530b1de643de7903cb67365a9d78b7907dec7694a14d95a11e#1
   location: server/channels/app/channel.go:2091
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: state-transition
+    evidence: []
+    reason: The code skips the UserHasJoinedChannel plugin hook after successfully adding a user to a space. The package contains no documentation, specification, or issue that directly addresses this behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: e54abef9e66f66cd70b99dbf65cfe1f55e762d6f30c61f14b0784fc9665409b1
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: mattermost-0008
   anchor: symbol:go:server.channels.app.App.CheckPostReminders:Method#6bb7a877eee16cd337f56859d4e4e133f9869c04f29ad494b8229e44ff24c14c#1
   location: server/channels/app/post.go:3231
-  draft: null
-  drafted_by: null
-  label: null
-  category: null
+  draft:
+    label: trivial
+    category: error-handling
+    evidence: []
+    reason: The branch logs a reminder retrieval error and returns. The nearby MM-45595 comment concerns when reminders are deleted.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 4798dcddad61fc62e71fcfa6e4e2f26cb72503a0a14272bdba120950bf4d155c
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: mattermost-0009
   anchor: symbol:go:server.channels.app.App.AddUserToTeamWithToken:Method#337e563241aadc0b5f923808c8d0a467c5d6aeca87bfe6d4dd37e58642d789a1#1
   location: server/channels/app/team.go:670
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: permission
+    evidence: []
+    reason: The code prevents non-guest users from joining a team with a guest invitation or guest magic link. The package contains no documentation, specification, or issue that directly addresses this restriction.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: d7139d1d986a2bd458d4d6b90ff4fceb2fc0b2af50134b79ce701fd0d73d6bf8
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
-  second_label: null
-  second_by: null
+  verified_by: codex-work
+  second_label: unclear
+  second_by: codex-work-second
   note: null
 - id: mattermost-0010
   anchor: symbol:go:server.channels.app.App.AddChannelMember:Method#f95d2993f86915bb767e9ba4956771958bf707ca767f514f4abf774a09816cca#1
   location: server/channels/app/channel.go:2087
-  draft: null
-  drafted_by: null
-  label: null
-  category: null
-  evidence: []
-  verified_by: null
+  draft:
+    label: trivial
+    category: error-handling
+    evidence:
+    - E1
+    reason: The branch returns the error from AddUserToChannel unchanged. E1 documents the audit action for adding channel members and provides no evidence about how this error is handled.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 95aa1509763b361ebb25819b3616b63bfa90bcb0b0f950bd5f826bcf41877acc
+  label: trivial
+  category: error-handling
+  evidence:
+  - type: docs
+    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/comply/embedded-json-audit-log-schema.rst#L235
+    quote: '| ``addChannelMember``               | Adding members to channels                                        |'
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: mattermost-0011
   anchor: symbol:go:server.channels.app.App.CheckPostReminders:Method#a0beeb733e72dd7c3d1d6ac6d583814cfa7897c7f5acc5bb2bd6f5766265e2bd#1
   location: server/channels/app/post.go:3249
-  draft: null
-  drafted_by: null
-  label: null
-  category: null
+  draft:
+    label: trivial
+    category: error-handling
+    evidence: []
+    reason: The branch logs a direct-channel error and returns from the function. The package contains no documentation, specification, or issue about this behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 184af06ce6fe2efc9a32c35cf654c2d4705189a470ef799599e485e101de54f9
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: mattermost-0012
   anchor: symbol:go:server.channels.app.App.AddUserToTeamWithToken:Method#516673a0f3b2c984fb9af9a4ceabc0396a26701c1d2b032bf7b595b864b4bd30#1
   location: server/channels/app/team.go:612
-  draft: null
-  drafted_by: null
-  label: null
-  category: null
+  draft:
+    label: trivial
+    category: validation
+    evidence: []
+    reason: The branch performs a routine token-type check and returns HTTP 400 for non-invitation tokens. The supplied documentation concerns LLM tokens and does not address team invitations.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: a3bbf3c293569aab0f2aa23791bc9d63786c063a4769313c59753c2403022c6f
+  label: trivial
+  category: validation
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: mattermost-0013
   anchor: symbol:go:server.channels.app.App.ConvertGroupMessageToChannel:Method#a225847115c06fa5a70adfbdd7da044b1202c319528697bc65d7cd8ccc6f1c25#1
   location: server/channels/app/channel.go:4350
-  draft: null
-  drafted_by: null
-  label: null
-  category: null
+  draft:
+    label: trivial
+    category: error-handling
+    evidence: []
+    reason: The branch returns the channel lookup error unchanged. The supplied documentation does not describe this error path.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 872b82e5e8144966ba632fc85d4ec4842bea3bb5db582919d7b866b8e42fd818
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: mattermost-0014
   anchor: symbol:go:server.channels.app.App.CreatePost:Method#18444d500a1bfa0dbc3bb6c3633d2fd99cee1f54ca1cb866e682a220fad674d4#1
   location: server/channels/app/post.go:187
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: null
+    evidence:
+    - E1
+    - E2
+    reason: The nil check selects an early return for a deduplicated post and triggers a preview membership check when a preview exists. The cited documentation only describes the createPost audit event.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 1f50d224b665f5b37b98e25bd21b80221654f996f0466bb2569cebc3d6778ded
+  label: unclear
   category: null
-  evidence: []
-  verified_by: null
+  evidence:
+  - type: docs
+    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/comply/embedded-json-audit-log-schema.rst#L79
+    quote: '"event_name": "createPost",'
+  - type: docs
+    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/comply/embedded-json-audit-log-schema.rst#L333
+    quote: '| ``createPost``                | Creating new posts                                                |'
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: mattermost-0015
   anchor: symbol:go:server.channels.app.App.AddUserToTeamWithToken:Method#6191025e66ac6e87c5d80a846330837358727bd2294a1ded0f9d7b5637f3793b#1
   location: server/channels/app/team.go:651
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: permission
+    evidence: []
+    reason: The branch returns HTTP 403 when an invite token is used to join a group-constrained team. None of the supplied evidence directly documents this restriction.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 5a756fc482462a5ba3157af98bb206312aaf7e04221bcd83485fa28dfbca51bb
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: mattermost-0016
   anchor: symbol:go:server.channels.app.App.IsDeactivatedUserEmail:Method#d6c9c306604e5087cc2c5a00633b3ec377f3ac6b7863f5d3040272e9f1f03ed8#1
   location: server/channels/app/team.go:1560
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: trivial
+    category: error-handling
+    evidence: []
+    reason: The branch treats a missing account as an email with no deactivated user and propagates other lookup errors. The supplied documentation is an unrelated checksum.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 4f996fa86221bca834f99c3a68075f8072cf9383cf71ec7c77ce49ddb1e8016d
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: mattermost-0017
   anchor: symbol:go:server.channels.app.App.PatchChannel:Method#729a30b32bbf46ce1cb3d8a8c353f31baf565d2c37e5df85716534eb85d0ae14#1
   location: server/channels/app/channel.go:1128
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: permission
+    evidence:
+    - E1
+    reason: The branch rejects patches to restricted direct-message channels with HTTP 400. E1 documents the patch operation in general. The package provides no documentation, specification, or issue that addresses this restriction directly.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 11599c1e8c174b99c87dba9d6f18700e2161285c70022920f2a0bb7f278dbb20
+  label: unclear
   category: null
-  evidence: []
-  verified_by: null
+  evidence:
+  - type: docs
+    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/comply/embedded-json-audit-log-schema.rst#L253
+    quote: '| ``patchChannel``                   | Updating channel properties                                       |'
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: mattermost-0018
   anchor: symbol:go:server.channels.app.App.PatchChannelMembersNotifyProps:Method#f4f0a3901eca737845c7dfb6cf806b7e217b6637f4d0521960e4050b54eb7d72#1
   location: server/channels/app/channel.go:1672
-  draft: null
-  drafted_by: null
-  label: null
-  category: null
+  draft:
+    label: trivial
+    category: error-handling
+    evidence: []
+    reason: The highlighted branch propagates an existing AppError from the store. The supplied documentation does not address this behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 75b178d620c0ded7c5ca5e4fec3e40a8323553e01ddb50eac88e84ffd2ceb07e
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: mattermost-0019
   anchor: symbol:go:server.channels.app.App.ViewChannel:Method#a2f8a84f44644518c3ac31cef76c69e764fa2e915470d18f5e2d7408859a6cb9#1
   location: server/channels/app/channel.go:3809
-  draft: null
-  drafted_by: null
-  label: null
-  category: null
+  draft:
+    label: unclear
+    category: null
+    evidence: []
+    reason: trivial label requires a category
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 95cb22bbfcd70c9ad6e1d6c61c899d99e76a552560eeee6cff9840a19287b7e6
+  label: trivial
+  category: validation
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: mattermost-0020
   anchor: symbol:go:server.channels.app.App.JoinChannel:Method#76a28bc6ea9779917fee8ecd9237c76dd0e8e7f3daf271f8043560dcbef8cb47#1
   location: server/channels/app/channel.go:2806
-  draft: null
-  drafted_by: null
-  label: null
-  category: null
-  evidence: []
-  verified_by: null
+  draft:
+    label: unclear
+    category: permission
+    evidence:
+    - E7
+    - E8
+    reason: The branch permits users who are not already members to join only open channels. E7 and E8 describe access rules that vary by channel type, but neither directly documents this join restriction.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 03102ec89610b06e37d698284a9f684e3b8886886cde06c4dce22bec75913154
+  label: significant
+  category: permission
+  evidence:
+  - type: docs
+    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/manage/admin/abac-channel-access-rules.rst#L9
+    quote: 'From Mattermost v11.8, channel access rules can be applied to **both private and public channels**. The two channel types behave differently under ABAC:'
+  - type: docs
+    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/manage/admin/abac-channel-access-rules.rst#L28
+    quote: '- Channel access rules are available for private and public channels, with behavior that varies by channel type. See :ref:`Public and private channel behavior <administration-guide/manage/admin/abac-channel-access-rules:public and private channel behavior>`. Default channels (such as Town Square and Off-Topic), shared channels, and group-synced channels remain ineligible.'
+  - type: docs
+    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/end-user-guide/collaborate/join-leave-channels.rst#L12
+    quote: Anyone on the team can join a public channel.
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: mattermost-0021
   anchor: symbol:go:server.channels.app.App.DeleteChannelScheme:Method#a00b7c621ec76987950738d3f02905236015ff38556b551de6e8fffa514f52a0#1
   location: server/channels/app/channel.go:916
-  draft: null
-  drafted_by: null
-  label: null
-  category: null
+  draft:
+    label: trivial
+    category: error-handling
+    evidence: []
+    reason: The highlighted branch returns the error from DeleteScheme before clearing the channel’s scheme ID. The supplied documentation discusses AI agents and does not address this error path.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 629547fdc6cdcad6d1c846a5e6824bae4cd10a94dff536c4b05a50e7769b4f0c
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: mattermost-0022
   anchor: symbol:go:server.channels.app.App.updateTeamMemberRolesInternal:Method#06c035e166cb77c2a68cf8b02754b2783b57b6ee957223957a5fd15a773238f5#1
   location: server/channels/app/team.go:428
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: permission
+    evidence: []
+    reason: The branch sets SchemeUser when the requested role matches the scheme's user role. The supplied documentation does not address this behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 339476c0f64e632bf063de7f048d546d8e695c336076ede3fb3abe9b71dc3312
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
-  second_label: null
-  second_by: null
+  verified_by: codex-work
+  second_label: unclear
+  second_by: codex-work-second
   note: null
 - id: mattermost-0023
   anchor: symbol:go:server.channels.app.App.GetSinglePost:Method#1fd8263309b2c88370e9726f1acf404d9b44029d59565db23734c4df653c4c8c#1
   location: server/channels/app/post.go:1735
-  draft: null
-  drafted_by: null
-  label: null
-  category: null
+  draft:
+    label: trivial
+    category: error-handling
+    evidence: []
+    reason: The fallback branch wraps unexpected post-store errors and returns HTTP 500. The supplied documentation covers Agents configuration and does not address this behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 1c41ae33b8a4b6d9f3c22ee0f6097edb3a24f5da6b1b1096abcadf6d0017165b
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: mattermost-0024
   anchor: symbol:go:server.channels.app.App.GetLastAccessiblePostTime:Method#259e5bbe24b465dc17cdf6cc6e6f6be75018fa48650da50eeed505f2cb981b77#1
   location: server/channels/app/post.go:2438
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: limit
+    evidence: []
+    reason: The branch returns 0 when the license or its limits are absent, or when the post-history limit is zero. The supplied documentation does not address this behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 761006e62522e07c3a78d2755d21859c818f669d05c4c3966e73d726d3fb6dbd
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: mattermost-0025
   anchor: symbol:go:server.channels.app.App.setChannelsMuted:Method#d420e45d61cdc4f45046dd71929ddfcd424d395eb7ae3cd2b48c255d3fd717df#1
   location: server/channels/app/channel.go:4137
-  draft: null
-  drafted_by: null
-  label: null
-  category: null
+  draft:
+    label: trivial
+    category: error-handling
+    evidence: []
+    reason: The branch wraps a JSON marshaling error and returns HTTP 500. E1 documents a release checksum and does not address this behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: c926da10f213f958f35da99f2331eb47b83deabe377c3f676460b69ec612a997
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: mattermost-0026
   anchor: symbol:go:server.channels.app.App.countMentionsFromPost:Method#8bd97f43832cb17a1908804192aa62616641f8360623975b1f6f575c2694eab5#1
   location: server/channels/app/post.go:2932
-  draft: null
-  drafted_by: null
-  label: null
-  category: null
+  draft:
+    label: trivial
+    category: error-handling
+    evidence: []
+    reason: The branch wraps and propagates a failed post-priority lookup as an internal server error. The supplied documentation describes notification logging.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 6a77f4bbc6e0807ab67891fccdaa008841099bee11fe6a924f22f7db38575aed
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: mattermost-0027
   anchor: symbol:go:server.channels.app.getRewritePromptForAction:Function#a29305e591239af38ec89d13c47cd1fa63e6fcb8585e3331950a802462f36022#1
   location: server/channels/app/post.go:4053
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: trivial
+    category: validation
+    evidence: []
+    reason: The default branch returns an empty string to signal an invalid rewrite action. The package contains no documentation, specification, or issue about this behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 981216504d20effc05486edfcc5bc977adcc1aeacc1b3fb4e6d969074f2f1e69
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
-  second_label: null
-  second_by: null
+  verified_by: codex-work
+  second_label: unclear
+  second_by: codex-work-second
   note: null
 - id: mattermost-0028
   anchor: symbol:go:server.channels.app.App.UpdateChannel:Method#f3d00c54faf6c18731af59b0887e17c4a34b2d624abf5239aaf1c6cad1a9ff3d#1
   location: server/channels/app/channel.go:886
-  draft: null
-  drafted_by: null
-  label: null
-  category: null
+  draft:
+    label: trivial
+    category: error-handling
+    evidence: []
+    reason: The branch wraps a JSON serialization error and returns HTTP 500 before publishing the WebSocket event. The supplied documentation covers audit event names and does not address this failure behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: da1eb3e493443c35782b762d2d6df797b1711b2e04bc3eda878fbfb3894a2ef0
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: mattermost-0029
   anchor: symbol:go:server.channels.app.App.removeUserFromChannel:Method#16f215e5b46b0a02e1a1cfdff5f970446139989ee2e55d290be7b3b7f576fed5#1
   location: server/channels/app/channel.go:3072
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: permission
+    evidence: []
+    reason: The branch denies removal by another user when the target is a non-bot who still qualifies for membership in a group-constrained channel. The package contains no documentation, specification, or issue directly addressing this rule.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 4623a9e090d3c9a2b856c3ff92775d780a591a5ba87ef25c00a3cab7860308d0
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
 - id: mattermost-0030
   anchor: symbol:go:server.channels.app.App.validateAndNormalizeMemberInviteProfiles:Method#4cdbbd476947a4b89da8ac22d8f0b3dacfb60b5034a3ca2508bdaa3aa2173ef5#1
   location: server/channels/app/team.go:1663
-  draft: null
-  drafted_by: null
-  label: null
+  draft:
+    label: unclear
+    category: permission
+    evidence: []
+    reason: The branch rejects invitations with profile data when profile field locking for email users is disabled. The package contains no documentation, specification, or issue directly about this behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 593507b3c2679e572b09fa7c517b27cf0f7e695ac417abd31c2e6ed2e6226869
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: null
+- id: mattermost-0031
+  anchor: symbol:go:server.channels.app.App.ConvertGroupMessageToChannel:Method#a225847115c06fa5a70adfbdd7da044b1202c319528697bc65d7cd8ccc6f1c25#2
+  location: server/channels/app/channel.go:4355
+  draft:
+    label: trivial
+    category: error-handling
+    evidence: []
+    reason: The highlighted branch returns the validation error unchanged. The supplied documentation describes the conversion feature but does not address this error propagation.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 4841ab5c4ff57806c7bf641679c5405f96c596afd7126dd8b06dd872b1ceb7a3
+  label: trivial
+  category: error-handling
+  evidence: []
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: null
+- id: mattermost-0032
+  anchor: symbol:go:server.channels.app.App.deduplicateCreatePost:Method#b35c9a22d02086c9890157aa0309e6c737003a13728e92c9a8838e02aa182a8f#1
+  location: server/channels/app/post.go:139
+  draft:
+    label: unclear
+    category: state-transition
+    evidence: []
+    reason: A cache miss records the pending post ID with an expiring placeholder. The supplied documentation does not address this deduplication behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: a483a7e0d162db0606c4fe1cb0e0012f0d6dc49acedbf6363e4a08873d98306a
+  label: unclear
+  category: null
+  evidence: []
+  verified_by: codex-work
+  second_label: unclear
+  second_by: codex-work-second
+  note: null
+- id: mattermost-0033
+  anchor: symbol:go:server.channels.app.App.CreatePost:Method#326cc0bcb334d5c0e9709b0a7adef9079696759d99ef5a46f3bf97c720d4a49d#1
+  location: server/channels/app/post.go:179
+  draft:
+    label: trivial
+    category: error-handling
+    evidence: []
+    reason: The highlighted branch returns the validation error unchanged. None of the supplied documents address this error path or the burn-on-read restrictions.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 668e48b193dbaba3a5947950a189facb73764e3dbca3d61e5e6013838b6c2751
+  label: trivial
+  category: error-handling
+  evidence: []
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: null
+- id: mattermost-0034
+  anchor: symbol:go:server.channels.app.App.publishWebsocketEventForPost:Method#6da3350a7a2ddb987aa59981e5410daa026648bdf03ce70f17e519890371fb3e#2
+  location: server/channels/app/post.go:1275
+  draft:
+    label: trivial
+    category: error-handling
+    evidence: []
+    reason: The branch returns the channel-mention broadcast hook setup error unchanged. The supplied documentation does not address this behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 20e906e300ad2cc144e799922f58b356327a30e167fd717c02e6234b12e0d148
+  label: trivial
+  category: error-handling
+  evidence: []
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: null
+- id: mattermost-0035
+  anchor: symbol:go:server.channels.app.App.AddUserToTeamWithToken:Method#95bf3154be1d33d51c3c84bc015ef85f1e2824a6145f008b662f87a842be92f0#1
+  location: server/channels/app/team.go:667
+  draft:
+    label: unclear
+    category: permission
+    evidence:
+    - E2
+    - E6
+    reason: The branch rejects standard team invitation tokens for guest accounts. The cited documentation describes guest access restrictions in general but does not directly address which invitation tokens guests can redeem.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: e8b0de9c0fc36519689994ce96c7deeb84915b5fba078313fba776270d0a9768
+  label: unclear
+  category: null
+  evidence:
+  - type: docs
+    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/configure/optimize-your-workspace.rst#L58
+    quote: '|                       | - **Guest accounts**: Do you want to control user access to channels and teams with guest accounts?      | - :doc:`Guest accounts </administration-guide/onboard/guest-accounts>`                                                                                               |'
+  - type: docs
+    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/product-overview/plans.md#L185
+    quote: '<td><strong>Guest accounts</strong>: Bring external users and users who need to have restricted access into your Mattermost instance as <a href="https://docs.mattermost.com/administration-guide/onboard/guest-accounts.html">guests</a> who can interact with your team with <a href="https://docs.mattermost.com/administration-guide/onboard/guest-accounts.html#guests-account-limits">limited permissions</a>. Guests in exact'
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: null
+- id: mattermost-0036
+  anchor: symbol:go:server.channels.app.App.cleanupTeamAccessControlPolicy:Method#ad830ebbd02859e819f16ec4ceb66e91cd2b8efaec8598479603ec05fdb71a25#1
+  location: server/channels/app/team.go:2206
+  draft:
+    label: unclear
+    category: error-handling
+    evidence:
+    - E1
+    reason: E1 identifies a policy-deletion audit event. The package does not document when team deletion or archival falls back to the store or logs a warning after a policy-deletion failure.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: ee46be7b5d1a0b84a3396f34e44b7970b4543f7221d7768849221ea2f1339b7e
+  label: unclear
+  category: null
+  evidence:
+  - type: docs
+    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/comply/embedded-json-audit-log-schema.rst#L803
+    quote: '| ``deleteAccessControlPolicy`` | Deleting access control policies                                  |'
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: null
+- id: mattermost-0037
+  anchor: symbol:go:server.channels.app.App.ConvertGroupMessageToChannel:Method#a225847115c06fa5a70adfbdd7da044b1202c319528697bc65d7cd8ccc6f1c25#3
+  location: server/channels/app/channel.go:4366
+  draft:
+    label: trivial
+    category: error-handling
+    evidence: []
+    reason: The branch returns the error from UpdateChannel unchanged. The supplied documentation describes the conversion but does not specify how update failures are handled.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: a680ecd57466598af1e57494aea66464e84c59533fa54d496abb8745e5f7a461
+  label: trivial
+  category: error-handling
+  evidence: []
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: null
+- id: mattermost-0038
+  anchor: symbol:go:server.channels.app.App.ConvertGroupMessageToChannel:Method#a225847115c06fa5a70adfbdd7da044b1202c319528697bc65d7cd8ccc6f1c25#5
+  location: server/channels/app/channel.go:4386
+  draft:
+    label: trivial
+    category: error-handling
+    evidence: []
+    reason: The marked branch propagates the error returned by the channel role update. The supplied documentation describes group message conversion but does not specify this error behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 63c0d25622b3d640153f2088f1e12b1226ec1bba1b0ba96661a6356ec4ac53d6
+  label: trivial
+  category: error-handling
+  evidence: []
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: null
+- id: mattermost-0039
+  anchor: symbol:go:server.channels.app.App.CreatePost:Method#326cc0bcb334d5c0e9709b0a7adef9079696759d99ef5a46f3bf97c720d4a49d#2
+  location: server/channels/app/post.go:184
+  draft:
+    label: trivial
+    category: error-handling
+    evidence: []
+    reason: The branch returns the deduplication error unchanged. None of the supplied documentation describes this behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 972c7f074c56366dae8c7458c1260de6c611bb3ed8aba65b4dbe36c18d4ba5e6
+  label: trivial
+  category: error-handling
+  evidence: []
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: null
+- id: mattermost-0040
+  anchor: symbol:go:server.channels.app.App.MoveChannel:Method#ec0ba42d88722e0606c4b84d57faa8b13c36ee08023a225fcf5bc627339f9985#1
+  location: server/channels/app/channel.go:3984
+  draft:
+    label: trivial
+    category: error-handling
+    evidence: []
+    reason: The code checks for a non-nil user, attempts to publish the channel-move message, and logs any posting error before returning success. The package contains no documentation, specification, or issue directly about this behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: ad5d51fce676941e6c8053c4d7e341b3755e58e45d2db4c0e6822a5c6a0f9675
+  label: trivial
+  category: error-handling
+  evidence: []
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: null
+- id: mattermost-0041
+  anchor: symbol:go:server.channels.app.App.AdjustTeamsFromProductLimits:Method#6da3350a7a2ddb987aa59981e5410daa026648bdf03ce70f17e519890371fb3e#1
+  location: server/channels/app/team.go:35
+  draft:
+    label: trivial
+    category: error-handling
+    evidence: []
+    reason: The branch immediately returns the error from GetAllTeams unchanged. This is routine error propagation.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: d936af2a99e8bf9353472b12df737685c0ecbbfcfad413c1d9a19b3bf8b72578
+  label: trivial
+  category: error-handling
+  evidence: []
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: null
+- id: mattermost-0042
+  anchor: symbol:go:server.channels.app.App.DeleteChannel:Method#a7650fa5733a02df6b5a758c5c31b8c9798a6dce299f12984b68ff3b4e0b9fa4#1
+  location: server/channels/app/channel.go:1867
+  draft:
+    label: unclear
+    category: state-transition
+    evidence:
+    - E1
+    reason: The code attempts to delete outgoing webhooks during channel archival. E1 documents an audit event for outgoing webhook deletion but does not establish that archiving a channel should delete its webhooks.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 8b5db3cfc4cdfa0e4925d32ff551a0dd6af3cf0ad49f618728c74c0d5137a6d0
+  label: unclear
+  category: null
+  evidence:
+  - type: docs
+    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/comply/embedded-json-audit-log-schema.rst#L513
+    quote: '| ``deleteOutgoingHook``        | Deleting outgoing webhooks                                        |'
+  verified_by: codex-work
+  second_label: unclear
+  second_by: codex-work-second
+  note: null
+- id: mattermost-0043
+  anchor: symbol:go:server.channels.app.App.ConvertGroupMessageToChannel:Method#a225847115c06fa5a70adfbdd7da044b1202c319528697bc65d7cd8ccc6f1c25#4
+  location: server/channels/app/channel.go:4377
+  draft:
+    label: trivial
+    category: error-handling
+    evidence: []
+    reason: The branch returns the member lookup error unchanged. The supplied documentation describes group message conversion but does not specify how lookup failures are handled.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 359aa2989546717ba1ebb19a09d4f392101176a8c6d37e4f99da83b0823e3df0
+  label: trivial
+  category: error-handling
+  evidence: []
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: null
+- id: mattermost-0044
+  anchor: symbol:go:server.channels.app.App.CleanUpAfterPostDeletion:Method#5056ef4221991d2768f599e03fd8f3576e6dc32c2380110dc620dedae376559c#1
+  location: server/channels/app/post.go:3779
+  draft:
+    label: unclear
+    category: null
+    evidence: []
+    reason: trivial label requires a category
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 588a838bed329c6fdc2bb1f9350789e8fa89733a99aa5433bd929e4e819dcbeb
+  label: unclear
+  category: null
+  evidence: []
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: null
+- id: mattermost-0045
+  anchor: symbol:go:server.channels.app.App.CreatePost:Method#d8c3c4d93657c418b68272e6306436a8ddf2548a8b36b78830c957d10771ae4e#1
+  location: server/channels/app/post.go:173
+  draft:
+    label: significant
+    category: permission
+    evidence:
+    - E3
+    reason: E3 documents that direct and group messaging across connected workspaces requires EnableSharedChannelsDMs. The branch enforces that requirement by rejecting posts to shared direct and group channels when the flag is disabled.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: dc84103624446114431ebafd186931c1d5801e666635da232c982390e4ddc891
+  label: significant
+  category: permission
+  evidence:
+  - type: docs
+    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/onboard/connected-workspaces.rst#L151
+    quote: From Mattermost v10.10, creating a direct or group message with remote users across connected workspaces is only available when the feature flag ``EnableSharedChannelsDMs`` is enabled.
+  verified_by: codex-work
+  second_label: significant
+  second_by: codex-work-second
+  note: null
+- id: mattermost-0046
+  anchor: symbol:go:server.channels.app.App.UpdatePost:Method#cc12a2b8c8ca8329186fbefc6a927c95a339b2d93a76e0cfe64b28b73db9f11c#1
+  location: server/channels/app/post.go:970
+  draft:
+    label: unclear
+    category: state-transition
+    evidence: []
+    reason: The branch rejects updates to deleted posts with HTTP 400. None of the supplied documentation directly describes this behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: e4c25110f3bf89a6c11f1555fa4e216c50a2c2d03aefc52f8dc2cba4f9884d1a
+  label: unclear
+  category: null
+  evidence: []
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: null
+- id: mattermost-0047
+  anchor: symbol:go:server.channels.app.App.AdjustTeamsFromProductLimits:Method#c1bbbc3d269354782fe14446f1525adeb058395f2e95c03f77a0048c3ba78c90#1
+  location: server/channels/app/team.go:39
+  draft:
+    label: trivial
+    category: validation
+    evidence: []
+    reason: The branch is a routine nil check that returns success when the team slice is nil.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: e28ab38a911274e2f18baaace6f6f71cf31a674ed082ce2757357484c1a8668f
+  label: trivial
+  category: validation
+  evidence: []
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: null
+- id: mattermost-0048
+  anchor: symbol:go:server.channels.app.App.publishPostRevealedEventToUser:Method#c5c708c7cd7aefa5ab07ef185346b086ebf2d18a300733e0845c36e334c4cf12#1
+  location: server/channels/app/post.go:4337
+  draft:
+    label: trivial
+    category: error-handling
+    evidence: []
+    reason: RevealPost wraps a JSON serialization error as an HTTP 500 and returns before publishing the event. The supplied documentation does not address this failure path.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 35248a4bfac30eaa5af0b4270cc31a8145922636c5d40e0f1e2527841970f1e6
+  label: trivial
+  category: error-handling
+  evidence: []
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: null
+- id: mattermost-0049
+  anchor: symbol:go:server.channels.app.App.CreateChannelWithUserAndPropertyValues:Method#474e799365fc60f7b1163d4d9b7bf54874927725c789fce2473551351b7f1a6b#1
+  location: server/channels/app/channel.go:176
+  draft:
+    label: trivial
+    category: validation
+    evidence: []
+    reason: This is a routine channel-type check that returns HTTP 400 for direct and group messages. None of the supplied documentation directly describes this creation-path restriction.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 1c04ed1f28cf22f95066a2b149ec033cce8822a62921148a9c1ba1e666158097
+  label: unclear
+  category: null
+  evidence: []
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: null
+- id: mattermost-0050
+  anchor: symbol:go:server.channels.app.App.RemoveUserFromChannel:Method#c0e13a94b13d310501258a60d8ce64c92ff8901eb398642660531454eb6cbb77#1
+  location: server/channels/app/channel.go:3180
+  draft:
+    label: trivial
+    category: error-handling
+    evidence: []
+    reason: The highlighted branch returns the user lookup error unchanged. The documentation describes channel removals and notifications without specifying how lookup failures are handled.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 38cf396850fafb5b4754d4845763f625bd9064fb7dfdfac12314bf6bc3311e1c
+  label: trivial
+  category: error-handling
+  evidence: []
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: null
+- id: mattermost-0051
+  anchor: symbol:go:server.channels.app.App.CreatePostAsUserWithFlags:Method#08bb0e7764d0433702da3d9920c4183429289598cc283a6f41fa32d98dc653db#1
+  location: server/channels/app/post.go:64
+  draft:
+    label: unclear
+    category: permission
+    evidence: []
+    reason: The branch blocks posting in restricted direct messages with HTTP 400. The supplied documentation does not directly address this restriction.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 2635a5450d621c78cb1330bc6d97f5049f8304fb822de084fb55ff4da2dd387b
+  label: unclear
+  category: null
+  evidence: []
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: null
+- id: mattermost-0052
+  anchor: symbol:go:server.channels.app.App.supplementWithTranslationUpdatedPosts:Method#0b2f67d5906e50fab072f58c84ef4776683734cb658d444dd81f22f659f0c47a#1
+  location: server/channels/app/post.go:1670
+  draft:
+    label: trivial
+    category: error-handling
+    evidence: []
+    reason: The branch logs a language lookup error at debug level and returns from the translation supplement. The supplied documentation does not address this behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 496ff1e2a18df39c23b1adaf396264afd46e1cdf6fb249d5a77b11508c646aa8
+  label: trivial
+  category: error-handling
+  evidence: []
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: null
+- id: mattermost-0053
+  anchor: symbol:go:server.channels.app.App.leaveTeam:Method#8ddb237d24e472435fd3aa150ccbd1ef8311b04bca8f251fe410b6a08ab3e7d9#1
+  location: server/channels/app/team.go:1417
+  draft:
+    label: trivial
+    category: error-handling
+    evidence: []
+    reason: The highlighted branch wraps a channel lookup failure and returns HTTP 500. The supplied documentation does not specify how this lookup failure should be handled.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 4881bcba35b4bceeb7eb1bef688e30806730bd442061725b1ee1702ad75ada9a
+  label: trivial
+  category: error-handling
+  evidence: []
+  verified_by: codex-work
+  second_label: trivial
+  second_by: codex-work-second
+  note: null
+- id: mattermost-0054
+  anchor: symbol:go:server.channels.app.App.prepareInviteGuestsToChannels:Method#9a94f37bdbf05dbb2c60bfe20461a4ad4bb686dbf86dcc6c87d9d562fa11a324#1
+  location: server/channels/app/team.go:1825
+  draft:
+    label: significant
+    category: permission
+    evidence:
+    - E7
+    - E8
+    reason: E8 explicitly documents the guest invitation restriction for ABAC-controlled private channels. E7 ties invitation restrictions to membership enforcement. The branch applies that distinction by checking for a membership policy action.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 6480e1ad4e6762e26c681fe5e9dc02ea2a28cb235c9cc9dda13039584878a219
+  label: significant
+  category: permission
+  evidence:
+  - type: docs
+    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/manage/admin/abac-system-wide-policies.rst#L104
+    quote: '- **Private channels** are hard-gated. The policy adds matching users (when auto-add is enabled), removes non-matching members during synchronization, and prevents non-matching users from being added or invited.'
+  - type: docs
+    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/manage/admin/abac-system-wide-policies.rst#L113
+    quote: Private channels with attribute-based access control policies can't have guest users invited to them. Only users who match the defined attribute criteria can be added to ABAC-controlled private channels, ensuring strict adherence to access control policies. Public channels remain joinable by anyone regardless of the policy.
+  verified_by: codex-work
+  second_label: significant
+  second_by: codex-work-second
+  note: null
+- id: mattermost-0055
+  anchor: symbol:go:server.channels.app.App.CreateChannelWithUserAndPropertyValues:Method#5e2dac38c1b48d3eb28b3b66cfc503da9bef51f398ff42f0620a62d67b81e5b5#1
+  location: server/channels/app/channel.go:212
+  draft:
+    label: trivial
+    category: error-handling
+    evidence: []
+    reason: The branch returns the user lookup error unchanged. None of the supplied excerpts directly addresses this behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: d8037765e94591c06e2a83095285fb65ab8d653e936eb61de554e9ae3d7ee213
+  label: trivial
+  category: error-handling
+  evidence: []
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: null
+- id: mattermost-0056
+  anchor: symbol:go:server.channels.app.App.SendTestMessage:Method#223d52a14dd245d8ef0f446fdf3529644a96c05fc23d9162b25b06607731f3fd#1
+  location: server/channels/app/post.go:3784
+  draft:
+    label: trivial
+    category: error-handling
+    evidence:
+    - E1
+    reason: The branch wraps a system bot lookup error and returns HTTP 500. E1 documents successful delivery of a system bot direct message and does not specify how lookup failures are handled.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 768e810239efd986d94bc02c9c64132fd5b793f9c941b73dd90888681d9a78a1
+  label: trivial
+  category: error-handling
+  evidence:
+  - type: docs
+    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/end-user-guide/preferences/troubleshoot-notifications.rst#L14
+    quote: Under **Troubleshooting notifications** select the **Send a test notification** option. If notifications are working, you'll receive a system-bot direct message in Mattermost confirming that notifications are working.
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: null
+- id: mattermost-0057
+  anchor: symbol:go:server.channels.app.App.CreatePostAsUserWithFlags:Method#326cc0bcb334d5c0e9709b0a7adef9079696759d99ef5a46f3bf97c720d4a49d#1
+  location: server/channels/app/post.go:60
+  draft:
+    label: trivial
+    category: error-handling
+    evidence: []
+    reason: The branch returns the error from the restricted DM check unchanged. The supplied documentation does not address this error path.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 51f8b6d738213515cadff9d5f101e919a4297fdf1bd6d15029b40862fe1a375c
+  label: trivial
+  category: error-handling
+  evidence: []
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: null
+- id: mattermost-0058
+  anchor: symbol:go:server.channels.app.App.UpdatePost:Method#859bacad908c6dd389e41496f73073540a6b7589e225f6c142a7ba0c4db68bc3#1
+  location: server/channels/app/post.go:979
+  draft:
+    label: unclear
+    category: null
+    evidence: []
+    reason: agent response was unavailable or invalid
+  drafted_by: null
+  label: unclear
+  category: null
+  evidence: []
+  verified_by: codex-work
+  second_label: unclear
+  second_by: codex-work-second
+  note: null
+- id: mattermost-0059
+  anchor: symbol:go:server.channels.app.App.leaveTeam:Method#a87cdf23c4d93e3f402c59753491b7e916de34c7a297075e429986f4d9a10269#1
+  location: server/channels/app/team.go:1348
+  draft:
+    label: unclear
+    category: null
+    evidence: []
+    reason: agent response was unavailable or invalid
+  drafted_by: null
+  label: unclear
+  category: null
+  evidence: []
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: null
+- id: mattermost-0060
+  anchor: symbol:go:server.channels.app.App.forEachChannelMember:Method#5d79bf8c94bd649fbb6101cb3e1fac390794333f62c9e78b4f1af7e5e36a6079#1
+  location: server/channels/app/channel.go:4234
+  draft:
+    label: unclear
+    category: null
+    evidence: []
+    reason: agent response was unavailable or invalid
+  drafted_by: null
+  label: unclear
+  category: null
+  evidence: []
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null

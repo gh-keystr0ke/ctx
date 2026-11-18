@@ -39,11 +39,26 @@ points:
 - id: nova-0001
   anchor: symbol:python:nova.compute.api.API._delete:Method#2ad1f249dc8356cca67bf8aebb64f2aeae88373e7720f1860b2be3b4426daaa3#1
   location: nova/compute/api.py:2585
-  draft: null
-  drafted_by: null
+  draft:
+    label: unclear
+    category: state-transition
+    evidence:
+    - E3
+    - E5
+    reason: The code confirms a pending resize before deleting a RESIZED instance. The cited docs describe soft deletion and allowed transitions to DELETED without specifying that resize confirmation must precede deletion.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: d1e7021a1a949df7d7a71093a87ce39278435b0260f6ab42ddb03736bad33cd3
   label: null
   category: null
-  evidence: []
+  evidence:
+  - type: docs
+    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/doc/source/admin/soft-delete-shadow-tables.rst#L13
+    quote: the instance is marked to be in state ``SOFT_DELETED`` and can be
+  - type: docs
+    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/doc/source/reference/vm-states.rst#L16
+    quote: label="All states are allowed to transition to DELETED and ERROR.";
   verified_by: null
   second_label: null
   second_by: null
@@ -51,11 +66,26 @@ points:
 - id: nova-0002
   anchor: symbol:python:nova.quota._instances_cores_ram_count:Function#1b0aa80670e01820d20033ff5fdc982886de6a2d9959f1db30261d7e0acf738a#1
   location: nova/quota.py:1382
-  draft: null
-  drafted_by: null
+  draft:
+    label: significant
+    category: limit
+    evidence:
+    - E1
+    - E8
+    reason: The configuration flag controls whether quota usage counting follows the Placement path. The administrator documentation describes configuring Placement-based quota counting, and the specification explicitly defines the option.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 566c2dabf5f8162fc42b9a530c2fc1e58753dd19fbf262118dda86b5f7b31697
   label: null
   category: null
-  evidence: []
+  evidence:
+  - type: docs
+    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/doc/source/admin/cells.rst#L995
+    quote: configure counting of quota usage from the placement service and
+  - type: spec
+    url: https://opendev.org/openstack/nova-specs/src/commit/bb9651bea014f19960b340047c767e0eb268ad66/specs/train/implemented/count-quota-usage-from-placement.rst#L88
+    quote: add a ``[quota]count_usage_from_placement`` config option which defaults to
   verified_by: null
   second_label: null
   second_by: null
@@ -63,8 +93,15 @@ points:
 - id: nova-0003
   anchor: symbol:python:nova.scheduler.filters.compute_capabilities_filter.ComputeCapabilitiesFilter._satisfies_extra_specs:Method#3a1da14670419135419904d21a948de17ef6f7e12fa0e86bc7e00a2ef69d44c5#1
   location: nova/scheduler/filters/compute_capabilities_filter.py:72
-  draft: null
-  drafted_by: null
+  draft:
+    label: trivial
+    category: validation
+    evidence: []
+    reason: The branch checks whether extra specs are present and returns true when there are no specs to validate. The supplied documentation does not address this behavior directly.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: be4be6693ca03dd2dbf2f17da0107ff106f69ef191298f9468dea1f5e05f4943
   label: null
   category: null
   evidence: []
@@ -75,8 +112,15 @@ points:
 - id: nova-0004
   anchor: symbol:python:nova.api.openstack.compute.services.ServiceController.update:Method#24c078fe9f5d7abdfbe6e0ea0e2b3ab67fd5d6a122fe4ea7e39b0856e304f2d0#1
   location: nova/api/openstack/compute/services.py:411
-  draft: null
-  drafted_by: null
+  draft:
+    label: unclear
+    category: null
+    evidence: []
+    reason: The code docstring describes the switch to UUID-based service updates at microversion 2.53. None of the evidence entries directly addresses that behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 7242b0dbde969fbc4daa854f47832ccf5403d22f060dda2a9434dfaec0beb8cb
   label: null
   category: null
   evidence: []
@@ -87,8 +131,15 @@ points:
 - id: nova-0005
   anchor: symbol:python:nova.compute.api.API._delete:Method#2c2557dc31b79363003ea58083aae89cb4000b19fa4d3f36965cd1d387c5d5df#1
   location: nova/compute/api.py:2465
-  draft: null
-  drafted_by: null
+  draft:
+    label: unclear
+    category: permission
+    evidence: []
+    reason: The guard skips instance deletion when disable_terminate is set. None of the supplied excerpts directly documents that behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 9f27745824f1ea96ec792c7ac1ac50115acdc7d91de77af1a5ddb1a4d9bb3f2e
   label: null
   category: null
   evidence: []
@@ -99,11 +150,26 @@ points:
 - id: nova-0006
   anchor: symbol:python:nova.quota.DbQuotaDriver._process_quotas:Method#a53a8f7fd7b7de3165544d82bfe3a4bf62d076f70a3ec7d5b8a5a5733cace6df#1
   location: nova/quota.py:133
-  draft: null
-  drafted_by: null
+  draft:
+    label: unclear
+    category: limit
+    evidence:
+    - E6
+    - E7
+    reason: The code subtracts user quota limits from the class limit to calculate the remaining project quota. The supplied documentation describes project quotas generally and provides no direct evidence for this calculation.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: d2a313dbdc3351f02bd3e3cc775d211151a355becaeab56fa33d5a71f9b729e3
   label: null
   category: null
-  evidence: []
+  evidence:
+  - type: docs
+    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/doc/source/admin/architecture.rst#L114
+    quote: For projects, you can use quota controls to limit the number of processor cores
+  - type: docs
+    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/doc/source/admin/architecture.rst#L115
+    quote: and the amount of RAM that can be allocated. Other projects also allow quotas
   verified_by: null
   second_label: null
   second_by: null
@@ -111,8 +177,15 @@ points:
 - id: nova-0007
   anchor: symbol:python:nova.scheduler.filters.image_props_filter.ImagePropertiesFilter._instance_supported:Method#ce709f3c517b624bf3d5602e42a4671a59020ff7649170748be540a34a307023#1
   location: nova/scheduler/filters/image_props_filter.py:62
-  draft: null
-  drafted_by: null
+  draft:
+    label: unclear
+    category: default
+    evidence: []
+    reason: The filter accepts the host when no compute-related image properties are specified. None of the supplied documentation or specifications addresses this default.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 6492600c83c40372296d82395a9ada01a7b741253c2e8c7d0fd166c26df68c22
   label: null
   category: null
   evidence: []
@@ -123,11 +196,22 @@ points:
 - id: nova-0008
   anchor: symbol:python:nova.api.openstack.compute.views.servers.ViewBuilder.show:Method#8d90a5fbcd1a81c6ae30eff004d7e8ad5b7cab8446d2310fa36c41fad8c42e51#1
   location: nova/api/openstack/compute/views/servers.py:282
-  draft: null
-  drafted_by: null
+  draft:
+    label: significant
+    category: error-handling
+    evidence:
+    - E2
+    reason: E2 documents that a server in a down cell still appears with status UNKNOWN. This branch returns the partial server response when down-cell support is enabled and the instance lacks display_name.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 914a351bcd0126a333cb124736e8671a0683af40a14626ccffb971d4b177833a
   label: null
   category: null
-  evidence: []
+  evidence:
+  - type: docs
+    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/doc/source/contributor/testing/down-cell.rst#L163
+    quote: 'The server in cell1 (which is down) will show up with status UNKNOWN:'
   verified_by: null
   second_label: null
   second_by: null
@@ -135,11 +219,30 @@ points:
 - id: nova-0009
   anchor: symbol:python:nova.compute.api.API.detach_volume:Method#e39096c44693d8c328020b8c1a311cba5afeb4b7f015e8c156f4aaaf966ac69f#1
   location: nova/compute/api.py:5320
-  draft: null
-  drafted_by: null
+  draft:
+    label: significant
+    category: state-transition
+    evidence:
+    - E2
+    - E6
+    - E7
+    reason: The specifications explicitly cover volume detachment for shelved instances and call for extending detach methods to SHELVED_OFFLOADED instances. This branch selects the dedicated detach path for that state.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 68ff99b0f89b3a4a50578e201544acff44f375310df6ab67c1f5cf114fff5444
   label: null
   category: null
-  evidence: []
+  evidence:
+  - type: spec
+    url: https://opendev.org/openstack/nova-specs/src/commit/bb9651bea014f19960b340047c767e0eb268ad66/specs/mitaka/implemented/volume-ops-when-shelved.rst#L82
+    quote: be allowed when the instance is in the shelved and shelved_offloaded states.
+  - type: spec
+    url: https://opendev.org/openstack/nova-specs/src/commit/bb9651bea014f19960b340047c767e0eb268ad66/specs/mitaka/approved/detach-boot-volume.rst#L240
+    quote: '- Extend methods to attach/detach volumes for shevled_offloaded instances'
+  - type: spec
+    url: https://opendev.org/openstack/nova-specs/src/commit/bb9651bea014f19960b340047c767e0eb268ad66/specs/mitaka/implemented/volume-ops-when-shelved.rst#L29
+    quote: As a cloud user I want to be able to detach volumes from my shelved instance
   verified_by: null
   second_label: null
   second_by: null
@@ -147,11 +250,26 @@ points:
 - id: nova-0010
   anchor: symbol:python:nova.quota._instances_cores_ram_count_legacy:Function#b10e0526ffe4acc8f1cd3334e74c7f6213944e9e61a9b3ed7fb6292dc1253251#1
   location: nova/quota.py:1323
-  draft: null
-  drafted_by: null
+  draft:
+    label: unclear
+    category: limit
+    evidence:
+    - E3
+    - E4
+    reason: The branch controls which cells contribute to legacy quota usage counts. The excerpts describe legacy counting but do not directly document the choice between project-specific cells and all loaded cells.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 881c0e4c4941cdeb579362a156bbca9bd6df4bb5d63f7f51e892318b5ee9ca2c
   label: null
   category: null
-  evidence: []
+  evidence:
+  - type: spec
+    url: https://opendev.org/openstack/nova-specs/src/commit/bb9651bea014f19960b340047c767e0eb268ad66/specs/train/implemented/count-quota-usage-from-placement.rst#L81
+    quote: '``_instances_cores_ram_count_legacy`` that counts cores and ram from the cell'
+  - type: spec
+    url: https://opendev.org/openstack/nova-specs/src/commit/bb9651bea014f19960b340047c767e0eb268ad66/specs/train/implemented/count-quota-usage-from-placement.rst#L89
+    quote: False. If False, we use the legacy quota counting method for instances, cores,
   verified_by: null
   second_label: null
   second_by: null
@@ -159,8 +277,15 @@ points:
 - id: nova-0011
   anchor: symbol:python:nova.scheduler.filters.image_props_filter.ImagePropertiesFilter._instance_supported:Method#e3a5031cb5dc53799b5a6c00c079679a9811f6a9c2b977f7ef57b40f1e92e8e6#1
   location: nova/scheduler/filters/image_props_filter.py:68
-  draft: null
-  drafted_by: null
+  draft:
+    label: trivial
+    category: validation
+    evidence: []
+    reason: This routine emptiness check rejects a host that advertises no supported instances when the image requests compute properties. No supplied excerpt directly documents that behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 0c1fd84c3b5f85e107ed8b8fb4168cff31e053ea38de87769908e3ebf333f7ad
   label: null
   category: null
   evidence: []
@@ -171,8 +296,15 @@ points:
 - id: nova-0012
   anchor: symbol:python:nova.api.openstack.compute.hosts.HostController.update:Method#5b905e8af639e5d281447f9446acbde250b3e7c6167a97e04229d333722b25b5#1
   location: nova/api/openstack/compute/hosts.py:126
-  draft: null
-  drafted_by: null
+  draft:
+    label: unclear
+    category: null
+    evidence: []
+    reason: trivial label requires a category
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 308e1c28a57a68a080e9416f61f8b39c51da1d72b4f3f3e9fdf72191928068cc
   label: null
   category: null
   evidence: []
@@ -183,8 +315,15 @@ points:
 - id: nova-0013
   anchor: symbol:python:nova.compute.api.API._delete:Method#565f2b00922c368ca4974811e14a2f619ce786ba3529def41c0d60afac548e24#1
   location: nova/compute/api.py:2482
-  draft: null
-  drafted_by: null
+  draft:
+    label: unclear
+    category: state-transition
+    evidence: []
+    reason: The condition selects a boot-time deletion path when the instance has no host and cannot have ports or volumes. The supplied documentation does not directly address this behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 5133fd5bb4304abe719fcf7a09fbc0cf07b8a0e1a58f69f821daf2b9b6b8ce80
   label: null
   category: null
   evidence: []
@@ -195,11 +334,22 @@ points:
 - id: nova-0014
   anchor: symbol:python:nova.quota.DbQuotaDriver._get_usages:Method#cd8ac330eeab8c1d5f552c432e269548954d0c25c53c54e867b26a5ad7b0fe2a#1
   location: nova/quota.py:183
-  draft: null
-  drafted_by: null
+  draft:
+    label: unclear
+    category: limit
+    evidence:
+    - E1
+    reason: The branch selects project-level usage counting for resources classified as per-project. E1 mentions quota usage construction but does not describe this counting rule.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: decdf667eb970d4c05c73b130dadc9fd7913b10d16b90fb088bef1d122ce00e8
   label: null
   category: null
-  evidence: []
+  evidence:
+  - type: spec
+    url: https://opendev.org/openstack/nova-specs/src/commit/bb9651bea014f19960b340047c767e0eb268ad66/specs/kilo/approved/lock-free-quota-management.rst#L157
+    quote: construction in the `_get_project_user_quota_usages()` method in
   verified_by: null
   second_label: null
   second_by: null
@@ -207,8 +357,15 @@ points:
 - id: nova-0015
   anchor: symbol:python:nova.scheduler.filters.json_filter.JsonFilter._process_filter:Method#9a0d3c381ebfeb876d199a9570e8e991fc4b50a6dc39011cd773d716514e4d0e#1
   location: nova/scheduler/filters/json_filter.py:116
-  draft: null
-  drafted_by: null
+  draft:
+    label: trivial
+    category: default
+    evidence: []
+    reason: The branch is a routine emptiness check that treats an empty query as a match. None of the supplied excerpts directly addresses that behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: b1f7b972c11cea2a08c5717eca4bcce761012b061e13781e7b0ab36f22ac9695
   label: null
   category: null
   evidence: []
@@ -219,11 +376,30 @@ points:
 - id: nova-0016
   anchor: symbol:python:nova.compute.api.API._get_relevant_hosts:Method#66cd9cc2412c4dcc6719e7ba751b16a30c60129e3fbf1fb856e7f87cb9af6e92#1
   location: nova/compute/api.py:6040
-  draft: null
-  drafted_by: null
+  draft:
+    label: unclear
+    category: null
+    evidence:
+    - E1
+    - E5
+    - E7
+    reason: The branch uses the presence of a migration context to route events to both migration hosts. The excerpts discuss migration hosts and the lifecycle of the migration context, but none directly specifies this event-routing behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 77dbb49b9c6e176745ef178580a1662e0204eeec466b1da740102ec66a85b35c
   label: null
   category: null
-  evidence: []
+  evidence:
+  - type: spec
+    url: https://opendev.org/openstack/nova-specs/src/commit/bb9651bea014f19960b340047c767e0eb268ad66/specs/2024.2/approved/ephemeral-storage-encryption.rst#L629
+    quote: hosts as needed during instance migrations.
+  - type: spec
+    url: https://opendev.org/openstack/nova-specs/src/commit/bb9651bea014f19960b340047c767e0eb268ad66/specs/stein/approved/cross-cell-resize.rst#L219
+    quote: Copy the ``instance.migration_context`` from the target DB to the source DB.
+  - type: spec
+    url: https://opendev.org/openstack/nova-specs/src/commit/bb9651bea014f19960b340047c767e0eb268ad66/specs/stein/approved/cross-cell-resize.rst#L333
+    quote: '* Drop the migration context on the instance in the target cell DB.'
   verified_by: null
   second_label: null
   second_by: null
@@ -231,8 +407,15 @@ points:
 - id: nova-0017
   anchor: symbol:python:nova.api.openstack.compute.volumes.VolumeController.delete:Method#92463ee817e753b5145c8264778d75b932530924b4c4f51d1cd877cd3a83463a#1
   location: nova/api/openstack/compute/volumes.py:131
-  draft: null
-  drafted_by: null
+  draft:
+    label: trivial
+    category: error-handling
+    evidence: []
+    reason: The handler translates an existing InvalidInput exception into HTTP 400 and forwards its message. No supplied documentation or specification addresses this volume deletion behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: d91129e31fae1184a66f50145fa330a720094a58434e3cb206b85bf6a33f7a0c
   label: null
   category: null
   evidence: []
@@ -243,11 +426,30 @@ points:
 - id: nova-0018
   anchor: symbol:python:nova.api.openstack.compute.servers.ServersController._get_server:Method#e7f310851365a57591da1cd630fd897e8221ad073394c5b42e861e354e7eb7b8#1
   location: nova/api/openstack/compute/servers.py:370
-  draft: null
-  drafted_by: null
+  draft:
+    label: significant
+    category: error-handling
+    evidence:
+    - E1
+    - E2
+    - E4
+    reason: The flag controls whether the lookup supports returning a minimal server representation when its cell is down. The specification describes including these representations in server lists, and the documentation shows the resulting UNKNOWN status in microversion 2.69.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: f2df6404324d432e6edb759fb918e7ec134dadeb05a094a3c04b31674aca3d8b
   label: null
   category: null
-  evidence: []
+  evidence:
+  - type: docs
+    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/doc/source/contributor/testing/down-cell.rst#L159
+    quote: 2. List servers with the 2.69 microversion for down cells.
+  - type: docs
+    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/doc/source/contributor/testing/down-cell.rst#L163
+    quote: 'The server in cell1 (which is down) will show up with status UNKNOWN:'
+  - type: spec
+    url: https://opendev.org/openstack/nova-specs/src/commit/bb9651bea014f19960b340047c767e0eb268ad66/specs/rocky/approved/handling-down-cell.rst#L137
+    quote: constructs for the servers in the down cells into the same list of full
   verified_by: null
   second_label: null
   second_by: null
@@ -255,8 +457,15 @@ points:
 - id: nova-0019
   anchor: symbol:python:nova.api.openstack.compute.migrate_server.MigrateServerController._migrate_live:Method#765b8212864eb04556542c0a9fbd3e55e2da1573dfd8b8e7e10969e285c7f9c4#1
   location: nova/api/openstack/compute/migrate_server.py:125
-  draft: null
-  drafted_by: null
+  draft:
+    label: unclear
+    category: default
+    evidence: []
+    reason: The code accepts automatic block migration and clears disk_over_commit starting with API microversion 2.25. None of the supplied excerpts directly documents that behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: d3983c6f885a8a8d4967bbcc06b1d8c584de468ae45cceeb679e131ef2b210b8
   label: null
   category: null
   evidence: []
@@ -267,11 +476,22 @@ points:
 - id: nova-0020
   anchor: symbol:python:nova.api.openstack.compute.floating_ips.FloatingIPActionController._add_floating_ip:Method#f2ffd83ed7fe8e805f08bceba2ea4cec8124a7260843822bf0d70c656778168c#1
   location: nova/api/openstack/compute/floating_ips.py:237
-  draft: null
-  drafted_by: null
+  draft:
+    label: unclear
+    category: validation
+    evidence:
+    - E2
+    reason: When no fixed address is specified, the code returns HTTP 400 if the instance has no fixed IPv4 address. E2 points to the floating IP API reference without documenting this behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: e4236b71f27a1a801a80fd662c0a090e1a0ca6dead119427ed43a7f2a6b23aea
   label: null
   category: null
-  evidence: []
+  evidence:
+  - type: docs
+    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/api-ref/source/index.rst#L84
+    quote: '.. include:: os-floating-ips.inc'
   verified_by: null
   second_label: null
   second_by: null
@@ -279,8 +499,15 @@ points:
 - id: nova-0021
   anchor: symbol:python:nova.api.openstack.compute.simple_tenant_usage.SimpleTenantUsageController._get_instances_all_cells:Method#79a433884be895c4182f0788d420a6bbf09a1bce78c76a21cdc5a0378e98df20#1
   location: nova/api/openstack/compute/simple_tenant_usage.py:133
-  draft: null
-  drafted_by: null
+  draft:
+    label: unclear
+    category: error-handling
+    evidence: []
+    reason: The branch raises MarkerNotFound when a supplied pagination marker remains unresolved after searching all cells and no instances were collected. The supplied documentation and specifications do not address this behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 9582917b7c019178d3e3220dccbbfd8cfb17bae2da612dcf79baa4af41aae756
   label: null
   category: null
   evidence: []
@@ -291,11 +518,26 @@ points:
 - id: nova-0022
   anchor: symbol:python:nova.api.openstack.compute.security_groups.SecurityGroupController.create:Method#00ac25c974c2f757ce36db27181694b2dbe8b75f88a76fded2c9e9fe3f58f9e1#1
   location: nova/api/openstack/compute/security_groups.py:221
-  draft: null
-  drafted_by: null
+  draft:
+    label: unclear
+    category: limit
+    evidence:
+    - E1
+    - E4
+    reason: The code returns HTTP 403 when security group creation exceeds a limit. The excerpts mention limit exceptions and security group creation separately, so they do not establish that this specific response is documented.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: b5a177f3084c384af491a433dd79c1a854ecdbce2401e55117644351b9494320
   label: null
   category: null
-  evidence: []
+  evidence:
+  - type: docs
+    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/doc/source/admin/unified-limits.rst#L295
+    quote: exceeded exception will be raised.
+  - type: docs
+    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/doc/source/user/security-groups.rst#L43
+    quote: $ openstack security group create --description <description> ... <name>
   verified_by: null
   second_label: null
   second_by: null
@@ -303,8 +545,15 @@ points:
 - id: nova-0023
   anchor: symbol:python:nova.api.openstack.compute.evacuate.EvacuateController._get_on_shared_storage:Method#463ef7590a903993085b3ea6f11b84ff546f3611886b8f8818a4875f44c1946d#1
   location: nova/api/openstack/compute/evacuate.py:49
-  draft: null
-  drafted_by: null
+  draft:
+    label: unclear
+    category: default
+    evidence: []
+    reason: The code returns None for microversion 2.14 and later and parses onSharedStorage from the request for earlier versions. The supplied excerpts do not directly address this evacuation behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: a7f25da5a3fdaeeff440867683f6ac7b7c0ed85c91efe1215ac001365ecfd1e7
   label: null
   category: null
   evidence: []
@@ -315,11 +564,26 @@ points:
 - id: nova-0024
   anchor: symbol:python:nova.scheduler.filters.numa_topology_filter.NUMATopologyFilter.host_passes:Method#5ecf89f56558d37a3e9f46b02ec45532df35c2659351df3c1c40bb0aa42ed6e0#1
   location: nova/scheduler/filters/numa_topology_filter.py:93
-  draft: null
-  drafted_by: null
+  draft:
+    label: unclear
+    category: validation
+    evidence:
+    - E3
+    - E4
+    reason: The branch rejects hosts that fail the requested CPU policy. E3 and E4 describe the general filter contract, while the package contains no documentation, specification, or issue directly addressing CPU policy rejection in this filter.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 5d0c3b82b8aab907e4356b205910ec7aca6f1e2f4cc50759238019333619d907
   label: null
   category: null
-  evidence: []
+  evidence:
+  - type: docs
+    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/doc/source/admin/scheduling.rst#L1401
+    quote: 'implement one method: ``host_passes``. This method should return ``True`` if a'
+  - type: docs
+    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/doc/source/admin/scheduling.rst#L1402
+    quote: 'host passes the filter and return ``False`` elsewhere. It takes two parameters:'
   verified_by: null
   second_label: null
   second_by: null
@@ -327,8 +591,15 @@ points:
 - id: nova-0025
   anchor: symbol:python:nova.compute.api.block_accelerators.inner.wrapper:Method#8504292ae33014d7b5110253523deb9baeff24ec3136c171edc3b40b909e378f#1
   location: nova/compute/api.py:388
-  draft: null
-  drafted_by: null
+  draft:
+    label: unclear
+    category: permission
+    evidence: []
+    reason: The branch gates operations on accelerator-backed instances by the minimum nova-compute version across cells. The supplied documentation and specifications do not directly address this gate.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 62493bfdf3b17a22b752ceb5ad6ce44138f1f9d155675b60018186b602c6cd00
   label: null
   category: null
   evidence: []
@@ -339,8 +610,15 @@ points:
 - id: nova-0026
   anchor: symbol:python:nova.scheduler.filters.affinity_filter._GroupAffinityFilter.host_passes:Method#cde7d9f07c918d6861ee9f3bbcd5554f702d0ea929805a827f8556a69e0b7b04#1
   location: nova/scheduler/filters/affinity_filter.py:147
-  draft: null
-  drafted_by: null
+  draft:
+    label: unclear
+    category: default
+    evidence: []
+    reason: The filter accepts the host when the affinity policy is absent, but none of the supplied excerpts directly documents that behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 688b279dc924657d97866b06e06fba77ed7cee7ac4302a049e406791d4bea661
   label: null
   category: null
   evidence: []

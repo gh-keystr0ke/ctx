@@ -74,10 +74,11 @@ impl RustAnalyzer {
                 .cmp(&right.canonical_path)
                 .then_with(|| left.range.start_byte.cmp(&right.range.start_byte))
         });
+        crate::decisions::sdk::attach(&mut symbols, tree.root_node(), source.as_bytes());
         Ok(FileAnalysis {
             path: relative_path.to_owned(),
             language: "rust".to_owned(),
-            analysis_version: "rust-tree-sitter-v5".to_owned(),
+            analysis_version: "rust-tree-sitter-v6".to_owned(),
             content_hash: blake3::hash(source.as_bytes()).to_hex().to_string(),
             symbols,
         })
@@ -135,7 +136,7 @@ fn collect_dyn_predicates(node: Node<'_>, source: &str, edits: &mut Vec<(usize, 
 
 impl LanguageAnalyzer for RustAnalyzer {
     fn analysis_version(&self, _relative_path: &str) -> Result<String, PortError> {
-        Ok("rust-tree-sitter-v5".to_owned())
+        Ok("rust-tree-sitter-v6".to_owned())
     }
 
     fn analyze(&self, relative_path: &str) -> Result<FileAnalysis, PortError> {

@@ -38,8 +38,19 @@ pub struct DecisionPoint {
     pub condition: String,
     pub regions: Vec<SourceRange>,
     pub routine: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub routine_extended: bool,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub controlled_calls: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sdk_calls: Vec<SdkCall>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct SdkCall {
+    pub package: String,
+    pub operation: String,
+    pub range: SourceRange,
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]

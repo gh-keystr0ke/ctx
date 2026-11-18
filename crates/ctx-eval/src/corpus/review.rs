@@ -6,7 +6,7 @@ use std::{
 
 use super::{
     Result, fetch,
-    manifest::{Category, EvidenceKind, Label, Point, Project},
+    manifest::{Category, Evidence, EvidenceKind, Label, Point, Project},
     project_path, read_project, write_yaml,
 };
 
@@ -103,7 +103,7 @@ fn show(output: &mut impl Write, point: &Point, code: &str, second: bool) -> io:
         }
         writeln!(
             output,
-            "a accept | c <category> | x <evidence number> | n <note>"
+            "a accept | c <category> | e <kind> <url> <quote> | x <evidence number> | n <note>"
         )?;
     }
     writeln!(
@@ -175,6 +175,7 @@ fn edit_point(
 
 fn edit_metadata(point: &mut Point, action: &str, argument: &str) -> bool {
     match action {
+        "e" => add_evidence(point, argument),
         "c" => {
             point.category =
                 serde_json::from_value(serde_json::Value::String(argument.to_owned())).ok();
@@ -198,6 +199,27 @@ fn edit_metadata(point: &mut Point, action: &str, argument: &str) -> bool {
         }
         _ => false,
     }
+}
+
+fn add_evidence(point: &mut Point, argument: &str) -> bool {
+    let mut fields = argument.splitn(3, ' ');
+    let Some(kind) = fields.next().and_then(|name| {
+        serde_json::from_value::<EvidenceKind>(serde_json::Value::String(name.to_owned())).ok()
+    }) else {
+        return false;
+    };
+    let Some(url) = fields.next().filter(|url| !url.is_empty()) else {
+        return false;
+    };
+    let Some(quote) = fields.next().filter(|quote| !quote.trim().is_empty()) else {
+        return false;
+    };
+    point.evidence.push(Evidence {
+        kind,
+        url: url.to_owned(),
+        quote: Some(quote.to_owned()),
+    });
+    true
 }
 
 fn label_allowed(point: &Point, label: Label, category: Option<Category>, second: bool) -> bool {

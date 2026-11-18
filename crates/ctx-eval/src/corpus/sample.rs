@@ -12,7 +12,7 @@ use ctx_app::{
     },
 };
 use ctx_core::{
-    coverage::{RANKING_VERSION, RankedDecision, analyze_coverage},
+    coverage::{RankedDecision, RankingVersion, analyze_with_ranking},
     domain::CommitOid,
     indexing::FileChange,
 };
@@ -23,9 +23,17 @@ use super::{
 };
 
 pub(super) fn rank(cache: &Path, project: &Project) -> Result<Vec<RankedDecision>> {
+    rank_with(cache, project, RankingVersion::Current)
+}
+
+pub(super) fn rank_with(
+    cache: &Path,
+    project: &Project,
+    version: RankingVersion,
+) -> Result<Vec<RankedDecision>> {
     let graph = index(cache, project)?;
     let symbols = graph.nodes.keys().cloned().collect();
-    Ok(analyze_coverage(&graph, &symbols).decisions)
+    Ok(analyze_with_ranking(&graph, &symbols, version).decisions)
 }
 
 pub(super) fn index(cache: &Path, project: &Project) -> Result<ctx_core::graph::GraphSnapshot> {
@@ -61,7 +69,7 @@ pub(super) fn freeze(project: &mut Project, ranked: &[RankedDecision]) -> Result
     if !project.points.is_empty() {
         return Err(io::Error::other("sample already frozen").into());
     }
-    if project.sample.ranking_version != RANKING_VERSION {
+    if project.sample.ranking_version != RankingVersion::Initial.name() {
         return Err(
             io::Error::other("this binary cannot reproduce the requested ranking version").into(),
         );
@@ -295,6 +303,7 @@ pub(super) mod tests {
                 score: 10,
                 ask: true,
                 contributions: BTreeMap::from([("condition", 10)]),
+                effects: Vec::new(),
             })
             .collect()
     }

@@ -76,6 +76,7 @@ pub(crate) fn new_decisions(graph: &GraphSnapshot, input: &ReviewInput) -> Vec<N
 
 fn relevant(point: &DecisionPoint, symbol: &crate::ir::SymbolDefinition) -> bool {
     !point.routine
+        && !point.routine_extended
         && (super::ranking::semantic_weight(&point.condition) >= 4
             || point.regions.iter().any(|range| {
                 symbol

@@ -220,17 +220,44 @@ fn identifiers(code: &str, name: Option<&str>) -> BTreeSet<String> {
         .lines()
         .find(|line| line.starts_with('>'))
         .unwrap_or(code);
-    name.into_iter()
-        .chain(focused.split(|character: char| !character.is_alphanumeric() && character != '_'))
-        .filter(|term| term.len() >= 4)
+    let mut separated = String::new();
+    let mut prior_lower = false;
+    for character in name
+        .into_iter()
+        .chain(std::iter::once(focused))
+        .flat_map(|part| part.chars().chain(std::iter::once(' ')))
+    {
+        if character.is_uppercase() && prior_lower {
+            separated.push(' ');
+        }
+        separated.push(if character.is_alphanumeric() {
+            character
+        } else {
+            ' '
+        });
+        prior_lower = character.is_lowercase();
+    }
+    separated
+        .split_whitespace()
+        .filter(|term| term.len() >= 4 && !term.chars().all(|character| character.is_ascii_digit()))
+        .map(str::to_ascii_lowercase)
         .filter(|term| {
             !matches!(
-                *term,
-                "return" | "else" | "then" | "true" | "false" | "error" | "const" | "None"
+                term.as_str(),
+                "return"
+                    | "else"
+                    | "then"
+                    | "true"
+                    | "false"
+                    | "error"
+                    | "const"
+                    | "none"
+                    | "some"
+                    | "self"
+                    | "data"
             )
         })
-        .take(14)
-        .map(str::to_ascii_lowercase)
+        .take(18)
         .collect()
 }
 

@@ -15,6 +15,7 @@ decision: >
 implementation:
   - symbol: ctx_core.coverage.state.gap_report
   - symbol: ctx_adapters.coverage_store.CoverageStore.record
+  - symbol: ctx_adapters.coverage_store.CoverageStore.merge_files
   - symbol: ctx_cli.coverage_command.run
   - symbol: ctx_mcp.coverage.execute
   - symbol: ctx_report.html.HtmlRenderer.render_with_coverage

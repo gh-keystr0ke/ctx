@@ -1,12 +1,15 @@
 mod ask;
 mod research;
 
-use std::{collections::BTreeSet, path::Path};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    path::Path,
+};
 
 use clap::{Args, Subcommand};
-use ctx_adapters::{coverage_store::CoverageStore, git::GitRepo};
+use ctx_adapters::{analyzer::AnalyzerRegistry, coverage_store::CoverageStore, git::GitRepo};
 use ctx_app::{
-    ports::{GitRepository, GraphStore, ReviewRepository},
+    ports::{GitRepository, GraphStore, LanguageAnalyzer, ReviewRepository},
     status::IndexFreshness,
 };
 use ctx_core::{
@@ -30,7 +33,7 @@ pub(crate) struct Options {
     /// Scope to code mapped to a product requirement.
     #[arg(long)]
     requirement: Option<String>,
-    /// Scope to source paths changed since this revision.
+    /// Scope to indexed symbols changed since this revision.
     #[arg(long)]
     base: Option<String>,
     #[command(subcommand)]
@@ -43,13 +46,29 @@ enum Action {
     Research(research::ResearchOptions),
     /// Ask the developer about unresolved decision points.
     Ask(ask::AskOptions),
+    /// Save current coverage state for all points in scope.
+    Sync,
+    /// Merge one coverage map file using Git's ancestor, ours, and theirs inputs.
+    Merge {
+        ancestor: std::path::PathBuf,
+        ours: std::path::PathBuf,
+        theirs: std::path::PathBuf,
+    },
 }
 
 pub(crate) fn run(cli: &Cli, git: &GitRepo, options: &Options) -> Result<(), CliError> {
+    if let Some(Action::Merge {
+        ancestor,
+        ours,
+        theirs,
+    }) = &options.action
+    {
+        return Ok(CoverageStore::merge_files(ancestor, ours, theirs)?);
+    }
     let repository = git.descriptor()?;
     let (store, freshness) = worktree_command::query_store(cli, git, &repository.id, false)?;
     let graph = store.load_graph(&repository.id)?;
-    let changed = changed_paths(git, options.base.as_deref())?;
+    let changed = changed_scope(git, &graph, options.base.as_deref())?;
     let scoped = scope(&graph, options, changed.as_ref());
     let report = analyze_coverage(&graph, &scoped);
     let records = CoverageStore::new(git.context_root()).read()?;
@@ -64,6 +83,10 @@ pub(crate) fn run(cli: &Cli, git: &GitRepo, options: &Options) -> Result<(), Cli
             Action::Research(options) => {
                 return research::run(cli, git, &graph, &gaps, commit.as_str(), options);
             }
+            Action::Sync => {
+                return sync(cli, git, &graph, &report, &gaps, commit.as_str());
+            }
+            Action::Merge { .. } => unreachable!("merge is handled before loading the index"),
             Action::Ask(options) => {
                 if let Some(agent) = &options.agent {
                     research::research_gaps(
@@ -72,7 +95,7 @@ pub(crate) fn run(cli: &Cli, git: &GitRepo, options: &Options) -> Result<(), Cli
                         &graph,
                         &gaps,
                         commit.as_str(),
-                        &research::ResearchOptions::for_ask(agent),
+                        &research::ResearchOptions::for_ask(agent, options.max_questions),
                     )?;
                 }
                 let records = CoverageStore::new(git.context_root()).read()?;
@@ -81,8 +104,63 @@ pub(crate) fn run(cli: &Cli, git: &GitRepo, options: &Options) -> Result<(), Cli
             }
         }
     }
-    let unanalyzed = unanalyzed_paths(git, &graph, options, changed.as_ref())?;
+    let unanalyzed = unanalyzed_paths(
+        git,
+        &graph,
+        options,
+        changed.as_ref().map(|scope| &scope.paths),
+    )?;
     print_report(cli, options, &freshness, &report, &gaps, &unanalyzed)
+}
+
+fn sync(
+    cli: &Cli,
+    git: &GitRepo,
+    graph: &GraphSnapshot,
+    report: &Coverage,
+    gaps: &GapReport<'_>,
+    revision: &str,
+) -> Result<(), CliError> {
+    use ctx_core::coverage::{CoverageRecord, record_context};
+    let state = gaps
+        .gaps
+        .iter()
+        .map(|gap| (&gap.point.anchor, gap))
+        .collect::<BTreeMap<_, _>>();
+    let store = CoverageStore::new(git.context_root());
+    let mut by_module = BTreeMap::<_, Vec<_>>::new();
+    for point in &report.decisions {
+        let gap = state.get(&point.anchor);
+        if gap.is_some_and(|gap| gap.record.is_some()) {
+            continue;
+        }
+        let state = gap.map_or(GapState::Dismissed, |gap| gap.state);
+        by_module
+            .entry(&point.file)
+            .or_default()
+            .push(CoverageRecord {
+                anchor: point.anchor.clone(),
+                revision: revision.to_owned(),
+                state,
+                document: gap.and_then(|gap| gap.document.clone()),
+                citations: Vec::new(),
+                note: gap
+                    .is_none()
+                    .then(|| "significance rules did not select this point".to_owned()),
+                research: None,
+                context_documents: Some(record_context(graph, &point.anchor)),
+            });
+    }
+    let count: usize = by_module.values().map(Vec::len).sum();
+    for (path, records) in by_module {
+        store.record_many(path, records)?;
+    }
+    if cli.json {
+        println!("{}", json!({"records_added": count}));
+    } else {
+        println!("Recorded {count} decision point(s).");
+    }
+    Ok(())
 }
 
 fn print_report(
@@ -172,18 +250,61 @@ fn unanalyzed_paths(
         .collect())
 }
 
-fn changed_paths(git: &GitRepo, base: Option<&str>) -> Result<Option<BTreeSet<String>>, CliError> {
-    let Some(base) = base else {
-        return Ok(None);
-    };
-    let paths = git.review_changes(base)?.source_changes;
-    Ok(Some(
-        paths
-            .iter()
-            .filter_map(FileChange::current_path)
-            .map(str::to_owned)
-            .collect(),
-    ))
+struct ChangedScope {
+    paths: BTreeSet<String>,
+    unchanged: BTreeSet<StableKey>,
+}
+
+fn changed_scope(
+    git: &GitRepo,
+    graph: &GraphSnapshot,
+    base: Option<&str>,
+) -> Result<Option<ChangedScope>, CliError> {
+    let Some(base) = base else { return Ok(None) };
+    let changes = git.review_changes(base)?.source_changes;
+    let analyzer = AnalyzerRegistry::builtins(git.root(), &git.source_scope().languages)?;
+    let mut paths = BTreeSet::new();
+    let mut prior = BTreeMap::new();
+    for change in &changes {
+        let Some(path) = change.current_path() else {
+            continue;
+        };
+        paths.insert(path.to_owned());
+        let FileChange::Modified { .. } = change else {
+            continue;
+        };
+        if let Some(source) = git.source_at(base, path)?
+            && let Ok(before) = analyzer.analyze_text(path, &source)
+        {
+            prior.insert(
+                path,
+                before
+                    .symbols
+                    .into_iter()
+                    .map(|symbol| (symbol.canonical_path, (symbol.body_hash, symbol.signature)))
+                    .collect::<BTreeMap<_, _>>(),
+            );
+        }
+    }
+    let unchanged = graph
+        .nodes
+        .values()
+        .filter_map(|node| {
+            let PlannedNodeAttributes::Symbol {
+                file_path,
+                canonical_path,
+                signature,
+                ..
+            } = &node.attributes
+            else {
+                return None;
+            };
+            let (body, previous_signature) = prior.get(file_path.as_str())?.get(canonical_path)?;
+            (body == &node.content_hash && previous_signature == signature)
+                .then(|| node.stable_key.clone())
+        })
+        .collect();
+    Ok(Some(ChangedScope { paths, unchanged }))
 }
 
 fn matches_path(path: &str, options: &Options, changed: Option<&BTreeSet<String>>) -> bool {
@@ -197,7 +318,7 @@ fn matches_path(path: &str, options: &Options, changed: Option<&BTreeSet<String>
 fn scope(
     graph: &GraphSnapshot,
     options: &Options,
-    changed: Option<&BTreeSet<String>>,
+    changed: Option<&ChangedScope>,
 ) -> BTreeSet<StableKey> {
     let mapped = options
         .requirement
@@ -222,7 +343,8 @@ fn scope(
             else {
                 return false;
             };
-            matches_path(file_path, options, changed)
+            matches_path(file_path, options, changed.map(|scope| &scope.paths))
+                && changed.is_none_or(|scope| !scope.unchanged.contains(&node.stable_key))
                 && roots.as_ref().is_none_or(|roots| {
                     roots.iter().any(|(key, name)| {
                         *key == &node.stable_key

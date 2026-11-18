@@ -336,22 +336,7 @@ fn create_claim_if_missing(
     excerpt: &str,
     stats: &mut ContextImportStats,
 ) -> Result<(), PortError> {
-    let (claim_class, source_kind, confidence, producer) = repair_agent.map_or(
-        (
-            "assertion",
-            "documentation",
-            1.0,
-            "business_context_explicit".to_owned(),
-        ),
-        |agent| {
-            (
-                "inference",
-                "llm_inference",
-                0.55,
-                format!("repair:{agent}"),
-            )
-        },
-    );
+    let (claim_class, source_kind, confidence, producer) = mapping_provenance(repair_agent);
     let fingerprint = format!(
         "explicit:{}:{relation:?}:{}:{}:{locator}",
         source.as_str(),
@@ -425,6 +410,25 @@ fn create_claim_if_missing(
         .map_err(database_error)?;
     stats.explicit_links_created += 1;
     Ok(())
+}
+
+fn mapping_provenance(repair_agent: Option<&str>) -> (&'static str, &'static str, f64, String) {
+    repair_agent.map_or(
+        (
+            "assertion",
+            "documentation",
+            1.0,
+            "business_context_explicit".to_owned(),
+        ),
+        |agent| {
+            (
+                "inference",
+                "llm_inference",
+                0.55,
+                format!("repair:{agent}"),
+            )
+        },
+    )
 }
 
 fn ensure_source(

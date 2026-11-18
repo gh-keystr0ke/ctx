@@ -75,10 +75,11 @@ impl GoAnalyzer {
                 .cmp(&right.canonical_path)
                 .then_with(|| left.range.start_byte.cmp(&right.range.start_byte))
         });
+        crate::decisions::sdk::attach(&mut symbols, tree.root_node(), source.as_bytes());
         Ok(FileAnalysis {
             path: relative_path.to_owned(),
             language: "go".to_owned(),
-            analysis_version: "go-tree-sitter-v2".to_owned(),
+            analysis_version: "go-tree-sitter-v3".to_owned(),
             content_hash: blake3::hash(source.as_bytes()).to_hex().to_string(),
             symbols,
         })
@@ -87,7 +88,7 @@ impl GoAnalyzer {
 
 impl LanguageAnalyzer for GoAnalyzer {
     fn analysis_version(&self, _relative_path: &str) -> Result<String, PortError> {
-        Ok("go-tree-sitter-v2".to_owned())
+        Ok("go-tree-sitter-v3".to_owned())
     }
 
     fn analyze(&self, relative_path: &str) -> Result<FileAnalysis, PortError> {

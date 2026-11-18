@@ -17,7 +17,7 @@ use crate::{Cli, CliError, database_path};
 #[derive(Debug, Args)]
 pub(super) struct AskOptions {
     #[arg(long, default_value_t = 5)]
-    max_questions: usize,
+    pub max_questions: usize,
     #[arg(long, default_value_t = 2, value_parser = clap::value_parser!(u8).range(0..=2))]
     max_follow_ups: u8,
     /// Research unresolved gaps first with this agent.
@@ -82,6 +82,10 @@ pub(super) fn ask(
                     .map_or_else(Vec::new, |record| record.citations.clone()),
                 note,
                 research: gap.record.and_then(|record| record.research.clone()),
+                context_documents: Some(ctx_core::coverage::record_context(
+                    graph,
+                    &gap.point.anchor,
+                )),
             },
         )?;
         answers.push(json!({"anchor": gap.point.anchor, "state": state}));
@@ -100,6 +104,9 @@ pub(super) fn ask(
 fn show_question(gap: &Gap<'_>, input: &ctx_core::coverage::research::ResearchInput) {
     eprintln!("{}\nWhat explains this behavior?", input.behavior);
     eprintln!("Ranking contributions: {:?}", gap.point.contributions);
+    if !gap.point.effects.is_empty() {
+        eprintln!("Effects: {}", gap.point.effects.join(", "));
+    }
     if let Some(evidence) = input.evidence.first() {
         eprintln!("{}", evidence.excerpt);
     }

@@ -69,6 +69,42 @@ impl CoverageStore {
     /// # Errors
     /// Returns an error if a module file cannot be read or updated.
     pub fn record(&self, module: &str, record: CoverageRecord) -> io::Result<()> {
+        let module = self
+            .existing_module(&record.anchor)?
+            .unwrap_or_else(|| module.to_owned());
+        self.record_many(&module, [record])
+    }
+
+    fn existing_module(&self, anchor: &DecisionAnchor) -> io::Result<Option<String>> {
+        let directory = match fs::read_dir(&self.directory) {
+            Ok(directory) => directory,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+            Err(error) => return Err(error),
+        };
+        for entry in directory {
+            let path = entry?.path();
+            if path
+                .extension()
+                .is_some_and(|extension| extension == "yaml")
+            {
+                let module = read_module(&path)?;
+                if module.records.iter().any(|record| record.anchor == *anchor) {
+                    return Ok(Some(module.source_path));
+                }
+            }
+        }
+        Ok(None)
+    }
+
+    /// Updates a module's coverage records in one write.
+    ///
+    /// # Errors
+    /// Returns an error if the module cannot be loaded or saved.
+    pub fn record_many(
+        &self,
+        module: &str,
+        records: impl IntoIterator<Item = CoverageRecord>,
+    ) -> io::Result<()> {
         fs::create_dir_all(&self.directory)?;
         let path = self
             .directory
@@ -87,19 +123,109 @@ impl CoverageStore {
             },
             Err(error) => return Err(error),
         };
-        match stored
-            .records
-            .binary_search_by(|previous| previous.anchor.cmp(&record.anchor))
-        {
-            Ok(index) => stored.records[index] = record,
-            Err(index) => stored.records.insert(index, record),
+        for record in records {
+            match stored
+                .records
+                .binary_search_by(|previous| previous.anchor.cmp(&record.anchor))
+            {
+                Ok(index) => stored.records[index] = record,
+                Err(index) => stored.records.insert(index, record),
+            }
         }
-        let yaml = yaml_serde::to_string(&stored).map_err(io::Error::other)?;
-        let mut file = tempfile::NamedTempFile::new_in(&self.directory)?;
-        file.write_all(yaml.as_bytes())?;
-        file.persist(path).map_err(|error| error.error)?;
-        Ok(())
+        write_module(&path, &stored)
     }
+
+    /// Merges two Git versions with their common ancestor, updating ours.
+    ///
+    /// # Errors
+    /// Returns an error if input files differ in module identity or cannot be read.
+    pub fn merge_files(ancestor: &Path, ours: &Path, theirs: &Path) -> io::Result<()> {
+        let mut left = read_module(ours)?;
+        let right = read_module(theirs)?;
+        let original = match fs::metadata(ancestor) {
+            Ok(metadata) if metadata.len() == 0 => Module {
+                schema: 1,
+                source_path: left.source_path.clone(),
+                records: Vec::new(),
+            },
+            Ok(_) => read_module(ancestor)?,
+            Err(error) => return Err(error),
+        };
+        if left.source_path != right.source_path || left.source_path != original.source_path {
+            return Err(io::Error::other(
+                "coverage merge inputs describe different modules",
+            ));
+        }
+        left.records = merge_records(original.records, left.records, right.records);
+        write_module(ours, &left)
+    }
+}
+
+fn write_module(path: &Path, data: &Module) -> io::Result<()> {
+    let directory = path
+        .parent()
+        .ok_or_else(|| io::Error::other("coverage module has no parent"))?;
+    let yaml = yaml_serde::to_string(data).map_err(io::Error::other)?;
+    let mut file = tempfile::NamedTempFile::new_in(directory)?;
+    file.write_all(yaml.as_bytes())?;
+    file.persist(path).map_err(|error| error.error)?;
+    Ok(())
+}
+
+fn merge_records(
+    ancestor: Vec<CoverageRecord>,
+    left: Vec<CoverageRecord>,
+    right: Vec<CoverageRecord>,
+) -> Vec<CoverageRecord> {
+    use std::collections::BTreeSet;
+    let by_anchor = |records: Vec<CoverageRecord>| {
+        records
+            .into_iter()
+            .map(|record| (record.anchor.clone(), record))
+            .collect::<BTreeMap<_, _>>()
+    };
+    let ancestor = by_anchor(ancestor);
+    let left = by_anchor(left);
+    let right = by_anchor(right);
+    let keys: BTreeSet<_> = ancestor
+        .keys()
+        .chain(left.keys())
+        .chain(right.keys())
+        .collect();
+    keys.into_iter()
+        .filter_map(|key| {
+            let old = ancestor.get(key);
+            let ours = left.get(key);
+            let theirs = right.get(key);
+            if ours == old {
+                return theirs.cloned();
+            }
+            if theirs == old || ours == theirs {
+                return ours.cloned();
+            }
+            let (Some(ours), Some(theirs)) = (ours, theirs) else {
+                return ours.or(theirs).cloned();
+            };
+            let mut merged = ours.clone();
+            merged.state = ctx_core::coverage::GapState::Ambiguous;
+            merged.citations = ours
+                .citations
+                .iter()
+                .chain(&theirs.citations)
+                .cloned()
+                .collect::<BTreeSet<_>>()
+                .into_iter()
+                .collect();
+            merged.document = None;
+            merged.research = None;
+            merged.context_documents = None;
+            merged.note = Some(format!(
+                "Git conflict: ours {:?} at {} ({:?}), theirs {:?} at {} ({:?})",
+                ours.state, ours.revision, ours.note, theirs.state, theirs.revision, theirs.note
+            ));
+            Some(merged)
+        })
+        .collect()
 }
 
 fn read_module(path: &Path) -> io::Result<Module> {
@@ -140,6 +266,7 @@ mod tests {
             citations: Vec::new(),
             note: None,
             research: None,
+            context_documents: None,
         };
         store
             .record("source.py", make_record(2, GapState::Unknown))

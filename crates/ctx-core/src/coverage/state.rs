@@ -34,6 +34,8 @@ pub struct CoverageRecord {
     pub note: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub research: Option<ResearchJudgment>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context_documents: Option<Vec<DocumentEvidence>>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
@@ -66,6 +68,7 @@ pub fn gap_report<'a>(
     selected_symbols: &BTreeSet<StableKey>,
 ) -> GapReport<'a> {
     let anchors = document_anchors(graph);
+    let structural = super::structural_mappings(graph);
     let current: BTreeSet<_> = decisions.iter().map(|point| &point.anchor).collect();
     let stale_anchors: Vec<_> = anchors
         .keys()
@@ -88,6 +91,8 @@ pub fn gap_report<'a>(
                 graph,
                 anchors.get(&point.anchor),
                 record,
+                structural.get(&point.anchor.symbol),
+                &point.anchor,
                 changed_symbols.contains(&point.anchor.symbol),
             );
             *counts.entry(state).or_default() += 1;
@@ -110,6 +115,8 @@ fn gap_state(
     graph: &GraphSnapshot,
     documents: Option<&Vec<DocumentEvidence>>,
     record: Option<&CoverageRecord>,
+    mapped: Option<&BTreeSet<String>>,
+    anchor: &DecisionAnchor,
     changed: bool,
 ) -> (GapState, Option<DocumentEvidence>) {
     match documents.map(Vec::as_slice) {
@@ -118,6 +125,11 @@ fn gap_state(
         _ => {}
     }
     if let Some(record) = record {
+        if let Some(prior) = &record.context_documents
+            && *prior != mapped_documents(graph, mapped, anchor)
+        {
+            return (GapState::Reopened, None);
+        }
         if let Some(document) = &record.document {
             let current = graph
                 .nodes
@@ -155,4 +167,32 @@ fn document_anchors(graph: &GraphSnapshot) -> BTreeMap<DecisionAnchor, Vec<Docum
         }
     }
     documents
+}
+
+#[must_use]
+pub fn record_context(graph: &GraphSnapshot, anchor: &DecisionAnchor) -> Vec<DocumentEvidence> {
+    let mapped = super::structural_mappings(graph);
+    mapped_documents(graph, mapped.get(&anchor.symbol), anchor)
+}
+
+fn mapped_documents(
+    graph: &GraphSnapshot,
+    mapped: Option<&BTreeSet<String>>,
+    anchor: &DecisionAnchor,
+) -> Vec<DocumentEvidence> {
+    let Some(mapped) = mapped else {
+        return Vec::new();
+    };
+    graph
+        .nodes
+        .values()
+        .filter(|node| {
+            mapped.contains(node.identifier()) && active_intent(node)
+                && matches!(&node.attributes, PlannedNodeAttributes::Business { anchors, .. } if anchors.is_empty() || anchors.contains(anchor))
+        })
+        .map(|node| DocumentEvidence {
+            id: node.identifier().to_owned(),
+            fingerprint: node.content_hash.clone(),
+        })
+        .collect()
 }

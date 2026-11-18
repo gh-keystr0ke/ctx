@@ -1,8 +1,11 @@
 use std::{io, time::Duration};
 
 use clap::Args;
-use ctx_adapters::{coverage_store::CoverageStore, git::GitRepo};
-use ctx_app::ports::{ResearchAgent, ReviewRepository};
+use ctx_adapters::{coverage_store::CoverageStore, git::GitRepo, sqlite::SqliteStore};
+use ctx_app::{
+    ports::{GitRepository, ResearchAgent, ReviewRepository},
+    query::QueryService,
+};
 use ctx_core::{
     coverage::{
         CoverageRecord, DocumentEvidence, GapReport, GapState, RankedDecision,
@@ -30,11 +33,11 @@ pub(super) struct ResearchOptions {
 }
 
 impl ResearchOptions {
-    pub(super) fn for_ask(agent: &str) -> Self {
+    pub(super) fn for_ask(agent: &str, max_questions: usize) -> Self {
         Self {
             agent: agent.to_owned(),
             model: None,
-            max_questions: 5,
+            max_questions,
             timeout_ms: 30_000,
         }
     }
@@ -156,6 +159,7 @@ pub(super) fn research_gaps(
                 .collect(),
             note: None,
             research: Some(judgment),
+            context_documents: Some(ctx_core::coverage::record_context(graph, &gap.point.anchor)),
         };
         store.record(&gap.point.file, record)?;
         outcomes.push(json!({"anchor": gap.point.anchor, "outcome": state}));
@@ -188,7 +192,7 @@ pub(super) fn evidence_for(
         .nodes
         .values()
         .filter(|node| {
-            matches!(&node.attributes, PlannedNodeAttributes::Business { .. })
+            matches!(&node.attributes, PlannedNodeAttributes::Business { anchors, .. } if anchors.is_empty() || anchors.contains(&point.anchor))
                 && mapped
                     .get(&point.anchor.symbol)
                     .is_some_and(|intents| intents.contains(node.identifier()))
@@ -239,6 +243,7 @@ pub(super) fn evidence_for(
             add_evidence(&mut evidence, EvidenceKind::History, commit, &subject, None);
         }
     }
+    append_artifact_evidence(git, point, &mut evidence);
     if evidence.is_empty() {
         return Err(io::Error::other("no evidence available at the indexed revision").into());
     }
@@ -249,6 +254,40 @@ pub(super) fn evidence_for(
         ),
         evidence,
     })
+}
+
+fn append_artifact_evidence(git: &GitRepo, point: &RankedDecision, evidence: &mut Vec<Evidence>) {
+    let Ok(path) = crate::database_path(git.root()) else {
+        return;
+    };
+    let Ok(store) = SqliteStore::open_preview(&path, git.context_root()) else {
+        return;
+    };
+    let Ok(repo) = git.descriptor() else { return };
+    let Ok(found) = QueryService::new(&store).explain(&repo.id, point.anchor.symbol.as_str())
+    else {
+        return;
+    };
+    for item in found
+        .into_iter()
+        .flat_map(|result| result.artifact_history)
+        .take(4)
+    {
+        let artifact = item.artifact;
+        let kind = match artifact.identity.kind {
+            ctx_core::artifact::ArtifactKind::CodeComment
+            | ctx_core::artifact::ArtifactKind::Docstring => EvidenceKind::Comment,
+            ctx_core::artifact::ArtifactKind::Documentation => EvidenceKind::Documentation,
+            _ => EvidenceKind::History,
+        };
+        add_evidence(
+            evidence,
+            kind,
+            artifact.source_locator.0,
+            &format!("{}\n{}", artifact.title, artifact.body),
+            None,
+        );
+    }
 }
 
 fn neighbors<'a>(graph: &'a GraphSnapshot, point: &RankedDecision) -> Vec<&'a GraphNode> {

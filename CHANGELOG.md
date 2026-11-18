@@ -4,6 +4,14 @@ All notable changes to `ctx` are documented here. The project follows semantic v
 
 ## Unreleased
 
+### Added
+
+- `ctx repair` plans context drift, applies verified link repairs, and queues proposals for review.
+- `ctx coverage` reports structural mappings and ranked behavior in Python, Rust, and Go.
+- Coverage research and interviews preserve evidence and stage anchored knowledge for verification.
+- HTML reports and read-only MCP tools expose coverage. Verbose review lists new unexplained decisions.
+- `ctx-corpus` builds, reviews, and scores pinned decision point samples.
+
 ## 0.8.8 — 2026-11-18
 
 ### Added

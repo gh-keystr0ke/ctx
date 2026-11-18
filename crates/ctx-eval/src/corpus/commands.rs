@@ -153,7 +153,11 @@ fn sample_project(root: &Path, name: &str, extend: Option<&[String]>, fill: bool
         if !project.points.is_empty() {
             return Err(io::Error::other("sample already frozen").into());
         }
-        let ranked = sample::rank(&fetch::cache_root()?, &project)?;
+        let ranked = sample::rank_with(
+            &fetch::cache_root()?,
+            &project,
+            ctx_core::coverage::RankingVersion::Initial,
+        )?;
         sample::freeze(&mut project, &ranked)?
     };
     write_yaml(&super::project_path(root, name)?, &project)?;

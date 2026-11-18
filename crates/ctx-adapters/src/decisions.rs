@@ -1,3 +1,5 @@
+pub(crate) mod sdk;
+
 use ctx_core::ir::{DecisionKind, DecisionPoint, SourceRange};
 use tree_sitter::Node;
 
@@ -51,10 +53,12 @@ fn decision(node: Node<'_>, source: &[u8]) -> Option<DecisionPoint> {
     let result = condition.or(first).unwrap_or(node);
     let text = result.utf8_text(source).ok()?;
     let mut routine = false;
+    let mut routine_extended = false;
     let kind = match node.kind() {
         "if_statement" | "if_expression" | "elif_clause" => {
             let consequence = node.child_by_field_name("consequence");
             routine = routine_check(text, consequence, source);
+            routine_extended = go_error_passthrough(text, consequence, source);
             if consequence.is_some_and(ends_in_return) {
                 if node.child_by_field_name("alternative").is_none()
                     && let Some(skipped) = skipped_region(node)
@@ -90,7 +94,9 @@ fn decision(node: Node<'_>, source: &[u8]) -> Option<DecisionPoint> {
         condition: text.chars().take(240).collect(),
         regions,
         routine,
+        routine_extended,
         controlled_calls: Vec::new(),
+        sdk_calls: Vec::new(),
     })
 }
 
@@ -116,6 +122,50 @@ fn routine_check(text: &str, consequence: Option<Node<'_>>, source: &[u8]) -> bo
                         && statement.named_child_count() == 0
                 })
         })
+}
+
+fn go_error_passthrough(condition: &str, consequence: Option<Node<'_>>, source: &[u8]) -> bool {
+    let Some(block) = consequence.filter(|node| node.kind() == "block") else {
+        return false;
+    };
+    let Some(statements) = block
+        .named_child(0)
+        .filter(|node| node.kind() == "statement_list")
+    else {
+        return false;
+    };
+    let mut children = statements.walk();
+    let mut components = condition.split_whitespace();
+    let Some(error) = components
+        .next()
+        .filter(|name| name.to_ascii_lowercase().ends_with("err"))
+    else {
+        return false;
+    };
+    if !components.eq(["!=", "nil"]) {
+        return false;
+    }
+    let mut has_return = false;
+    let only_passthrough = statements.named_children(&mut children).all(|statement| {
+        let Ok(code) = statement.utf8_text(source) else {
+            return false;
+        };
+        if let Some(values) = code.strip_prefix("return ") {
+            has_return = true;
+            values.split(',').all(|value| {
+                value.trim() == error
+                    || value.trim() == "nil"
+                    || value.trim() == "false"
+                    || value.trim() == "0"
+            }) && values.split(',').any(|value| value.trim() == error)
+        } else {
+            (code.contains(".Logger()") || code.starts_with("logger.") || code.starts_with("log."))
+                && [".Error(", ".Warn(", ".Debug("]
+                    .iter()
+                    .any(|method| code.contains(method))
+        }
+    });
+    only_passthrough && has_return
 }
 
 fn literal(node: Node<'_>) -> bool {

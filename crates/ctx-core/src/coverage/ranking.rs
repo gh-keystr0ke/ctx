@@ -1,5 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use super::RankingVersion;
+
 use crate::{
     domain::{ClaimStatus, RelationKind, StableKey},
     graph::{GraphNode, GraphSnapshot},
@@ -59,6 +61,7 @@ impl<'a> Ranker<'a> {
         node: &'a GraphNode,
         point: &DecisionPoint,
         mapped: bool,
+        version: RankingVersion,
     ) -> BTreeMap<&'static str, i64> {
         let mut contributions = BTreeMap::new();
         let condition = semantic_weight(&point.condition);
@@ -92,6 +95,10 @@ impl<'a> Ranker<'a> {
         let reach = self.reachable_entries(&node.stable_key);
         if reach > 0 {
             contributions.insert("entrypoint_reach", reach);
+        }
+        if version == RankingVersion::Current && !point.sdk_calls.is_empty() {
+            let count = i64::try_from(point.sdk_calls.len().min(2)).unwrap_or_default();
+            contributions.insert("external_sdk_calls", count * 3);
         }
         if mapped {
             contributions.insert("mapped_intent", 1);
@@ -232,4 +239,50 @@ pub(super) fn semantic_weight(condition: &str) -> i64 {
     } else {
         0
     }
+}
+
+pub(super) fn evidence(
+    node: &GraphNode,
+    point: &DecisionPoint,
+    version: RankingVersion,
+) -> Vec<String> {
+    if version == RankingVersion::Initial {
+        return Vec::new();
+    }
+    let PlannedNodeAttributes::Symbol {
+        database_accesses,
+        orm_accesses,
+        external_calls,
+        ..
+    } = &node.attributes
+    else {
+        return Vec::new();
+    };
+    let controlled = |range| point.regions.iter().any(|region| region.encloses(range));
+    database_accesses
+        .iter()
+        .filter(|access| controlled(access.range))
+        .map(|access| format!("{:?} {}", access.kind, access.entity))
+        .chain(
+            orm_accesses
+                .iter()
+                .filter(|access| controlled(access.range))
+                .map(|access| format!("{:?} {}", access.kind, access.model_ref)),
+        )
+        .chain(
+            external_calls
+                .iter()
+                .filter(|call| controlled(call.range))
+                .map(|call| format!("{} {}", call.method.as_str(), call.url)),
+        )
+        .chain(
+            point
+                .sdk_calls
+                .iter()
+                .map(|call| format!("{} ({})", call.operation, call.package)),
+        )
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .take(8)
+        .collect()
 }

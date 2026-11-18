@@ -8,7 +8,9 @@ pub(crate) use new_decisions::{explanation_document_keys, new_decisions};
 pub mod research;
 mod state;
 
-pub use state::{CoverageRecord, DocumentEvidence, Gap, GapReport, GapState, gap_report};
+pub use state::{
+    CoverageRecord, DocumentEvidence, Gap, GapReport, GapState, gap_report, record_context,
+};
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -23,7 +25,23 @@ use crate::{
 
 use ranking::Ranker;
 
-pub const RANKING_VERSION: &str = "v0";
+pub const RANKING_VERSION: &str = RankingVersion::Current.name();
+
+#[derive(Clone, Copy, Eq, PartialEq)]
+pub enum RankingVersion {
+    Initial,
+    Current,
+}
+
+impl RankingVersion {
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Initial => "v0",
+            Self::Current => "v1",
+        }
+    }
+}
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -56,6 +74,7 @@ pub struct RankedDecision {
     pub score: i64,
     pub ask: bool,
     pub contributions: BTreeMap<&'static str, i64>,
+    pub effects: Vec<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -70,6 +89,15 @@ pub struct Coverage {
 
 #[must_use]
 pub fn analyze_coverage(graph: &GraphSnapshot, selected_symbols: &BTreeSet<StableKey>) -> Coverage {
+    analyze_with_ranking(graph, selected_symbols, RankingVersion::Current)
+}
+
+#[must_use]
+pub fn analyze_with_ranking(
+    graph: &GraphSnapshot,
+    selected_symbols: &BTreeSet<StableKey>,
+    version: RankingVersion,
+) -> Coverage {
     let mappings = structural_mappings(graph);
     let mut ranker = Ranker::new(graph);
     let mut mapped_symbols = 0;
@@ -101,7 +129,7 @@ pub fn analyze_coverage(graph: &GraphSnapshot, selected_symbols: &BTreeSet<Stabl
         for point in decision_points {
             let ordinal = ordinals.entry(&point.fingerprint).or_insert(0);
             *ordinal += 1;
-            let contributions = ranker.contributions(symbol, point, mapped.is_some());
+            let contributions = ranker.contributions(symbol, point, mapped.is_some(), version);
             let score = contributions.values().sum();
             decisions.push(RankedDecision {
                 anchor: DecisionAnchor {
@@ -115,8 +143,11 @@ pub fn analyze_coverage(graph: &GraphSnapshot, selected_symbols: &BTreeSet<Stabl
                 range: point.range,
                 condition: point.condition.clone(),
                 score,
-                ask: !point.routine && score >= 4,
+                ask: !(point.routine
+                    || version == RankingVersion::Current && point.routine_extended)
+                    && score >= 4,
                 contributions,
+                effects: ranking::evidence(symbol, point, version),
             });
         }
     }
@@ -127,7 +158,7 @@ pub fn analyze_coverage(graph: &GraphSnapshot, selected_symbols: &BTreeSet<Stabl
             .then_with(|| left.anchor.cmp(&right.anchor))
     });
     Coverage {
-        ranking_version: RANKING_VERSION,
+        ranking_version: version.name(),
         mapped_symbols,
         analyzed_symbols,
         structural_percent: percentage(mapped_symbols, analyzed_symbols),

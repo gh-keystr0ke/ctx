@@ -40,10 +40,10 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 71ddacfc6eceaf13bd5a5a8840ea38eaf5b8576107ab8752eddb8a4445442ff2
-  label: null
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
@@ -59,10 +59,10 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 76314a559f59bbbf77460757a0a41e633a111b9b99932a56ff700f849473baac
-  label: null
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
@@ -139,10 +139,10 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 832e067aa4fde4d352af064befcf5e269516de3b98f06ddaf5e899f0e187bfef
-  label: null
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null

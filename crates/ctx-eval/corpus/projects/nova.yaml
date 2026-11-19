@@ -77,8 +77,8 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 566c2dabf5f8162fc42b9a530c2fc1e58753dd19fbf262118dda86b5f7b31697
-  label: null
-  category: null
+  label: significant
+  category: validation
   evidence:
   - type: docs
     url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/doc/source/admin/cells.rst#L995
@@ -86,7 +86,7 @@ points:
   - type: spec
     url: https://opendev.org/openstack/nova-specs/src/commit/bb9651bea014f19960b340047c767e0eb268ad66/specs/train/implemented/count-quota-usage-from-placement.rst#L88
     quote: add a ``[quota]count_usage_from_placement`` config option which defaults to
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null
@@ -231,8 +231,8 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 68ff99b0f89b3a4a50578e201544acff44f375310df6ab67c1f5cf114fff5444
-  label: null
-  category: null
+  label: significant
+  category: state-transition
   evidence:
   - type: spec
     url: https://opendev.org/openstack/nova-specs/src/commit/bb9651bea014f19960b340047c767e0eb268ad66/specs/mitaka/implemented/volume-ops-when-shelved.rst#L82
@@ -243,7 +243,7 @@ points:
   - type: spec
     url: https://opendev.org/openstack/nova-specs/src/commit/bb9651bea014f19960b340047c767e0eb268ad66/specs/mitaka/implemented/volume-ops-when-shelved.rst#L29
     quote: As a cloud user I want to be able to detach volumes from my shelved instance
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
   note: null

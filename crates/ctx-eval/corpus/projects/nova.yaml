@@ -629,8 +629,15 @@ points:
 - id: nova-0027
   anchor: symbol:python:nova.compute.api.API._prepare_image_mapping:Method#1052020a7610685db3efe518d8b9540f0eee88f556640d30c75177a0a062c798#1
   location: nova/compute/api.py:1918
-  draft: null
-  drafted_by: null
+  draft:
+    label: unclear
+    category: null
+    evidence: []
+    reason: The branch omits mappings whose computed volume size is zero. None of the supplied excerpts directly addresses that behavior, and the code alone leaves its product significance unclear.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 85a2d359ff6ba014d14f9e22f3293108a025b10c8ff6fc71c7bc3b5a43c11886
   label: null
   category: null
   evidence: []
@@ -641,8 +648,15 @@ points:
 - id: nova-0028
   anchor: symbol:python:nova.api.openstack.compute.simple_tenant_usage.SimpleTenantUsageController._show:Method#f2e58bcc1195947468a33b12d2e6aac37973ff2b62be01d160effa1e5d10dc53#1
   location: nova/api/openstack/compute/simple_tenant_usage.py:356
-  draft: null
-  drafted_by: null
+  draft:
+    label: trivial
+    category: default
+    evidence: []
+    reason: The branch uses an empty object when the usage collection is empty. The supplied documentation and specification excerpts do not address this fallback.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: d9fc4de9be47b3be4a0b136ee3a123d72ecd6165a1aa7709d3ea3832e00b453d
   label: null
   category: null
   evidence: []
@@ -653,8 +667,15 @@ points:
 - id: nova-0029
   anchor: symbol:python:nova.api.openstack.compute.servers.ServersController.create:Method#984279fcd18f39dca29a91d9ea4651e14feb3e149cf11758a234c6fc5ed48b87#1
   location: nova/api/openstack/compute/servers.py:913
-  draft: null
-  drafted_by: null
+  draft:
+    label: unclear
+    category: default
+    evidence: []
+    reason: The flag defaults to false and controls whether the create response contains only a reservation ID. The supplied documentation does not address this flag or its effect on the response.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 0946e928d5d05151504f7958abe59cdc09dfe3df9bd7a6c3ffc6857011882b6b
   label: null
   category: null
   evidence: []
@@ -665,8 +686,15 @@ points:
 - id: nova-0030
   anchor: symbol:python:nova.api.openstack.compute.servers.ServersController._add_location:Method#f89dd17d2b22d9630675fda18ed9ab356b4d3c80d26c05be8466aa9c0df7ef1b#1
   location: nova/api/openstack/compute/servers.py:105
-  draft: null
-  drafted_by: null
+  draft:
+    label: trivial
+    category: validation
+    evidence: []
+    reason: The guard returns the response unchanged when the 'server' key is absent. This is a routine presence check, and none of the supplied documentation addresses it.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 6aa37853a980fde11bfb3181607cde3babdfcbcd4be67afea08e3aaf9a70ba23
   label: null
   category: null
   evidence: []
@@ -677,8 +705,15 @@ points:
 - id: nova-0031
   anchor: symbol:python:nova.api.openstack.compute.hosts.HostController.update:Method#ae0a0c4400cae11595d1c79791bd1968181780afbfabf127f0ed8c9903a2a66b#1
   location: nova/api/openstack/compute/hosts.py:120
-  draft: null
-  drafted_by: null
+  draft:
+    label: trivial
+    category: validation
+    evidence: []
+    reason: The branch checks whether the optional status value is non-null before parsing it. None of the supplied documentation addresses this check.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 35a895a6bf0f40ebc594efae09834709aeb0be9ca126187cc9ab5716154f1ccf
   label: null
   category: null
   evidence: []
@@ -689,8 +724,15 @@ points:
 - id: nova-0032
   anchor: symbol:python:nova.api.openstack.compute.migrations.MigrationsController._output:Method#716c73d0a8e39ccafb97d034edb07d9d78e97d89a5324ebb5b136f5ee87c23de#1
   location: nova/api/openstack/compute/migrations.py:98
-  draft: null
-  drafted_by: null
+  draft:
+    label: unclear
+    category: state-transition
+    evidence: []
+    reason: The condition gates migration links on API version, migration type, and in-progress status. None of the supplied evidence directly documents that behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 1264b894a090c16fefd42da4e17e5f47f92ed8f5dca32b05bcc8fb4833a69917
   label: null
   category: null
   evidence: []
@@ -701,8 +743,15 @@ points:
 - id: nova-0033
   anchor: symbol:python:nova.api.openstack.compute.views.servers.ViewBuilder.show:Method#0aa36e6ffcee777af2333313dfb572bf0d589c3e7161062733541419043e551b#1
   location: nova/api/openstack/compute/views/servers.py:320
-  draft: null
-  drafted_by: null
+  draft:
+    label: unclear
+    category: error-handling
+    evidence: []
+    reason: The branch makes the server response include fault details only for eligible statuses and only when a fault is available. The supplied excerpts do not directly document that rule.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 62020c72550017c5a03a8b38d6b881032a60e10a5cae84eccbb8317064962c44
   label: null
   category: null
   evidence: []
@@ -713,11 +762,26 @@ points:
 - id: nova-0034
   anchor: symbol:python:nova.api.openstack.compute.views.servers.ViewBuilder.show:Method#ca3b37b62c2eb3a92243c89ff32d0df010408374da13f756b83c98f80ca1eb79#1
   location: nova/api/openstack/compute/views/servers.py:414
-  draft: null
-  drafted_by: null
+  draft:
+    label: unclear
+    category: permission
+    evidence:
+    - E1
+    - E2
+    reason: The specs document policy-controlled visibility of host_status. They do not directly specify the highlighted decision to evaluate that policy for the instance when show_host_status is None.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: c66ea0bd3a1350054dd8138bef85e7f8ff96ef9ea8d171ab49a01ee274e75b76
   label: null
   category: null
-  evidence: []
+  evidence:
+  - type: spec
+    url: https://opendev.org/openstack/nova-specs/src/commit/bb9651bea014f19960b340047c767e0eb268ad66/specs/mitaka/implemented/get-valid-server-state.rst#L92
+    quote: 'detail`` will return ``host_status`` field if "os_compute_api:servers:show:'
+  - type: spec
+    url: https://opendev.org/openstack/nova-specs/src/commit/bb9651bea014f19960b340047c767e0eb268ad66/specs/mitaka/implemented/get-valid-server-state.rst#L156
+    quote: '"os_compute_api:servers:show:host_status": "rule:admin_api"'
   verified_by: null
   second_label: null
   second_by: null
@@ -725,8 +789,15 @@ points:
 - id: nova-0035
   anchor: symbol:python:nova.compute.api.API._delete:Method#338b2d00c11ec6a4be4760e6a4a68f2d7a9dd5292e83ba8e279842d78c895bde#1
   location: nova/compute/api.py:2609
-  draft: null
-  drafted_by: null
+  draft:
+    label: unclear
+    category: state-transition
+    evidence: []
+    reason: The guard skips a non-local delete request when the instance is already in DELETING or SOFT_DELETING. The supplied excerpts do not directly document how duplicate delete requests are handled in those states.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: aac82fb2b7fe5a56b13f04d6314353339399e561159841a7e4f5678b32a501ba
   label: null
   category: null
   evidence: []
@@ -737,11 +808,30 @@ points:
 - id: nova-0036
   anchor: symbol:python:nova.compute.api.API._delete:Method#88a22b5f41e0ea316df8f4474ab8cd6b0dc64074202bdd5b596960fbbbd79e45#1
   location: nova/compute/api.py:2538
-  draft: null
-  drafted_by: null
+  draft:
+    label: unclear
+    category: state-transition
+    evidence:
+    - E1
+    - E2
+    - E3
+    reason: The branch attempts snapshot cleanup during instance deletion when the instance is shelved or shelved offloaded. The cited specification discusses those states in the context of volume operations and does not establish the snapshot cleanup rule.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: fbf23313b8f255a7304459c8eb4e7d21dc5186b8d646e7b55021db117dc05804
   label: null
   category: null
-  evidence: []
+  evidence:
+  - type: spec
+    url: https://opendev.org/openstack/nova-specs/src/commit/bb9651bea014f19960b340047c767e0eb268ad66/specs/mitaka/implemented/volume-ops-when-shelved.rst#L22
+    quote: instance is in the shelved or shelved_offloaded states. From a user's
+  - type: spec
+    url: https://opendev.org/openstack/nova-specs/src/commit/bb9651bea014f19960b340047c767e0eb268ad66/specs/mitaka/implemented/volume-ops-when-shelved.rst#L38
+    quote: 'Shelved instances can be in one of two possible states: shelved and'
+  - type: spec
+    url: https://opendev.org/openstack/nova-specs/src/commit/bb9651bea014f19960b340047c767e0eb268ad66/specs/mitaka/implemented/volume-ops-when-shelved.rst#L82
+    quote: be allowed when the instance is in the shelved and shelved_offloaded states.
   verified_by: null
   second_label: null
   second_by: null

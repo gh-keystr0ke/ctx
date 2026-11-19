@@ -208,22 +208,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: ec5fdcde2652a15c591d20306a1cea6dfe2d7a55ce4c4c507b2932109aee61ff
-  label: unclear
-  category: null
+  label: significant
+  category: state-transition
   evidence:
-  - type: spec
-    url: https://github.com/vectordotdev/vector/blob/b78d987398d23f19f3705fb76a1cd18642565b66/rfcs/2021-10-29-9465-splunk-hec-indexer-acknowledgements.md#L346
-    quote: Err(_) => EventStatus::Rejected,
-  - type: spec
-    url: https://github.com/vectordotdev/vector/blob/b78d987398d23f19f3705fb76a1cd18642565b66/rfcs/2021-10-29-9465-splunk-hec-indexer-acknowledgements.md#L356
-    quote: EventStatus::Rejected
-  - type: docs
-    url: https://github.com/vectordotdev/vector/blob/b78d987398d23f19f3705fb76a1cd18642565b66/website/content/en/docs/architecture/end-to-end-acknowledgements.md#L22
-    quote: a bug, uh oh!), we still update the batch notifier to indicate the processing status of the event.
+  - type: issue
+    url: https://github.com/vectordotdev/vector/pull/7396/files
+    quote: "Failed` overrides `Errored` and `Delivered"
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "The branch makes a rejection override other statuses. No source established this precedence."
+  note: "The linked change defines permanent failure precedence. The later rename to Rejected preserves that behavior."
 - id: vector-0009
   anchor: symbol:rust:crate.variants.disk_v2.writer.BufferWriter.validate_last_write:Method#0bc1834c5b5c54ce1d0d53642e06854e43c7b5548a146f59c5880625fe488ea3#1
   location: lib/vector-buffers/src/variants/disk_v2/writer.rs:1390
@@ -537,13 +531,16 @@ points:
   location: lib/vector-common/src/finalization.rs:374
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
+  label: significant
+  category: state-transition
+  evidence:
+  - type: issue
+    url: https://github.com/vectordotdev/vector/pull/7396/files
+    quote: "Errored` overrides `Delivered"
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "The branch makes an error override delivery. No source established this precedence."
+  note: "The linked change defines the precedence used when a batch contains a transient failure."
 - id: vector-0032
   anchor: symbol:rust:crate.finalization.BatchStatusReceiver.Future.poll:Method#928923da3217b056ec2b5cc58cd6aecab6cc0f8960808c74e9995c1ebc47bc22#1
   location: lib/vector-common/src/finalization.rs:236
@@ -561,13 +558,16 @@ points:
   location: src/sinks/util/batch.rs:165
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
+  label: significant
+  category: retry
+  evidence:
+  - type: issue
+    url: https://github.com/vectordotdev/vector/pull/11812/files
+    quote: "timeout <= 0.0"
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "The branch rejects zero and negative timeouts. The available batching description does not specify these bounds."
+  note: "The linked change allows fractional batch timeouts while preserving the prior positive-only constraint."
 - id: vector-0034
   anchor: symbol:rust:crate.sinks.util.batch.SinkBatchSettings.TIMEOUT_SECS:Constant#195464cb05f6c530ec6222256b82b7a5f5abaaf74a68dcd6ceb2840565890168#1
   location: src/sinks/util/batch.rs:36

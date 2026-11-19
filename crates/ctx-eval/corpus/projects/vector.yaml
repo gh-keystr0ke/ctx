@@ -55,11 +55,26 @@ points:
 - id: vector-0002
   anchor: symbol:rust:crate.sinks.util.retries.FibonacciRetryPolicy.Policy<Req,Res,Error>.retry:Method#b6e37645550aea6a40e99cb8816f358b452347643b8b1e614dd6fb4ae76654f7#1
   location: src/sinks/util/retries.rs:222
-  draft: null
-  drafted_by: null
+  draft:
+    label: unclear
+    category: retry
+    evidence:
+    - E1
+    - E2
+    reason: The branch stops retrying a failed request when no attempts remain. E1 documents a retry-count default, and E2 describes exhaustion for Splunk acknowledgement tracking. Neither excerpt directly specifies this request-dropping behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: baf2671e06f295d5f1c343919fac6b93219bbbe84dc78b51ad1cb8c45bbf0540
   label: null
   category: null
-  evidence: []
+  evidence:
+  - type: spec
+    url: https://github.com/vectordotdev/vector/blob/b78d987398d23f19f3705fb76a1cd18642565b66/rfcs/2020-09-28-cloudwatch-metrics.md#L48
+    quote: 'request.retry_attempts = 18446744073709551615 # optional, default'
+  - type: spec
+    url: https://github.com/vectordotdev/vector/blob/b78d987398d23f19f3705fb76a1cd18642565b66/rfcs/2021-10-29-9465-splunk-hec-indexer-acknowledgements.md#L326
+    quote: remaining retry count. When remaining retries is `0`, we remove the `ackId` from
   verified_by: null
   second_label: null
   second_by: null
@@ -67,11 +82,22 @@ points:
 - id: vector-0003
   anchor: symbol:rust:crate.sinks.util.batch.BatchConfig.into_batch_settings:Method#2#387c9c80e7f2402fb12627958e2f5b0a6cdcaa779fbce206162e7bce02e2d55a#1
   location: src/sinks/util/batch.rs:261
-  draft: null
-  drafted_by: null
+  draft:
+    label: trivial
+    category: validation
+    evidence:
+    - E5
+    reason: The line returns InvalidTimeout if the adjusted timeout is absent. The code comment says validation already rules out that case, and E5 only specifies an optional field.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 1e1355df247eb32c05bd42312dc5fdee73ff4bc7948cd4805d9fdebbcd7d4248
   label: null
   category: null
-  evidence: []
+  evidence:
+  - type: spec
+    url: https://github.com/vectordotdev/vector/blob/b78d987398d23f19f3705fb76a1cd18642565b66/rfcs/2020-06-12-2768-batch-and-buffer-rework.md#L76
+    quote: 'timeout_secs: Option<u64>,'
   verified_by: null
   second_label: null
   second_by: null
@@ -79,11 +105,34 @@ points:
 - id: vector-0004
   anchor: symbol:rust:crate.finalization.BatchNotifier.update_status:Method#103d7bd8e750063fdaebd3b8b092a6b6b23d23245304cabcd17abd11031f04c6#1
   location: lib/vector-common/src/finalization.rs:312
-  draft: null
-  drafted_by: null
+  draft:
+    label: unclear
+    category: state-transition
+    evidence:
+    - E2
+    - E3
+    - E6
+    - E7
+    reason: The excerpts describe event status transitions and notifications, but none directly specifies that Delivered and Dropped leave the batch notifier status unchanged.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: c0ebd06aabc4c9f20da874cf01853b17e66ee28b8bd1d449121ee4a535c25c63
   label: null
   category: null
-  evidence: []
+  evidence:
+  - type: spec
+    url: https://github.com/vectordotdev/vector/blob/b78d987398d23f19f3705fb76a1cd18642565b66/rfcs/2021-03-26-6517-end-to-end-acknowledgement.md#L169
+    quote: the event. This may change that status from `Dropped` (the
+  - type: spec
+    url: https://github.com/vectordotdev/vector/blob/b78d987398d23f19f3705fb76a1cd18642565b66/rfcs/2021-03-26-6517-end-to-end-acknowledgement.md#L174
+    quote: the event status to `Recorded` that no extraneous updates happen.
+  - type: spec
+    url: https://github.com/vectordotdev/vector/blob/b78d987398d23f19f3705fb76a1cd18642565b66/rfcs/2021-10-29-9465-splunk-hec-indexer-acknowledgements.md#L325
+    quote: '`EventStatus::Delivered`. If we receive `false` for an `ackId`, we decrement its'
+  - type: spec
+    url: https://github.com/vectordotdev/vector/blob/b78d987398d23f19f3705fb76a1cd18642565b66/rfcs/2021-10-29-9465-splunk-hec-indexer-acknowledgements.md#L327
+    quote: the map and notify with `EventStatus::Dropped`.
   verified_by: null
   second_label: null
   second_by: null
@@ -91,8 +140,15 @@ points:
 - id: vector-0005
   anchor: symbol:rust:crate.variants.disk_v2.reader.BufferReader.seek_to_next_record:Method#45e202f957a58aa008dd4af106b657a2db771b0d55b2a2e72424107fd3509b7e#1
   location: lib/vector-buffers/src/variants/disk_v2/reader.rs:897
-  draft: null
-  drafted_by: null
+  draft:
+    label: unclear
+    category: error-handling
+    evidence: []
+    reason: The code falls back to the slow path when payload decoding fails to avoid skipping the file where the reader left off. The supplied references do not directly describe this behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: dc3db5aee872aa4d2ec157c7650b5544b0ff5e06b52a38dbf703af8286694032
   label: null
   category: null
   evidence: []
@@ -103,11 +159,26 @@ points:
 - id: vector-0006
   anchor: symbol:rust:crate.sinks.util.retries.FibonacciRetryPolicy.Policy<Req,Res,Error>.retry:Method#324befb2770b951f7b0540ff08bbcfa4e1032c5e76d9559ccb22a1e1ea58e073#1
   location: src/sinks/util/retries.rs:182
-  draft: null
-  drafted_by: null
+  draft:
+    label: unclear
+    category: retry
+    evidence:
+    - E1
+    - E2
+    reason: The branch stops retrying a retryable response when no attempts remain. E1 specifies a retry-count default, and E2 describes exhaustion for Splunk acknowledgements. Neither directly specifies how this branch handles retryable responses.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: a15b825f766ef0ff6d6998c56c262670126c55563c7a7ce5e9e08f7d91718b0e
   label: null
   category: null
-  evidence: []
+  evidence:
+  - type: spec
+    url: https://github.com/vectordotdev/vector/blob/b78d987398d23f19f3705fb76a1cd18642565b66/rfcs/2020-09-28-cloudwatch-metrics.md#L48
+    quote: 'request.retry_attempts = 18446744073709551615 # optional, default'
+  - type: spec
+    url: https://github.com/vectordotdev/vector/blob/b78d987398d23f19f3705fb76a1cd18642565b66/rfcs/2021-10-29-9465-splunk-hec-indexer-acknowledgements.md#L326
+    quote: remaining retry count. When remaining retries is `0`, we remove the `ackId` from
   verified_by: null
   second_label: null
   second_by: null
@@ -115,8 +186,15 @@ points:
 - id: vector-0007
   anchor: symbol:rust:crate.sinks.util.batch.BatchConfig.into_batcher_settings:Method#2#79c46acdc6f79efd97a2ab974787329b1cc8d1aa644b8fa58682ea5e05f3512f#1
   location: src/sinks/util/batch.rs:300
-  draft: null
-  drafted_by: null
+  draft:
+    label: trivial
+    category: validation
+    evidence: []
+    reason: The line defensively checks for a missing timeout and returns InvalidTimeout. The code comment says validation already ensures the timeout is present.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 0c42202c995b3aa280ae9b18f8a1690e9c2ee4e16717b1a700d2a234364598c6
   label: null
   category: null
   evidence: []
@@ -127,11 +205,30 @@ points:
 - id: vector-0008
   anchor: symbol:rust:crate.finalization.BatchStatus.update:Method#9cf34e5ead14ce5cfcc31aaf2690ba1d30991f4ae5f8b382bebccca5a6686164#1
   location: lib/vector-common/src/finalization.rs:372
-  draft: null
-  drafted_by: null
+  draft:
+    label: unclear
+    category: state-transition
+    evidence:
+    - E3
+    - E4
+    - E5
+    reason: The excerpts mention rejection and batch status updates, but none directly specifies that Rejected takes precedence over Errored and Delivered.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: ec5fdcde2652a15c591d20306a1cea6dfe2d7a55ce4c4c507b2932109aee61ff
   label: null
   category: null
-  evidence: []
+  evidence:
+  - type: spec
+    url: https://github.com/vectordotdev/vector/blob/b78d987398d23f19f3705fb76a1cd18642565b66/rfcs/2021-10-29-9465-splunk-hec-indexer-acknowledgements.md#L346
+    quote: Err(_) => EventStatus::Rejected,
+  - type: spec
+    url: https://github.com/vectordotdev/vector/blob/b78d987398d23f19f3705fb76a1cd18642565b66/rfcs/2021-10-29-9465-splunk-hec-indexer-acknowledgements.md#L356
+    quote: EventStatus::Rejected
+  - type: docs
+    url: https://github.com/vectordotdev/vector/blob/b78d987398d23f19f3705fb76a1cd18642565b66/website/content/en/docs/architecture/end-to-end-acknowledgements.md#L22
+    quote: a bug, uh oh!), we still update the batch notifier to indicate the processing status of the event.
   verified_by: null
   second_label: null
   second_by: null
@@ -139,8 +236,15 @@ points:
 - id: vector-0009
   anchor: symbol:rust:crate.variants.disk_v2.writer.BufferWriter.validate_last_write:Method#0bc1834c5b5c54ce1d0d53642e06854e43c7b5548a146f59c5880625fe488ea3#1
   location: lib/vector-buffers/src/variants/disk_v2/writer.rs:1390
-  draft: null
-  drafted_by: null
+  draft:
+    label: unclear
+    category: error-handling
+    evidence: []
+    reason: The branch preserves the corrupted record’s byte span while reconciling with the durable checkpoint so the reader can account for and skip the record. No supplied specification, documentation, or issue directly addresses this recovery behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: a621f6c5c0790e5aaa70da18547e228731fcc9977ed5765a78588e1adf596bf1
   label: null
   category: null
   evidence: []
@@ -151,11 +255,26 @@ points:
 - id: vector-0010
   anchor: symbol:rust:crate.sinks.util.retries.FibonacciRetryPolicy.Policy<Req,Res,Error>.retry:Method#9973626d655cdb405fa88506e84fd451b4c783c0fa017e5dd3c0788295b546b4#1
   location: src/sinks/util/retries.rs:199
-  draft: null
-  drafted_by: null
+  draft:
+    label: unclear
+    category: retry
+    evidence:
+    - E1
+    - E2
+    reason: The branch drops a partial retry when no attempts remain. E1 documents a retry-attempt default, and E2 describes retry exhaustion for Splunk acknowledgement IDs. Neither directly documents this partial-retry behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: a043068df2c62c542b55123110a3b5c708309dc0455eb0d8f9497f4f0dd20880
   label: null
   category: null
-  evidence: []
+  evidence:
+  - type: spec
+    url: https://github.com/vectordotdev/vector/blob/b78d987398d23f19f3705fb76a1cd18642565b66/rfcs/2020-09-28-cloudwatch-metrics.md#L48
+    quote: 'request.retry_attempts = 18446744073709551615 # optional, default'
+  - type: spec
+    url: https://github.com/vectordotdev/vector/blob/b78d987398d23f19f3705fb76a1cd18642565b66/rfcs/2021-10-29-9465-splunk-hec-indexer-acknowledgements.md#L326
+    quote: remaining retry count. When remaining retries is `0`, we remove the `ackId` from
   verified_by: null
   second_label: null
   second_by: null
@@ -163,11 +282,30 @@ points:
 - id: vector-0011
   anchor: symbol:rust:crate.sinks.util.batch.BatchConfig.limit_max_bytes:Method#1f56f2be3dea949c6867d2fdaa331763cf1a589d0cf70aa60f1a2e5b57f9b499#1
   location: src/sinks/util/batch.rs:232
-  draft: null
-  drafted_by: null
+  draft:
+    label: significant
+    category: limit
+    evidence:
+    - E3
+    - E4
+    - E7
+    reason: The method documentation explicitly requires an error when the configured byte limit exceeds the supplied ceiling. The upgrade guide identifies batch.max_bytes as the byte limit, and the specification requires batch limits to be inviolable.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 51e6f2492b3c0867099a321fd1c0be89e16da1c41016cf3b2738c71a054bc083
   label: null
   category: null
-  evidence: []
+  evidence:
+  - type: docs
+    url: https://github.com/vectordotdev/vector/blob/b78d987398d23f19f3705fb76a1cd18642565b66/website/content/en/highlights/2021-11-18-0-18-0-upgrade-guide.md#L35
+    quote: '`batch.max_events`.  If you''re trying to limit the size of the batch, in terms of bytes, you should'
+  - type: docs
+    url: https://github.com/vectordotdev/vector/blob/b78d987398d23f19f3705fb76a1cd18642565b66/website/content/en/highlights/2021-11-18-0-18-0-upgrade-guide.md#L36
+    quote: use `batch.max_bytes`.  Otherwise, if you're trying to limit the size of the batch in terms of
+  - type: spec
+    url: https://github.com/vectordotdev/vector/blob/b78d987398d23f19f3705fb76a1cd18642565b66/rfcs/2020-06-12-2768-batch-and-buffer-rework.md#L55
+    quote: both. Additionally, the batch limits must be inviolable, so that no
   verified_by: null
   second_label: null
   second_by: null

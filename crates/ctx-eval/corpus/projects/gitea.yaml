@@ -31,8 +31,15 @@ points:
 - id: gitea-0001
   anchor: symbol:go:models.git.UpdateProtectBranch:Function#41d115b9e7c003b14f9f1fd17c8a7005594e44874fc515d6a2533ecfacea822c#1
   location: models/git/protected_branch.go:380
-  draft: null
-  drafted_by: null
+  draft:
+    label: trivial
+    category: error-handling
+    evidence: []
+    reason: The highlighted branch returns the error from MustNotBeArchived unchanged.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 71ddacfc6eceaf13bd5a5a8840ea38eaf5b8576107ab8752eddb8a4445442ff2
   label: null
   category: null
   evidence: []
@@ -43,8 +50,15 @@ points:
 - id: gitea-0002
   anchor: symbol:go:services.pull.isUserAllowedToMergeInRepoBranch:Function#56bc2fff43a4f227f2665ce980ced4f0837d0b62664c69baccb16b0d9eb8f335#1
   location: services/pull/merge.go:682
-  draft: null
-  drafted_by: null
+  draft:
+    label: trivial
+    category: error-handling
+    evidence: []
+    reason: The branch propagates the protected-branch rule lookup error unchanged. None of the supplied excerpts directly addresses this behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 76314a559f59bbbf77460757a0a41e633a111b9b99932a56ff700f849473baac
   label: null
   category: null
   evidence: []
@@ -55,8 +69,15 @@ points:
 - id: gitea-0003
   anchor: symbol:go:services.pull.manuallyMergedByPushedCommit:Function#36961aefb1672de0c964ce00e15f6a3f95e90a7bb9bf77abf93c32b46a2a9f89#1
   location: services/pull/check.go:393
-  draft: null
-  drafted_by: null
+  draft:
+    label: trivial
+    category: error-handling
+    evidence: []
+    reason: The branch logs a base repository load failure and returns false because manual merge detection cannot proceed. The supplied documentation does not address this failure path.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 6392731dc1c5ffb2213da07f719781d1a469e3ec566cf9f8b60cdafae5433a41
   label: null
   category: null
   evidence: []
@@ -67,8 +88,15 @@ points:
 - id: gitea-0004
   anchor: symbol:go:models.perm.access.CanBeAssigned:Function#f6a6a1eb9c3a96b92fee0c96400d3dcd6a43836e9bd9d3a5a91c23e466f7875d#1
   location: models/perm/access/repo_permission.go:589
-  draft: null
-  drafted_by: null
+  draft:
+    label: unclear
+    category: permission
+    evidence: []
+    reason: The branch makes organizations ineligible for issue and pull request assignment. The package contains no documentation, specification, or issue directly about that restriction.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: d7f71f97d1a330d833cbee80a251063bfbde917bca8c1e1abe74c4d0f4e39f0a
   label: null
   category: null
   evidence: []
@@ -79,11 +107,22 @@ points:
 - id: gitea-0005
   anchor: symbol:go:models.organization.AddOrgUser:Function#be1356c9cb23a18977ce8b4c4f065ceba13adbd197fdc0abfe758ada0cf77940#1
   location: models/organization/org.go:518
-  draft: null
-  drafted_by: null
+  draft:
+    label: unclear
+    category: state-transition
+    evidence:
+    - E9
+    reason: The branch propagates lookup errors and returns success without changing membership when the user is already a member. E9 identifies a test for AddOrgUser, but the excerpt does not show its assertions, and no supplied documentation, specification, or issue directly addresses repeated adds.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: bf38326dbb4c803a71230b9499430286dc7b6b31af7b383c39f9ca58bc29023c
   label: null
   category: null
-  evidence: []
+  evidence:
+  - type: test
+    url: https://github.com/go-gitea/gitea/blob/0b5dfdeeeaadf6350314246c5936b53cce38170c/models/organization/org_user_test.go#L128
+    quote: models.organization.TestAddOrgUser
   verified_by: null
   second_label: null
   second_by: null
@@ -91,8 +130,15 @@ points:
 - id: gitea-0006
   anchor: symbol:go:models.git.UpdateProtectBranch:Function#41d115b9e7c003b14f9f1fd17c8a7005594e44874fc515d6a2533ecfacea822c#2
   location: models/git/protected_branch.go:389
-  draft: null
-  drafted_by: null
+  draft:
+    label: trivial
+    category: error-handling
+    evidence: []
+    reason: The branch returns the error from updateUserWhitelist unchanged before assigning the result. The supplied documentation does not address this behavior.
+  drafted_by:
+    agent: codex
+    model: null
+    prompt_fingerprint: 832e067aa4fde4d352af064befcf5e269516de3b98f06ddaf5e899f0e187bfef
   label: null
   category: null
   evidence: []

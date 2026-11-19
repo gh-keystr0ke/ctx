@@ -344,16 +344,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: decdf667eb970d4c05c73b130dadc9fd7913b10d16b90fb088bef1d122ce00e8
-  label: unclear
-  category: null
+  label: significant
+  category: limit
   evidence:
-  - type: spec
-    url: https://opendev.org/openstack/nova-specs/src/commit/bb9651bea014f19960b340047c767e0eb268ad66/specs/kilo/approved/lock-free-quota-management.rst#L157
-    quote: construction in the `_get_project_user_quota_usages()` method in
+  - type: docs
+    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/doc/source/user/quotas.rst#L29
+    quote: "Number of instance cores (VCPUs) allowed per project."
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "The branch chooses project-level counting for designated resources. The available quota guide did not identify this distinction."
+  note: "The guide distinguishes per-project resources from per-user resources. This branch measures usage for the former at project scope."
 - id: nova-0015
   anchor: symbol:python:nova.scheduler.filters.json_filter.JsonFilter._process_filter:Method#9a0d3c381ebfeb876d199a9570e8e991fc4b50a6dc39011cd773d716514e4d0e#1
   location: nova/scheduler/filters/json_filter.py:116
@@ -865,25 +865,31 @@ points:
   location: nova/quota.py:296
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
+  label: significant
+  category: limit
+  evidence:
+  - type: issue
+    url: https://bugs.launchpad.net/nova/+bug/1292494
+    quote: "Invalid validation for unlimited values when updating user quota"
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "The branch preserves the unlimited sentinel during quota subtraction. The sentinel definition does not establish the arithmetic rule."
+  note: "The linked fix applies sentinel-aware quota calculations, including subtraction to compute the available quota."
 - id: nova-0039
   anchor: symbol:python:nova.quota.DbQuotaDriver._sum_quota_values:Method#365a1a78a5822cb9f61aaee72cb7b14f693d2f2ca0370f57c6bd28ebc418f0c4#1
   location: nova/quota.py:287
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
+  label: significant
+  category: limit
+  evidence:
+  - type: issue
+    url: https://bugs.launchpad.net/nova/+bug/1292494
+    quote: "both values are summed resulting in a -2 value"
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "The branch preserves the unlimited sentinel during quota addition. The sentinel definition does not establish the arithmetic rule."
+  note: "The linked bug reports an invalid result when unlimited quota values are summed."
 - id: nova-0040
   anchor: symbol:python:nova.quota.UnifiedLimitsDriver.get_defaults:Method#e994c54a45f6e48ea3ca8a2601da706b28589979bb6ac8d7567b48343017a37f#1
   location: nova/quota.py:817

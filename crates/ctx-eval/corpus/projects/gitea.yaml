@@ -117,16 +117,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: bf38326dbb4c803a71230b9499430286dc7b6b31af7b383c39f9ca58bc29023c
-  label: null
+  label: unclear
   category: null
   evidence:
   - type: test
     url: https://github.com/go-gitea/gitea/blob/0b5dfdeeeaadf6350314246c5936b53cce38170c/models/organization/org_user_test.go#L128
     quote: models.organization.TestAddOrgUser
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "The branch also makes repeated membership additions a no-op. The available test does not establish a product contract."
 - id: gitea-0006
   anchor: symbol:go:models.git.UpdateProtectBranch:Function#41d115b9e7c003b14f9f1fd17c8a7005594e44874fc515d6a2533ecfacea822c#2
   location: models/git/protected_branch.go:389
@@ -163,13 +163,13 @@ points:
   location: services/pull/check.go:90
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "The check depends on successful transition to checking. No source established the scheduling rule for this branch."
 - id: gitea-0009
   anchor: symbol:go:models.perm.access.CanReadWorkflowCrossRepo:Function#419be570e8945acba6da237f0afb261d5aee4ec6605fd1c3a88343efe9d26a63#1
   location: models/perm/access/repo_permission.go:689
@@ -223,13 +223,13 @@ points:
   location: services/pull/check.go:77
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "The immediate path depends on successful transition to checking. No source established its scheduling rule."
 - id: gitea-0014
   anchor: symbol:go:models.perm.access.CanReadWorkflowCrossRepo:Function#75809a4b10a1847b0434cca778075c57c8d3cc806cab3091641ccec463407a24#1
   location: models/perm/access/repo_permission.go:697
@@ -247,13 +247,16 @@ points:
   location: models/organization/team.go:119
   draft: null
   drafted_by: null
-  label: null
-  category: null
-  evidence: []
-  verified_by: null
+  label: significant
+  category: permission
+  evidence:
+  - type: issue
+    url: https://github.com/go-gitea/gitea/pull/37680
+    quote: "listable by any member of the organization"
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "The linked change documents limited team visibility for organization members."
 - id: gitea-0016
   anchor: symbol:go:models.organization.GetTeam:Function#62adfe36292792b771b1e3004e9ee5d5e3a5f9f78ca2e5af2cf4354ceadac9a1#1
   location: models/organization/team.go:234
@@ -439,34 +442,34 @@ points:
   location: services/pull/check.go:111
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "The branch rechecks a pull request on view only while its status is checking. The code comment explains queue assumptions."
 - id: gitea-0032
   anchor: symbol:go:services.pull.markPullRequestAsMergeable:Function#bb8ef67207d00f3a4a4f86a4449969a9e3d75d3b973dfb0b043bc4ae4de5b9db#1
   location: services/pull/check.go:274
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "The branch assumes conflict checks have already run. No source specifies this status transition."
 - id: gitea-0033
   anchor: symbol:go:services.pull.runMergeCommand:Function#eed803983973d0623f39c99833b1e1b54a778285fb83d6e65b98dc4c44d918f5#1
   location: services/pull/merge.go:637
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "The branch maps MERGE_HEAD to a merge conflict. General conflict documentation does not establish this mapping."

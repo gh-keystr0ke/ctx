@@ -50,19 +50,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: d1e7021a1a949df7d7a71093a87ce39278435b0260f6ab42ddb03736bad33cd3
-  label: unclear
-  category: null
+  label: significant
+  category: state-transition
   evidence:
   - type: docs
-    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/doc/source/admin/soft-delete-shadow-tables.rst#L13
-    quote: the instance is marked to be in state ``SOFT_DELETED`` and can be
-  - type: docs
-    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/doc/source/reference/vm-states.rst#L16
-    quote: label="All states are allowed to transition to DELETED and ERROR.";
+    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/doc/source/_static/images/resize/resize_confirm.dia#L8
+    quote: "API -> Source [label = \"cast (or call if deleting)\", note = \"confirm_resize\"];"
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "The API reference describes deletion. No source established prior resize confirmation on deletion."
+  note: "The published resize sequence documents synchronous confirmation when deleting."
 - id: nova-0002
   anchor: symbol:python:nova.quota._instances_cores_ram_count:Function#1b0aa80670e01820d20033ff5fdc982886de6a2d9959f1db30261d7e0acf738a#1
   location: nova/quota.py:1382
@@ -853,13 +850,16 @@ points:
   location: nova/compute/api.py:6380
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
+  label: significant
+  category: state-transition
+  evidence:
+  - type: spec
+    url: https://opendev.org/openstack/nova-specs/src/commit/bb9651bea014f19960b340047c767e0eb268ad66/specs/train/implemented/pre-filter-disabled-computes.rst#L263
+    quote: "compute service is upgraded and restarted"
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "The branch delays syncing the disabled trait on old compute services. No source established this service-version condition."
+  note: "The upgrade section explains why an old compute must defer synchronization."
 - id: nova-0038
   anchor: symbol:python:nova.quota.DbQuotaDriver._sub_quota_values:Method#365a1a78a5822cb9f61aaee72cb7b14f693d2f2ca0370f57c6bd28ebc418f0c4#1
   location: nova/quota.py:296
@@ -901,13 +901,16 @@ points:
   location: nova/scheduler/filters/affinity_filter.py:98
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
+  label: significant
+  category: validation
+  evidence:
+  - type: issue
+    url: https://bugs.launchpad.net/nova/+bug/1558532
+    quote: AntiAffinity policy problems with resize and migrate to same host
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "The branch permits the source host during affinity checks. No source established this exception."
+  note: The fix linked to the bug keeps the current host eligible because an instance does not conflict with itself.
 - id: nova-0042
   anchor: symbol:python:nova.scheduler.filters.compute_capabilities_filter.ComputeCapabilitiesFilter.host_passes:Method#c7936776c2540cc0a3af30dda0ccde27bb1665cf80fd9cd624dd14021873da89#1
   location: nova/scheduler/filters/compute_capabilities_filter.py:118
@@ -928,25 +931,31 @@ points:
   location: nova/scheduler/filters/image_props_filter.py:104
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
+  label: significant
+  category: validation
+  evidence:
+  - type: spec
+    url: https://opendev.org/openstack/nova-specs/src/commit/bb9651bea014f19960b340047c767e0eb268ad66/specs/2024.1/implemented/libvirt-maxphysaddr-support.rst#L107
+    quote: "If ``hw_maxphysaddr_bits`` is set to image properties, perform a numeric comparison with ``ImagePropertiesFilter``."
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "The branch checks the allowed physical address width after hypervisor checks. No source established this combination."
+  note: "The blueprint linked from 1038a633 requires the image address-width check."
 - id: nova-0044
   anchor: symbol:python:nova.scheduler.filters.numa_topology_filter.NUMATopologyFilter.host_passes:Method#5af24686d211410391057e35dd85288537ebcd8394a83dfa9297048172e45a92#1
   location: nova/scheduler/filters/numa_topology_filter.py:91
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
+  label: significant
+  category: validation
+  evidence:
+  - type: docs
+    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/doc/source/admin/cpu-topologies.rst#L394
+    quote: "This will ensure the instance gets scheduled to a host with SMT"
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "The scheduler guide documents NUMA topology matching. No source established this specific CPU-policy rejection."
+  note: "The CPU topology guide states the CPU-thread host requirement. Commit 83cd67cd describes filtering out hosts without sibling support."
 - id: nova-0045
   anchor: symbol:python:nova.scheduler.filters.pci_passthrough_filter.PciPassthroughFilter.host_passes:Method#68ee3e83f7f4a540fc43adf5104a74495ad7e73924c73cc3ce41dff4e30d9001#1
   location: nova/scheduler/filters/pci_passthrough_filter.py:54

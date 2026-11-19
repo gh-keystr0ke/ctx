@@ -242,13 +242,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: a621f6c5c0790e5aaa70da18547e228731fcc9977ed5765a78588e1adf596bf1
-  label: unclear
-  category: null
-  evidence: []
+  label: significant
+  category: error-handling
+  evidence:
+  - type: issue
+    url: https://github.com/vectordotdev/vector/pull/25845
+    quote: "Reconcile `disk_v2` startup state from the durable checkpoint window"
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "The branch preserves a corrupted record span at the checkpoint. The buffer RFC specifies checksums but does not describe this checkpoint rule."
+  note: "The linked change adds checkpoint reconciliation for a checksum mismatch while preserving the complete span."
 - id: vector-0010
   anchor: symbol:rust:crate.sinks.util.retries.FibonacciRetryPolicy.Policy<Req,Res,Error>.retry:Method#9973626d655cdb405fa88506e84fd451b4c783c0fa017e5dd3c0788295b546b4#1
   location: src/sinks/util/retries.rs:199
@@ -327,13 +330,16 @@ points:
   location: src/sinks/util/retries.rs:198
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
+  label: significant
+  category: retry
+  evidence:
+  - type: issue
+    url: https://github.com/vectordotdev/vector/pull/22431
+    quote: "only sending the failed part of it"
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "The branch dispatches a partial retry. The retry-budget documentation does not establish the partial-response dispatch rule."
+  note: "Commit d9bef7e introduced this branch to retry the failed subset of a request."
 - id: vector-0015
   anchor: symbol:rust:crate.sinks.util.batch.BatchConfig.limit_max_events:Method#1ad4b93dac28102ebbac3aeb6fd27100e601bd8cb6124592ca0a8b9e00a2bbff#1
   location: src/sinks/util/batch.rs:242
@@ -594,10 +600,13 @@ points:
   location: lib/vector-buffers/src/variants/disk_v2/writer.rs:1400
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
+  label: significant
+  category: error-handling
+  evidence:
+  - type: issue
+    url: https://github.com/vectordotdev/vector/pull/25845
+    quote: "focused recovery, truncation, cleanup, and accounting coverage"
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "The branch preserves a failed-deserialization span at the checkpoint. No source established this recovery rule."
+  note: "The linked patch adds a distinct case for undecodable archives that have a complete outer length."

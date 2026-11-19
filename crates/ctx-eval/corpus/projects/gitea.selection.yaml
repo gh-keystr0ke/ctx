@@ -414,3 +414,21 @@ points:
     score: 1
     contributions:
       decision_shape: 1
+  gitea-0031:
+    selected_by: pool
+    rank: 76
+    score: 4
+    contributions:
+      condition: 4
+  gitea-0032:
+    selected_by: pool
+    rank: 79
+    score: 4
+    contributions:
+      condition: 4
+  gitea-0033:
+    selected_by: pool
+    rank: 80
+    score: 4
+    contributions:
+      condition: 4

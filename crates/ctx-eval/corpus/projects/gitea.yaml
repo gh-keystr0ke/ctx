@@ -388,3 +388,39 @@ points:
   second_label: null
   second_by: null
   note: null
+- id: gitea-0031
+  anchor: symbol:go:services.pull.StartPullRequestCheckOnView:Function#726ed3b7270f4e1636d6a1083e84fe76d740e76508ec71b720af3792e6f24cc3#1
+  location: services/pull/check.go:111
+  draft: null
+  drafted_by: null
+  label: null
+  category: null
+  evidence: []
+  verified_by: null
+  second_label: null
+  second_by: null
+  note: null
+- id: gitea-0032
+  anchor: symbol:go:services.pull.markPullRequestAsMergeable:Function#bb8ef67207d00f3a4a4f86a4449969a9e3d75d3b973dfb0b043bc4ae4de5b9db#1
+  location: services/pull/check.go:274
+  draft: null
+  drafted_by: null
+  label: null
+  category: null
+  evidence: []
+  verified_by: null
+  second_label: null
+  second_by: null
+  note: null
+- id: gitea-0033
+  anchor: symbol:go:services.pull.runMergeCommand:Function#eed803983973d0623f39c99833b1e1b54a778285fb83d6e65b98dc4c44d918f5#1
+  location: services/pull/merge.go:637
+  draft: null
+  drafted_by: null
+  label: null
+  category: null
+  evidence: []
+  verified_by: null
+  second_label: null
+  second_by: null
+  note: null

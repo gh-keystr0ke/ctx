@@ -398,3 +398,41 @@ points:
     rank: 408
     score: 0
     contributions: {}
+  vector-0031:
+    selected_by: pool
+    rank: 83
+    score: 4
+    contributions:
+      condition: 4
+  vector-0032:
+    selected_by: pool
+    rank: 84
+    score: 4
+    contributions:
+      condition: 4
+  vector-0033:
+    selected_by: pool
+    rank: 89
+    score: 4
+    contributions:
+      condition: 4
+  vector-0034:
+    selected_by: pool
+    rank: 90
+    score: 4
+    contributions:
+      condition: 4
+  vector-0035:
+    selected_by: pool
+    rank: 24
+    score: 8
+    contributions:
+      condition: 4
+      downstream_calls: 4
+  vector-0036:
+    selected_by: pool
+    rank: 5
+    score: 12
+    contributions:
+      condition: 4
+      downstream_calls: 8

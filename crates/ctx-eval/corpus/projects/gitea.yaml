@@ -442,13 +442,16 @@ points:
   location: services/pull/check.go:111
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
+  label: significant
+  category: state-transition
+  evidence:
+  - type: issue
+    url: https://github.com/go-gitea/gitea/commit/a9343896f48e2e7e44b6b2d3c38080e134babe04
+    quote: "When viewing the PR, checking will start immediately"
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "The branch rechecks a pull request on view only while its status is checking. The code comment explains queue assumptions."
+  note: "The change linked to #27779 specifies triggering a previously delayed check when the pull request is viewed."
 - id: gitea-0032
   anchor: symbol:go:services.pull.markPullRequestAsMergeable:Function#bb8ef67207d00f3a4a4f86a4449969a9e3d75d3b973dfb0b043bc4ae4de5b9db#1
   location: services/pull/check.go:274

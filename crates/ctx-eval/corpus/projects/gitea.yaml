@@ -181,13 +181,13 @@ points:
   location: models/perm/access/repo_permission.go:689
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Propagates the repository load error before applying access rules."
 - id: gitea-0010
   anchor: symbol:go:models.organization.ApplyTeamListFilter:Function#c153f69d86c29a1fdaa61dc81674c382c7de6c3931be647baf5e4ff890bcc7c0#1
   location: models/organization/team_list.go:113
@@ -205,13 +205,13 @@ points:
   location: models/git/protected_branch.go:395
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Propagates the error before using the allowlist."
 - id: gitea-0012
   anchor: symbol:go:services.pull.MarkAsMerged:Function#38201f03c07ed8ce9acc1fdf0a7cf10b10aa0f8da66860e9aa47b69b7f85dd5f#1
   location: services/pull/merge.go:796
@@ -273,13 +273,13 @@ points:
   location: models/organization/team.go:234
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Propagates the lookup error before checking whether the team exists."
 - id: gitea-0017
   anchor: symbol:go:models.git.ProtectedBranch.IsUnprotectedFile:Method#f4151b97f74c58b593da74d6be0a0f53b2b66bdfe45c2cfca0ff33391ca4c3cb#1
   location: models/git/protected_branch.go:316
@@ -297,25 +297,25 @@ points:
   location: models/perm/access/access.go:242
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Propagates the owner load error before processing permissions."
 - id: gitea-0019
   anchor: symbol:go:services.pull.markAsMergedPostProcess:Function#44ce5b6da6659917a1365146d757b65c921a6b430f950ef2c04aa628a8230464#1
   location: services/pull/merge.go:392
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: observability
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Logs the load failure and continues with the same control flow."
 - id: gitea-0020
   anchor: symbol:go:services.pull.doMergeAndPush:Function#5cfab4860a80fdcb0909d85680581e574b4ba694b08e602c620c16bb2d0eae1a#1
   location: services/pull/merge.go:506
@@ -345,13 +345,13 @@ points:
   location: models/organization/team_list.go:143
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Propagates the query error with empty results."
 - id: gitea-0023
   anchor: symbol:go:models.organization.VisibleTeamVisibilitiesFor:Function#5056ef4221991d2768f599e03fd8f3576e6dc32c2380110dc620dedae376559c#1
   location: models/organization/team_list.go:108
@@ -381,13 +381,13 @@ points:
   location: services/pull/merge.go:462
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Propagates the selected merge implementation's error unchanged."
 - id: gitea-0026
   anchor: symbol:go:services.pull.doMergeAndPush:Function#7fe9df5969e0ecc28913309d998dfbad777ad4b41ef43374f30c9dd39e4aa758#1
   location: services/pull/merge.go:507
@@ -429,13 +429,13 @@ points:
   location: services/pull/merge.go:864
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: observability
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Logs post-processing errors after the merge has succeeded."
 - id: gitea-0030
   anchor: symbol:go:services.pull.Init:Function#4290c839d07d618596957da012674809e3e6c5e9261e4670eb03a98ec92370d5#1
   location: services/pull/check.go:537

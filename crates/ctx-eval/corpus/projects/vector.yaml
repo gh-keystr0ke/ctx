@@ -375,25 +375,25 @@ points:
   location: lib/vector-buffers/src/variants/disk_v2/tests/model/filesystem.rs:365
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: validation
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "A missing entry in the test filesystem model maps to a standard not-found error."
 - id: vector-0019
   anchor: symbol:rust:crate.topology.channel.sender.UsageAccounting.record:Method#13901e7396c5e580e7a311afeddd71c733859cb7d0ebf1a59378b083452d9a1e#1
   location: lib/vector-buffers/src/topology/channel/sender.rs:185
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: observability
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "This arm records received counts and bytes."
 - id: vector-0020
   anchor: symbol:rust:crate.test.action.Action.Arbitrary.shrink:Method#222c370fe43007c50b8a7830e75468036de7f9f0a1bf7677206865e2a47603bd#1
   location: lib/vector-buffers/src/test/action.rs:25
@@ -411,25 +411,25 @@ points:
   location: lib/vector-buffers/src/variants/disk_v2/tests/model/filesystem.rs:364
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: validation
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "This arm unwraps a successful file lookup in the test filesystem model."
 - id: vector-0022
   anchor: symbol:rust:crate.variants.disk_v2.io.ProductionFilesystem.Filesystem.list_files:Method#1e93d2ce3386d6f28e9e3da1ce907cdc32f668e9422c0d580235e0ff492360ec#1
   location: lib/vector-buffers/src/variants/disk_v2/io.rs:234
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: validation
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Routine file-type guard before collecting file paths."
 - id: vector-0023
   anchor: symbol:rust:crate.topology.channel.limited_queue.tests.receive_samples:Function#cb5f552180a91c03ff38a9aeb5526b1099a0860057459e16017daf8aced8b83f#1
   location: lib/vector-buffers/src/topology/channel/limited_queue.rs:1016
@@ -483,13 +483,13 @@ points:
   location: lib/vector-buffers/src/topology/channel/sender.rs:404
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "The question mark propagates the existing flush error unchanged."
 - id: vector-0028
   anchor: symbol:rust:crate.variants.disk_v2.tests.model.WriterModelState.transition_to_writing:Method#80d6bf7efe9973fc7c82a640dff10e15741deec0dd7da736f11b2be1a35b5115#1
   location: lib/vector-buffers/src/variants/disk_v2/tests/model/mod.rs:500
@@ -507,13 +507,13 @@ points:
   location: lib/vector-buffers/src/topology/channel/sender.rs:301
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "The question mark propagates the existing snapshot error unchanged."
 - id: vector-0030
   anchor: symbol:rust:crate.topology.channel.sender.BufferSender.send:Method#1b20b51c4546304bd443a5552c9398d3a6383f64a462dc73366a648c2c46fa93#1
   location: lib/vector-buffers/src/topology/channel/sender.rs:342

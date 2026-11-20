@@ -1225,9 +1225,12 @@ points:
   location: models/organization/org.go:306
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
+  label: significant
+  category: permission
+  evidence:
+  - type: docs
+    url: https://github.com/go-gitea/gitea/blob/0b5dfdeeeaadf6350314246c5936b53cce38170c/custom/conf/app.example.ini#L915
+    quote: Every new user will have rights set to create organizations depending on this setting
   verified_by: codex-work
   second_label: null
   second_by: null

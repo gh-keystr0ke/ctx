@@ -260,18 +260,20 @@ calibration.
 #### Held-out v2 gate
 
 All 114 anchors resolved on the pinned commits. The scorer returned
-`incomplete` because Gitea fell below the 80% completeness threshold.
+`complete`. Each project met the 80% threshold for rated top positions.
 
-| Project | Rated top positions | Required |
-| --- | ---: | ---: |
-| Nova | 16/20 | 16 |
-| Vector | 16/19 | 16 |
-| Gitea | 2/7 | 6 |
+| Project | Rated top positions | Required | Significant for quota | Trivial for quota |
+| --- | ---: | ---: | ---: | ---: |
+| Nova | 16/20 | 16 | 5 | 0 |
+| Vector | 16/19 | 16 | 12 | 0 |
+| Gitea | 6/7 | 6 | 3 | 3 |
 
-Gitea needs evidence for four of the five remaining positions. The fix
-for [Gitea #19352](https://github.com/go-gitea/gitea/issues/19352) blocks
-merges during conflict checking. It gives no rule for the three sampled
-queue and state-update guards. The evidence for the membership and
-merge-error points also remains insufficient. These five labels stay
-`unclear`. The scorer withheld the held-out precision and false-positive
-rates, so the release gate remains open.
+Gitea's original changes explain the race with merged pull requests,
+the result of conflict checks, and conflict error reporting. These
+sources support four significant labels. The organization membership
+point remains unclear.
+
+Combined precision was 38/38 among the rated top positions. The trivial
+false-positive rate was 0/3. Nova and Vector had no rated trivial points
+outside the pool, so the rate is unavailable for those projects. The
+15/15 quotas are unmet. No held-out point has a second label yet.

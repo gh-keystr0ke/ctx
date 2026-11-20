@@ -128,7 +128,7 @@ points:
   anchor: symbol:rust:router.core.payments.operations.payment_response.create_or_update_payment_method_from_payment_response:Function#2#578555433a37404cd8d7b62bf73ca2be33188e21a61c41cc5dfb97cba733bba5#1
   location: crates/router/src/core/payments/operations/payment_response.rs:3991
   draft:
-    label: unclear
+    label: significant
     category: state-transition
     evidence:
     - E2
@@ -138,19 +138,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: ae4e6fd4f5c1c9a26f6037ea59b1551a6a9f7c4ba6a7640c02dd6e292fb3b930
-  label: unclear
-  category: null
+  label: significant
+  category: state-transition
   evidence:
-  - type: docs
-    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/integration-guide/control-center/reporting/payments-report.md#L42
-    quote: '| `payment_method_id`            | The identifier of the saved payment method used, if the customer paid with a previously saved payment method.                                                |'
-  - type: docs
-    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/integration-guide/payment-experience/pay-then-vault/README.md#L88
-    quote: '* **Result:** `payment_method_id` returned on success'
+  - type: issue
+    url: https://github.com/juspay/hyperswitch/pull/14391
+    quote: we will create the payment method record on our end once the payment reaches a terminal status
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: The branch calls deferred creation only if the payment attempt has no payment method record.
 - id: hyperswitch-0006
   anchor: symbol:rust:router.core.routing.helpers.push_metrics_with_update_window_for_success_based_routing:Function#03c2641d44efb7f6d3d6da3a8c5709c339a7047ad16099fb43891b8e779ca4b0#1
   location: crates/router/src/core/routing/helpers.rs:897

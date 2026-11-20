@@ -57,8 +57,8 @@ points:
     url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/doc/source/_static/images/resize/resize_confirm.dia#L8
     quote: API -> Source [label = "cast (or call if deleting)", note = "confirm_resize"];
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: codex-independent-v2
   note: The published resize sequence documents synchronous confirmation when deleting.
 - id: nova-0002
   anchor: symbol:python:nova.quota._instances_cores_ram_count:Function#1b0aa80670e01820d20033ff5fdc982886de6a2d9959f1db30261d7e0acf738a#1
@@ -165,8 +165,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: codex-independent-v2
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: nova-0007
   anchor: symbol:python:nova.scheduler.filters.image_props_filter.ImagePropertiesFilter._instance_supported:Method#ce709f3c517b624bf3d5602e42a4671a59020ff7649170748be540a34a307023#1
@@ -184,8 +184,8 @@ points:
   category: validation
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: codex-independent-v2
   note: Returns before processing the absent set of image requirements.
 - id: nova-0008
   anchor: symbol:python:nova.api.openstack.compute.views.servers.ViewBuilder.show:Method#8d90a5fbcd1a81c6ae30eff004d7e8ad5b7cab8446d2310fa36c41fad8c42e51#1
@@ -259,8 +259,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: codex-independent-v2
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: nova-0011
   anchor: symbol:python:nova.scheduler.filters.image_props_filter.ImagePropertiesFilter._instance_supported:Method#e3a5031cb5dc53799b5a6c00c079679a9811f6a9c2b977f7ef57b40f1e92e8e6#1
@@ -735,8 +735,8 @@ points:
     url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/api-ref/source/parameters.yaml#L2874
     quote: A fault object. Only displayed when the server status is ``ERROR`` or ``DELETED`` and a fault occurred.
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: codex-independent-v2
   note: The API exposes fault details only for ERROR or DELETED when a fault is available.
 - id: nova-0034
   anchor: symbol:python:nova.api.openstack.compute.views.servers.ViewBuilder.show:Method#ca3b37b62c2eb3a92243c89ff32d0df010408374da13f756b83c98f80ca1eb79#1
@@ -857,8 +857,8 @@ points:
     url: https://bugs.launchpad.net/nova/+bug/1292494
     quote: both values are summed resulting in a -2 value
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: codex-independent-v2
   note: The linked bug reports an invalid result when unlimited quota values are summed.
 - id: nova-0040
   anchor: symbol:python:nova.quota.UnifiedLimitsDriver.get_defaults:Method#e994c54a45f6e48ea3ca8a2601da706b28589979bb6ac8d7567b48343017a37f#1
@@ -869,8 +869,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: codex-independent-v2
   note: The branch takes a Placement limit when available and otherwise uses a fallback. No direct source established both paths.
 - id: nova-0041
   anchor: symbol:python:nova.scheduler.filters.affinity_filter._GroupAntiAffinityFilter.host_passes:Method#30e913bd7bfbcd3b779e3f2f1e73f182e2695d594d22575ab3cfd32dfdfe8e5e#1
@@ -971,8 +971,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: codex-independent-v2
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: nova-0048
   anchor: symbol:python:nova.compute.api.API.resize:Method#d7615027fae02ce21dc500c7b413f9e8def1121652bfea70a6397baf379b6a47#2
@@ -1007,8 +1007,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: codex-independent-v2
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: nova-0051
   anchor: symbol:python:nova.api.openstack.compute.shelve.ShelveController._shelve_offload:Method#b670f10efbcd89269f81c9e2af5cd8bf374229e0d37481713704b33edf5201d9#1
@@ -1046,8 +1046,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: codex-independent-v2
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: nova-0054
   anchor: symbol:python:nova.compute.api.check_instance_state:Function#989b0494b405fd04bd99839b11271faa9b376b33b8dc681c4c4fca8211f5d4ca#1
@@ -1259,8 +1259,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: codex-independent-v2
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: nova-0071
   anchor: symbol:python:nova.compute.api.API.resize:Method#56be6b61132fc285e33304076f93cf990cbe0be4ef2db4538a8fcfbaa1a89d97#1
@@ -1358,8 +1358,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: codex-independent-v2
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: nova-0079
   anchor: symbol:python:nova.quota.DbQuotaDriver._process_quotas:Method#36154f2aa5732e8af138e9bda8ab81fd43509b4a53c28763be2d71f14b9ea9b9#1
@@ -1370,8 +1370,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: codex-independent-v2
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: nova-0080
   anchor: symbol:python:nova.compute.api.API._validate_unshelve_az:Method#988c4e62c192ce9034765b69b16e66b92d9a0e01f62f93ff8d86e2a2b5664aa8#1
@@ -1382,8 +1382,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: codex-independent-v2
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: nova-0081
   anchor: symbol:python:nova.api.openstack.compute.simple_tenant_usage.SimpleTenantUsageController._index:Method#3a450dfd65a97ae43b209e8d317302d4fa4ddbca12a86c6937f24878898f62e3#1
@@ -1394,8 +1394,8 @@ points:
   category: validation
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: codex-independent-v2
   note: Omits the field when no usage links are available.
 - id: nova-0082
   anchor: symbol:python:nova.api.openstack.compute.volume_attachments.VolumeAttachmentController.update:Method#e48c5e39b348a21b888685c9c27c4725e6e8ab10cc5cb1fe603a993d5529ce33#1
@@ -1406,8 +1406,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: codex-independent-v2
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: nova-0083
   anchor: symbol:python:nova.compute.api.API._validate_host_or_node:Method#16e1b41cf46c2810d940f4c45bd7b13d99ddea1fd3edd62de555ce52c86acc7d#1
@@ -1442,8 +1442,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: codex-independent-v2
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: nova-0086
   anchor: symbol:python:nova.quota.DbQuotaDriver._process_quotas:Method#cacee5d5ffbde3c0fe992b7ed28af94e0864c802db460908bfe572c1ee34008a#1
@@ -1454,8 +1454,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: codex-independent-v2
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: nova-0087
   anchor: symbol:python:nova.api.openstack.compute.helpers.translate_attributes:Function#27bdbd193795dd6ce13f41bc3620d3af17c59e63761df505c02f3d781a9b1728#1
@@ -1496,8 +1496,8 @@ points:
   category: validation
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: codex-independent-v2
   note: Returns when there are no requested bits to compare.
 - id: nova-0090
   anchor: symbol:python:nova.api.openstack.compute.hypervisors.HypervisorsController._get_hypervisors:Method#552fe763eccacd5a9ee1bd42789084e7eb1ebacf08c28ef9da9228fc621e1925#1
@@ -1604,8 +1604,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: codex-independent-v2
   note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: nova-0099
   anchor: symbol:python:nova.api.openstack.compute.aggregates.AggregateController._add_host:Method#b6db5c814b75705ac3cfd55b54d60e2d0a54ebdea0b3cc8047e6076d28640335#1

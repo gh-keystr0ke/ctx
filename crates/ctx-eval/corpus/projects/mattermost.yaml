@@ -209,8 +209,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: codex-independent-v2
   note: null
 - id: mattermost-0010
   anchor: symbol:go:server.channels.app.App.AddChannelMember:Method#f95d2993f86915bb767e9ba4956771958bf707ca767f514f4abf774a09816cca#1
@@ -232,8 +232,8 @@ points:
     url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/comply/embedded-json-audit-log-schema.rst#L235
     quote: '| ``addChannelMember``               | Adding members to channels                                        |'
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: codex-independent-v2
   note: null
 - id: mattermost-0011
   anchor: symbol:go:server.channels.app.App.CheckPostReminders:Method#a0beeb733e72dd7c3d1d6ac6d583814cfa7897c7f5acc5bb2bd6f5766265e2bd#1
@@ -289,8 +289,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: codex-independent-v2
   note: null
 - id: mattermost-0014
   anchor: symbol:go:server.channels.app.App.CreatePost:Method#18444d500a1bfa0dbc3bb6c3633d2fd99cee1f54ca1cb866e682a220fad674d4#1
@@ -338,8 +338,8 @@ points:
     url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/onboard/managing-team-channel-membership-using-ad-ldap-sync-groups.rst#L15
     quote: 'On teams that are managed by synchronized groups, users outside of the group are restricted from:'
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: codex-independent-v2
   note: The guide lists team and email invite links. Group-synchronized members are managed through the group.
 - id: mattermost-0016
   anchor: symbol:go:server.channels.app.App.IsDeactivatedUserEmail:Method#d6c9c306604e5087cc2c5a00633b3ec377f3ac6b7863f5d3040272e9f1f03ed8#1
@@ -467,8 +467,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: codex-independent-v2
   note: null
 - id: mattermost-0022
   anchor: symbol:go:server.channels.app.App.updateTeamMemberRolesInternal:Method#06c035e166cb77c2a68cf8b02754b2783b57b6ee957223957a5fd15a773238f5#1
@@ -669,8 +669,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: codex-independent-v2
   note: null
 - id: mattermost-0032
   anchor: symbol:go:server.channels.app.App.deduplicateCreatePost:Method#b35c9a22d02086c9890157aa0309e6c737003a13728e92c9a8838e02aa182a8f#1
@@ -688,8 +688,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: codex-independent-v2
   note: null
 - id: mattermost-0033
   anchor: symbol:go:server.channels.app.App.CreatePost:Method#326cc0bcb334d5c0e9709b0a7adef9079696759d99ef5a46f3bf97c720d4a49d#1
@@ -707,8 +707,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: codex-independent-v2
   note: null
 - id: mattermost-0034
   anchor: symbol:go:server.channels.app.App.publishWebsocketEventForPost:Method#6da3350a7a2ddb987aa59981e5410daa026648bdf03ce70f17e519890371fb3e#2
@@ -776,8 +776,8 @@ points:
     url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/comply/embedded-json-audit-log-schema.rst#L803
     quote: '| ``deleteAccessControlPolicy`` | Deleting access control policies                                  |'
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: codex-independent-v2
   note: null
 - id: mattermost-0037
   anchor: symbol:go:server.channels.app.App.ConvertGroupMessageToChannel:Method#a225847115c06fa5a70adfbdd7da044b1202c319528697bc65d7cd8ccc6f1c25#3
@@ -814,8 +814,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: codex-independent-v2
   note: null
 - id: mattermost-0039
   anchor: symbol:go:server.channels.app.App.CreatePost:Method#326cc0bcb334d5c0e9709b0a7adef9079696759d99ef5a46f3bf97c720d4a49d#2
@@ -852,8 +852,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: codex-independent-v2
   note: null
 - id: mattermost-0041
   anchor: symbol:go:server.channels.app.App.AdjustTeamsFromProductLimits:Method#6da3350a7a2ddb987aa59981e5410daa026648bdf03ce70f17e519890371fb3e#1
@@ -871,8 +871,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: codex-independent-v2
   note: null
 - id: mattermost-0042
   anchor: symbol:go:server.channels.app.App.DeleteChannel:Method#a7650fa5733a02df6b5a758c5c31b8c9798a6dce299f12984b68ff3b4e0b9fa4#1
@@ -910,8 +910,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: codex-independent-v2
   note: null
 - id: mattermost-0044
   anchor: symbol:go:server.channels.app.App.CleanUpAfterPostDeletion:Method#5056ef4221991d2768f599e03fd8f3576e6dc32c2380110dc620dedae376559c#1
@@ -929,8 +929,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: codex-independent-v2
   note: null
 - id: mattermost-0045
   anchor: symbol:go:server.channels.app.App.CreatePost:Method#d8c3c4d93657c418b68272e6306436a8ddf2548a8b36b78830c957d10771ae4e#1
@@ -952,8 +952,8 @@ points:
     url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/onboard/connected-workspaces.rst#L151
     quote: From Mattermost v10.10, creating a direct or group message with remote users across connected workspaces is only available when the feature flag ``EnableSharedChannelsDMs`` is enabled.
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: codex-independent-v2
   note: null
 - id: mattermost-0046
   anchor: symbol:go:server.channels.app.App.UpdatePost:Method#cc12a2b8c8ca8329186fbefc6a927c95a339b2d93a76e0cfe64b28b73db9f11c#1
@@ -971,8 +971,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: codex-independent-v2
   note: null
 - id: mattermost-0047
   anchor: symbol:go:server.channels.app.App.AdjustTeamsFromProductLimits:Method#c1bbbc3d269354782fe14446f1525adeb058395f2e95c03f77a0048c3ba78c90#1
@@ -990,8 +990,8 @@ points:
   category: validation
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: codex-independent-v2
   note: null
 - id: mattermost-0048
   anchor: symbol:go:server.channels.app.App.publishPostRevealedEventToUser:Method#c5c708c7cd7aefa5ab07ef185346b086ebf2d18a300733e0845c36e334c4cf12#1
@@ -1066,8 +1066,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: codex-independent-v2
   note: null
 - id: mattermost-0052
   anchor: symbol:go:server.channels.app.App.supplementWithTranslationUpdatedPosts:Method#0b2f67d5906e50fab072f58c84ef4776683734cb658d444dd81f22f659f0c47a#1
@@ -1224,8 +1224,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: codex-independent-v2
   note: null
 - id: mattermost-0060
   anchor: symbol:go:server.channels.app.App.forEachChannelMember:Method#5d79bf8c94bd649fbb6101cb3e1fac390794333f62c9e78b4f1af7e5e36a6079#1
@@ -1664,8 +1664,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: codex-independent-v2
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: mattermost-0084
   anchor: symbol:go:server.channels.app.App.MarkAllDirectAndGroupMessagesViewed:Method#810ab2f45177b57622127f5fa60777e5de0331b79db89e1efc6d3aa35bb7c1b5#1
@@ -1700,8 +1700,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: codex-independent-v2
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: mattermost-0087
   anchor: symbol:go:server.channels.app.App.CreatePostAsUserWithFlags:Method#e88d369623f67d46fd76617e728fb1026aedafd7e06bab044b9f37a7d48bdf73#1
@@ -1817,8 +1817,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: codex-independent-v2
   note: Propagates the existing error.
 - id: mattermost-0096
   anchor: symbol:go:server.channels.app.App.InviteNewUsersToTeamGracefully:Method#3403433e559528c855ffd5f4f6af23677da00be77041e0f42208fe50ccf42709#1
@@ -1925,8 +1925,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: codex-independent-v2
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: mattermost-0105
   anchor: symbol:go:server.channels.app.App.DeletePost:Method#d4bd1db9810aa7b6a922556c096e6c420e40e20d8d0149a0c3eda207a4f1528b#1
@@ -2021,8 +2021,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: codex-independent-v2
   note: Wraps and returns the post creation error.
 - id: mattermost-0113
   anchor: symbol:go:server.channels.app.App.leaveTeam:Method#1c4eeec55102914819b7f663f1f69f2721b2aaa9cf211d685f9183434e442c28#1

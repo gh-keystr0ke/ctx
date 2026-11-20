@@ -76,8 +76,8 @@ points:
     url: https://github.com/vectordotdev/vector/blob/b78d987398d23f19f3705fb76a1cd18642565b66/website/cue/reference/components/sinks.cue#L375
     quote: 'description: "The maximum number of retries to make for failed requests. The default, for all intents and purposes, represents an infinite number of retries."'
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: codex-independent-v2
   note: The documented retry cap is enforced when the attempts run out for a failed request.
 - id: vector-0003
   anchor: symbol:rust:crate.sinks.util.batch.BatchConfig.into_batch_settings:Method#2#387c9c80e7f2402fb12627958e2f5b0a6cdcaa779fbce206162e7bce02e2d55a#1
@@ -343,8 +343,8 @@ points:
     url: https://github.com/vectordotdev/vector/blob/b78d987398d23f19f3705fb76a1cd18642565b66/rfcs/2020-06-12-2768-batch-and-buffer-rework.md#L53
     quote: We want to get to the point where as many batching sinks as possible can be configured with either a byte limit or an event limit, or both. Additionally, the batch limits must be inviolable, so that no requests are ever sent that exceed size limits. To accomplish this the
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: codex-independent-v2
   note: The documented batch event limit is enforced by rejecting a configured value beyond the hard ceiling.
 - id: vector-0016
   anchor: symbol:rust:crate.test.variant.Variant.Arbitrary.shrink:Method#94a62a59a297ef4ab586fdcec5f69d4d39734c7bb747d86d088beb8a3ce6f81f#1
@@ -439,8 +439,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: codex-independent-v2
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: vector-0024
   anchor: symbol:rust:crate.config.BufferTypeVisitor.visit_map_impl:Method#38fe6f93b67617e7c919f5abd8567dc8d270863e4494681f14379a819e1d93f1#1
@@ -523,8 +523,8 @@ points:
   category: observability
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: codex-independent-v2
   note: Selects the accounting value for an event the write attempt has already dropped.
 - id: vector-0031
   anchor: symbol:rust:crate.finalization.BatchStatus.update:Method#fb7c92a01c3b43de737ffbcd4f2cac06cc9fa9e2ab0bf5e9a6dadf34402e3dfc#1
@@ -538,8 +538,8 @@ points:
     url: https://github.com/vectordotdev/vector/pull/7396/files
     quote: Errored` overrides `Delivered
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: codex-independent-v2
   note: The linked change defines the precedence used when a batch contains a transient failure.
 - id: vector-0032
   anchor: symbol:rust:crate.finalization.BatchStatusReceiver.Future.poll:Method#928923da3217b056ec2b5cc58cd6aecab6cc0f8960808c74e9995c1ebc47bc22#1
@@ -607,8 +607,8 @@ points:
     url: https://github.com/vectordotdev/vector/pull/25845
     quote: focused recovery, truncation, cleanup, and accounting coverage
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: codex-independent-v2
   note: The linked patch adds a distinct case for undecodable archives that have a complete outer length.
 - id: vector-0037
   anchor: symbol:rust:crate.variants.disk_v2.tests.model.ReaderModelState.transition_to_idle:Method#8d439dcddb4dcdf19068bb4b6cd50bc17d80dbabcd9b317ef29fd2f12b9ad0f3#1
@@ -619,8 +619,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: codex-independent-v2
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: vector-0038
   anchor: symbol:rust:crate.topology.channel.sender.UsageAccounting.record:Method#c071ea9c324fea988f196df8db7eddccc0001231d5bf5c66ba26b4c44961f0b1#1
@@ -670,8 +670,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: codex-independent-v2
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: vector-0042
   anchor: symbol:rust:crate.variants.disk_v2.checkpoint_recovery.BufferReader.classify_checkpoint_data_file:Method#1be19f1d7dcbdec385c02da400c7353443574c3fab4b668ee4d3284237fddfc1#1
@@ -721,8 +721,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: codex-independent-v2
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: vector-0046
   anchor: symbol:rust:crate.variants.disk_v2.writer.BufferWriter.validate_last_write:Method#7f9da486c5fd856c090f534e113c10519394245e5bf1f18a8ad89ac7d0fbfb7c#1
@@ -793,8 +793,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: codex-independent-v2
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: vector-0052
   anchor: symbol:rust:crate.variants.disk_v2.ledger.Ledger.load_or_create:Method#b2b2415f23c1b37239121d9c00c2ec28b4606eeb63711ffb10f1a873ee896d32#1
@@ -841,8 +841,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: codex-independent-v2
   note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: vector-0056
   anchor: symbol:rust:crate.variants.in_memory.MemoryBuffer.IntoBuffer<T>.into_buffer_parts:Method#80c2a8e74eb4bfb2b564003e723b64abd17626b2da48b4509739c231ce37db50#1
@@ -868,8 +868,8 @@ points:
     url: https://github.com/vectordotdev/vector/pull/25845
     quote: "Reconcile `disk_v2` startup state from the durable checkpoint window"
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: codex-independent-v2
   note: "The durable writer checkpoint provides the final file boundary for recovery."
 - id: vector-0058
   anchor: symbol:rust:crate.variants.disk_v2.reader.BufferReader.next:Method#4549c4eabe3887738bd12b763eb3b9b5d30690e22ba7ca5d1528d22b5d551251#1

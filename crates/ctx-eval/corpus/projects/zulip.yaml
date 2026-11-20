@@ -65,8 +65,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: codex-independent-v2
   note: null
 - id: zulip-0003
   anchor: symbol:python:zerver.lib.rate_limiter.rate_limit_request_by_ip:Function#194b5a34965d4900095c37766e432d05a793acdd5b78717d3c358b5016320e73#1
@@ -166,8 +166,8 @@ points:
     url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/starlight_help/src/content/docs/zulip-cloud-billing.mdx#L73
     quote: Free** at the end of the current billing period.
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: codex-independent-v2
   note: null
 - id: zulip-0008
   anchor: symbol:python:zerver.lib.rate_limiter.rate_limit_user:Function#194b5a34965d4900095c37766e432d05a793acdd5b78717d3c358b5016320e73#1
@@ -350,8 +350,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: codex-independent-v2
   note: null
 - id: zulip-0017
   anchor: symbol:python:zerver.lib.streams.create_stream_if_needed:Function#f6f36950e7fedc090d5e4727e5067b2481892692ea759d9ca059a7ed2aa2806f#1
@@ -506,8 +506,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: codex-independent-v2
   note: null
 - id: zulip-0025
   anchor: symbol:python:zerver.lib.rate_limiter.rate_limit_endpoint_absolute:Function#274ddd73340e5e975dfad15c985c9d69941e9d8eb11f10bcf321074acb07e917#1
@@ -547,8 +547,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: codex-independent-v2
   note: null
 - id: zulip-0027
   anchor: symbol:python:zerver.lib.streams.check_channel_creation_permissions:Function#69da6ea7ab729375e0005883e77fe1056e2cbdc9537054d1f1c1d542494deaff#1
@@ -570,8 +570,8 @@ points:
     url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/starlight_help/src/content/include/_OwnerOnly.mdx#L4
     quote: "This feature is only available to organization owners."
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: codex-independent-v2
   note: "The retention policy includes this owner-only notice and the channel creation check enforces it for a supplied retention policy."
 - id: zulip-0028
   anchor: symbol:python:zerver.actions.message_send.get_validated_user_ids:Function#4429a082478fbff57516728c76b9e9f63ee1138c0ac2d8fb50b0cbdc70977450#1
@@ -627,8 +627,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: codex-independent-v2
   note: null
 - id: zulip-0031
   anchor: symbol:python:zerver.lib.retention.archive_direct_messages:Function#1e5cb7811addb845b003c41cadb84643071f5efbf3c4a4be763ae8362f8f659c#1
@@ -646,8 +646,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: codex-independent-v2
   note: null
 - id: zulip-0032
   anchor: symbol:python:corporate.lib.stripe.BillingSession.update_license_ledger_for_automanaged_plan:Method#c74c251eb104fef92c058bfe9f2100beeb3769ebd5dcf92011a76c87e9c709a7#1
@@ -757,8 +757,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: codex-independent-v2
   note: null
 - id: zulip-0037
   anchor: symbol:python:zerver.actions.message_send.internal_send_stream_message_by_name:Function#1ba2767a1280f0847735a2bb7a5f0892311a402a2fc9c2df73f18a3a9755a827#1
@@ -776,8 +776,8 @@ points:
   category: validation
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: codex-independent-v2
   note: null
 - id: zulip-0038
   anchor: symbol:python:corporate.lib.stripe.RemoteServerBillingSession.get_audit_log_event:Method#b381d74d0d31e083dec967fe81143f773094ab56178e140601b80229a60364dd#1
@@ -814,8 +814,8 @@ points:
   category: validation
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: codex-independent-v2
   note: null
 - id: zulip-0040
   anchor: symbol:python:zerver.lib.streams.create_stream_if_needed:Function#4f2f88394e1e0a836e82e29edeac742965c2ddc1c4bbf4f234f801cc108ca0d9#1
@@ -833,8 +833,8 @@ points:
   category: validation
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: codex-independent-v2
   note: null
 - id: zulip-0041
   anchor: symbol:python:zerver.lib.retention.archive_messages:Function#1e5cb7811addb845b003c41cadb84643071f5efbf3c4a4be763ae8362f8f659c#1
@@ -978,8 +978,8 @@ points:
     url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/api_docs/changelog.md#L775-L779
     quote: "Added a new `send_channel_events_messages` realm setting"
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: codex-independent-v2
   note: "The realm option suppresses channel event messages when disabled."
 - id: zulip-0048
   anchor: symbol:python:corporate.lib.stripe.BillingSession.get_initial_upgrade_context:Method#2fad6af08415d8a6c1785efa93996ff3717b51f6fd12c7a3830915d79bf61f0f#1
@@ -1016,8 +1016,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: codex-independent-v2
   note: null
 - id: zulip-0050
   anchor: symbol:python:corporate.lib.stripe.BillingSession.get_initial_upgrade_context:Method#79a7cd12b1e6febea2f441d285304488119e0bed8487e73220700f4647a0296b#1
@@ -1365,8 +1365,8 @@ points:
     url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/starlight_help/src/content/docs/restrict-direct-messages.mdx#L19
     quote: Who can **start** a direct message conversation.
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: codex-independent-v2
   note: null
 - id: zulip-0065
   anchor: symbol:python:zerver.actions.message_send.check_can_send_direct_message:Function#72f522d211ac768ba1f5b0e59ec206ca265a4d65378933782118aad6aa2756b9#1
@@ -1511,8 +1511,8 @@ points:
     url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/starlight_help/src/content/docs/channel-permissions.mdx#L53
     quote: "There are two types of private channels"
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: codex-independent-v2
   note: "Uses the privacy, history, and web visibility flags to select the documented channel privacy type shown in channel notifications."
 - id: zulip-0071
   anchor: symbol:python:zerver.lib.streams.has_metadata_access_to_channel_via_groups:Function#b84f4b4ad8be9c02ebc3a535f851d9979eb2b8800e4852c152fe4ae49f6c085b#1
@@ -1547,8 +1547,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: codex-independent-v2
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: zulip-0073
   anchor: symbol:python:zerver.actions.message_send.extract_stream_indicator:Function#7a2455b8ec721f16cf54d4a3500f58f900b238b12e5bedd14f074b821a35a5d5#1
@@ -1571,8 +1571,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: codex-independent-v2
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: zulip-0075
   anchor: symbol:python:zerver.lib.streams.can_move_messages_out_of_channel:Function#5b8a7fc80c15c5fe2780170519cb63fd3e3445548cc72baee5ee4c3358723f6a#2
@@ -1652,8 +1652,8 @@ points:
     url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/starlight_help/src/content/docs/set-default-channels-for-new-users.mdx#L11
     quote: <AdminOnly />
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: codex-independent-v2
   note: Creating a default channel requires organization administration.
 - id: zulip-0081
   anchor: symbol:python:zerver.lib.retention.delete_messages:Function#9a45f7ed3bde2d517a1593d7d394b57cc5dd8f8caab4abc39bdce1d425d0ec8f#1
@@ -1724,8 +1724,8 @@ points:
   category: observability
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: codex-independent-v2
   note: Adds optional data to the log record.
 - id: zulip-0087
   anchor: symbol:python:zerver.actions.message_send.send_rate_limited_pm_notification_to_bot_owner:Function#746e45ffd66f905e709ef28b293a9444193a6bdc6c48898a8b7c288a7c13c5af#1
@@ -1748,8 +1748,8 @@ points:
   category: validation
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: codex-independent-v2
   note: A type check chooses the representation for the setting.
 - id: zulip-0089
   anchor: symbol:python:zerver.lib.streams.access_stream_for_send_message:Function#41588ff0ba5746697a806a6145a9456054336f0e2223265ec7774e9e670d962f#1
@@ -1871,8 +1871,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: codex-independent-v2
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: zulip-0099
   anchor: symbol:python:corporate.lib.stripe.BillingSession.invoice_plan:Method#4e84c0d7516cd694f4369d72a49f6345c97af8988db1a681a81a2af9a9a138cc#1
@@ -1967,8 +1967,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: codex-independent-v2
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: zulip-0107
   anchor: symbol:python:corporate.lib.stripe.RemoteRealmBillingSession.get_audit_log_event:Method#845f006b77af06c9e4c6049a146d66004c1a4eac7ed16306655131c8d50a4329#1
@@ -2015,8 +2015,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: codex-independent-v2
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: zulip-0111
   anchor: symbol:python:zerver.lib.streams.check_for_can_create_topic_group_violation:Function#b3921a026183662f1ac39b156b3be8cd802429089450e2a8d0bc47068719b566#1

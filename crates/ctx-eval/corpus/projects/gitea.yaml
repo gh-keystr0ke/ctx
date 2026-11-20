@@ -538,13 +538,13 @@ points:
   location: services/pull/merge.go:741
   draft: null
   drafted_by: null
-  label: trivial
-  category: validation
+  label: unclear
+  category: null
   evidence: []
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: Returns the routine successful completion value.
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: gitea-0038
   anchor: symbol:go:services.pull.manuallyMergedByPushedCommit:Function#b4c1c39c85c8b937cbdbd90cc5ee58bee5eeacbf2c832ce14457eada97fa3d05#1
   location: services/pull/check.go:417

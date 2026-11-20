@@ -1078,13 +1078,16 @@ points:
   location: nova/api/openstack/compute/services.py:264
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
+  label: significant
+  category: state-transition
+  evidence:
+  - type: docs
+    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/api-ref/source/os-services.inc#L348
+    quote: "Attempts to delete a ``nova-compute`` service which is still hosting instances"
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: "Compute service deletion checks for hosted instances before accepting the request."
 - id: nova-0057
   anchor: symbol:python:nova.compute.api.HostAPI.service_get_all:Method#e7f310851365a57591da1cd630fd897e8221ad073394c5b42e861e354e7eb7b8#1
   location: nova/compute/api.py:6305

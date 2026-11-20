@@ -750,13 +750,13 @@ points:
   location: lib/vector-buffers/src/variants/disk_v2/reader.rs:859
   draft: null
   drafted_by: null
-  label: trivial
-  category: validation
+  label: unclear
+  category: null
   evidence: []
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: Routine initialization guard prevents repeating an already completed initialization.
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: vector-0049
   anchor: symbol:rust:crate.variants.disk_v2.checkpoint_recovery.BufferReader.classify_checkpoint_data_file:Method#63985e624d242f9f15555532eb83b8906867ee7dc4caca62a741bccffcc13eb4#1
   location: lib/vector-buffers/src/variants/disk_v2/checkpoint_recovery.rs:456
@@ -834,13 +834,13 @@ points:
   location: lib/vector-common/src/finalization.rs:376
   draft: null
   drafted_by: null
-  label: trivial
-  category: state-transition
+  label: unclear
+  category: null
   evidence: []
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: The fallback returns the current value unchanged.
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: vector-0056
   anchor: symbol:rust:crate.variants.in_memory.MemoryBuffer.IntoBuffer<T>.into_buffer_parts:Method#80c2a8e74eb4bfb2b564003e723b64abd17626b2da48b4509739c231ce37db50#1
   location: lib/vector-buffers/src/variants/in_memory.rs:43
@@ -897,10 +897,13 @@ points:
   location: lib/vector-buffers/src/variants/disk_v2/writer.rs:1058
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
+  label: significant
+  category: state-transition
+  evidence:
+  - type: issue
+    url: https://github.com/vectordotdev/vector/pull/25845
+    quote: "Reconcile `disk_v2` startup state from the durable checkpoint window"
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: "Recovers the successor file only when it continues the durable checkpoint."

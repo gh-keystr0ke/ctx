@@ -259,8 +259,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v3
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: nova-0011
   anchor: symbol:python:nova.scheduler.filters.image_props_filter.ImagePropertiesFilter._instance_supported:Method#e3a5031cb5dc53799b5a6c00c079679a9811f6a9c2b977f7ef57b40f1e92e8e6#1
@@ -319,8 +319,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v3
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: nova-0014
   anchor: symbol:python:nova.quota.DbQuotaDriver._get_usages:Method#cd8ac330eeab8c1d5f552c432e269548954d0c25c53c54e867b26a5ad7b0fe2a#1
@@ -609,8 +609,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: claude-blind-v3
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: nova-0028
   anchor: symbol:python:nova.api.openstack.compute.simple_tenant_usage.SimpleTenantUsageController._show:Method#f2e58bcc1195947468a33b12d2e6aac37973ff2b62be01d160effa1e5d10dc53#1
@@ -669,8 +669,8 @@ points:
   category: validation
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: claude-blind-v3
   note: Routine response key presence guard before reading the server field.
 - id: nova-0031
   anchor: symbol:python:nova.api.openstack.compute.hosts.HostController.update:Method#ae0a0c4400cae11595d1c79791bd1968181780afbfabf127f0ed8c9903a2a66b#1
@@ -762,8 +762,8 @@ points:
     url: https://opendev.org/openstack/nova-specs/src/commit/bb9651bea014f19960b340047c767e0eb268ad66/specs/mitaka/implemented/get-valid-server-state.rst#L156
     quote: '"os_compute_api:servers:show:host_status": "rule:admin_api"'
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: claude-blind-v3
   note: The API reference specifies policy-controlled visibility. The branch controls when to reuse or compute that result.
 - id: nova-0035
   anchor: symbol:python:nova.compute.api.API._delete:Method#338b2d00c11ec6a4be4760e6a4a68f2d7a9dd5292e83ba8e279842d78c895bde#1
@@ -781,8 +781,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: claude-blind-v3
   note: The branch suppresses duplicate deletes in two task states. No source established that rule.
 - id: nova-0036
   anchor: symbol:python:nova.compute.api.API._delete:Method#88a22b5f41e0ea316df8f4474ab8cd6b0dc64074202bdd5b596960fbbbd79e45#1
@@ -842,8 +842,8 @@ points:
     url: https://bugs.launchpad.net/nova/+bug/1292494
     quote: Invalid validation for unlimited values when updating user quota
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: claude-blind-v3
   note: The linked fix applies sentinel-aware quota calculations, including subtraction to compute the available quota.
 - id: nova-0039
   anchor: symbol:python:nova.quota.DbQuotaDriver._sum_quota_values:Method#365a1a78a5822cb9f61aaee72cb7b14f693d2f2ca0370f57c6bd28ebc418f0c4#1
@@ -914,8 +914,8 @@ points:
     url: https://opendev.org/openstack/nova-specs/src/commit/bb9651bea014f19960b340047c767e0eb268ad66/specs/2024.1/implemented/libvirt-maxphysaddr-support.rst#L107
     quote: If ``hw_maxphysaddr_bits`` is set to image properties, perform a numeric comparison with ``ImagePropertiesFilter``.
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v3
   note: The blueprint linked from 1038a633 requires the image address-width check.
 - id: nova-0044
   anchor: symbol:python:nova.scheduler.filters.numa_topology_filter.NUMATopologyFilter.host_passes:Method#5af24686d211410391057e35dd85288537ebcd8394a83dfa9297048172e45a92#1
@@ -944,8 +944,8 @@ points:
     url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/doc/source/admin/scheduling.rst#L698
     quote: The filter schedules instances on a host if the host has devices that meet the device requests in the ``extra_specs`` attribute for the flavor.
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v3
   note: The filter excludes hosts without PCI devices that satisfy the flavor request.
 - id: nova-0046
   anchor: symbol:python:nova.api.openstack.compute.keypairs.KeypairController._create:Method#e806bb65050498d39b0dbef6025aecf67243c5665021386b2f160ec8b2627f48#1
@@ -959,8 +959,8 @@ points:
     url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/api-ref/source/os-keypairs.inc#L52
     quote: Imports (or generates) a keypair.
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v3
   note: An explicit public key selects import; the API also describes generation.
 - id: nova-0047
   anchor: symbol:python:nova.compute.api.API._allow_cross_cell_resize:Method#63917f458b8f1cd908f18a8ab95d35ce9e9dd563c0d10c9aea4818ec90b662f0#1
@@ -1052,8 +1052,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: claude-adjudication-v3
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: claude-blind-v3
   note: "A not-found result continues the search in the next cell. The final outcome equals one search of all cells."
 - id: nova-0054
   anchor: symbol:python:nova.compute.api.check_instance_state:Function#989b0494b405fd04bd99839b11271faa9b376b33b8dc681c4c4fca8211f5d4ca#1
@@ -1091,8 +1091,8 @@ points:
     url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/api-ref/source/os-services.inc#L348
     quote: Attempts to delete a ``nova-compute`` service which is still hosting instances
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v3
   note: Compute service deletion checks for hosted instances before accepting the request.
 - id: nova-0057
   anchor: symbol:python:nova.compute.api.HostAPI.service_get_all:Method#e7f310851365a57591da1cd630fd897e8221ad073394c5b42e861e354e7eb7b8#1
@@ -1217,8 +1217,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v3
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: nova-0067
   anchor: symbol:python:nova.scheduler.filters.aggregate_instance_extra_specs.AggregateInstanceExtraSpecsFilter.host_passes:Method#175ac3f02edd98e9c3a9c4664867d44f963348fccdd054b89537ba88c6063b91#1
@@ -1229,8 +1229,8 @@ points:
   category: validation
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: claude-blind-v3
   note: Checks that there are specs to process before reading them.
 - id: nova-0068
   anchor: symbol:python:nova.api.openstack.compute.attach_interfaces._translate_interface_attachment_view:Function#62a18617e50df6d0ab29a2b9453e7d338305841d5bd10801de06c5d649d3dc59#1
@@ -1241,8 +1241,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v3
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: nova-0069
   anchor: symbol:python:nova.api.openstack.compute.tenant_networks.TenantNetworkController._refresh_default_networks:Method#35d26c1edf8e62655d0c4c45b4233239a43087cbf820d79673b378b8bf1c4743#1
@@ -1376,8 +1376,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: claude-blind-v3
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: nova-0080
   anchor: symbol:python:nova.compute.api.API._validate_unshelve_az:Method#988c4e62c192ce9034765b69b16e66b92d9a0e01f62f93ff8d86e2a2b5664aa8#1
@@ -1442,8 +1442,8 @@ points:
   category: validation
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: claude-blind-v3
   note: Guard for an absent migration before processing its state.
 - id: nova-0085
   anchor: symbol:python:nova.compute.api.API.resize:Method#242ba13b3cf27531741c9fad2fd84b105bda7357124e243c3c51950b7dd88f06#1
@@ -1508,8 +1508,8 @@ points:
   category: null
   evidence: []
   verified_by: claude-adjudication-v3
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: claude-blind-v3
   note: "The anchored branch passes a host that does not report maxphysaddr bits. No pinned source states that outcome."
 - id: nova-0090
   anchor: symbol:python:nova.api.openstack.compute.hypervisors.HypervisorsController._get_hypervisors:Method#552fe763eccacd5a9ee1bd42789084e7eb1ebacf08c28ef9da9228fc621e1925#1
@@ -1604,8 +1604,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v3
   note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: nova-0098
   anchor: symbol:python:nova.compute.api.API._delete:Method#f306d506e4e2d3828f02b156cd9d64a9968f9a03ef0bbaa683a42abc6f59407d#1
@@ -1616,8 +1616,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v3
   note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: nova-0099
   anchor: symbol:python:nova.api.openstack.compute.aggregates.AggregateController._add_host:Method#b6db5c814b75705ac3cfd55b54d60e2d0a54ebdea0b3cc8047e6076d28640335#1

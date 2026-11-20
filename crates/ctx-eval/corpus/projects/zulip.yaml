@@ -46,8 +46,8 @@ points:
   category: validation
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: claude-blind-v3
   note: null
 - id: zulip-0002
   anchor: symbol:python:corporate.lib.stripe.BillingSession.do_update_plan:Method#b4705fe35c4d2a8933ad623c8cb74621a2d9f7d059a3cbd279dfa030e926936e#1
@@ -267,8 +267,8 @@ points:
     url: https://github.com/zulip/zulip/pull/27799/commits/69d8442ab4
     quote: "Allow user to switch between billing frequencies"
   verified_by: claude-adjudication-v3
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: claude-blind-v3
   note: "The introducing commit title describes billing frequency changes in general. No pinned source states the end-of-cycle switch."
 - id: zulip-0013
   anchor: symbol:python:zerver.lib.rate_limiter.should_rate_limit:Function#200d739bebcf8424cad5b450423cc292654fe358d0a81a89d0160ffc9a4f3255#1
@@ -331,8 +331,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v3
   note: null
 - id: zulip-0016
   anchor: symbol:python:corporate.lib.stripe.BillingSession.update_customer_minimum_licenses:Method#e59f5201c2532ff3430f99fac6a8815c72eb61aef9ad139f778f410e8458106d#1
@@ -350,8 +350,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: claude-blind-v3
   note: null
 - id: zulip-0017
   anchor: symbol:python:zerver.lib.streams.create_stream_if_needed:Function#f6f36950e7fedc090d5e4727e5067b2481892692ea759d9ca059a7ed2aa2806f#1
@@ -373,8 +373,8 @@ points:
     url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/docs/subsystems/schema-migrations.md#L154
     quote: foreign key to a per-realm `NamedUserGroup`, or a value derived
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: claude-blind-v3
   note: null
 - id: zulip-0018
   anchor: symbol:python:corporate.lib.stripe.RemoteRealmBillingSession.write_to_audit_log:Method#c9a3a156b15123d2e002eab5225a6562e2ad94bbc4b668ac5b631b20042eba7a#1
@@ -506,8 +506,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v3
   note: null
 - id: zulip-0025
   anchor: symbol:python:zerver.lib.rate_limiter.rate_limit_endpoint_absolute:Function#274ddd73340e5e975dfad15c985c9d69941e9d8eb11f10bcf321074acb07e917#1
@@ -528,8 +528,8 @@ points:
     url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/api_docs/changelog.md#L4392-L4394
     quote: "with a value of `\"RATE_LIMIT_HIT\"`."
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: claude-blind-v3
   note: "The endpoint limiter raises the exception responsible for the documented API failure once the rate limit is reached."
 - id: zulip-0026
   anchor: symbol:python:corporate.lib.stripe.RemoteServerBillingSession.check_plan_tier_is_billable:Method#f0824fff3f1ef6f5f86cbc1fc9d3036e3acbd3d4b8bb1a653155320f1c28112b#1
@@ -570,8 +570,8 @@ points:
     url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/starlight_help/src/content/include/_OwnerOnly.mdx#L4
     quote: "This feature is only available to organization owners."
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v3
   note: "The retention policy includes this owner-only notice and the channel creation check enforces it for a supplied retention policy."
 - id: zulip-0028
   anchor: symbol:python:zerver.actions.message_send.get_validated_user_ids:Function#4429a082478fbff57516728c76b9e9f63ee1138c0ac2d8fb50b0cbdc70977450#1
@@ -589,8 +589,8 @@ points:
   category: validation
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v3
   note: null
 - id: zulip-0029
   anchor: symbol:python:corporate.lib.stripe.BillingSession.get_initial_upgrade_context:Method#590be6d6a5ad8957055a741ce7b6b84076613738e672d9ccbb890fca30d3eb8f#1
@@ -608,8 +608,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: claude-blind-v3
   note: null
 - id: zulip-0030
   anchor: symbol:python:corporate.lib.stripe.BillingSession.do_upgrade:Method#202eeeed833bd0de3f10e75633bd0b1a6222c2e83d65acfcdac1a350a155fb59#1
@@ -738,8 +738,8 @@ points:
     url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/api_docs/http-headers.md#L94
     quote: '* Separate, much lower limits for authentication/login attempts.'
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: claude-blind-v3
   note: null
 - id: zulip-0036
   anchor: symbol:python:zerver.actions.message_send.check_send_message:Function#47aa60670912f873b1fb333530298bf8e0fbe0315b6d4120fdc52cef2c30c0f1#1
@@ -833,8 +833,8 @@ points:
   category: validation
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: claude-blind-v3
   note: null
 - id: zulip-0041
   anchor: symbol:python:zerver.lib.retention.archive_messages:Function#1e5cb7811addb845b003c41cadb84643071f5efbf3c4a4be763ae8362f8f659c#1
@@ -875,8 +875,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: claude-blind-v3
   note: null
 - id: zulip-0043
   anchor: symbol:python:corporate.lib.stripe.BillingSession.make_end_of_cycle_updates_if_needed:Method#9cf4a36a7fed65d71ab2177d322e4a09d21117269008f319310e4cbcf5143bea#1
@@ -913,8 +913,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: claude-blind-v3
   note: null
 - id: zulip-0045
   anchor: symbol:python:zerver.lib.rate_limiter.get_tor_ips:Function#d928a952869f75d1aaed5b913e7c562ed6c7ddbc85f82c0b245d65735b2c76ef#1
@@ -997,8 +997,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: claude-blind-v3
   note: null
 - id: zulip-0049
   anchor: symbol:python:zerver.lib.streams.bulk_can_remove_subscribers_from_streams:Function#30411b250064a4a0a760812884781cfb54e174cd49a52324e3f7a02e97ebd35d#1
@@ -1016,8 +1016,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v3
   note: null
 - id: zulip-0050
   anchor: symbol:python:corporate.lib.stripe.BillingSession.get_initial_upgrade_context:Method#79a7cd12b1e6febea2f441d285304488119e0bed8487e73220700f4647a0296b#1
@@ -1092,8 +1092,8 @@ points:
     url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/starlight_help/src/content/docs/set-default-channels-for-new-users.mdx#L24-L27
     quote: "to invite new users can subscribe them to any combination of default channels."
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v3
   note: "Invitation handling exempts default channels from the usual channel subscriber permission check."
 - id: zulip-0053
   anchor: symbol:python:corporate.lib.stripe.BillingSession.make_end_of_cycle_updates_if_needed:Method#c800a7c23e5b8ec5bb18b478e3c1657a3f46ab3f38b2d099a406a182abe1f609#1
@@ -1217,8 +1217,8 @@ points:
     url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/starlight_help/src/content/docs/change-the-privacy-of-a-channel.mdx#L21
     quote: 'web-public if they have content access to it:'
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v3
   note: null
 - id: zulip-0059
   anchor: symbol:python:zerver.lib.streams.create_stream_if_needed:Function#d18448cfcc575d5040d23593659f00c7c83f745512ffc000da9669a69eb61b35#1
@@ -1365,8 +1365,8 @@ points:
     url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/starlight_help/src/content/docs/restrict-direct-messages.mdx#L19
     quote: Who can **start** a direct message conversation.
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v3
   note: null
 - id: zulip-0065
   anchor: symbol:python:zerver.actions.message_send.check_can_send_direct_message:Function#72f522d211ac768ba1f5b0e59ec206ca265a4d65378933782118aad6aa2756b9#1
@@ -1395,8 +1395,8 @@ points:
     url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/starlight_help/src/content/docs/restrict-direct-messages.mdx#L17
     quote: must include at least one user who can authorize the conversation (the sender
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v3
   note: null
 - id: zulip-0066
   anchor: symbol:python:zerver.actions.message_send.check_can_send_direct_message:Function#d09744aafa1107e43fa1cfd10a39170cdb210617dc0f276d9c1a9c0e6c7252fa#1
@@ -1637,8 +1637,8 @@ points:
     url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/starlight_help/src/content/docs/configure-who-can-administer-a-channel.mdx#L14
     quote: "Organization administrators can administer certain aspects of all channels."
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v3
   note: "The administrator branch grants channel administration access after checking the organization boundary."
 - id: zulip-0080
   anchor: symbol:python:zerver.lib.streams.check_channel_creation_permissions:Function#2293440cba4ee4a079f75b97f8dda87acf5aec6cd2b78b5f7686ffbd7e221089#1
@@ -1736,8 +1736,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: claude-blind-v3
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: zulip-0088
   anchor: symbol:python:zerver.lib.streams.access_requested_group_permissions_for_streams:Function#f7e298e9a5dcefd3ffc1148cb3d132df3ed90697ab65a9fdf49e4fa2c1ddf464#1
@@ -2027,8 +2027,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: claude-blind-v3
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: zulip-0112
   anchor: symbol:python:zerver.lib.streams.access_stream_for_send_message:Function#caa20b02f223ccbcfa6de9c2e49d46fdce8037a74d369017de7d830be8b58d95#1
@@ -2099,8 +2099,8 @@ points:
   category: validation
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: claude-blind-v3
   note: "Uses the ordinary absent-value representation for a missing subscription."
 - id: zulip-0118
   anchor: symbol:python:zerver.lib.rate_limiter.RateLimitedIPAddr.__init__:Method#c5117e3206d63da9446f156c9960d2869268f316b4836c41318c61b0d5bdb18a#1

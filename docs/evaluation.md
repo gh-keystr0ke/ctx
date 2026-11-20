@@ -421,3 +421,75 @@ disputed assertion to its exact condition and effect. The second reviewer
 used some living documentation in addition to pinned sources. Verify
 those citations against a fixed revision before relying on them for
 adjudication.
+
+#### Adjudication of round 2 and guide version 3
+
+The 21 round 2 disagreements in Hyperswitch, Nova, and Vector were checked
+against the anchored branch at the pinned commit and its cited sources.
+
+| Cause | Points |
+| --- | --- |
+| Primary label error | Nova 0047, 0050, 0080, 0082, 0089; Vector 0030; Hyperswitch 0063, 0112 |
+| Primary significant label without sufficient evidence | Hyperswitch 0002, 0007; Vector 0015, 0036, 0057 |
+| Second label error | Hyperswitch 0005, 0037; Nova 0007, 0081 |
+| Ambiguous guide rule | Nova 0053; Vector 0023, 0037, 0055 |
+
+Five second-review citations came from living documentation. The pinned
+revisions contain the same text for Nova 0047, Nova 0082, and Vector 0030.
+For Nova 0080, a pinned nova-spec states the unshelve rule. For Nova 0050,
+the pinned API reference states the volume-backed snapshot behavior.
+
+Guide version 3 counts a pull request as a level 3 source. A source must
+state the condition and effect of the point, and every citation must use a
+pinned revision. New rows cover fallback arms, absent requirements, absent
+resource data, repeated lookups, test-only code, and test models.
+
+The recheck changed 40 points in the six projects. Fourteen of 39
+significant points with only issue evidence became unclear. Five living or
+wiki citations were replaced with the pull request that introduced the
+branch. Fourteen points became trivial, and five became significant.
+Round 2 second labels were cleared. They remain in commit `e07b820`.
+
+#### Independent agreement, round 3
+
+Six independent agents without adjudication history labeled the guide
+version 3 draw, one project each. They saw only the guide, the blind review
+command, and the pinned sources.
+
+| Project | Paired points | Disagreements | Cohen's kappa |
+| --- | ---: | ---: | ---: |
+| Gitea | 24 | 6 | 0.609 |
+| Hyperswitch | 24 | 4 | 0.679 |
+| Mattermost | 24 | 6 | 0.586 |
+| Nova | 20 | 9 | 0.362 |
+| Vector | 12 | 1 | 0.867 |
+| Zulip | 24 | 7 | 0.533 |
+
+Mattermost, Nova, and Zulip remain below 0.60. In those projects, 18 of 22
+disagreements have a primary unclear label. In 12 of them, the second
+reviewer cited a pinned source or an issue from the introducing commit.
+In 6 of them, the second reviewer applied an existing trivial rule. These
+citations are not adjudicated yet. Of 317 primary unclear points, 205 carry
+a generic note and 90 carry no note. The pattern points to incomplete
+evidence search in the first pass rather than an ambiguous guide rule.
+
+Both score runs returned `incomplete`. The gate pool rated 5 of 7 Gitea
+positions and 12 of 19 Vector positions. Each pool requires 80%. The
+unrated positions have no pinned source that states their condition and
+effect. The pinned Gitea documentation revision dates from 2017. On the
+tuning side, Hyperswitch rated 4 of 10 positions.
+
+| Project | Role | Significant | Trivial | Rated top positions |
+| --- | --- | ---: | ---: | ---: |
+| Gitea | Gate | 15 | 51 | 5/7 |
+| Nova | Gate | 23 | 16 | 16/20 |
+| Vector | Gate | 12 | 21 | 12/19 |
+| Hyperswitch | Tuning | 10 | 37 | 4/10 |
+| Mattermost | Tuning | 15 | 50 | 13/15 |
+| Zulip | Tuning | 17 | 21 | 16/19 |
+
+Vector and Hyperswitch miss the 15/15 quota. Rust has 22 significant
+points, below the planned 30. As a diagnostic only, rated gate positions
+gave a precision of 31/33, and 2 of 88 trivial gate points triggered a
+question. The release remains blocked on agreement, the gate pool, and the
+Rust quota.

@@ -52,8 +52,8 @@ points:
     url: https://github.com/vectordotdev/vector/pull/25795
     quote: drop over-limit disk_v2 records instead of crashing
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v3
   note: The sampled test model enforces the documented drop behavior for oversized records.
 - id: vector-0002
   anchor: symbol:rust:crate.sinks.util.retries.FibonacciRetryPolicy.Policy<Req,Res,Error>.retry:Method#b6e37645550aea6a40e99cb8816f358b452347643b8b1e614dd6fb4ae76654f7#1
@@ -76,8 +76,8 @@ points:
     url: https://github.com/vectordotdev/vector/blob/b78d987398d23f19f3705fb76a1cd18642565b66/website/cue/reference/components/sinks.cue#L375
     quote: 'description: "The maximum number of retries to make for failed requests. The default, for all intents and purposes, represents an infinite number of retries."'
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v3
   note: The documented retry cap is enforced when the attempts run out for a failed request.
 - id: vector-0003
   anchor: symbol:rust:crate.sinks.util.batch.BatchConfig.into_batch_settings:Method#2#387c9c80e7f2402fb12627958e2f5b0a6cdcaa779fbce206162e7bce02e2d55a#1
@@ -190,8 +190,8 @@ points:
   category: validation
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: claude-blind-v3
   note: Defensive presence guard after timeout validation.
 - id: vector-0008
   anchor: symbol:rust:crate.finalization.BatchStatus.update:Method#9cf34e5ead14ce5cfcc31aaf2690ba1d30991f4ae5f8b382bebccca5a6686164#1
@@ -286,8 +286,8 @@ points:
     url: https://github.com/vectordotdev/vector/blob/b78d987398d23f19f3705fb76a1cd18642565b66/rfcs/2020-06-12-2768-batch-and-buffer-rework.md#L53
     quote: We want to get to the point where as many batching sinks as possible can be configured with either a byte limit or an event limit, or both. Additionally, the batch limits must be inviolable, so that no requests are ever sent that exceed size limits. To accomplish this the
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: claude-blind-v3
   note: The documented batch byte limit is enforced by rejecting a configured value beyond the hard ceiling.
 - id: vector-0012
   anchor: symbol:rust:crate.finalization.BatchStatus.update:Method#a8fd9ee0fea2068406685690c60cdfeeddee99be15e87b8b3f89a4dcf9fb621d#1
@@ -301,8 +301,8 @@ points:
     url: https://github.com/vectordotdev/vector/blob/b78d987398d23f19f3705fb76a1cd18642565b66/website/content/en/docs/architecture/guarantees.md#L43
     quote: the event will be considered as having been delivered with no error
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v3
   note: Dropped and delivered events both preserve the previously accumulated batch outcome.
 - id: vector-0013
   anchor: symbol:rust:crate.variants.disk_v2.writer.BufferWriter.validate_last_write:Method#876e03c8d265be634dd1a5fd1e224c10864841df28353926680a427b59cb9e95#1
@@ -343,8 +343,8 @@ points:
     url: https://github.com/vectordotdev/vector/blob/b78d987398d23f19f3705fb76a1cd18642565b66/rfcs/2020-06-12-2768-batch-and-buffer-rework.md#L53
     quote: We want to get to the point where as many batching sinks as possible can be configured with either a byte limit or an event limit, or both. Additionally, the batch limits must be inviolable, so that no requests are ever sent that exceed size limits. To accomplish this the
   verified_by: claude-adjudication-v3
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: claude-blind-v3
   note: "The RFC requires batches to stay within their limits. It does not state that a configured event limit above the sink maximum is a configuration error."
 - id: vector-0016
   anchor: symbol:rust:crate.test.variant.Variant.Arbitrary.shrink:Method#94a62a59a297ef4ab586fdcec5f69d4d39734c7bb747d86d088beb8a3ce6f81f#1
@@ -487,8 +487,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: claude-blind-v3
   note: The question mark propagates the existing flush error unchanged.
 - id: vector-0028
   anchor: symbol:rust:crate.variants.disk_v2.tests.model.WriterModelState.transition_to_writing:Method#80d6bf7efe9973fc7c82a640dff10e15741deec0dd7da736f11b2be1a35b5115#1
@@ -697,8 +697,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: claude-blind-v3
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: vector-0044
   anchor: symbol:rust:crate.sinks.util.retries.FibonacciRetryPolicy.Policy<Req,Res,Error>.retry:Method#f7ee109862095a7282ade76227554f8fae783adc6a8d74ced8ee56c3dea4594a#1
@@ -712,8 +712,8 @@ points:
     url: https://github.com/vectordotdev/vector/blob/b78d987398d23f19f3705fb76a1cd18642565b66/website/cue/reference/components/generated/schema_definitions/derived_vector_sinks_util_http_retrystrategy_64fe77681a1c274eed24cca6.cue#L15-L19
     quote: "Don't retry any errors, including request timeouts."
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v3
   note: "The retry handler creates a retry for a timeout only when the configured policy permits it."
 - id: vector-0045
   anchor: symbol:rust:crate.variants.disk_v2.io.File.AsyncFile.truncate:Method#66897020142591b4db6e49869dd2467c9e02543b0e20146596a7731b3927e70b#1
@@ -772,8 +772,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: claude-blind-v3
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: vector-0050
   anchor: symbol:rust:crate.variants.disk_v2.writer.BufferWriter.reconcile_current_data_file_with_checkpoint:Method#5f3a99bc92fc323f6328caa0f4c5ed4a22a1dcfe53310009d70928800e08f73d#1
@@ -820,8 +820,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: claude-blind-v3
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: vector-0054
   anchor: symbol:rust:crate.variants.disk_v2.writer.BufferWriter.ensure_ready_for_write:Method#2f9016818c4c27f802736aa8baf82745184b91cf9826e54922b459f1e3ce4634#1
@@ -883,8 +883,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: claude-blind-v3
   note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: vector-0059
   anchor: symbol:rust:crate.sinks.util.retries.FibonacciRetryPolicy.Policy<Req,Res,Error>.retry:Method#d2a1cdefe73bc2ca8cef913320f97c60708c479ec7076d0a1fdff4d7aca644a8#1

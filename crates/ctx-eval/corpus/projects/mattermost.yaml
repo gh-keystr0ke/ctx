@@ -1,5 +1,5 @@
 schema: 1
-guide_version: 3
+guide_version: 4
 project: mattermost
 language: go
 role: tuning
@@ -13,6 +13,12 @@ evidence_sources:
   paths:
   - source
   url_template: https://github.com/mattermost/docs/blob/{commit}/{path}#L{line}
+- kind: docs
+  repository: https://github.com/mattermost/mattermost
+  commit: 243e3d0135203ab9166fe8f2873b07f697b06fd4
+  paths:
+  - api/v4/source
+  url_template: https://github.com/mattermost/mattermost/blob/{commit}/{path}#L{line}
 reference_patterns:
 - regex: '#(\d+)'
   url: https://github.com/mattermost/mattermost/issues/{1}

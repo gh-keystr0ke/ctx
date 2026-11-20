@@ -1,5 +1,5 @@
 schema: 1
-guide_version: 3
+guide_version: 4
 project: gitea
 language: go
 role: gate
@@ -8,11 +8,17 @@ release: v28.4.0
 commit: 0b5dfdeeeaadf6350314246c5936b53cce38170c
 evidence_sources:
 - kind: docs
-  repository: https://github.com/go-gitea/docs
-  commit: 553a5f0a43999b1355c7c08fe8c8729ae2bac9c8
+  repository: https://gitea.com/gitea/docs
+  commit: 757fb1927a4915cfe18d43fd3e23190762ff0f54
   paths:
-  - content
-  url_template: https://github.com/go-gitea/docs/blob/{commit}/{path}#L{line}
+  - versioned_docs/version-28
+  url_template: https://gitea.com/gitea/docs/src/commit/{commit}/{path}#L{line}
+- kind: docs
+  repository: https://github.com/go-gitea/gitea
+  commit: 0b5dfdeeeaadf6350314246c5936b53cce38170c
+  paths:
+  - templates/swagger
+  url_template: https://github.com/go-gitea/gitea/blob/{commit}/{path}#L{line}
 reference_patterns:
 - regex: '#(\d+)'
   url: https://github.com/go-gitea/gitea/issues/{1}

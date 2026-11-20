@@ -1,4 +1,4 @@
-Version: 3
+Version: 4
 
 # Decision point labels
 
@@ -7,7 +7,7 @@ Version: 3
 **Significant.** The point implements a documented rule that affects users or the business.
 Use at least one relevant source from levels 1 through 3.
 
-1. User documentation or an API reference.
+1. User documentation or an API reference. An OpenAPI or Swagger file in the pinned code repository is an API reference.
 2. A specification, RFC, or ADR.
 3. An issue, bug, or pull request referenced by a commit that added or changed the point.
 4. A test that checks the behavior. A test can support evidence from levels 1 through 3.
@@ -26,6 +26,8 @@ For Rust `?`, check whether the operand also selects a fallback or enforces a pr
 Adding diagnostic context alone still counts as routine propagation.
 
 **Unclear.** Use this label if evidence is missing, the source describes different behavior, or the reviewer is unsure.
+Before you use this label, search the pinned documentation and API reference, the specifications, and the issues or pull requests referenced by the commits that added or changed the point.
+In the note, name the sources that you searched and state why they do not establish the point.
 Metrics exclude this label.
 
 Use one category from this list.

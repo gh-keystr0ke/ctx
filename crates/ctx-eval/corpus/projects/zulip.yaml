@@ -1,5 +1,5 @@
 schema: 1
-guide_version: 3
+guide_version: 4
 project: zulip
 language: python
 role: tuning
@@ -14,6 +14,7 @@ evidence_sources:
   - starlight_help/src/content
   - api_docs
   - docs
+  - zerver/openapi
   url_template: https://github.com/zulip/zulip/blob/{commit}/{path}#L{line}
 reference_patterns:
 - regex: '#(\d+)'

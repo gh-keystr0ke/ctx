@@ -1897,118 +1897,118 @@ points:
   location: server/channels/app/channel.go:180
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: mattermost-0104
   anchor: symbol:go:server.channels.app.App.setupBroadcastHookForAbacFiles:Method#3a03e494604ae56caa6b6c467ed2107a7e2bb581c18980120730ccd54011c919#1
   location: server/channels/app/post.go:1305
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: mattermost-0105
   anchor: symbol:go:server.channels.app.App.DeletePost:Method#d4bd1db9810aa7b6a922556c096e6c420e40e20d8d0149a0c3eda207a4f1528b#1
   location: server/channels/app/post.go:2248
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: mattermost-0106
   anchor: symbol:go:server.channels.app.App.GetTeamByInviteId:Method#a8d1f69373107bf82e6b277aa273326b59df7e135dcd088fbce1f9e402371c3c#1
   location: server/channels/app/team.go:992
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: mattermost-0107
   anchor: symbol:go:server.channels.app.App.JoinUserToTeam:Method#cd982e1e653bcb1e1d83af3d54382278665f9defb7c7e73938fe4220fec8e1b5#1
   location: server/channels/app/team.go:846
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Wraps and returns the update error."
 - id: mattermost-0108
   anchor: symbol:go:server.channels.app.App.GetPermalinkPost:Method#b49613ec2e2f27a6b87da88136fd6c12fcd113c8cc6124fa3cadeb5fa2c90f4e#1
   location: server/channels/app/post.go:1908
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Propagates the original error."
 - id: mattermost-0109
   anchor: symbol:go:server.channels.app.App.DeleteChannel:Method#11eed51f5f4bc0797f48b43955634b9f13d14ef7539ba93ba8802edf2644baaf#1
   location: server/channels/app/channel.go:1783
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Wraps and returns the lookup error."
 - id: mattermost-0110
   anchor: symbol:go:server.channels.app.App.RegenerateTeamInviteId:Method#f95d2993f86915bb767e9ba4956771958bf707ca767f514f4abf774a09816cca#1
   location: server/channels/app/team.go:310
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Propagates the original error."
 - id: mattermost-0111
   anchor: symbol:go:server.channels.app.App.GetPermalinkPost:Method#a225847115c06fa5a70adfbdd7da044b1202c319528697bc65d7cd8ccc6f1c25#1
   location: server/channels/app/post.go:1904
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Propagates the original application error."
 - id: mattermost-0112
   anchor: symbol:go:server.channels.app.App.postUpdateChannelAutotranslationMessage:Method#7c769a1fa35adfbdcb8f5d3bd4beb048cab12ecc78f0d1c1f0ba3d7b481d3a84#1
   location: server/channels/app/channel.go:2245
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Wraps and returns the post creation error."

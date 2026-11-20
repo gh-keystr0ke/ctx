@@ -259,21 +259,19 @@ calibration.
 
 #### Held-out v2 gate
 
-All 114 anchors resolved on the pinned commits. The scorer returned
+All 180 anchors resolved on the pinned commits. The scorer returned
 `complete`. Each project met the 80% threshold for rated top positions.
 
-| Project | Rated top positions | Required | Significant for quota | Trivial for quota |
-| --- | ---: | ---: | ---: | ---: |
-| Nova | 16/20 | 16 | 5 | 0 |
-| Vector | 16/19 | 16 | 12 | 0 |
-| Gitea | 6/7 | 6 | 3 | 3 |
+| Project | Rated top positions | Required | Significant for quota | Trivial for quota | Quota |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Nova | 16/20 | 16 | 14 | 8 | Underfilled |
+| Vector | 16/19 | 16 | 15 | 15 | Met |
+| Gitea | 6/7 | 6 | 4 | 23 | Underfilled |
 
-Gitea's original changes explain the race with merged pull requests,
-the result of conflict checks, and conflict error reporting. These
-sources support four significant labels. The organization membership
-point remains unclear.
+Each project reached the 60-point cap. The fill batches used the order
+frozen at the first sample. Pool points count toward precision only.
 
 Combined precision was 38/38 among the rated top positions. The trivial
-false-positive rate was 0/3. Nova and Vector had no rated trivial points
-outside the pool, so the rate is unavailable for those projects. The
-15/15 quotas are unmet. No held-out point has a second label yet.
+false-positive rate was 0/46. Nova needs one more significant label and
+seven more trivial labels. Gitea needs 11 more significant labels.
+The held-out projects still need a second review to measure agreement.

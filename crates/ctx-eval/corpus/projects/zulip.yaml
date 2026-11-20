@@ -1301,7 +1301,7 @@ points:
   anchor: symbol:python:zerver.actions.message_send.check_can_send_direct_message:Function#16de41acaef7b9aee0530ab72fdd07f8b2346a4956abfb490ce6dc655f4d6f1d#1
   location: zerver/actions/message_send.py:1766
   draft:
-    label: unclear
+    label: significant
     category: permission
     evidence:
     - E1
@@ -1310,16 +1310,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: ac3da2e610c3a968785bbb94b07b4ea1727803643575252b364c68d51ee50075
-  label: unclear
-  category: null
+  label: significant
+  category: permission
   evidence:
   - type: docs
-    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/starlight_help/src/content/docs/restrict-direct-messages.mdx#L68
-    quote: 1. Under **Direct message permissions**, remove any configured roles, groups
+    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/starlight_help/src/content/docs/restrict-direct-messages.mdx#L16
+    quote: "at least one user who can authorize the conversation"
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Checks the sender and recipients against the documented role-based direct-message authorization rule."
 - id: zulip-0064
   anchor: symbol:python:zerver.actions.message_send.check_can_send_direct_message:Function#3b9d588a5e842629dac29ea6c541cb0a371dc401626d635c420381d02e40a891#1
   location: zerver/actions/message_send.py:1782

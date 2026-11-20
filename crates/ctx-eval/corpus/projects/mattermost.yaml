@@ -1321,7 +1321,7 @@ points:
   anchor: symbol:go:server.channels.app.App.GetPostIfAuthorized:Method#7f4bfaab54fa4afcb97b833fdb26106fc6a4b26a0cc9cb1827e881c25a13d39b#1
   location: server/channels/app/post.go:3040
   draft:
-    label: unclear
+    label: significant
     category: permission
     evidence:
     - E3
@@ -1331,19 +1331,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: f0633c39ca96e65a3ec9b1b5f5613b54ced449ff312e400cb6600c4285988c6d
-  label: unclear
-  category: null
+  label: significant
+  category: permission
   evidence:
   - type: docs
-    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/security-guide/zero-trust.rst#L111
-    quote: '- :doc:`Advanced Permissions Infrastructure </administration-guide/onboard/advanced-permissions-backend-infrastructure>` [Enterprise] — System-wide and team-override permission schemes control create, read, update, and delete capabilities per resource type. Channel-level controls restrict posting, reactions, and member management independently.'
-  - type: docs
-    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/onboard/advanced-permissions-backend-infrastructure.rst#L39
-    quote: When determining whether a user is allowed to carry out a given action in a given context, the union of the permissions of all roles that user has been assigned in the current context and its parent contexts is calculated. This enables permissions to cascade down the scope hierarchy. For example, if a users is granted the ``manage_public_channel_properties`` permission in a role in the system context, then the user h
+    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/onboard/advanced-permissions-backend-infrastructure.rst#L121
+    quote: "View and access public channels on a team."
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "The public-post fallback requires the documented team-scoped public channel permission."
 - id: mattermost-0065
   anchor: symbol:go:server.channels.app.App.GetTeamIdFromQuery:Method#e1650162fee9b537b2e17ed57c5d417cf841083b129b8b822c48a24d512007a4#1
   location: server/channels/app/team.go:2306
@@ -1441,7 +1438,7 @@ points:
   anchor: symbol:go:server.channels.app.App.SanitizeTeam:Method#938e7bcc9be150e939e29fdc9a41ba4749ef7b7166af9d2f2734c78b988f2f3c#1
   location: server/channels/app/team.go:2333
   draft:
-    label: unclear
+    label: significant
     category: permission
     evidence: []
     reason: The branch skips team sanitization when the session has both permissions. The package contains no documentation, specification, or issue directly addressing that behavior.
@@ -1449,13 +1446,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 1ff93a7b579bdb4a59b863401750b6a1347bb836003fc0c3310794ebd53be038
-  label: unclear
-  category: null
-  evidence: []
+  label: significant
+  category: permission
+  evidence:
+  - type: issue
+    url: https://github.com/mattermost/mattermost/pull/12952
+    quote: "Keep InviteId for authorized users"
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Returns the unsanitized team only when the caller has both invitation and management permissions."
 - id: mattermost-0070
   anchor: symbol:go:server.channels.app.App.SetTeamIconFromMultiPartFile:Method#02ee7c37df55879aa80209fa5af1f7b64596448c50163c59cbe69f0a6251fd09#1
   location: server/channels/app/team.go:2391
@@ -1506,7 +1506,7 @@ points:
   anchor: symbol:go:server.channels.app.App.updateChannelMemberRolesInternal:Method#faa45c569a76ab89837da97cfc8b8399c25a13d827e5d729d96dd2509fd95023#1
   location: server/channels/app/channel.go:1498
   draft:
-    label: unclear
+    label: significant
     category: validation
     evidence:
     - E1
@@ -1516,19 +1516,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 3ecf25e7b089cff02937d1af79c238bdba0a349b6b41bea3807c8119c096b4ee
-  label: unclear
-  category: null
+  label: significant
+  category: permission
   evidence:
-  - type: docs
-    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/comply/embedded-json-audit-log-schema.rst#L271
-    quote: '| ``updateChannelMemberRoles``       | Updating channel member roles                                     |'
-  - type: docs
-    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/manage/admin/abac-channel-access-rules.rst#L125
-    quote: From Mattermost v11.8.0, channel admins can define channel-level permission rules for file upload and file download based on user attributes and channel role. Applicable roles include **channel admin**, **channel member**, and **channel guest**.
+  - type: issue
+    url: https://github.com/mattermost/mattermost/pull/37075
+    quote: "Restrict channel member roles to channel scope"
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Rejects built-in roles outside channel scope when updating a channel member."
 - id: mattermost-0073
   anchor: symbol:go:server.channels.app.App.CreateChannelWithUserAndPropertyValues:Method#a98030076de75f5f2d8030d57269c885e4a87fc52b5fc8794476dccd50a1846d#1
   location: server/channels/app/channel.go:198

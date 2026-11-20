@@ -512,7 +512,7 @@ points:
   anchor: symbol:go:server.channels.app.App.GetLastAccessiblePostTime:Method#259e5bbe24b465dc17cdf6cc6e6f6be75018fa48650da50eeed505f2cb981b77#1
   location: server/channels/app/post.go:2438
   draft:
-    label: unclear
+    label: significant
     category: limit
     evidence: []
     reason: The branch returns 0 when the license or its limits are absent, or when the post-history limit is zero. The supplied documentation does not address this behavior.
@@ -520,13 +520,19 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 761006e62522e07c3a78d2755d21859c818f669d05c4c3966e73d726d3fb6dbd
-  label: unclear
-  category: null
-  evidence: []
+  label: significant
+  category: limit
+  evidence:
+  - type: docs
+    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/product-overview/faq-general.rst#L31
+    quote: Entry limits the number of messages shown
+  - type: issue
+    url: https://github.com/mattermost/mattermost/pull/33831
+    quote: Refactor message history limit to use entry sku limits
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: Only licenses with a post history limit restrict the accessible window.
 - id: mattermost-0025
   anchor: symbol:go:server.channels.app.App.setChannelsMuted:Method#d420e45d61cdc4f45046dd71929ddfcd424d395eb7ae3cd2b48c255d3fd717df#1
   location: server/channels/app/channel.go:4137

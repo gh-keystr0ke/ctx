@@ -513,3 +513,60 @@ points:
       condition: 4
       decision_shape: 1
       downstream_calls: 1
+  nova-0046:
+    selected_by: fill
+    rank: 7
+    score: 8
+    contributions:
+      downstream_calls: 8
+  nova-0047:
+    selected_by: fill
+    rank: 567
+    score: 1
+    contributions:
+      downstream_calls: 1
+  nova-0048:
+    selected_by: fill
+    rank: 1900
+    score: 0
+    contributions: {}
+  nova-0049:
+    selected_by: fill
+    rank: 590
+    score: 1
+    contributions:
+      decision_shape: 1
+  nova-0050:
+    selected_by: fill
+    rank: 8
+    score: 8
+    contributions:
+      downstream_calls: 8
+  nova-0051:
+    selected_by: fill
+    rank: 146
+    score: 4
+    contributions:
+      condition: 4
+  nova-0052:
+    selected_by: fill
+    rank: 12
+    score: 8
+    contributions:
+      downstream_calls: 8
+  nova-0053:
+    selected_by: fill
+    rank: 1955
+    score: 0
+    contributions: {}
+  nova-0054:
+    selected_by: fill
+    rank: 790
+    score: 1
+    contributions:
+      decision_shape: 1
+  nova-0055:
+    selected_by: fill
+    rank: 1206
+    score: 0
+    contributions: {}

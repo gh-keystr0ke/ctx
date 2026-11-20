@@ -95,8 +95,8 @@ points:
     url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/end-user-guide/collaborate/invite-people.rst#L55
     quote: Invitation links sent by email expire after 48 hours and can only be used once.
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: codex-independent
   note: The pinned guide confirms expiry. This branch rejects an expired token. The original second label is retained for agreement.
 - id: mattermost-0004
   anchor: symbol:go:server.channels.app.App.AddChannelMember:Method#5e2dac38c1b48d3eb28b3b66cfc503da9bef51f398ff42f0620a62d67b81e5b5#1
@@ -114,8 +114,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: codex-independent
   note: null
 - id: mattermost-0005
   anchor: symbol:go:server.channels.app.App.CheckPostReminders:Method#63e2854e729894cdd002a8d6fed72c277e5b8447ed6bfe8afc3d4cebe786fb6d#1
@@ -486,8 +486,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: codex-independent
   note: null
 - id: mattermost-0023
   anchor: symbol:go:server.channels.app.App.GetSinglePost:Method#1fd8263309b2c88370e9726f1acf404d9b44029d59565db23734c4df653c4c8c#1
@@ -894,8 +894,8 @@ points:
     url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/comply/embedded-json-audit-log-schema.rst#L513
     quote: '| ``deleteOutgoingHook``        | Deleting outgoing webhooks                                        |'
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: codex-independent
   note: null
 - id: mattermost-0043
   anchor: symbol:go:server.channels.app.App.ConvertGroupMessageToChannel:Method#a225847115c06fa5a70adfbdd7da044b1202c319528697bc65d7cd8ccc6f1c25#4
@@ -955,8 +955,8 @@ points:
     url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/onboard/connected-workspaces.rst#L151
     quote: From Mattermost v10.10, creating a direct or group message with remote users across connected workspaces is only available when the feature flag ``EnableSharedChannelsDMs`` is enabled.
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: codex-independent
   note: null
 - id: mattermost-0046
   anchor: symbol:go:server.channels.app.App.UpdatePost:Method#cc12a2b8c8ca8329186fbefc6a927c95a339b2d93a76e0cfe64b28b73db9f11c#1
@@ -1107,8 +1107,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: codex-independent
   note: null
 - id: mattermost-0054
   anchor: symbol:go:server.channels.app.App.prepareInviteGuestsToChannels:Method#9a94f37bdbf05dbb2c60bfe20461a4ad4bb686dbf86dcc6c87d9d562fa11a324#1
@@ -1134,8 +1134,8 @@ points:
     url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/manage/admin/abac-system-wide-policies.rst#L113
     quote: Private channels with attribute-based access control policies can't have guest users invited to them. Only users who match the defined attribute criteria can be added to ABAC-controlled private channels, ensuring strict adherence to access control policies. Public channels remain joinable by anyone regardless of the policy.
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: codex-independent
   note: null
 - id: mattermost-0055
   anchor: symbol:go:server.channels.app.App.CreateChannelWithUserAndPropertyValues:Method#5e2dac38c1b48d3eb28b3b66cfc503da9bef51f398ff42f0620a62d67b81e5b5#1
@@ -1211,8 +1211,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: codex-independent
   note: null
 - id: mattermost-0059
   anchor: symbol:go:server.channels.app.App.leaveTeam:Method#a87cdf23c4d93e3f402c59753491b7e916de34c7a297075e429986f4d9a10269#1
@@ -1366,8 +1366,8 @@ points:
     url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/end-user-guide/collaborate/invite-people.rst#L55
     quote: Invitation links sent by email expire after 48 hours and can only be used once.
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: codex-independent
   note: This signup path rejects an expired invitation before returning the team ID.
 - id: mattermost-0066
   anchor: symbol:go:server.channels.app.App.PatchChannelModerationsForChannel:Method#858b4e515fc661711d6330142367dcd87c7344945aa1970c8b6a940d03296e2c#1
@@ -1389,8 +1389,8 @@ points:
     url: https://mattermost.atlassian.net/wiki/spaces/EN/pages/389710345/Tech%2BSpec%2B-%2BChannel%2BModeration%2BSettings
     quote: "The role can only be less permissive"
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: codex-independent
   note: "A channel moderation patch cannot grant members a permission denied at the enclosing scope."
 - id: mattermost-0067
   anchor: symbol:go:server.channels.app.App.PatchChannelModerationsForChannel:Method#ca2e63f8578f4746b82ec10631640f6d395385208e4fba6f6d8937c68476dec9#1
@@ -1459,8 +1459,8 @@ points:
     url: https://github.com/mattermost/mattermost/pull/12952
     quote: "Keep InviteId for authorized users"
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: codex-independent
   note: "Returns the unsanitized team only when the caller has both invitation and management permissions."
 - id: mattermost-0070
   anchor: symbol:go:server.channels.app.App.SetTeamIconFromMultiPartFile:Method#02ee7c37df55879aa80209fa5af1f7b64596448c50163c59cbe69f0a6251fd09#1
@@ -1482,8 +1482,8 @@ points:
     url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/product-overview/unsupported-legacy-releases.md#L4398
     quote: "control the maximum dimension (in pixels) of image uploads"
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: codex-independent
   note: "Checks the configured image upload resolution before accepting a team icon."
 - id: mattermost-0071
   anchor: symbol:go:server.channels.app.App.TeamAccessControlled:Method#f1f83877a71f4680601b5fe9514a8ff77d884e79a3f7920d3d38bcb27708cd75#1
@@ -1556,8 +1556,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: codex-independent
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: mattermost-0075
   anchor: symbol:go:server.channels.app.App.CreatePostAsUserWithFlags:Method#39545e9b817e995497ff434834eb7579be11d02e07a4d8a014e1a5cdcbb27f31#1
@@ -1568,8 +1568,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: codex-independent
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: mattermost-0076
   anchor: symbol:go:server.channels.app.App.PatchPost:Method#977b588c23d64354b4d7a58abad1eacffa42a8c118d240988de26a2ba0d50b61#1
@@ -1595,8 +1595,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: codex-independent
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: mattermost-0078
   anchor: symbol:go:server.channels.app.App.postRemoveFromTeamMessage:Method#5056ef4221991d2768f599e03fd8f3576e6dc32c2380110dc620dedae376559c#1
@@ -1607,8 +1607,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: codex-independent
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: mattermost-0079
   anchor: symbol:go:server.channels.app.App.CreateChannelWithUserAndPropertyValues:Method#b40dfda8374e59c2a94ca13d5854305be6ff2a126217124f4360c70186a359f0#1
@@ -1631,8 +1631,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: codex-independent
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: mattermost-0081
   anchor: symbol:go:server.channels.app.App.CreatePostAsUserWithFlags:Method#b7c0ca143f193d76f38a7070c18c2979eb823fd084344bdc5635692c26ad5959#1
@@ -1643,8 +1643,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: codex-independent
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: mattermost-0082
   anchor: symbol:go:server.channels.app.App.GetAllTeams:Method#cdfe3634d0c3fe8c5248aebb09e55d280702927178ed3ecbfc5553ddf1d0e5cb#1
@@ -1742,8 +1742,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: codex-independent
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: mattermost-0090
   anchor: symbol:go:server.channels.app.App.PostUpdateChannelHeaderMessage:Method#c561fd18ef38993cb2880b9c794e57050308ecafa6a13a9a35d293539d8ca0b3#1
@@ -1781,8 +1781,8 @@ points:
     url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/product-overview/unsupported-legacy-releases.md#L867
     quote: "a boolean value representing whether moving should work from within a private channel."
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: codex-independent
   note: "The thread move operation checks the documented private-channel setting."
 - id: mattermost-0093
   anchor: symbol:go:server.channels.app.App.DeletePost:Method#2c2726c7abccd4a402617ad37057837a5ebde175980058d6200df92a2e8fafdf#1
@@ -1940,8 +1940,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: codex-independent
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: mattermost-0106
   anchor: symbol:go:server.channels.app.App.GetTeamByInviteId:Method#a8d1f69373107bf82e6b277aa273326b59df7e135dcd088fbce1f9e402371c3c#1
@@ -1964,8 +1964,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: codex-independent
   note: Wraps and returns the update error.
 - id: mattermost-0108
   anchor: symbol:go:server.channels.app.App.GetPermalinkPost:Method#b49613ec2e2f27a6b87da88136fd6c12fcd113c8cc6124fa3cadeb5fa2c90f4e#1
@@ -2012,8 +2012,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: codex-independent
   note: Propagates the original application error.
 - id: mattermost-0112
   anchor: symbol:go:server.channels.app.App.postUpdateChannelAutotranslationMessage:Method#7c769a1fa35adfbdcb8f5d3bd4beb048cab12ecc78f0d1c1f0ba3d7b481d3a84#1
@@ -2099,8 +2099,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: codex-independent
   note: "Propagates the existing filtering error."
 - id: mattermost-0119
   anchor: symbol:go:server.channels.app.App.leaveTeam:Method#e088b953225daa8bf09ecd479e856049dc35a3b79619d69d2ad39fa85243069b#1

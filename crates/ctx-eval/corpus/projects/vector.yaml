@@ -147,8 +147,8 @@ points:
     url: https://github.com/vectordotdev/vector/pull/11454
     quote: avoid having to decode every single record
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: codex-independent
   note: The linked change describes scanning only enough of the buffer to recover startup accounting. This branch reads the last validated record of a fully written file.
 - id: vector-0006
   anchor: symbol:rust:crate.sinks.util.retries.FibonacciRetryPolicy.Policy<Req,Res,Error>.retry:Method#324befb2770b951f7b0540ff08bbcfa4e1032c5e76d9559ccb22a1e1ea58e073#1
@@ -190,8 +190,8 @@ points:
   category: validation
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: codex-independent
   note: Defensive presence guard after timeout validation.
 - id: vector-0008
   anchor: symbol:rust:crate.finalization.BatchStatus.update:Method#9cf34e5ead14ce5cfcc31aaf2690ba1d30991f4ae5f8b382bebccca5a6686164#1
@@ -592,8 +592,8 @@ points:
     url: https://github.com/vectordotdev/vector/blob/b78d987398d23f19f3705fb76a1cd18642565b66/website/cue/reference/components/sinks.cue#L615
     quote: Vector will retry failed requests (status in [408, 429], >= 500, and != 501).
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: codex-independent
   note: The response treatment at this arm implements the documented decision to retry responses classified as retryable.
 - id: vector-0036
   anchor: symbol:rust:crate.variants.disk_v2.writer.BufferWriter.validate_last_write:Method#95912877bd6ec3cd2b89e9a596a23d76d813158021ed71e007b49774bdf45794#1
@@ -646,8 +646,8 @@ points:
     url: https://github.com/vectordotdev/vector/pull/25845
     quote: Truncate post-checkpoint or corrupt writer tails
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: codex-independent
   note: Startup recovery truncates the bytes outside the durable checkpoint.
 - id: vector-0040
   anchor: symbol:rust:crate.variants.disk_v2.tests.model.filesystem.TestFilesystem.Filesystem.open_file_writable_atomic:Method#ce49d68ba4b705c04603246bb325774604c353248b10e7320c71f3ad970dad58#1
@@ -682,8 +682,8 @@ points:
   category: validation
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: codex-independent
   note: Routine empty-file guard before parsing records.
 - id: vector-0043
   anchor: symbol:rust:crate.topology.channel.limited_queue.LimitedReceiver.next:Method#d4f3babd20bff946b678983f01c216e6a5795147aa863be9767ae6c8fe3ce066#1
@@ -694,8 +694,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: codex-independent
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: vector-0044
   anchor: symbol:rust:crate.sinks.util.retries.FibonacciRetryPolicy.Policy<Req,Res,Error>.retry:Method#f7ee109862095a7282ade76227554f8fae783adc6a8d74ced8ee56c3dea4594a#1
@@ -706,8 +706,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: codex-independent
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: vector-0045
   anchor: symbol:rust:crate.variants.disk_v2.io.File.AsyncFile.truncate:Method#66897020142591b4db6e49869dd2467c9e02543b0e20146596a7731b3927e70b#1
@@ -718,8 +718,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: codex-independent
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: vector-0046
   anchor: symbol:rust:crate.variants.disk_v2.writer.BufferWriter.validate_last_write:Method#7f9da486c5fd856c090f534e113c10519394245e5bf1f18a8ad89ac7d0fbfb7c#1
@@ -730,8 +730,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: codex-independent
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: vector-0047
   anchor: symbol:rust:crate.finalization.BatchNotifier.maybe_new_with_receiver:Method#919e7c47b7712e7aea6126d08ab2bd8f059eef53ce608aea27a028b24c4aa2ba#1
@@ -802,8 +802,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: codex-independent
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: vector-0053
   anchor: symbol:rust:crate.sinks.util.batch.FinalizersBatch.Batch.push:Method#1fec3d2659403872fade01ab3a1ef2ae7bba5f4756d1ce47ff621ec3be2d072c#1
@@ -877,8 +877,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: codex-independent
   note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: vector-0059
   anchor: symbol:rust:crate.sinks.util.retries.FibonacciRetryPolicy.Policy<Req,Res,Error>.retry:Method#d2a1cdefe73bc2ca8cef913320f97c60708c479ec7076d0a1fdff4d7aca644a8#1
@@ -904,6 +904,6 @@ points:
     url: https://github.com/vectordotdev/vector/pull/25845
     quote: "Reconcile `disk_v2` startup state from the durable checkpoint window"
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: codex-independent
   note: "Recovers the successor file only when it continues the durable checkpoint."

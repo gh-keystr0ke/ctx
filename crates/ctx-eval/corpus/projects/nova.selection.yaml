@@ -1077,3 +1077,62 @@ points:
     rank: 1040
     score: 0
     contributions: {}
+  nova-0071:
+    selected_by: fill
+    rank: 20
+    score: 7
+    contributions:
+      downstream_calls: 7
+  nova-0072:
+    selected_by: fill
+    rank: 1244
+    score: 0
+    contributions: {}
+  nova-0073:
+    selected_by: fill
+    rank: 64
+    score: 5
+    contributions:
+      condition: 4
+      downstream_calls: 1
+  nova-0074:
+    selected_by: fill
+    rank: 120
+    score: 4
+    contributions:
+      condition: 4
+  nova-0075:
+    selected_by: fill
+    rank: 1594
+    score: 0
+    contributions: {}
+  nova-0076:
+    selected_by: fill
+    rank: 215
+    score: 4
+    contributions:
+      condition: 4
+  nova-0077:
+    selected_by: fill
+    rank: 21
+    score: 7
+    contributions:
+      downstream_calls: 7
+  nova-0078:
+    selected_by: fill
+    rank: 871
+    score: 1
+    contributions:
+      downstream_calls: 1
+  nova-0079:
+    selected_by: fill
+    rank: 223
+    score: 4
+    contributions:
+      condition: 4
+  nova-0080:
+    selected_by: fill
+    rank: 629
+    score: 1
+    contributions:
+      downstream_calls: 1

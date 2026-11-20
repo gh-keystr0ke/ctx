@@ -1366,13 +1366,16 @@ points:
   location: models/perm/access/repo_permission.go:414
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
+  label: significant
+  category: permission
+  evidence:
+  - type: docs
+    url: https://docs.gitea.com/usage/actions/token-permissions/
+    quote: "Every Actions job receives a built-in token"
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "Uses the Actions job's token permissions for the repository when the actor is that job."
 - id: gitea-0105
   anchor: symbol:go:services.pull.getMergeCommit:Function#9ab3379f8e8e815511f212d05e5f3d6e54377668502590d63674aab345a636d5#1
   location: services/pull/check.go:327
@@ -1465,13 +1468,16 @@ points:
   location: models/perm/access/repo_permission.go:417
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
+  label: significant
+  category: permission
+  evidence:
+  - type: docs
+    url: https://github.com/go-gitea/gitea/blob/0b5dfdeeeaadf6350314246c5936b53cce38170c/templates/swagger/v1-openapi3.generated.json#L5259
+    quote: "ReadOnly indicates if the key has read-only access"
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: "Uses the repository deploy key's permissions when the actor is a deploy key."
 - id: gitea-0113
   anchor: symbol:go:models.perm.access.RecalculateUserAccess:Function#251f6f73fbcc532967a520aa6b783caf6ae1b632a0f6159c69c103f2491f61b7#1
   location: models/perm/access/access.go:229

@@ -30,6 +30,66 @@ fill_order:
 - symbol:go:models.git.ProtectedBranch.MergeBlockedByProtectedFiles:Method#8f28c824fe1f7bee5468f5c3b35d43fb41dd824fcb0376f0f451ca5e8b387f22#1
 - symbol:go:models.organization.IsOrganizationOwner:Function#7ccd50d78b93011ac13cfa78aa5e0d1ba5ee078b08b2ffacbd7de324dd36b258#1
 - symbol:go:models.git.UpdateProtectBranch:Function#41d115b9e7c003b14f9f1fd17c8a7005594e44874fc515d6a2533ecfacea822c#9
+- symbol:go:models.git.updateUserWhitelist:Function#873c2e2ca408f8edb148b2da3d3790681f418c0b3c17f02b08b3f02463142631#1
+- symbol:go:models.git.IsUserOfficialReviewer:Function#56bc2fff43a4f227f2665ce980ced4f0837d0b62664c69baccb16b0d9eb8f335#2
+- symbol:go:services.pull.getMergeMessage:Function#69fb34773ae9c1b861ac364ec6787e14a9afac622b2feb7d9b6798377e4776fc#1
+- symbol:go:services.pull.getMergeMessage:Function#4d3ad8fd69b786d06b21c7de4ef3be9d66d65c768047de817b977dc90ef8fc64#1
+- symbol:go:services.pull.StartPullRequestCheckOnView:Function#726ed3b7270f4e1636d6a1083e84fe76d740e76508ec71b720af3792e6f24cc3#1
+- symbol:go:services.pull.checkSigningRequirements:Function#04c534594616ff38570b9223e285dca3713469d0461ed8400b2e738df69730da#1
+- symbol:go:models.perm.access.GetActionsUserRepoPermission:Function#81ba408cbd1ef492fdfa2e8cc77b99f7b7981f81061509a06498afe8cef2c97f#1
+- symbol:go:models.git.ProtectedBranch.Match:Method#f191b9c43cf768be97d0aad09116ca796338f4a9e0050e3c43bc06a097bdf8f7#1
+- symbol:go:models.organization.Organization.AnyRepoUnitPermission:Method#1c860ff88133db4f00b16ff74f0b1aa85f57201e862e7c91dd54c89c911ddc8a#1
+- symbol:go:models.organization.ownerVisibilitySatisfiesDoer:Function#42d9055b56c3dbaef55c3b1d05f021e41cdf6ace55c9eef1071f9255425a7aa3#1
+- symbol:go:models.git.updateUserWhitelist:Function#e0fcddfd8d5ae5514a728453db7f2aedc156ea5e25b5c22d980e631ca63c0130#1
+- symbol:go:models.organization.TeamList.HasAllRepoAdminAccess:Method#b782a35a2ac26a07cdce0011dae2da76215390690a312ba5944a756979592c46#2
+- symbol:go:services.pull.getMergeMessage:Function#cda2dabb8f48ec8c785e4be085dbb458a2f3a85a16d3a1829ed2e6f68cccec37#1
+- symbol:go:services.pull.getMergeMessage:Function#0793f681b84eadb9c77104eab81a285d510b12aed96dd5c47511e217a99ee5a0#1
+- symbol:go:services.pull.markPullRequestAsMergeable:Function#bb8ef67207d00f3a4a4f86a4449969a9e3d75d3b973dfb0b043bc4ae4de5b9db#1
+- symbol:go:services.pull.hasPullRequestCommitBeenMerged:Function#a67bbf943ddd2934ed2f5fa0f93d85fc7d78b22492c367063bbd7c9527cb9382#1
+- symbol:go:models.perm.access.GetActionsUserRepoPermission:Function#81ba408cbd1ef492fdfa2e8cc77b99f7b7981f81061509a06498afe8cef2c97f#2
+- symbol:go:models.organization.DoerViewOtherVisibility:Function#df9a74e9b588c1bb9d97049d7c9a121ec0335b7096365268629310eea4836b22#1
+- symbol:go:models.organization.Organization.AnyRepoUnitPermission:Method#3717cd3009efffcb9612024e728925a8257f14f4288544cfedc70120cc057603#1
+- symbol:go:models.organization.GetUserOrgsList:Function#3358fad135609ce4051783676975945a2d89b165942f11f48abe397459044223#1
+- symbol:go:models.git.ProtectedBranch.CanUserForcePush:Method#03433be40a04f2290d54a78e575303ab3a602409ccd378ffca935199d9d690e7#1
+- symbol:go:models.organization.loadOrganizationOwners:Function#959f2fd772a4a7144e586d871878e374fe2047dc82f6d2854535240a6a915d98#1
+- symbol:go:services.pull.CheckPullBranchProtections:Function#02a704197c7b26ec1869967c43ca7acc6a61e02a0000afb5f5d622b042a23175#1
+- symbol:go:models.git.ProtectedBranch.CanUserForcePush:Method#9b0733c7e904a0cd0bae880ec45c6ee8d2f21cfaae6c7eada98b246bd539b107#1
+- symbol:go:services.pull.CheckPRsForBaseBranch:Function#41d115b9e7c003b14f9f1fd17c8a7005594e44874fc515d6a2533ecfacea822c#1
+- symbol:go:models.perm.access.Permission.HasAnyUnitPublicAccess:Method#f4151b97f74c58b593da74d6be0a0f53b2b66bdfe45c2cfca0ff33391ca4c3cb#1
+- symbol:go:models.perm.access.GetActionsUserRepoPermission:Function#e7f71594aeec1e075b0afd94191151593fa07635384ea355c0d29627f00dae09#1
+- symbol:go:models.perm.access.refreshAccesses:Function#7c9872d5662e0fcc2abea18e207fa6d24590bfde9d3c40a3cb166e72871fc2f1#1
+- symbol:go:models.organization.Organization.AnyRepoUnitPermission:Method#aef8242beb83eec759594ab486dffdd4d13f82b7c020f9b7601e1597b4782d66#1
+- symbol:go:models.perm.access.CanReadWorkflowCrossRepo:Function#56bc2fff43a4f227f2665ce980ced4f0837d0b62664c69baccb16b0d9eb8f335#1
+- symbol:go:models.git.ProtectedBranch.CanUserForcePush:Method#6383c2006b0539fa5956d0a8ef369ba67367803bc4bb0dc2a8cf1c06acd7d384#1
+- symbol:go:models.organization.CreateOrganization:Function#71295cef312bbe347bb31d30c1e4693b8926df51bf2591685ca43c8ebe72a053#1
+- symbol:go:services.pull.CheckPullBranchProtections:Function#297b51f995d58684eaf0861e3bd78ccff3e5c5dce8da1b9af28e6c66e9f37baf#1
+- symbol:go:models.git.updateTeamWhitelist:Function#6d6eae4183ad775f6d76cb24a8e651267d87a9b9ed76def7f19b5b027db9ef81#1
+- symbol:go:models.perm.access.GetActionsUserRepoPermission:Function#f4d79385d69b64ac09d17c96a5a9557ad3708d25822fb82167d953ffdeb39678#1
+- symbol:go:models.git.CanBypassBranchProtection:Function#f4151b97f74c58b593da74d6be0a0f53b2b66bdfe45c2cfca0ff33391ca4c3cb#2
+- symbol:go:models.organization.Organization.AnyRepoUnitPermission:Method#c64a7cf53424bfb69c89bdef764c15aab4a95cd59e69e422caa82c5138ea11f1#1
+- symbol:go:models.organization.HasOrgsVisible:Function#f4151b97f74c58b593da74d6be0a0f53b2b66bdfe45c2cfca0ff33391ca4c3cb#1
+- symbol:go:services.pull.CheckPullBranchProtections:Function#40403a0a11195b6e6edcc62d4360f1e9f92cad80fe604839a0141191a4932137#1
+- symbol:go:services.pull.manuallyMergedByPushedCommit:Function#2741040ce5f003dfdff1b0b597ffe8cc5470cd6f43b63bc7586b6d1a59718c37#1
+- symbol:go:services.pull.StartPullRequestCheckDelayable:Function#71ad5a02508c24568b76bfdf558aedc9c783644bbb94adfe0d54f99275545416#1
+- symbol:go:models.perm.access.RecalculateTeamAccesses:Function#e43cb7162b7be7f6adcb2267eea7fb7238395c0863eeb4e8d195b99973c2724e#1
+- symbol:go:models.perm.access.GetDoerRepoPermission:Function#517e75139842c9b2c1cdcb0fb7f2836bc11c0435f063925abdc094f75eee0b9d#1
+- symbol:go:services.pull.getMergeCommit:Function#9ab3379f8e8e815511f212d05e5f3d6e54377668502590d63674aab345a636d5#1
+- symbol:go:models.organization.ApplyTeamListFilter:Function#41d115b9e7c003b14f9f1fd17c8a7005594e44874fc515d6a2533ecfacea822c#2
+- symbol:go:models.perm.access.refreshAccesses:Function#b6051996cf9db82639cf9bf337f6c4bb0b536f371111e5851e5632143d3f4050#1
+- symbol:go:models.git.ProtectedBranch.CanUserForcePush:Method#f25b9ab43155a41f71a88443b7db7de2f5f03765e738652fdb5bc65936aac147#1
+- symbol:go:services.pull.MarkAsMerged:Function#5b734d29e3ad5c1632b96ed289d97780e799992854fa3876449030cd8aca5345#1
+- symbol:go:services.pull.CheckPullBranchProtections:Function#41d115b9e7c003b14f9f1fd17c8a7005594e44874fc515d6a2533ecfacea822c#1
+- symbol:go:models.organization.FindOrgMembers:Function#f1e3889319dd60cac10334ec50b38823195fb3d20a7fc71a6d9016ac93850986#2
+- symbol:go:models.perm.access.GetDoerRepoPermission:Function#5831c30911676e4dbdde378261dd9850b3a6d5ab300baac6a09c2c8fc5e4ba6c#1
+- symbol:go:models.perm.access.RecalculateUserAccess:Function#251f6f73fbcc532967a520aa6b783caf6ae1b632a0f6159c69c103f2491f61b7#1
+- symbol:go:models.organization.CountOrgMembers:Function#2bf9822ff432487571fdb997547331e3a3fde55467bcb1cd69c0d7ed7333c45a#1
+- symbol:go:models.perm.access.IsUserRealRepoAdmin:Function#ecaad4496f6b925c56bd43e0dd545b963849d61ce7638c1841cc43347fa6878a#2
+- symbol:go:models.git.IsUserOfficialReviewer:Function#56bc2fff43a4f227f2665ce980ced4f0837d0b62664c69baccb16b0d9eb8f335#1
+- symbol:go:models.perm.access.RecalculateAccesses:Function#172126224bf346d24e40b42db12a13eb0e35dd4bc761d7fe6a754ef5e11d0365#1
+- symbol:go:services.pull.CheckPullBranchProtections:Function#6ca272c99dd3f6ee6b8172b19f87be69fe428bbeb554e610f55f76e10d66162a#1
+- symbol:go:models.perm.access.RecalculateUserAccess:Function#e795aeb03812a84f64a8fc600f3acefc4f810d042bd590ed0b338690347bdc76#1
+- symbol:go:services.pull.checkSigningRequirements:Function#41d115b9e7c003b14f9f1fd17c8a7005594e44874fc515d6a2533ecfacea822c#1
+- symbol:go:models.git.ProtectedBranch.loadGlob:Method#d4c07afd6b2ea1122833ad17a783e29c5fc805d3a7d203d8249760c293ad4f17#1
 fill_points:
   symbol:go:models.git.CanBypassBranchProtection:Function#756bf9514e2a928eb316387ebdf36cad72f84dd0732194c9213ac691112943ac#1:
     location: models/git/protected_branch.go:219
@@ -37,12 +97,63 @@ fill_points:
     score: 1
     contributions:
       decision_shape: 1
+  symbol:go:models.git.CanBypassBranchProtection:Function#f4151b97f74c58b593da74d6be0a0f53b2b66bdfe45c2cfca0ff33391ca4c3cb#2:
+    location: models/git/protected_branch.go:216
+    rank: 341
+    score: 0
+    contributions: {}
   symbol:go:models.git.DeleteProtectedBranch:Function#a2df481a1955082ef2a715b0b68c8813d81fbe144ee74eed68ca44711e802616#1:
     location: models/git/protected_branch.go:582
     rank: 149
     score: 1
     contributions:
       decision_shape: 1
+  symbol:go:models.git.IsUserOfficialReviewer:Function#56bc2fff43a4f227f2665ce980ced4f0837d0b62664c69baccb16b0d9eb8f335#1:
+    location: models/git/protected_branch.go:229
+    rank: 36
+    score: 5
+    contributions:
+      decision_shape: 1
+      downstream_calls: 4
+  symbol:go:models.git.IsUserOfficialReviewer:Function#56bc2fff43a4f227f2665ce980ced4f0837d0b62664c69baccb16b0d9eb8f335#2:
+    location: models/git/protected_branch.go:236
+    rank: 155
+    score: 1
+    contributions:
+      decision_shape: 1
+  symbol:go:models.git.ProtectedBranch.CanUserForcePush:Method#03433be40a04f2290d54a78e575303ab3a602409ccd378ffca935199d9d690e7#1:
+    location: models/git/protected_branch.go:156
+    rank: 31
+    score: 6
+    contributions:
+      decision_shape: 1
+      downstream_calls: 5
+  symbol:go:models.git.ProtectedBranch.CanUserForcePush:Method#6383c2006b0539fa5956d0a8ef369ba67367803bc4bb0dc2a8cf1c06acd7d384#1:
+    location: models/git/protected_branch.go:160
+    rank: 32
+    score: 6
+    contributions:
+      decision_shape: 1
+      downstream_calls: 5
+  symbol:go:models.git.ProtectedBranch.CanUserForcePush:Method#9b0733c7e904a0cd0bae880ec45c6ee8d2f21cfaae6c7eada98b246bd539b107#1:
+    location: models/git/protected_branch.go:168
+    rank: 33
+    score: 6
+    contributions:
+      decision_shape: 1
+      downstream_calls: 5
+  symbol:go:models.git.ProtectedBranch.CanUserForcePush:Method#f25b9ab43155a41f71a88443b7db7de2f5f03765e738652fdb5bc65936aac147#1:
+    location: models/git/protected_branch.go:164
+    rank: 34
+    score: 6
+    contributions:
+      decision_shape: 1
+      downstream_calls: 5
+  symbol:go:models.git.ProtectedBranch.Match:Method#f191b9c43cf768be97d0aad09116ca796338f4a9e0050e3c43bc06a097bdf8f7#1:
+    location: models/git/protected_branch.go:113
+    rank: 363
+    score: 0
+    contributions: {}
   ? symbol:go:models.git.ProtectedBranch.MergeBlockedByProtectedFiles:Method#8f28c824fe1f7bee5468f5c3b35d43fb41dd824fcb0376f0f451ca5e8b387f22#1
   : location: models/git/protected_branch.go:282
     rank: 161
@@ -54,6 +165,12 @@ fill_points:
     rank: 365
     score: 0
     contributions: {}
+  symbol:go:models.git.ProtectedBranch.loadGlob:Method#d4c07afd6b2ea1122833ad17a783e29c5fc805d3a7d203d8249760c293ad4f17#1:
+    location: models/git/protected_branch.go:94
+    rank: 162
+    score: 1
+    contributions:
+      decision_shape: 1
   symbol:go:models.git.UpdateProtectBranch:Function#41d115b9e7c003b14f9f1fd17c8a7005594e44874fc515d6a2533ecfacea822c#4:
     location: models/git/protected_branch.go:401
     rank: 5
@@ -88,6 +205,27 @@ fill_points:
     score: 1
     contributions:
       decision_shape: 1
+  symbol:go:models.git.updateTeamWhitelist:Function#6d6eae4183ad775f6d76cb24a8e651267d87a9b9ed76def7f19b5b027db9ef81#1:
+    location: models/git/protected_branch.go:551
+    rank: 82
+    score: 3
+    contributions:
+      decision_shape: 1
+      downstream_calls: 2
+  symbol:go:models.git.updateUserWhitelist:Function#873c2e2ca408f8edb148b2da3d3790681f418c0b3c17f02b08b3f02463142631#1:
+    location: models/git/protected_branch.go:522
+    rank: 8
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  symbol:go:models.git.updateUserWhitelist:Function#e0fcddfd8d5ae5514a728453db7f2aedc156ea5e25b5c22d980e631ca63c0130#1:
+    location: models/git/protected_branch.go:529
+    rank: 9
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
   symbol:go:models.organization.ApplyTeamListFilter:Function#41d115b9e7c003b14f9f1fd17c8a7005594e44874fc515d6a2533ecfacea822c#1:
     location: models/organization/team_list.go:117
     rank: 84
@@ -95,6 +233,13 @@ fill_points:
     contributions:
       decision_shape: 1
       downstream_calls: 2
+  symbol:go:models.organization.ApplyTeamListFilter:Function#41d115b9e7c003b14f9f1fd17c8a7005594e44874fc515d6a2533ecfacea822c#2:
+    location: models/organization/team_list.go:124
+    rank: 117
+    score: 2
+    contributions:
+      decision_shape: 1
+      downstream_calls: 1
   symbol:go:models.organization.ApplyTeamListFilter:Function#ab84b2e68c2bb2c3e477a97ca4164ca4c2b4ef8d1cc17cc9d8acdbd79e5a22df#1:
     location: models/organization/team_list.go:120
     rank: 85
@@ -102,6 +247,42 @@ fill_points:
     contributions:
       decision_shape: 1
       downstream_calls: 2
+  symbol:go:models.organization.CountOrgMembers:Function#2bf9822ff432487571fdb997547331e3a3fde55467bcb1cd69c0d7ed7333c45a#1:
+    location: models/organization/org.go:231
+    rank: 118
+    score: 2
+    contributions:
+      downstream_calls: 2
+  symbol:go:models.organization.CreateOrganization:Function#71295cef312bbe347bb31d30c1e4693b8926df51bf2591685ca43c8ebe72a053#1:
+    location: models/organization/org.go:306
+    rank: 120
+    score: 2
+    contributions:
+      decision_shape: 1
+      downstream_calls: 1
+  ? symbol:go:models.organization.DoerViewOtherVisibility:Function#df9a74e9b588c1bb9d97049d7c9a121ec0335b7096365268629310eea4836b22#1
+  : location: models/organization/org_list.go:86
+    rank: 179
+    score: 1
+    contributions:
+      decision_shape: 1
+  symbol:go:models.organization.FindOrgMembers:Function#f1e3889319dd60cac10334ec50b38823195fb3d20a7fc71a6d9016ac93850986#2:
+    location: models/organization/org.go:256
+    rank: 182
+    score: 1
+    contributions:
+      decision_shape: 1
+  symbol:go:models.organization.GetUserOrgsList:Function#3358fad135609ce4051783676975945a2d89b165942f11f48abe397459044223#1:
+    location: models/organization/org_list.go:150
+    rank: 206
+    score: 1
+    contributions:
+      decision_shape: 1
+  symbol:go:models.organization.HasOrgsVisible:Function#f4151b97f74c58b593da74d6be0a0f53b2b66bdfe45c2cfca0ff33391ca4c3cb#1:
+    location: models/organization/org.go:470
+    rank: 398
+    score: 0
+    contributions: {}
   symbol:go:models.organization.IsOrganizationOwner:Function#7ccd50d78b93011ac13cfa78aa5e0d1ba5ee078b08b2ffacbd7de324dd36b258#1:
     location: models/organization/org_user.go:69
     rank: 86
@@ -109,9 +290,41 @@ fill_points:
     contributions:
       decision_shape: 1
       downstream_calls: 2
+  ? symbol:go:models.organization.Organization.AnyRepoUnitPermission:Method#1c860ff88133db4f00b16ff74f0b1aa85f57201e862e7c91dd54c89c911ddc8a#1
+  : location: models/organization/org.go:287
+    rank: 87
+    score: 3
+    contributions:
+      decision_shape: 1
+      downstream_calls: 2
+  ? symbol:go:models.organization.Organization.AnyRepoUnitPermission:Method#3717cd3009efffcb9612024e728925a8257f14f4288544cfedc70120cc057603#1
+  : location: models/organization/org.go:292
+    rank: 88
+    score: 3
+    contributions:
+      decision_shape: 1
+      downstream_calls: 2
+  ? symbol:go:models.organization.Organization.AnyRepoUnitPermission:Method#aef8242beb83eec759594ab486dffdd4d13f82b7c020f9b7601e1597b4782d66#1
+  : location: models/organization/org.go:282
+    rank: 89
+    score: 3
+    contributions:
+      decision_shape: 1
+      downstream_calls: 2
+  ? symbol:go:models.organization.Organization.AnyRepoUnitPermission:Method#c64a7cf53424bfb69c89bdef764c15aab4a95cd59e69e422caa82c5138ea11f1#1
+  : location: models/organization/org.go:280
+    rank: 90
+    score: 3
+    contributions:
+      downstream_calls: 3
   symbol:go:models.organization.Team.GetUnitsMap:Method#5056ef4221991d2768f599e03fd8f3576e6dc32c2380110dc620dedae376559c#1:
     location: models/organization/team.go:161
     rank: 415
+    score: 0
+    contributions: {}
+  ? symbol:go:models.organization.TeamList.HasAllRepoAdminAccess:Method#b782a35a2ac26a07cdce0011dae2da76215390690a312ba5944a756979592c46#2
+  : location: models/organization/team_list.go:48
+    rank: 423
     score: 0
     contributions: {}
   ? symbol:go:models.organization.VisibleTeamVisibilitiesFor:Function#50f3ec0e190ba1d33cf04ac917d3b1747e9a9e34eb9e4fd57f4030d2fdbff2ba#1
@@ -119,6 +332,23 @@ fill_points:
     rank: 427
     score: 0
     contributions: {}
+  symbol:go:models.organization.loadOrganizationOwners:Function#959f2fd772a4a7144e586d871878e374fe2047dc82f6d2854535240a6a915d98#1:
+    location: models/organization/org_user.go:124
+    rank: 432
+    score: 0
+    contributions: {}
+  ? symbol:go:models.organization.ownerVisibilitySatisfiesDoer:Function#42d9055b56c3dbaef55c3b1d05f021e41cdf6ace55c9eef1071f9255425a7aa3#1
+  : location: models/organization/org.go:442
+    rank: 227
+    score: 1
+    contributions:
+      decision_shape: 1
+  ? symbol:go:models.perm.access.CanReadWorkflowCrossRepo:Function#56bc2fff43a4f227f2665ce980ced4f0837d0b62664c69baccb16b0d9eb8f335#1
+  : location: models/perm/access/repo_permission.go:713
+    rank: 231
+    score: 1
+    contributions:
+      decision_shape: 1
   ? symbol:go:models.perm.access.CanReadWorkflowCrossRepo:Function#d2ef95750b1a19b5405d7fc893d693d710385ef8b895824a59ab9c2b243f3f43#1
   : location: models/perm/access/repo_permission.go:692
     rank: 13
@@ -140,6 +370,48 @@ fill_points:
     contributions:
       decision_shape: 1
       downstream_calls: 8
+  ? symbol:go:models.perm.access.GetActionsUserRepoPermission:Function#81ba408cbd1ef492fdfa2e8cc77b99f7b7981f81061509a06498afe8cef2c97f#1
+  : location: models/perm/access/repo_permission.go:288
+    rank: 16
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  ? symbol:go:models.perm.access.GetActionsUserRepoPermission:Function#81ba408cbd1ef492fdfa2e8cc77b99f7b7981f81061509a06498afe8cef2c97f#2
+  : location: models/perm/access/repo_permission.go:308
+    rank: 17
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  ? symbol:go:models.perm.access.GetActionsUserRepoPermission:Function#e7f71594aeec1e075b0afd94191151593fa07635384ea355c0d29627f00dae09#1
+  : location: models/perm/access/repo_permission.go:292
+    rank: 18
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  ? symbol:go:models.perm.access.GetActionsUserRepoPermission:Function#f4d79385d69b64ac09d17c96a5a9557ad3708d25822fb82167d953ffdeb39678#1
+  : location: models/perm/access/repo_permission.go:284
+    rank: 19
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  symbol:go:models.perm.access.GetDoerRepoPermission:Function#517e75139842c9b2c1cdcb0fb7f2836bc11c0435f063925abdc094f75eee0b9d#1:
+    location: models/perm/access/repo_permission.go:414
+    rank: 20
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  symbol:go:models.perm.access.GetDoerRepoPermission:Function#5831c30911676e4dbdde378261dd9850b3a6d5ab300baac6a09c2c8fc5e4ba6c#1:
+    location: models/perm/access/repo_permission.go:417
+    rank: 21
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
   ? symbol:go:models.perm.access.GetUserIDsWithAnyUnitAccess:Function#bb596539ad193ca3b16252ad0f079f6c719121889004a0e89b96e3e1ca020802#1
   : location: models/perm/access/repo_permission.go:643
     rank: 97
@@ -154,16 +426,108 @@ fill_points:
     contributions:
       decision_shape: 1
       downstream_calls: 1
+  symbol:go:models.perm.access.IsUserRealRepoAdmin:Function#ecaad4496f6b925c56bd43e0dd545b963849d61ce7638c1841cc43347fa6878a#2:
+    location: models/perm/access/repo_permission.go:551
+    rank: 247
+    score: 1
+    contributions:
+      decision_shape: 1
+  ? symbol:go:models.perm.access.Permission.HasAnyUnitPublicAccess:Method#f4151b97f74c58b593da74d6be0a0f53b2b66bdfe45c2cfca0ff33391ca4c3cb#1
+  : location: models/perm/access/repo_permission.go:74
+    rank: 468
+    score: 0
+    contributions: {}
+  symbol:go:models.perm.access.RecalculateAccesses:Function#172126224bf346d24e40b42db12a13eb0e35dd4bc761d7fe6a754ef5e11d0365#1:
+    location: models/perm/access/access.go:277
+    rank: 25
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  symbol:go:models.perm.access.RecalculateTeamAccesses:Function#e43cb7162b7be7f6adcb2267eea7fb7238395c0863eeb4e8d195b99973c2724e#1:
+    location: models/perm/access/access.go:210
+    rank: 473
+    score: 0
+    contributions: {}
+  symbol:go:models.perm.access.RecalculateUserAccess:Function#251f6f73fbcc532967a520aa6b783caf6ae1b632a0f6159c69c103f2491f61b7#1:
+    location: models/perm/access/access.go:229
+    rank: 474
+    score: 0
+    contributions: {}
+  symbol:go:models.perm.access.RecalculateUserAccess:Function#e795aeb03812a84f64a8fc600f3acefc4f810d042bd590ed0b338690347bdc76#1:
+    location: models/perm/access/access.go:268
+    rank: 260
+    score: 1
+    contributions:
+      decision_shape: 1
   ? symbol:go:models.perm.access.checkSameOwnerCrossRepoAccess:Function#f4151b97f74c58b593da74d6be0a0f53b2b66bdfe45c2cfca0ff33391ca4c3cb#1
   : location: models/perm/access/repo_permission.go:268
     rank: 483
     score: 0
     contributions: {}
+  symbol:go:models.perm.access.refreshAccesses:Function#7c9872d5662e0fcc2abea18e207fa6d24590bfde9d3c40a3cb166e72871fc2f1#1:
+    location: models/perm/access/access.go:120
+    rank: 499
+    score: 0
+    contributions: {}
+  symbol:go:models.perm.access.refreshAccesses:Function#b6051996cf9db82639cf9bf337f6c4bb0b536f371111e5851e5632143d3f4050#1:
+    location: models/perm/access/access.go:142
+    rank: 502
+    score: 0
+    contributions: {}
+  symbol:go:services.pull.CheckPRsForBaseBranch:Function#41d115b9e7c003b14f9f1fd17c8a7005594e44874fc515d6a2533ecfacea822c#1:
+    location: services/pull/check.go:518
+    rank: 102
+    score: 3
+    contributions:
+      decision_shape: 1
+      downstream_calls: 2
+  symbol:go:services.pull.CheckPullBranchProtections:Function#02a704197c7b26ec1869967c43ca7acc6a61e02a0000afb5f5d622b042a23175#1:
+    location: services/pull/merge.go:721
+    rank: 65
+    score: 4
+    contributions:
+      decision_shape: 1
+      downstream_calls: 3
+  symbol:go:services.pull.CheckPullBranchProtections:Function#297b51f995d58684eaf0861e3bd78ccff3e5c5dce8da1b9af28e6c66e9f37baf#1:
+    location: services/pull/merge.go:733
+    rank: 66
+    score: 4
+    contributions:
+      decision_shape: 1
+      downstream_calls: 3
+  symbol:go:services.pull.CheckPullBranchProtections:Function#40403a0a11195b6e6edcc62d4360f1e9f92cad80fe604839a0141191a4932137#1:
+    location: services/pull/merge.go:700
+    rank: 67
+    score: 4
+    contributions:
+      decision_shape: 1
+      downstream_calls: 3
+  symbol:go:services.pull.CheckPullBranchProtections:Function#41d115b9e7c003b14f9f1fd17c8a7005594e44874fc515d6a2533ecfacea822c#1:
+    location: services/pull/merge.go:708
+    rank: 68
+    score: 4
+    contributions:
+      decision_shape: 1
+      downstream_calls: 3
   symbol:go:services.pull.CheckPullBranchProtections:Function#5056ef4221991d2768f599e03fd8f3576e6dc32c2380110dc620dedae376559c#3:
     location: services/pull/merge.go:741
     rank: 515
     score: 0
     contributions: {}
+  symbol:go:services.pull.CheckPullBranchProtections:Function#6ca272c99dd3f6ee6b8172b19f87be69fe428bbeb554e610f55f76e10d66162a#1:
+    location: services/pull/merge.go:729
+    rank: 69
+    score: 4
+    contributions:
+      decision_shape: 1
+      downstream_calls: 3
+  symbol:go:services.pull.MarkAsMerged:Function#5b734d29e3ad5c1632b96ed289d97780e799992854fa3876449030cd8aca5345#1:
+    location: services/pull/merge.go:859
+    rank: 280
+    score: 1
+    contributions:
+      decision_shape: 1
   symbol:go:services.pull.MarkAsMerged:Function#ecf5224960fabae43e81570647dfc348903d213457a5f5ae95bbd5966881a684#1:
     location: services/pull/merge.go:809
     rank: 42
@@ -171,12 +535,46 @@ fill_points:
     contributions:
       decision_shape: 1
       downstream_calls: 4
+  ? symbol:go:services.pull.StartPullRequestCheckDelayable:Function#71ad5a02508c24568b76bfdf558aedc9c783644bbb94adfe0d54f99275545416#1
+  : location: services/pull/check.go:95
+    rank: 283
+    score: 1
+    contributions:
+      decision_shape: 1
   ? symbol:go:services.pull.StartPullRequestCheckDelayable:Function#94136fceaa1a0596dca3bb282c1f1f33b9901c987b9ec54c3e5aee09d563134e#1
   : location: services/pull/check.go:99
     rank: 284
     score: 1
     contributions:
       decision_shape: 1
+  symbol:go:services.pull.StartPullRequestCheckOnView:Function#726ed3b7270f4e1636d6a1083e84fe76d740e76508ec71b720af3792e6f24cc3#1:
+    location: services/pull/check.go:111
+    rank: 76
+    score: 4
+    contributions:
+      condition: 4
+  symbol:go:services.pull.checkSigningRequirements:Function#04c534594616ff38570b9223e285dca3713469d0461ed8400b2e738df69730da#1:
+    location: services/pull/check.go:262
+    rank: 531
+    score: 0
+    contributions: {}
+  symbol:go:services.pull.checkSigningRequirements:Function#41d115b9e7c003b14f9f1fd17c8a7005594e44874fc515d6a2533ecfacea822c#1:
+    location: services/pull/check.go:239
+    rank: 286
+    score: 1
+    contributions:
+      decision_shape: 1
+  symbol:go:services.pull.getMergeCommit:Function#9ab3379f8e8e815511f212d05e5f3d6e54377668502590d63674aab345a636d5#1:
+    location: services/pull/check.go:327
+    rank: 310
+    score: 1
+    contributions:
+      decision_shape: 1
+  symbol:go:services.pull.getMergeMessage:Function#0793f681b84eadb9c77104eab81a285d510b12aed96dd5c47511e217a99ee5a0#1:
+    location: services/pull/merge.go:109
+    rank: 548
+    score: 0
+    contributions: {}
   symbol:go:services.pull.getMergeMessage:Function#1ecf7128ecce85d9eb2813937a15034c9a3194ad9066a47bcf35e2ea1f39d526#1:
     location: services/pull/merge.go:52
     rank: 45
@@ -191,11 +589,31 @@ fill_points:
     contributions:
       decision_shape: 1
       downstream_calls: 4
+  symbol:go:services.pull.getMergeMessage:Function#4d3ad8fd69b786d06b21c7de4ef3be9d66d65c768047de817b977dc90ef8fc64#1:
+    location: services/pull/merge.go:110
+    rank: 313
+    score: 1
+    contributions:
+      decision_shape: 1
+  symbol:go:services.pull.getMergeMessage:Function#69fb34773ae9c1b861ac364ec6787e14a9afac622b2feb7d9b6798377e4776fc#1:
+    location: services/pull/merge.go:46
+    rank: 47
+    score: 5
+    contributions:
+      decision_shape: 1
+      downstream_calls: 4
   symbol:go:services.pull.getMergeMessage:Function#90a860d3c5732dc1634dc4f950a18c52cd74353bfbcf7beaad74504ba38cd3fb#1:
     location: services/pull/merge.go:127
     rank: 551
     score: 0
     contributions: {}
+  symbol:go:services.pull.getMergeMessage:Function#cda2dabb8f48ec8c785e4be085dbb458a2f3a85a16d3a1829ed2e6f68cccec37#1:
+    location: services/pull/merge.go:55
+    rank: 48
+    score: 5
+    contributions:
+      decision_shape: 1
+      downstream_calls: 4
   symbol:go:services.pull.handleCloseCrossReferences:Function#d040598e8f8e07755168bfdf6b920c4a07ce30d2f7825bd71e14fb449b5a2525#1:
     location: services/pull/merge.go:423
     rank: 146
@@ -203,6 +621,18 @@ fill_points:
     contributions:
       decision_shape: 1
       downstream_calls: 1
+  ? symbol:go:services.pull.hasPullRequestCommitBeenMerged:Function#a67bbf943ddd2934ed2f5fa0f93d85fc7d78b22492c367063bbd7c9527cb9382#1
+  : location: services/pull/merge.go:295
+    rank: 322
+    score: 1
+    contributions:
+      decision_shape: 1
+  symbol:go:services.pull.manuallyMergedByPushedCommit:Function#2741040ce5f003dfdff1b0b597ffe8cc5470cd6f43b63bc7586b6d1a59718c37#1:
+    location: services/pull/check.go:400
+    rank: 325
+    score: 1
+    contributions:
+      decision_shape: 1
   symbol:go:services.pull.manuallyMergedByPushedCommit:Function#b4c1c39c85c8b937cbdbd90cc5ee58bee5eeacbf2c832ce14457eada97fa3d05#1:
     location: services/pull/check.go:417
     rank: 49
@@ -210,6 +640,12 @@ fill_points:
     contributions:
       decision_shape: 1
       downstream_calls: 4
+  symbol:go:services.pull.markPullRequestAsMergeable:Function#bb8ef67207d00f3a4a4f86a4449969a9e3d75d3b973dfb0b043bc4ae4de5b9db#1:
+    location: services/pull/check.go:274
+    rank: 79
+    score: 4
+    contributions:
+      condition: 4
   symbol:go:services.pull.restoreInterruptedMerge:Function#56bc2fff43a4f227f2665ce980ced4f0837d0b62664c69baccb16b0d9eb8f335#1:
     location: services/pull/check.go:462
     rank: 50
@@ -605,3 +1041,66 @@ points:
     contributions:
       decision_shape: 1
       downstream_calls: 8
+  gitea-0061:
+    selected_by: fill
+    rank: 161
+    score: 1
+    contributions:
+      decision_shape: 1
+  gitea-0062:
+    selected_by: fill
+    rank: 86
+    score: 3
+    contributions:
+      decision_shape: 1
+      downstream_calls: 2
+  gitea-0063:
+    selected_by: fill
+    rank: 58
+    score: 4
+    contributions:
+      decision_shape: 1
+      downstream_calls: 3
+  gitea-0064:
+    selected_by: fill
+    rank: 8
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  gitea-0065:
+    selected_by: fill
+    rank: 155
+    score: 1
+    contributions:
+      decision_shape: 1
+  gitea-0066:
+    selected_by: fill
+    rank: 47
+    score: 5
+    contributions:
+      decision_shape: 1
+      downstream_calls: 4
+  gitea-0067:
+    selected_by: fill
+    rank: 313
+    score: 1
+    contributions:
+      decision_shape: 1
+  gitea-0068:
+    selected_by: fill
+    rank: 531
+    score: 0
+    contributions: {}
+  gitea-0069:
+    selected_by: fill
+    rank: 16
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  gitea-0070:
+    selected_by: fill
+    rank: 363
+    score: 0
+    contributions: {}

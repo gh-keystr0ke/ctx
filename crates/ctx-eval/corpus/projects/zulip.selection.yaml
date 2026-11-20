@@ -30,6 +30,66 @@ fill_order:
 - symbol:python:zerver.lib.streams.get_streams_for_user:Function#2a5df3c98772882ec22209e0beb545dd53aeb35319f1dbe7719070b11c6116e1#1
 - symbol:python:zerver.lib.streams.create_stream_if_needed:Function#d18448cfcc575d5040d23593659f00c7c83f745512ffc000da9669a69eb61b35#1
 - symbol:python:zerver.lib.rate_limiter.should_rate_limit:Function#5ecf89f56558d37a3e9f46b02ec45532df35c2659351df3c1c40bb0aa42ed6e0#1
+- symbol:python:zerver.lib.retention.archive_stream_messages:Function#7961f66d94ea7ab280ade382bf8d379cbd09ae7c0e97f0a6780f9dc58d7b8c15#1
+- symbol:python:zerver.actions.message_send.extract_stream_indicator:Function#7a2455b8ec721f16cf54d4a3500f58f900b238b12e5bedd14f074b821a35a5d5#1
+- symbol:python:corporate.lib.stripe.BillingSession.do_update_plan:Method#3f8c36adfb95cd28dff8cb8e24928a0dfd104b92ea224608944c85c5e1061618#1
+- symbol:python:zerver.lib.streams.can_move_messages_out_of_channel:Function#5b8a7fc80c15c5fe2780170519cb63fd3e3445548cc72baee5ee4c3358723f6a#2
+- symbol:python:zerver.lib.rate_limiter.RateLimitResult.__init__:Method#137636bd842c841e8dd3ce35a78742027ad31647327d57fe28f175755f7bc588#1
+- symbol:python:corporate.lib.stripe.BillingSession.process_support_view_request:Method#c150cb33f2374a36e1c3bdc85e290d4ac6982c6386995d731930acd5a17e5c0d#1
+- symbol:python:zerver.actions.message_send.send_rate_limited_pm_notification_to_bot_owner:Function#6b4910fc445b3b7018a758d68a009f9f1fd7735216e3923ea22e902e316f763f#1
+- symbol:python:corporate.lib.stripe.BillingSession.is_sponsored_or_pending:Method#5b8a7fc80c15c5fe2780170519cb63fd3e3445548cc72baee5ee4c3358723f6a#1
+- symbol:python:zerver.lib.streams.check_stream_access_for_delete_or_update_requiring_metadata_access:Function#cc40c72cd137523f86c5b54bf677a8d9c7a341e8a6d31c0f7e5ad67b860691f0#1
+- symbol:python:zerver.lib.streams.check_channel_creation_permissions:Function#2293440cba4ee4a079f75b97f8dda87acf5aec6cd2b78b5f7686ffbd7e221089#1
+- symbol:python:zerver.lib.retention.delete_messages:Function#9a45f7ed3bde2d517a1593d7d394b57cc5dd8f8caab4abc39bdce1d425d0ec8f#1
+- symbol:python:zerver.actions.message_send.extract_stream_indicator:Function#618092667ba9970bce53a42a251dede02a2d9784833d24185cabdb25ccd338e5#1
+- symbol:python:corporate.lib.stripe.BillingSession.do_update_plan:Method#dc821dc2dd19d0244e1e76e1bf7515ab5a20b86d588d1815ae3cfcc61304b9fb#1
+- symbol:python:corporate.lib.stripe.BillingSession.ensure_current_plan_is_upgradable:Method#e834864c754809854a83197a0c605d464d11024de19f69d9f429c6c81a88cf1c#1
+- symbol:python:zerver.lib.rate_limiter.RateLimitedObject.rate_limit_request:Method#274ddd73340e5e975dfad15c985c9d69941e9d8eb11f10bcf321074acb07e917#1
+- symbol:python:corporate.lib.stripe.RemoteRealmBillingSession.write_to_audit_log:Method#2dfb1c60afe73dd815656cdf5ca3d6accdd329c5d4657078dd84b3bb7b499e96#1
+- symbol:python:zerver.actions.message_send.send_rate_limited_pm_notification_to_bot_owner:Function#746e45ffd66f905e709ef28b293a9444193a6bdc6c48898a8b7c288a7c13c5af#1
+- symbol:python:zerver.lib.streams.access_requested_group_permissions_for_streams:Function#f7e298e9a5dcefd3ffc1148cb3d132df3ed90697ab65a9fdf49e4fa2c1ddf464#1
+- symbol:python:zerver.lib.streams.access_stream_for_send_message:Function#41588ff0ba5746697a806a6145a9456054336f0e2223265ec7774e9e670d962f#1
+- symbol:python:corporate.lib.stripe.BillingSession.update_customer_minimum_licenses:Method#99a9cb39702b6894a7e230ab8f899509af84bfd1324bc2c87e35dc047eb48266#1
+- symbol:python:zerver.lib.retention.delete_messages:Function#bb29eefaf91022fc98f51793a31195984398834ddc2c3e00a422bdff54d09280#1
+- symbol:python:corporate.lib.stripe.BillingSession.get_billing_context_from_plan:Method#5dab81ee89c8222ab241fd7e670c54f72d431d3815f9e1125efea1552bccb2eb#1
+- symbol:python:zerver.actions.message_send.send_rate_limited_pm_notification_to_bot_owner:Function#83fd97451fc83395670fb090fe221e3d63039c5a694cde294db6a99d9419bfde#1
+- symbol:python:zerver.actions.message_send.extract_private_recipients:Function#267266d21a05d18fe5e24cc8a9f128598d42f5c362d404058ccba2888a499680#1
+- symbol:python:zerver.lib.streams.access_stream_for_send_message:Function#80a9e50728b699d2255ab3df01fde57c67fbd6f55112dd5d713c21240b43214a#1
+- symbol:python:zerver.lib.streams.access_stream_common:Function#5869145d2b6534f032da01c6cbd6719889726f61ed5162ce5a58d5384c8093ca#1
+- symbol:python:zerver.lib.retention.move_expired_direct_messages_to_archive:Function#1e5cb7811addb845b003c41cadb84643071f5efbf3c4a4be763ae8362f8f659c#1
+- symbol:python:zerver.actions.message_send.internal_prep_stream_message:Function#1643bb3d8adc5122aebf0616a0e73f7dc72cc13abc633e36fc1dce01b1dd7eb6#1
+- symbol:python:corporate.lib.stripe.BillingSession.invoice_plan:Method#4e84c0d7516cd694f4369d72a49f6345c97af8988db1a681a81a2af9a9a138cc#1
+- symbol:python:zerver.lib.retention._process_grouped_messages_deletion:Function#bb2b6b30313d0231c222a8113bd1ab5fe0823125d91ad44a2547e6c4e34e9e37#1
+- symbol:python:zerver.actions.message_send.send_user_profile_update_notification:Function#6f328cfb0de06d576bb9ade5eb33d2c4facd701d08f9d8809b6836c5909d43ca#1
+- symbol:python:zerver.actions.message_send.do_send_messages:Function#97711f7e19685621c4f8d53bb3c9dc795f609da5e9d35b404dc7cd6112dd175f#1
+- symbol:python:zerver.lib.streams.access_stream_for_send_message:Function#a503b738eae8b947b2e9d2d5ef1cdd4b7e6016e4ac01be9a7a83c7b844e8e936#1
+- symbol:python:corporate.lib.stripe.RealmBillingSession.do_change_plan_type:Method#2068622952a2e69f2b6f12fc0320bdc08b6e459c2055f2b450cf34686c6a8993#1
+- symbol:python:zerver.lib.retention.move_expired_messages_to_archive_by_recipient:Function#1e5cb7811addb845b003c41cadb84643071f5efbf3c4a4be763ae8362f8f659c#1
+- symbol:python:corporate.lib.stripe.get_price_per_license:Function#f79b6c2d28eb19c6194e36dee56d7ef0bd2ad73cc27f1a4aa48a7964063ba533#1
+- symbol:python:corporate.lib.stripe.BillingSession.invoice_plan:Method#55ef783ed147c52fa50495ead7b217a626320fe1b04d1263c4728fa74666e23a#1
+- symbol:python:corporate.lib.stripe.RemoteRealmBillingSession.get_audit_log_event:Method#845f006b77af06c9e4c6049a146d66004c1a4eac7ed16306655131c8d50a4329#1
+- symbol:python:zerver.lib.rate_limiter.RateLimitedIPAddr.__init__:Method#5fbe10075fcb8b011344d0a2a465f3b83666a70310ed949a0e914f86cb1a2949#1
+- symbol:python:corporate.lib.stripe.BillingSession.downgrade_at_the_end_of_billing_cycle:Method#9d710080dec755040816b9f9fa3547056fa2bf6c06cd609fd6e987c4c8ef0fb5#1
+- symbol:python:zerver.actions.message_send.send_user_profile_update_notification:Function#9254df5e2b75d105c010b80e86aaf89571fec273822546a68982690224d22126#1
+- symbol:python:zerver.lib.streams.check_for_can_create_topic_group_violation:Function#b3921a026183662f1ac39b156b3be8cd802429089450e2a8d0bc47068719b566#1
+- symbol:python:zerver.lib.streams.access_stream_for_send_message:Function#caa20b02f223ccbcfa6de9c2e49d46fdce8037a74d369017de7d830be8b58d95#1
+- symbol:python:zerver.lib.streams.can_edit_topic:Function#5b8a7fc80c15c5fe2780170519cb63fd3e3445548cc72baee5ee4c3358723f6a#2
+- symbol:python:zerver.lib.retention.move_messages_to_archive:Function#1e5cb7811addb845b003c41cadb84643071f5efbf3c4a4be763ae8362f8f659c#1
+- symbol:python:zerver.lib.streams.get_streams_for_user:Function#22996155a78b20b31938578b354e32f98edf599bc510a45c7348a8dc195c3ed1#1
+- symbol:python:corporate.lib.stripe.BillingSession.make_end_of_cycle_updates_if_needed:Method#2769a574e1bdab47557d85cafb4291c45b95149705cafca3972764c442ed40e7#1
+- symbol:python:zerver.lib.streams.access_stream_for_delete_or_update_requiring_metadata_access:Function#604c0516bef47722a4684ce954d1b2760293bb86322fd8b3f9acfb99375db4c5#1
+- symbol:python:zerver.lib.rate_limiter.RateLimitedIPAddr.__init__:Method#c5117e3206d63da9446f156c9960d2869268f316b4836c41318c61b0d5bdb18a#1
+- symbol:python:zerver.lib.streams.list_to_streams:Function#006931f1392c314698f516820cd55b0e77cac61455957f955b66db7303114ddd#1
+- symbol:python:zerver.actions.message_send.send_user_profile_update_notification:Function#f41a393da0dc386ce3b2898386c6c54e654c9eceb2e62ca69a6e7525a6326f6e#1
+- symbol:python:zerver.lib.streams.bulk_can_access_stream_metadata_user_ids:Function#dfd9049ec4da2f51a86b483bcd13fd21205ed4b1d3dc02b55ff62b5591a9fb70#1
+- symbol:python:zerver.lib.streams.access_stream_for_send_message:Function#d937d3793987c226239e8d16731fb1cf32f288b3a078130c554344c90cdda089#1
+- symbol:python:corporate.lib.stripe.BillingSession.min_licenses_for_plan:Method#bdc5f7324395e01578384bad9c075961829dcdbaf4f5b44c87142b641c968f05#1
+- symbol:python:zerver.lib.retention.move_messages_to_archive:Function#9a45f7ed3bde2d517a1593d7d394b57cc5dd8f8caab4abc39bdce1d425d0ec8f#1
+- symbol:python:zerver.actions.message_send.create_user_messages:Function#2c0a7367a7984b331ab673080583ce7e5bb79f67f4481acb41b975ac7afb3dd9#1
+- symbol:python:corporate.lib.stripe.BillingSession.process_initial_upgrade:Method#519f7359be9ff249beb7df3f01f8af7d2ae2e4507253e55213485ae7df832ed4#1
+- symbol:python:corporate.lib.stripe.BillingSession.get_event_status:Method#f1d65758ba046cf72bad82310f0b37b285a72ec105190209bc44b097c030e9a1#1
+- symbol:python:zerver.lib.rate_limiter.RateLimitedObject.__init__:Method#f0fc44492ee4d1b5c5f1ac4026d32d48b2b57c57da79d3072a9685e6b9e466b6#1
+- symbol:python:zerver.lib.streams.create_stream_if_needed:Function#c471efdd7c7b4910dfffe2821dfeb3e8227921513fedaf9bdcb851019c5cddcf#1
 fill_points:
   ? symbol:python:corporate.lib.stripe.BillingSession.do_change_plan_to_new_tier:Method#cc22b7635096c136364fc6aba0bbef5f76b4dbb7e43dfdd14b4e00a2fae4f141#1
   : location: corporate/lib/stripe.py:3714
@@ -38,6 +98,43 @@ fill_points:
     contributions:
       decision_shape: 1
       downstream_calls: 8
+  ? symbol:python:corporate.lib.stripe.BillingSession.do_update_plan:Method#3f8c36adfb95cd28dff8cb8e24928a0dfd104b92ea224608944c85c5e1061618#1
+  : location: corporate/lib/stripe.py:3338
+    rank: 8
+    score: 12
+    contributions:
+      condition: 4
+      downstream_calls: 8
+  ? symbol:python:corporate.lib.stripe.BillingSession.do_update_plan:Method#dc821dc2dd19d0244e1e76e1bf7515ab5a20b86d588d1815ae3cfcc61304b9fb#1
+  : location: corporate/lib/stripe.py:3258
+    rank: 9
+    score: 12
+    contributions:
+      condition: 4
+      downstream_calls: 8
+  ? symbol:python:corporate.lib.stripe.BillingSession.downgrade_at_the_end_of_billing_cycle:Method#9d710080dec755040816b9f9fa3547056fa2bf6c06cd609fd6e987c4c8ef0fb5#1
+  : location: corporate/lib/stripe.py:3146
+    rank: 803
+    score: 0
+    contributions: {}
+  ? symbol:python:corporate.lib.stripe.BillingSession.ensure_current_plan_is_upgradable:Method#e834864c754809854a83197a0c605d464d11024de19f69d9f429c6c81a88cf1c#1
+  : location: corporate/lib/stripe.py:1968
+    rank: 243
+    score: 2
+    contributions:
+      decision_shape: 1
+      downstream_calls: 1
+  ? symbol:python:corporate.lib.stripe.BillingSession.get_billing_context_from_plan:Method#5dab81ee89c8222ab241fd7e670c54f72d431d3815f9e1125efea1552bccb2eb#1
+  : location: corporate/lib/stripe.py:2790
+    rank: 173
+    score: 4
+    contributions:
+      downstream_calls: 4
+  ? symbol:python:corporate.lib.stripe.BillingSession.get_event_status:Method#f1d65758ba046cf72bad82310f0b37b285a72ec105190209bc44b097c030e9a1#1
+  : location: corporate/lib/stripe.py:3760
+    rank: 824
+    score: 0
+    contributions: {}
   ? symbol:python:corporate.lib.stripe.BillingSession.get_initial_upgrade_context:Method#2fad6af08415d8a6c1785efa93996ff3717b51f6fd12c7a3830915d79bf61f0f#1
   : location: corporate/lib/stripe.py:2952
     rank: 366
@@ -50,6 +147,32 @@ fill_points:
     score: 7
     contributions:
       downstream_calls: 7
+  ? symbol:python:corporate.lib.stripe.BillingSession.invoice_plan:Method#4e84c0d7516cd694f4369d72a49f6345c97af8988db1a681a81a2af9a9a138cc#1
+  : location: corporate/lib/stripe.py:3563
+    rank: 11
+    score: 12
+    contributions:
+      condition: 4
+      downstream_calls: 8
+  ? symbol:python:corporate.lib.stripe.BillingSession.invoice_plan:Method#55ef783ed147c52fa50495ead7b217a626320fe1b04d1263c4728fa74666e23a#1
+  : location: corporate/lib/stripe.py:3570
+    rank: 12
+    score: 12
+    contributions:
+      condition: 4
+      downstream_calls: 8
+  ? symbol:python:corporate.lib.stripe.BillingSession.is_sponsored_or_pending:Method#5b8a7fc80c15c5fe2780170519cb63fd3e3445548cc72baee5ee4c3358723f6a#1
+  : location: corporate/lib/stripe.py:1179
+    rank: 848
+    score: 0
+    contributions: {}
+  ? symbol:python:corporate.lib.stripe.BillingSession.make_end_of_cycle_updates_if_needed:Method#2769a574e1bdab47557d85cafb4291c45b95149705cafca3972764c442ed40e7#1
+  : location: corporate/lib/stripe.py:2509
+    rank: 13
+    score: 12
+    contributions:
+      condition: 4
+      downstream_calls: 8
   ? symbol:python:corporate.lib.stripe.BillingSession.make_end_of_cycle_updates_if_needed:Method#7a162ee96027fe0109cecfab3e244655f34d5ad7074e149a415dd2d4eb2e35f5#1
   : location: corporate/lib/stripe.py:2582
     rank: 4
@@ -74,14 +197,56 @@ fill_points:
       condition: 4
       decision_shape: 1
       downstream_calls: 8
+  ? symbol:python:corporate.lib.stripe.BillingSession.min_licenses_for_plan:Method#bdc5f7324395e01578384bad9c075961829dcdbaf4f5b44c87142b641c968f05#1
+  : location: corporate/lib/stripe.py:3138
+    rank: 384
+    score: 1
+    contributions:
+      decision_shape: 1
+  ? symbol:python:corporate.lib.stripe.BillingSession.process_initial_upgrade:Method#519f7359be9ff249beb7df3f01f8af7d2ae2e4507253e55213485ae7df832ed4#1
+  : location: corporate/lib/stripe.py:2202
+    rank: 14
+    score: 12
+    contributions:
+      condition: 4
+      downstream_calls: 8
+  ? symbol:python:corporate.lib.stripe.BillingSession.process_support_view_request:Method#c150cb33f2374a36e1c3bdc85e290d4ac6982c6386995d731930acd5a17e5c0d#1
+  : location: corporate/lib/stripe.py:3904
+    rank: 93
+    score: 6
+    contributions:
+      downstream_calls: 6
+  ? symbol:python:corporate.lib.stripe.BillingSession.update_customer_minimum_licenses:Method#99a9cb39702b6894a7e230ab8f899509af84bfd1324bc2c87e35dc047eb48266#1
+  : location: corporate/lib/stripe.py:1514
+    rank: 223
+    score: 3
+    contributions:
+      downstream_calls: 3
   ? symbol:python:corporate.lib.stripe.BillingSession.update_license_ledger_for_automanaged_plan:Method#c74c251eb104fef92c058bfe9f2100beeb3769ebd5dcf92011a76c87e9c709a7#1
   : location: corporate/lib/stripe.py:4104
     rank: 875
     score: 0
     contributions: {}
+  ? symbol:python:corporate.lib.stripe.RealmBillingSession.do_change_plan_type:Method#2068622952a2e69f2b6f12fc0320bdc08b6e459c2055f2b450cf34686c6a8993#1
+  : location: corporate/lib/stripe.py:4497
+    rank: 886
+    score: 0
+    contributions: {}
+  ? symbol:python:corporate.lib.stripe.RemoteRealmBillingSession.get_audit_log_event:Method#845f006b77af06c9e4c6049a146d66004c1a4eac7ed16306655131c8d50a4329#1
+  : location: corporate/lib/stripe.py:4796
+    rank: 262
+    score: 2
+    contributions:
+      decision_shape: 1
+      downstream_calls: 1
   ? symbol:python:corporate.lib.stripe.RemoteRealmBillingSession.save_org_type_from_request_sponsorship_session:Method#dbb3efe5cb9915645399794b49fdd8dc7b134dbb2a7b26aa6b0da7e27ba42645#1
   : location: corporate/lib/stripe.py:5115
     rank: 909
+    score: 0
+    contributions: {}
+  ? symbol:python:corporate.lib.stripe.RemoteRealmBillingSession.write_to_audit_log:Method#2dfb1c60afe73dd815656cdf5ca3d6accdd329c5d4657078dd84b3bb7b499e96#1
+  : location: corporate/lib/stripe.py:4839
+    rank: 912
     score: 0
     contributions: {}
   ? symbol:python:corporate.lib.stripe.RemoteServerBillingSession.get_audit_log_event:Method#b381d74d0d31e083dec967fe81143f773094ab56178e140601b80229a60364dd#1
@@ -89,9 +254,46 @@ fill_points:
     rank: 928
     score: 0
     contributions: {}
+  ? symbol:python:corporate.lib.stripe.get_price_per_license:Function#f79b6c2d28eb19c6194e36dee56d7ef0bd2ad73cc27f1a4aa48a7964063ba533#1
+  : location: corporate/lib/stripe.py:5714
+    rank: 962
+    score: 0
+    contributions: {}
   ? symbol:python:zerver.actions.message_send.check_send_message:Function#47aa60670912f873b1fb333530298bf8e0fbe0315b6d4120fdc52cef2c30c0f1#1
   : location: zerver/actions/message_send.py:1610
     rank: 563
+    score: 1
+    contributions:
+      decision_shape: 1
+  ? symbol:python:zerver.actions.message_send.create_user_messages:Function#2c0a7367a7984b331ab673080583ce7e5bb79f67f4481acb41b975ac7afb3dd9#1
+  : location: zerver/actions/message_send.py:898
+    rank: 1002
+    score: 0
+    contributions: {}
+  ? symbol:python:zerver.actions.message_send.do_send_messages:Function#97711f7e19685621c4f8d53bb3c9dc795f609da5e9d35b404dc7cd6112dd175f#1
+  : location: zerver/actions/message_send.py:1151
+    rank: 1022
+    score: 0
+    contributions: {}
+  ? symbol:python:zerver.actions.message_send.extract_private_recipients:Function#267266d21a05d18fe5e24cc8a9f128598d42f5c362d404058ccba2888a499680#1
+  : location: zerver/actions/message_send.py:1513
+    rank: 1032
+    score: 0
+    contributions: {}
+  ? symbol:python:zerver.actions.message_send.extract_stream_indicator:Function#618092667ba9970bce53a42a251dede02a2d9784833d24185cabdb25ccd338e5#1
+  : location: zerver/actions/message_send.py:1486
+    rank: 1037
+    score: 0
+    contributions: {}
+  ? symbol:python:zerver.actions.message_send.extract_stream_indicator:Function#7a2455b8ec721f16cf54d4a3500f58f900b238b12e5bedd14f074b821a35a5d5#1
+  : location: zerver/actions/message_send.py:1490
+    rank: 576
+    score: 1
+    contributions:
+      decision_shape: 1
+  ? symbol:python:zerver.actions.message_send.internal_prep_stream_message:Function#1643bb3d8adc5122aebf0616a0e73f7dc72cc13abc633e36fc1dce01b1dd7eb6#1
+  : location: zerver/actions/message_send.py:2140
+    rank: 596
     score: 1
     contributions:
       decision_shape: 1
@@ -116,6 +318,78 @@ fill_points:
     contributions:
       decision_shape: 1
       downstream_calls: 8
+  ? symbol:python:zerver.actions.message_send.send_rate_limited_pm_notification_to_bot_owner:Function#6b4910fc445b3b7018a758d68a009f9f1fd7735216e3923ea22e902e316f763f#1
+  : location: zerver/actions/message_send.py:1650
+    rank: 44
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  ? symbol:python:zerver.actions.message_send.send_rate_limited_pm_notification_to_bot_owner:Function#746e45ffd66f905e709ef28b293a9444193a6bdc6c48898a8b7c288a7c13c5af#1
+  : location: zerver/actions/message_send.py:1640
+    rank: 45
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  ? symbol:python:zerver.actions.message_send.send_rate_limited_pm_notification_to_bot_owner:Function#83fd97451fc83395670fb090fe221e3d63039c5a694cde294db6a99d9419bfde#1
+  : location: zerver/actions/message_send.py:1658
+    rank: 46
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  ? symbol:python:zerver.actions.message_send.send_user_profile_update_notification:Function#6f328cfb0de06d576bb9ade5eb33d2c4facd701d08f9d8809b6836c5909d43ca#1
+  : location: zerver/actions/message_send.py:2375
+    rank: 47
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  ? symbol:python:zerver.actions.message_send.send_user_profile_update_notification:Function#9254df5e2b75d105c010b80e86aaf89571fec273822546a68982690224d22126#1
+  : location: zerver/actions/message_send.py:2372
+    rank: 48
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  ? symbol:python:zerver.actions.message_send.send_user_profile_update_notification:Function#f41a393da0dc386ce3b2898386c6c54e654c9eceb2e62ca69a6e7525a6326f6e#1
+  : location: zerver/actions/message_send.py:2369
+    rank: 49
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  ? symbol:python:zerver.lib.rate_limiter.RateLimitResult.__init__:Method#137636bd842c841e8dd3ce35a78742027ad31647327d57fe28f175755f7bc588#1
+  : location: zerver/lib/rate_limiter.py:309
+    rank: 201
+    score: 4
+    contributions:
+      condition: 4
+  ? symbol:python:zerver.lib.rate_limiter.RateLimitedIPAddr.__init__:Method#5fbe10075fcb8b011344d0a2a465f3b83666a70310ed949a0e914f86cb1a2949#1
+  : location: zerver/lib/rate_limiter.py:139
+    rank: 630
+    score: 1
+    contributions:
+      decision_shape: 1
+  ? symbol:python:zerver.lib.rate_limiter.RateLimitedIPAddr.__init__:Method#c5117e3206d63da9446f156c9960d2869268f316b4836c41318c61b0d5bdb18a#1
+  : location: zerver/lib/rate_limiter.py:139
+    rank: 631
+    score: 1
+    contributions:
+      decision_shape: 1
+  ? symbol:python:zerver.lib.rate_limiter.RateLimitedObject.__init__:Method#f0fc44492ee4d1b5c5f1ac4026d32d48b2b57c57da79d3072a9685e6b9e466b6#1
+  : location: zerver/lib/rate_limiter.py:34
+    rank: 632
+    score: 1
+    contributions:
+      decision_shape: 1
+  ? symbol:python:zerver.lib.rate_limiter.RateLimitedObject.rate_limit_request:Method#274ddd73340e5e975dfad15c985c9d69941e9d8eb11f10bcf321074acb07e917#1
+  : location: zerver/lib/rate_limiter.py:66
+    rank: 202
+    score: 4
+    contributions:
+      condition: 4
   ? symbol:python:zerver.lib.rate_limiter.RateLimitedUser.rules:Method#178bd4a86bb62cee036d9b6efa9c82788c842e11839254436fd7a004a1eb3b30#1
   : location: zerver/lib/rate_limiter.py:128
     rank: 146
@@ -148,6 +422,11 @@ fill_points:
     rank: 1087
     score: 0
     contributions: {}
+  ? symbol:python:zerver.lib.retention._process_grouped_messages_deletion:Function#bb2b6b30313d0231c222a8113bd1ab5fe0823125d91ad44a2547e6c4e34e9e37#1
+  : location: zerver/lib/retention.py:406
+    rank: 1097
+    score: 0
+    contributions: {}
   ? symbol:python:zerver.lib.retention.archive_direct_messages:Function#1e5cb7811addb845b003c41cadb84643071f5efbf3c4a4be763ae8362f8f659c#1
   : location: zerver/lib/retention.py:509
     rank: 637
@@ -166,15 +445,113 @@ fill_points:
     score: 1
     contributions:
       decision_shape: 1
+  ? symbol:python:zerver.lib.retention.archive_stream_messages:Function#7961f66d94ea7ab280ade382bf8d379cbd09ae7c0e97f0a6780f9dc58d7b8c15#1
+  : location: zerver/lib/retention.py:516
+    rank: 640
+    score: 1
+    contributions:
+      decision_shape: 1
+  symbol:python:zerver.lib.retention.delete_messages:Function#9a45f7ed3bde2d517a1593d7d394b57cc5dd8f8caab4abc39bdce1d425d0ec8f#1:
+    location: zerver/lib/retention.py:420
+    rank: 641
+    score: 1
+    contributions:
+      decision_shape: 1
+  symbol:python:zerver.lib.retention.delete_messages:Function#bb29eefaf91022fc98f51793a31195984398834ddc2c3e00a422bdff54d09280#1:
+    location: zerver/lib/retention.py:419
+    rank: 642
+    score: 1
+    contributions:
+      decision_shape: 1
+  ? symbol:python:zerver.lib.retention.move_expired_direct_messages_to_archive:Function#1e5cb7811addb845b003c41cadb84643071f5efbf3c4a4be763ae8362f8f659c#1
+  : location: zerver/lib/retention.py:240
+    rank: 643
+    score: 1
+    contributions:
+      decision_shape: 1
+  ? symbol:python:zerver.lib.retention.move_expired_messages_to_archive_by_recipient:Function#1e5cb7811addb845b003c41cadb84643071f5efbf3c4a4be763ae8362f8f659c#1
+  : location: zerver/lib/retention.py:207
+    rank: 644
+    score: 1
+    contributions:
+      decision_shape: 1
+  ? symbol:python:zerver.lib.retention.move_messages_to_archive:Function#1e5cb7811addb845b003c41cadb84643071f5efbf3c4a4be763ae8362f8f659c#1
+  : location: zerver/lib/retention.py:611
+    rank: 645
+    score: 1
+    contributions:
+      decision_shape: 1
+  ? symbol:python:zerver.lib.retention.move_messages_to_archive:Function#9a45f7ed3bde2d517a1593d7d394b57cc5dd8f8caab4abc39bdce1d425d0ec8f#1
+  : location: zerver/lib/retention.py:613
+    rank: 646
+    score: 1
+    contributions:
+      decision_shape: 1
   symbol:python:zerver.lib.retention.move_rows:Function#a1d8009aa224d27dffc26f1ac7ae72b0f64497c805713a906d7a519f0484399e#1:
     location: zerver/lib/retention.py:108
     rank: 649
     score: 1
     contributions:
       decision_shape: 1
+  ? symbol:python:zerver.lib.streams.access_requested_group_permissions_for_streams:Function#f7e298e9a5dcefd3ffc1148cb3d132df3ed90697ab65a9fdf49e4fa2c1ddf464#1
+  : location: zerver/lib/streams.py:1629
+    rank: 1114
+    score: 0
+    contributions: {}
+  ? symbol:python:zerver.lib.streams.access_stream_common:Function#5869145d2b6534f032da01c6cbd6719889726f61ed5162ce5a58d5384c8093ca#1
+  : location: zerver/lib/streams.py:988
+    rank: 659
+    score: 1
+    contributions:
+      decision_shape: 1
+  ? symbol:python:zerver.lib.streams.access_stream_for_delete_or_update_requiring_metadata_access:Function#604c0516bef47722a4684ce954d1b2760293bb86322fd8b3f9acfb99375db4c5#1
+  : location: zerver/lib/streams.py:909
+    rank: 1120
+    score: 0
+    contributions: {}
+  ? symbol:python:zerver.lib.streams.access_stream_for_send_message:Function#41588ff0ba5746697a806a6145a9456054336f0e2223265ec7774e9e670d962f#1
+  : location: zerver/lib/streams.py:702
+    rank: 149
+    score: 5
+    contributions:
+      decision_shape: 1
+      downstream_calls: 4
+  ? symbol:python:zerver.lib.streams.access_stream_for_send_message:Function#80a9e50728b699d2255ab3df01fde57c67fbd6f55112dd5d713c21240b43214a#1
+  : location: zerver/lib/streams.py:711
+    rank: 150
+    score: 5
+    contributions:
+      decision_shape: 1
+      downstream_calls: 4
+  ? symbol:python:zerver.lib.streams.access_stream_for_send_message:Function#a503b738eae8b947b2e9d2d5ef1cdd4b7e6016e4ac01be9a7a83c7b844e8e936#1
+  : location: zerver/lib/streams.py:690
+    rank: 151
+    score: 5
+    contributions:
+      decision_shape: 1
+      downstream_calls: 4
+  ? symbol:python:zerver.lib.streams.access_stream_for_send_message:Function#caa20b02f223ccbcfa6de9c2e49d46fdce8037a74d369017de7d830be8b58d95#1
+  : location: zerver/lib/streams.py:698
+    rank: 152
+    score: 5
+    contributions:
+      decision_shape: 1
+      downstream_calls: 4
+  ? symbol:python:zerver.lib.streams.access_stream_for_send_message:Function#d937d3793987c226239e8d16731fb1cf32f288b3a078130c554344c90cdda089#1
+  : location: zerver/lib/streams.py:707
+    rank: 153
+    score: 5
+    contributions:
+      decision_shape: 1
+      downstream_calls: 4
   ? symbol:python:zerver.lib.streams.bulk_can_access_stream_metadata_user_ids:Function#5e9ea88db98db54ba4c00ea8e070ac653ea2ac503231f44289aa4f43eedd2790#1
   : location: zerver/lib/streams.py:1177
     rank: 1133
+    score: 0
+    contributions: {}
+  ? symbol:python:zerver.lib.streams.bulk_can_access_stream_metadata_user_ids:Function#dfd9049ec4da2f51a86b483bcd13fd21205ed4b1d3dc02b55ff62b5591a9fb70#1
+  : location: zerver/lib/streams.py:1172
+    rank: 1135
     score: 0
     contributions: {}
   ? symbol:python:zerver.lib.streams.bulk_can_remove_subscribers_from_streams:Function#30411b250064a4a0a760812884781cfb54e174cd49a52324e3f7a02e97ebd35d#1
@@ -184,17 +561,56 @@ fill_points:
     contributions:
       decision_shape: 1
       downstream_calls: 6
+  symbol:python:zerver.lib.streams.can_edit_topic:Function#5b8a7fc80c15c5fe2780170519cb63fd3e3445548cc72baee5ee4c3358723f6a#2:
+    location: zerver/lib/streams.py:1316
+    rank: 1157
+    score: 0
+    contributions: {}
+  ? symbol:python:zerver.lib.streams.can_move_messages_out_of_channel:Function#5b8a7fc80c15c5fe2780170519cb63fd3e3445548cc72baee5ee4c3358723f6a#2
+  : location: zerver/lib/streams.py:1281
+    rank: 1161
+    score: 0
+    contributions: {}
+  ? symbol:python:zerver.lib.streams.check_channel_creation_permissions:Function#2293440cba4ee4a079f75b97f8dda87acf5aec6cd2b78b5f7686ffbd7e221089#1
+  : location: zerver/lib/streams.py:251
+    rank: 1176
+    score: 0
+    contributions: {}
+  ? symbol:python:zerver.lib.streams.check_for_can_create_topic_group_violation:Function#b3921a026183662f1ac39b156b3be8cd802429089450e2a8d0bc47068719b566#1
+  : location: zerver/lib/streams.py:754
+    rank: 1184
+    score: 0
+    contributions: {}
+  ? symbol:python:zerver.lib.streams.check_stream_access_for_delete_or_update_requiring_metadata_access:Function#cc40c72cd137523f86c5b54bf677a8d9c7a341e8a6d31c0f7e5ad67b860691f0#1
+  : location: zerver/lib/streams.py:876
+    rank: 109
+    score: 6
+    contributions:
+      decision_shape: 1
+      downstream_calls: 5
   ? symbol:python:zerver.lib.streams.create_stream_if_needed:Function#4f2f88394e1e0a836e82e29edeac742965c2ddc1c4bbf4f234f801cc108ca0d9#1
   : location: zerver/lib/streams.py:419
     rank: 1195
     score: 0
     contributions: {}
+  ? symbol:python:zerver.lib.streams.create_stream_if_needed:Function#c471efdd7c7b4910dfffe2821dfeb3e8227921513fedaf9bdcb851019c5cddcf#1
+  : location: zerver/lib/streams.py:380
+    rank: 706
+    score: 1
+    contributions:
+      decision_shape: 1
   ? symbol:python:zerver.lib.streams.create_stream_if_needed:Function#d18448cfcc575d5040d23593659f00c7c83f745512ffc000da9669a69eb61b35#1
   : location: zerver/lib/streams.py:457
     rank: 81
     score: 7
     contributions:
       downstream_calls: 7
+  ? symbol:python:zerver.lib.streams.get_streams_for_user:Function#22996155a78b20b31938578b354e32f98edf599bc510a45c7348a8dc195c3ed1#1
+  : location: zerver/lib/streams.py:2016
+    rank: 739
+    score: 1
+    contributions:
+      downstream_calls: 1
   ? symbol:python:zerver.lib.streams.get_streams_for_user:Function#2a5df3c98772882ec22209e0beb545dd53aeb35319f1dbe7719070b11c6116e1#1
   : location: zerver/lib/streams.py:2029
     rank: 740
@@ -204,6 +620,11 @@ fill_points:
   ? symbol:python:zerver.lib.streams.get_streams_to_which_user_cannot_add_subscribers:Function#c3624e0f6b67eacf90bf43f2325edaa165e40f6ff9c43ecdf94272055c3f30a8#1
   : location: zerver/lib/streams.py:1443
     rank: 1212
+    score: 0
+    contributions: {}
+  symbol:python:zerver.lib.streams.list_to_streams:Function#006931f1392c314698f516820cd55b0e77cac61455957f955b66db7303114ddd#1:
+    location: zerver/lib/streams.py:1680
+    rank: 1215
     score: 0
     contributions: {}
   symbol:python:zerver.lib.streams.list_to_streams:Function#34fc17825d433de711124911ba44a13bf134d066bd053c2f65cea46d0894ea1d#1:
@@ -673,4 +1094,64 @@ points:
     score: 5
     contributions:
       condition: 4
+      decision_shape: 1
+  zulip-0072:
+    selected_by: fill
+    rank: 640
+    score: 1
+    contributions:
+      decision_shape: 1
+  zulip-0073:
+    selected_by: fill
+    rank: 576
+    score: 1
+    contributions:
+      decision_shape: 1
+  zulip-0074:
+    selected_by: fill
+    rank: 8
+    score: 12
+    contributions:
+      condition: 4
+      downstream_calls: 8
+  zulip-0075:
+    selected_by: fill
+    rank: 1161
+    score: 0
+    contributions: {}
+  zulip-0076:
+    selected_by: fill
+    rank: 93
+    score: 6
+    contributions:
+      downstream_calls: 6
+  zulip-0077:
+    selected_by: fill
+    rank: 44
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  zulip-0078:
+    selected_by: fill
+    rank: 848
+    score: 0
+    contributions: {}
+  zulip-0079:
+    selected_by: fill
+    rank: 109
+    score: 6
+    contributions:
+      decision_shape: 1
+      downstream_calls: 5
+  zulip-0080:
+    selected_by: fill
+    rank: 1176
+    score: 0
+    contributions: {}
+  zulip-0081:
+    selected_by: fill
+    rank: 641
+    score: 1
+    contributions:
       decision_shape: 1

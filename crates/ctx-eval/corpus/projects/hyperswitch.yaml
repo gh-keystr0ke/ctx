@@ -733,7 +733,7 @@ points:
   evidence:
   - type: docs
     url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/integration-guide/workflows/smart-retries/README.md#L43
-    quote: "3. Merchant needs to specify N = Number of retries permitted"
+    quote: 3. Merchant needs to specify N = Number of retries permitted
   verified_by: codex-work
   second_label: null
   second_by: null
@@ -1223,7 +1223,7 @@ points:
   evidence:
   - type: docs
     url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/integration-guide/workflows/smart-retries/3ds-step-up-retries.md#L14
-    quote: "we seamlessly step up the authentication and attempt the payment again with same payment processor"
+    quote: we seamlessly step up the authentication and attempt the payment again with same payment processor
   verified_by: codex-work
   second_label: unclear
   second_by: codex-work-second
@@ -1275,4 +1275,124 @@ points:
   verified_by: codex-work
   second_label: unclear
   second_by: codex-work-second
+  note: null
+- id: hyperswitch-0061
+  anchor: symbol:rust:router.core.payments.routing.HybridRoutingStage.RoutingStage.route:Method#442978f8d3068e320df3dfc8d36201ed666a8b33265959734d7ff096988b00ec#1
+  location: crates/router/src/core/payments/routing.rs:1682
+  draft: null
+  drafted_by: null
+  label: null
+  category: null
+  evidence: []
+  verified_by: null
+  second_label: null
+  second_by: null
+  note: null
+- id: hyperswitch-0062
+  anchor: symbol:rust:router.core.payments.operations.tax_calculation.PaymentSessionUpdate.Domain<F,api::PaymentsDynamicTaxCalculationRequest,PaymentData<F>>.payments_dynamic_tax_calculation:Method#fa37b71b61728a1c8f5439e56dea65e73c3693632df72d3f3be52ffb33b70262#1
+  location: crates/router/src/core/payments/operations/tax_calculation.rs:283
+  draft: null
+  drafted_by: null
+  label: null
+  category: null
+  evidence: []
+  verified_by: null
+  second_label: null
+  second_by: null
+  note: null
+- id: hyperswitch-0063
+  anchor: symbol:rust:router.core.routing.helpers.TxnStatus.ForeignFrom<common_enums::AttemptStatus>.foreign_from:Method#110e426c38fef933c4c5480a5ffdbe3a03fe77ffdb5fec82983e36e55a7a23e2#1
+  location: crates/router/src/core/routing/helpers.rs:1784
+  draft: null
+  drafted_by: null
+  label: null
+  category: null
+  evidence: []
+  verified_by: null
+  second_label: null
+  second_by: null
+  note: null
+- id: hyperswitch-0064
+  anchor: symbol:rust:router.core.payments.helpers.make_url_with_signature:Function#c3ad433ef7f3c99793f0579070af9f4e491f8ed7601e1cdac933341fa01b8a07#1
+  location: crates/router/src/core/payments/helpers.rs:4773
+  draft: null
+  drafted_by: null
+  label: null
+  category: null
+  evidence: []
+  verified_by: null
+  second_label: null
+  second_by: null
+  note: null
+- id: hyperswitch-0065
+  anchor: symbol:rust:router.core.payments.routing.SessionRoutingStage.RoutingStage.route:Method#c4f3323def2960e667830033829894cf2889e2c6232df1eda0b1308b2f3fc8ba#1
+  location: crates/router/src/core/payments/routing.rs:991
+  draft: null
+  drafted_by: null
+  label: null
+  category: null
+  evidence: []
+  verified_by: null
+  second_label: null
+  second_by: null
+  note: null
+- id: hyperswitch-0066
+  anchor: symbol:rust:router.core.payments.operations.payment_confirm.PaymentConfirm.Domain<F,api::PaymentsRequest,PaymentData<F>>.create_payment_method:Method#4607686f58d133a0cde73c314fd066b0cc42fc37fe05c4ffca3a6c8916566974#1
+  location: crates/router/src/core/payments/operations/payment_confirm.rs:1228
+  draft: null
+  drafted_by: null
+  label: null
+  category: null
+  evidence: []
+  verified_by: null
+  second_label: null
+  second_by: null
+  note: null
+- id: hyperswitch-0067
+  anchor: symbol:rust:router.core.routing.helpers.TxnStatus.ForeignFrom<common_enums::AttemptStatus>.foreign_from:Method#12367362dc4e5ed7e9cf4b2b928f2a449149a6a0c46da9bbe9ec0ab470f97228#1
+  location: crates/router/src/core/routing/helpers.rs:1794
+  draft: null
+  drafted_by: null
+  label: null
+  category: null
+  evidence: []
+  verified_by: null
+  second_label: null
+  second_by: null
+  note: null
+- id: hyperswitch-0068
+  anchor: symbol:rust:router.core.payments.operations.payment_start.PaymentStart.GetTracker<F,PaymentData<F>,api::PaymentsStartRequest>.get_trackers:Method#1be9f490271a7ddaaef248ffdfedf54b7424dc30cd065c218601f3c2a69d9e38#1
+  location: crates/router/src/core/payments/operations/payment_start.rs:153
+  draft: null
+  drafted_by: null
+  label: null
+  category: null
+  evidence: []
+  verified_by: null
+  second_label: null
+  second_by: null
+  note: null
+- id: hyperswitch-0069
+  anchor: symbol:rust:router.core.payments.routing.get_chosen_connectors:Function#637a5d7b99f5757a23fc7efd601827d5820ab000b71ca31323fa125364296c57#1
+  location: crates/router/src/core/payments/routing.rs:3437
+  draft: null
+  drafted_by: null
+  label: null
+  category: null
+  evidence: []
+  verified_by: null
+  second_label: null
+  second_by: null
+  note: null
+- id: hyperswitch-0070
+  anchor: symbol:rust:router.core.payments.operations.tax_calculation.PaymentSessionUpdate.Domain<F,api::PaymentsDynamicTaxCalculationRequest,PaymentData<F>>.payments_dynamic_tax_calculation:Method#4c4beb7f8a5834cb89243a1facb9db53e862a7f4f6d8fe1f6481e57352ecd26d#1
+  location: crates/router/src/core/payments/operations/tax_calculation.rs:260
+  draft: null
+  drafted_by: null
+  label: null
+  category: null
+  evidence: []
+  verified_by: null
+  second_label: null
+  second_by: null
   note: null

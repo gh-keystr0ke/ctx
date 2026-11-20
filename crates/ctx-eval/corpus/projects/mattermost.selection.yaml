@@ -30,13 +30,98 @@ fill_order:
 - symbol:go:server.channels.app.App.UpdatePost:Method#859bacad908c6dd389e41496f73073540a6b7589e225f6c142a7ba0c4db68bc3#1
 - symbol:go:server.channels.app.App.leaveTeam:Method#a87cdf23c4d93e3f402c59753491b7e916de34c7a297075e429986f4d9a10269#1
 - symbol:go:server.channels.app.App.forEachChannelMember:Method#5d79bf8c94bd649fbb6101cb3e1fac390794333f62c9e78b4f1af7e5e36a6079#1
+- symbol:go:server.channels.app.App.CreateChannelWithUserAndPropertyValues:Method#a98030076de75f5f2d8030d57269c885e4a87fc52b5fc8794476dccd50a1846d#1
+- symbol:go:server.channels.app.App.UpdateTeamMemberSchemeRoles:Method#4f870a8c920ed02a8a8a28864b67d89871e43b0c45e5d235fa1a6d0503f096ea#1
+- symbol:go:server.channels.app.App.CreatePostAsUserWithFlags:Method#39545e9b817e995497ff434834eb7579be11d02e07a4d8a014e1a5cdcbb27f31#1
+- symbol:go:server.channels.app.App.PatchPost:Method#977b588c23d64354b4d7a58abad1eacffa42a8c118d240988de26a2ba0d50b61#1
+- symbol:go:server.channels.app.App.AddUserToTeamByToken:Method#918268f71092743482b300fe59288b52152d782c344ac65dd1fc7270cc97468a#1
+- symbol:go:server.channels.app.App.postRemoveFromTeamMessage:Method#5056ef4221991d2768f599e03fd8f3576e6dc32c2380110dc620dedae376559c#1
+- symbol:go:server.channels.app.App.CreateChannelWithUserAndPropertyValues:Method#b40dfda8374e59c2a94ca13d5854305be6ff2a126217124f4360c70186a359f0#1
+- symbol:go:server.channels.app.App.GetPostsForView:Method#33ac9447dd6cbae17cb761550d51569b4a8d90215507ddb278b3d60d67f6a998#1
+- symbol:go:server.channels.app.App.CreatePostAsUserWithFlags:Method#b7c0ca143f193d76f38a7070c18c2979eb823fd084344bdc5635692c26ad5959#1
+- symbol:go:server.channels.app.App.GetAllTeams:Method#cdfe3634d0c3fe8c5248aebb09e55d280702927178ed3ecbfc5553ddf1d0e5cb#1
+- symbol:go:server.channels.app.App.AdjustTeamsFromProductLimits:Method#53a4373dc7f1936f7cf29edfb0c35c03eebdec451fca8ab7acfe44e4820321eb#1
+- symbol:go:server.channels.app.App.MarkAllDirectAndGroupMessagesViewed:Method#810ab2f45177b57622127f5fa60777e5de0331b79db89e1efc6d3aa35bb7c1b5#1
+- symbol:go:server.channels.app.App.CreateChannelWithUserAndPropertyValues:Method#cb471591cef255d47b734d4fe8c5bdf70a41161943789111e998bad779a07596#1
+- symbol:go:server.channels.app.App.setupBroadcastHookForAbacFiles:Method#1c0d11bf9b3ea7533965396b74d447fa0f097851bb55b98a573f9ed30016399a#1
+- symbol:go:server.channels.app.App.CreatePostAsUserWithFlags:Method#e88d369623f67d46fd76617e728fb1026aedafd7e06bab044b9f37a7d48bdf73#1
+- symbol:go:server.channels.app.App.parseAndFetchChannelIdByNameFromInFilter:Method#f95d2993f86915bb767e9ba4956771958bf707ca767f514f4abf774a09816cca#5
+- symbol:go:server.channels.app.App.CreateTeamWithUser:Method#735a291c7be89155bd4144c98e50ae4d0bb7757a9c6d27b29e7b52c0eec08b26#1
+- symbol:go:server.channels.app.App.PostUpdateChannelHeaderMessage:Method#c561fd18ef38993cb2880b9c794e57050308ecafa6a13a9a35d293539d8ca0b3#1
+- symbol:go:server.channels.app.App.CreateChannelWithUserAndPropertyValues:Method#f95d2993f86915bb767e9ba4956771958bf707ca767f514f4abf774a09816cca#1
+- symbol:go:server.channels.app.App.ValidateMoveOrCopy:Method#cadbdad0cf2ce27bdd986ad83cc012c00e15e98c961195d148e4e937567d2d91#1
+- symbol:go:server.channels.app.App.DeletePost:Method#2c2726c7abccd4a402617ad37057837a5ebde175980058d6200df92a2e8fafdf#1
+- symbol:go:server.channels.app.App.RevealPost:Method#8b4d386d05a7aa58c6b151b4b9497e725e1ebf8225e85a9d69e0c464f4293c73#1
+- symbol:go:server.channels.app.App.CreateTeamWithUser:Method#f95d2993f86915bb767e9ba4956771958bf707ca767f514f4abf774a09816cca#1
+- symbol:go:server.channels.app.App.InviteNewUsersToTeamGracefully:Method#3403433e559528c855ffd5f4f6af23677da00be77041e0f42208fe50ccf42709#1
+- symbol:go:server.channels.app.App.CreateChannelWithUserAndPropertyValues:Method#f95d2993f86915bb767e9ba4956771958bf707ca767f514f4abf774a09816cca#2
+- symbol:go:server.channels.app.App.CreatePost:Method#251a6e18b6fb1e0118fcc8adfc6171328b46029033a5840f936f6911835503c5#1
+- symbol:go:server.channels.app.App.DeletePost:Method#a225847115c06fa5a70adfbdd7da044b1202c319528697bc65d7cd8ccc6f1c25#1
+- symbol:go:server.channels.app.App.sendUpdateChannelMemberEvent:Method#7347ce35fa8cb671b50c35c5f5c5b1c1ed6811295e1d8f389a0b9d25d1980db2#1
+- symbol:go:server.channels.app.App.JoinUserToTeam:Method#312d7962a4017c79a12fa891db61c0606dd1c65bf993349c1f58b23539def558#1
+- symbol:go:server.channels.app.App.SearchPublicTeams:Method#c23b5e5240236d24ae48d2421e2fa14a3c4c781da7658ffb13d0ae4783bec982#1
+- symbol:go:server.channels.app.App.CreateChannelWithUserAndPropertyValues:Method#fecdd84f0e6e909cdca5e0e8d08bf77af677d9e717a668bec8e34675fcb39e3f#1
+- symbol:go:server.channels.app.App.setupBroadcastHookForAbacFiles:Method#3a03e494604ae56caa6b6c467ed2107a7e2bb581c18980120730ccd54011c919#1
+- symbol:go:server.channels.app.App.DeletePost:Method#d4bd1db9810aa7b6a922556c096e6c420e40e20d8d0149a0c3eda207a4f1528b#1
+- symbol:go:server.channels.app.App.GetTeamByInviteId:Method#a8d1f69373107bf82e6b277aa273326b59df7e135dcd088fbce1f9e402371c3c#1
+- symbol:go:server.channels.app.App.JoinUserToTeam:Method#cd982e1e653bcb1e1d83af3d54382278665f9defb7c7e73938fe4220fec8e1b5#1
+- symbol:go:server.channels.app.App.GetPermalinkPost:Method#b49613ec2e2f27a6b87da88136fd6c12fcd113c8cc6124fa3cadeb5fa2c90f4e#1
+- symbol:go:server.channels.app.App.DeleteChannel:Method#11eed51f5f4bc0797f48b43955634b9f13d14ef7539ba93ba8802edf2644baaf#1
+- symbol:go:server.channels.app.App.RegenerateTeamInviteId:Method#f95d2993f86915bb767e9ba4956771958bf707ca767f514f4abf774a09816cca#1
+- symbol:go:server.channels.app.App.GetPermalinkPost:Method#a225847115c06fa5a70adfbdd7da044b1202c319528697bc65d7cd8ccc6f1c25#1
+- symbol:go:server.channels.app.App.postUpdateChannelAutotranslationMessage:Method#7c769a1fa35adfbdcb8f5d3bd4beb048cab12ecc78f0d1c1f0ba3d7b481d3a84#1
+- symbol:go:server.channels.app.App.leaveTeam:Method#1c4eeec55102914819b7f663f1f69f2721b2aaa9cf211d685f9183434e442c28#1
+- symbol:go:server.channels.app.App.CreateChannel:Method#c8d4ad2962c2a365a3ce01d2038ee758bee6764f05b12adf05d32292222e0bfa#1
+- symbol:go:server.channels.app.App.DeleteChannel:Method#1c4b1ecdb2dc6f6dd03c5118cfee13fdf1c631453224b7ee039f5332ee993915#1
+- symbol:go:server.channels.app.App.getEditHistoryForPost:Method#28caed3fe2d0fee27a7c23ec4d02dd750c36ad86ab3e85f225815659b555b8bc#1
+- symbol:go:server.channels.app.App.GetPermalinkPost:Method#b446ebcb4dc4318b50a66a5dae767a558a071907815b6cebed15b31ec73f0e4a#1
+- symbol:go:server.channels.app.App.SearchPostsForUser:Method#335556ec9c2366e4912def81e6ef8e64552468ab9e8b9a89d47ec979cadeb76c#1
+- symbol:go:server.channels.app.App.leaveTeam:Method#e088b953225daa8bf09ecd479e856049dc35a3b79619d69d2ad39fa85243069b#1
+- symbol:go:server.channels.app.App.buildThreadContextForRewrite:Method#3434dffe3e7ccca398763b4c7756768f6bd91e6b717b5ec59db90bd50b847e84#1
+- symbol:go:server.channels.app.App.DeleteChannel:Method#6cce06d5c4e27e5a9e5f9f42639f3bcb21c99125cf98cc44e1bd3e2c17fa63fc#1
+- symbol:go:server.channels.app.App.updateTeamMemberRolesInternal:Method#f95d2993f86915bb767e9ba4956771958bf707ca767f514f4abf774a09816cca#1
+- symbol:go:server.channels.app.App.AddUserToTeamByInviteId:Method#8618f9d7654517e8b3bb2b89a49931ab7aaf89113dc2cb617e032d8795aa3c77#1
+- symbol:go:server.channels.app.App.ValidateMoveOrCopy:Method#059ce7abd5384cb564cf9df53c1dcbc407a613cafed589ac930da76dde852cdd#1
+- symbol:go:server.channels.app.App.DeleteChannel:Method#aa025958979c32c66af2b5b2284554043bbda3e54debc22888479bb34ea61792#1
+- symbol:go:server.channels.app.App.CheckPostReminders:Method#a8728251853654d50ffd1811f5d6c6c3f12788717916502e3856448f471d6f40#1
+- symbol:go:server.channels.app.App.MoveThread:Method#5852bb7695904acbdecdf4fadc5ff2579d277c36b0cb5448be70a7cd60d0a237#1
+- symbol:go:server.channels.app.App.MoveChannel:Method#b8dc230897a9aa16ff47c03a5d078c52bc32067082092879b32bc8ae8d5ced9f#1
+- symbol:go:server.channels.app.App.CreateTeamWithUser:Method#f95d2993f86915bb767e9ba4956771958bf707ca767f514f4abf774a09816cca#2
+- symbol:go:server.channels.app.App.UpdatePost:Method#63c3405932c2ebaed83d04375fff93f62e4fcd7825db333e5db30963eee7b3f6#1
+- symbol:go:server.channels.app.App.DeleteChannel:Method#e0a83bc204f01c2d501b70bf555427a52522b27c0143ce59b107df0e5d28418a#1
+- symbol:go:server.channels.app.App.AddUserToTeamByTeamId:Method#86e0691b319d068f08038662efa818a26618b46c42e71dfc9ef3ab0c34d7a223#1
 fill_points:
+  ? symbol:go:server.channels.app.App.AddUserToTeamByInviteId:Method#8618f9d7654517e8b3bb2b89a49931ab7aaf89113dc2cb617e032d8795aa3c77#1
+  : location: server/channels/app/team.go:731
+    rank: 153
+    score: 7
+    contributions:
+      decision_shape: 1
+      downstream_calls: 6
+  ? symbol:go:server.channels.app.App.AddUserToTeamByTeamId:Method#86e0691b319d068f08038662efa818a26618b46c42e71dfc9ef3ab0c34d7a223#1
+  : location: server/channels/app/team.go:590
+    rank: 1049
+    score: 0
+    contributions: {}
+  symbol:go:server.channels.app.App.AddUserToTeamByToken:Method#918268f71092743482b300fe59288b52152d782c344ac65dd1fc7270cc97468a#1:
+    location: server/channels/app/team.go:605
+    rank: 126
+    score: 8
+    contributions:
+      decision_shape: 1
+      downstream_calls: 7
   ? symbol:go:server.channels.app.App.AddUserToTeamWithToken:Method#95bf3154be1d33d51c3c84bc015ef85f1e2824a6145f008b662f87a842be92f0#1
   : location: server/channels/app/team.go:667
     rank: 11
     score: 9
     contributions:
       decision_shape: 1
+      downstream_calls: 8
+  ? symbol:go:server.channels.app.App.AdjustTeamsFromProductLimits:Method#53a4373dc7f1936f7cf29edfb0c35c03eebdec451fca8ab7acfe44e4820321eb#1
+  : location: server/channels/app/team.go:58
+    rank: 127
+    score: 8
+    contributions:
       downstream_calls: 8
   ? symbol:go:server.channels.app.App.AdjustTeamsFromProductLimits:Method#6da3350a7a2ddb987aa59981e5410daa026648bdf03ce70f17e519890371fb3e#1
   : location: server/channels/app/team.go:35
@@ -52,6 +137,11 @@ fill_points:
     contributions:
       decision_shape: 1
       downstream_calls: 8
+  symbol:go:server.channels.app.App.CheckPostReminders:Method#a8728251853654d50ffd1811f5d6c6c3f12788717916502e3856448f471d6f40#1:
+    location: server/channels/app/post.go:3256
+    rank: 1073
+    score: 0
+    contributions: {}
   ? symbol:go:server.channels.app.App.CleanUpAfterPostDeletion:Method#5056ef4221991d2768f599e03fd8f3576e6dc32c2380110dc620dedae376559c#1
   : location: server/channels/app/post.go:3779
     rank: 1074
@@ -84,6 +174,11 @@ fill_points:
     score: 1
     contributions:
       decision_shape: 1
+  symbol:go:server.channels.app.App.CreateChannel:Method#c8d4ad2962c2a365a3ce01d2038ee758bee6764f05b12adf05d32292222e0bfa#1:
+    location: server/channels/app/channel.go:315
+    rank: 1102
+    score: 0
+    contributions: {}
   ? symbol:go:server.channels.app.App.CreateChannelWithUserAndPropertyValues:Method#474e799365fc60f7b1163d4d9b7bf54874927725c789fce2473551351b7f1a6b#1
   : location: server/channels/app/channel.go:176
     rank: 21
@@ -98,6 +193,54 @@ fill_points:
     contributions:
       decision_shape: 1
       downstream_calls: 8
+  ? symbol:go:server.channels.app.App.CreateChannelWithUserAndPropertyValues:Method#a98030076de75f5f2d8030d57269c885e4a87fc52b5fc8794476dccd50a1846d#1
+  : location: server/channels/app/channel.go:198
+    rank: 23
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  ? symbol:go:server.channels.app.App.CreateChannelWithUserAndPropertyValues:Method#b40dfda8374e59c2a94ca13d5854305be6ff2a126217124f4360c70186a359f0#1
+  : location: server/channels/app/channel.go:184
+    rank: 24
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  ? symbol:go:server.channels.app.App.CreateChannelWithUserAndPropertyValues:Method#cb471591cef255d47b734d4fe8c5bdf70a41161943789111e998bad779a07596#1
+  : location: server/channels/app/channel.go:188
+    rank: 25
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  ? symbol:go:server.channels.app.App.CreateChannelWithUserAndPropertyValues:Method#f95d2993f86915bb767e9ba4956771958bf707ca767f514f4abf774a09816cca#1
+  : location: server/channels/app/channel.go:194
+    rank: 26
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  ? symbol:go:server.channels.app.App.CreateChannelWithUserAndPropertyValues:Method#f95d2993f86915bb767e9ba4956771958bf707ca767f514f4abf774a09816cca#2
+  : location: server/channels/app/channel.go:205
+    rank: 27
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  ? symbol:go:server.channels.app.App.CreateChannelWithUserAndPropertyValues:Method#fecdd84f0e6e909cdca5e0e8d08bf77af677d9e717a668bec8e34675fcb39e3f#1
+  : location: server/channels/app/channel.go:180
+    rank: 28
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  symbol:go:server.channels.app.App.CreatePost:Method#251a6e18b6fb1e0118fcc8adfc6171328b46029033a5840f936f6911835503c5#1:
+    location: server/channels/app/post.go:373
+    rank: 654
+    score: 1
+    contributions:
+      decision_shape: 1
   symbol:go:server.channels.app.App.CreatePost:Method#326cc0bcb334d5c0e9709b0a7adef9079696759d99ef5a46f3bf97c720d4a49d#1:
     location: server/channels/app/post.go:179
     rank: 30
@@ -133,16 +276,213 @@ fill_points:
     contributions:
       decision_shape: 1
       downstream_calls: 8
+  ? symbol:go:server.channels.app.App.CreatePostAsUserWithFlags:Method#39545e9b817e995497ff434834eb7579be11d02e07a4d8a014e1a5cdcbb27f31#1
+  : location: server/channels/app/post.go:50
+    rank: 35
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  ? symbol:go:server.channels.app.App.CreatePostAsUserWithFlags:Method#b7c0ca143f193d76f38a7070c18c2979eb823fd084344bdc5635692c26ad5959#1
+  : location: server/channels/app/post.go:45
+    rank: 36
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  ? symbol:go:server.channels.app.App.CreatePostAsUserWithFlags:Method#e88d369623f67d46fd76617e728fb1026aedafd7e06bab044b9f37a7d48bdf73#1
+  : location: server/channels/app/post.go:54
+    rank: 37
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  symbol:go:server.channels.app.App.CreateTeamWithUser:Method#735a291c7be89155bd4144c98e50ae4d0bb7757a9c6d27b29e7b52c0eec08b26#1:
+    location: server/channels/app/team.go:148
+    rank: 129
+    score: 8
+    contributions:
+      decision_shape: 1
+      downstream_calls: 7
+  symbol:go:server.channels.app.App.CreateTeamWithUser:Method#f95d2993f86915bb767e9ba4956771958bf707ca767f514f4abf774a09816cca#1:
+    location: server/channels/app/team.go:143
+    rank: 130
+    score: 8
+    contributions:
+      decision_shape: 1
+      downstream_calls: 7
+  symbol:go:server.channels.app.App.CreateTeamWithUser:Method#f95d2993f86915bb767e9ba4956771958bf707ca767f514f4abf774a09816cca#2:
+    location: server/channels/app/team.go:153
+    rank: 157
+    score: 7
+    contributions:
+      decision_shape: 1
+      downstream_calls: 6
+  symbol:go:server.channels.app.App.DeleteChannel:Method#11eed51f5f4bc0797f48b43955634b9f13d14ef7539ba93ba8802edf2644baaf#1:
+    location: server/channels/app/channel.go:1783
+    rank: 38
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  symbol:go:server.channels.app.App.DeleteChannel:Method#1c4b1ecdb2dc6f6dd03c5118cfee13fdf1c631453224b7ee039f5332ee993915#1:
+    location: server/channels/app/channel.go:1787
+    rank: 39
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  symbol:go:server.channels.app.App.DeleteChannel:Method#6cce06d5c4e27e5a9e5f9f42639f3bcb21c99125cf98cc44e1bd3e2c17fa63fc#1:
+    location: server/channels/app/channel.go:1792
+    rank: 40
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
   symbol:go:server.channels.app.App.DeleteChannel:Method#a7650fa5733a02df6b5a758c5c31b8c9798a6dce299f12984b68ff3b4e0b9fa4#1:
     location: server/channels/app/channel.go:1867
     rank: 1178
     score: 0
     contributions: {}
+  symbol:go:server.channels.app.App.DeleteChannel:Method#aa025958979c32c66af2b5b2284554043bbda3e54debc22888479bb34ea61792#1:
+    location: server/channels/app/channel.go:1814
+    rank: 41
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  symbol:go:server.channels.app.App.DeleteChannel:Method#e0a83bc204f01c2d501b70bf555427a52522b27c0143ce59b107df0e5d28418a#1:
+    location: server/channels/app/channel.go:1778
+    rank: 42
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  symbol:go:server.channels.app.App.DeletePost:Method#2c2726c7abccd4a402617ad37057837a5ebde175980058d6200df92a2e8fafdf#1:
+    location: server/channels/app/post.go:2257
+    rank: 43
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  symbol:go:server.channels.app.App.DeletePost:Method#a225847115c06fa5a70adfbdd7da044b1202c319528697bc65d7cd8ccc6f1c25#1:
+    location: server/channels/app/post.go:2253
+    rank: 44
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  symbol:go:server.channels.app.App.DeletePost:Method#d4bd1db9810aa7b6a922556c096e6c420e40e20d8d0149a0c3eda207a4f1528b#1:
+    location: server/channels/app/post.go:2248
+    rank: 45
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  symbol:go:server.channels.app.App.GetAllTeams:Method#cdfe3634d0c3fe8c5248aebb09e55d280702927178ed3ecbfc5553ddf1d0e5cb#1:
+    location: server/channels/app/team.go:1004
+    rank: 686
+    score: 1
+    contributions:
+      decision_shape: 1
+  symbol:go:server.channels.app.App.GetPermalinkPost:Method#a225847115c06fa5a70adfbdd7da044b1202c319528697bc65d7cd8ccc6f1c25#1:
+    location: server/channels/app/post.go:1904
+    rank: 46
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  symbol:go:server.channels.app.App.GetPermalinkPost:Method#b446ebcb4dc4318b50a66a5dae767a558a071907815b6cebed15b31ec73f0e4a#1:
+    location: server/channels/app/post.go:1912
+    rank: 47
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  symbol:go:server.channels.app.App.GetPermalinkPost:Method#b49613ec2e2f27a6b87da88136fd6c12fcd113c8cc6124fa3cadeb5fa2c90f4e#1:
+    location: server/channels/app/post.go:1908
+    rank: 48
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  symbol:go:server.channels.app.App.GetPostsForView:Method#33ac9447dd6cbae17cb761550d51569b4a8d90215507ddb278b3d60d67f6a998#1:
+    location: server/channels/app/post.go:1512
+    rank: 279
+    score: 4
+    contributions:
+      condition: 4
+  symbol:go:server.channels.app.App.GetTeamByInviteId:Method#a8d1f69373107bf82e6b277aa273326b59df7e135dcd088fbce1f9e402371c3c#1:
+    location: server/channels/app/team.go:992
+    rank: 1297
+    score: 0
+    contributions: {}
+  ? symbol:go:server.channels.app.App.InviteNewUsersToTeamGracefully:Method#3403433e559528c855ffd5f4f6af23677da00be77041e0f42208fe50ccf42709#1
+  : location: server/channels/app/team.go:1607
+    rank: 174
+    score: 6
+    contributions:
+      decision_shape: 1
+      downstream_calls: 5
+  symbol:go:server.channels.app.App.JoinUserToTeam:Method#312d7962a4017c79a12fa891db61c0606dd1c65bf993349c1f58b23539def558#1:
+    location: server/channels/app/team.go:842
+    rank: 136
+    score: 8
+    contributions:
+      decision_shape: 1
+      downstream_calls: 7
+  symbol:go:server.channels.app.App.JoinUserToTeam:Method#cd982e1e653bcb1e1d83af3d54382278665f9defb7c7e73938fe4220fec8e1b5#1:
+    location: server/channels/app/team.go:846
+    rank: 137
+    score: 8
+    contributions:
+      decision_shape: 1
+      downstream_calls: 7
+  ? symbol:go:server.channels.app.App.MarkAllDirectAndGroupMessagesViewed:Method#810ab2f45177b57622127f5fa60777e5de0331b79db89e1efc6d3aa35bb7c1b5#1
+  : location: server/channels/app/channel.go:3679
+    rank: 771
+    score: 1
+    contributions:
+      decision_shape: 1
+  symbol:go:server.channels.app.App.MoveChannel:Method#b8dc230897a9aa16ff47c03a5d078c52bc32067082092879b32bc8ae8d5ced9f#1:
+    location: server/channels/app/channel.go:3897
+    rank: 781
+    score: 1
+    contributions:
+      decision_shape: 1
   symbol:go:server.channels.app.App.MoveChannel:Method#ec0ba42d88722e0606c4b84d57faa8b13c36ee08023a225fcf5bc627339f9985#1:
     location: server/channels/app/channel.go:3984
     rank: 1397
     score: 0
     contributions: {}
+  symbol:go:server.channels.app.App.MoveThread:Method#5852bb7695904acbdecdf4fadc5ff2579d277c36b0cb5448be70a7cd60d0a237#1:
+    location: server/channels/app/post.go:3600
+    rank: 60
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  symbol:go:server.channels.app.App.PatchPost:Method#977b588c23d64354b4d7a58abad1eacffa42a8c118d240988de26a2ba0d50b61#1:
+    location: server/channels/app/post.go:1438
+    rank: 79
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  ? symbol:go:server.channels.app.App.PostUpdateChannelHeaderMessage:Method#c561fd18ef38993cb2880b9c794e57050308ecafa6a13a9a35d293539d8ca0b3#1
+  : location: server/channels/app/channel.go:2156
+    rank: 82
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  ? symbol:go:server.channels.app.App.RegenerateTeamInviteId:Method#f95d2993f86915bb767e9ba4956771958bf707ca767f514f4abf774a09816cca#1
+  : location: server/channels/app/team.go:310
+    rank: 526
+    score: 2
+    contributions:
+      decision_shape: 1
+      downstream_calls: 1
   ? symbol:go:server.channels.app.App.RemoveUserFromChannel:Method#c0e13a94b13d310501258a60d8ce64c92ff8901eb398642660531454eb6cbb77#1
   : location: server/channels/app/channel.go:3180
     rank: 85
@@ -150,6 +490,25 @@ fill_points:
     contributions:
       decision_shape: 1
       downstream_calls: 8
+  symbol:go:server.channels.app.App.RevealPost:Method#8b4d386d05a7aa58c6b151b4b9497e725e1ebf8225e85a9d69e0c464f4293c73#1:
+    location: server/channels/app/post.go:4104
+    rank: 92
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  symbol:go:server.channels.app.App.SearchPostsForUser:Method#335556ec9c2366e4912def81e6ef8e64552468ab9e8b9a89d47ec979cadeb76c#1:
+    location: server/channels/app/post.go:2579
+    rank: 835
+    score: 1
+    contributions:
+      decision_shape: 1
+  symbol:go:server.channels.app.App.SearchPublicTeams:Method#c23b5e5240236d24ae48d2421e2fa14a3c4c781da7658ffb13d0ae4783bec982#1:
+    location: server/channels/app/team.go:1069
+    rank: 839
+    score: 1
+    contributions:
+      decision_shape: 1
   symbol:go:server.channels.app.App.SendTestMessage:Method#223d52a14dd245d8ef0f446fdf3529644a96c05fc23d9162b25b06607731f3fd#1:
     location: server/channels/app/post.go:3784
     rank: 96
@@ -157,6 +516,11 @@ fill_points:
     contributions:
       decision_shape: 1
       downstream_calls: 8
+  symbol:go:server.channels.app.App.UpdatePost:Method#63c3405932c2ebaed83d04375fff93f62e4fcd7825db333e5db30963eee7b3f6#1:
+    location: server/channels/app/post.go:1180
+    rank: 1554
+    score: 0
+    contributions: {}
   symbol:go:server.channels.app.App.UpdatePost:Method#859bacad908c6dd389e41496f73073540a6b7589e225f6c142a7ba0c4db68bc3#1:
     location: server/channels/app/post.go:979
     rank: 108
@@ -171,6 +535,30 @@ fill_points:
     contributions:
       decision_shape: 1
       downstream_calls: 8
+  ? symbol:go:server.channels.app.App.UpdateTeamMemberSchemeRoles:Method#4f870a8c920ed02a8a8a28864b67d89871e43b0c45e5d235fa1a6d0503f096ea#1
+  : location: server/channels/app/team.go:486
+    rank: 545
+    score: 2
+    contributions:
+      decision_shape: 1
+      downstream_calls: 1
+  symbol:go:server.channels.app.App.ValidateMoveOrCopy:Method#059ce7abd5384cb564cf9df53c1dcbc407a613cafed589ac930da76dde852cdd#1:
+    location: server/channels/app/post.go:3401
+    rank: 433
+    score: 3
+    contributions:
+      decision_shape: 1
+      downstream_calls: 2
+  symbol:go:server.channels.app.App.ValidateMoveOrCopy:Method#cadbdad0cf2ce27bdd986ad83cc012c00e15e98c961195d148e4e937567d2d91#1:
+    location: server/channels/app/post.go:3408
+    rank: 1589
+    score: 0
+    contributions: {}
+  ? symbol:go:server.channels.app.App.buildThreadContextForRewrite:Method#3434dffe3e7ccca398763b4c7756768f6bd91e6b717b5ec59db90bd50b847e84#1
+  : location: server/channels/app/post.go:3907
+    rank: 1616
+    score: 0
+    contributions: {}
   ? symbol:go:server.channels.app.App.cleanupTeamAccessControlPolicy:Method#ad830ebbd02859e819f16ec4ceb66e91cd2b8efaec8598479603ec05fdb71a25#1
   : location: server/channels/app/team.go:2206
     rank: 1637
@@ -188,6 +576,17 @@ fill_points:
     rank: 1699
     score: 0
     contributions: {}
+  ? symbol:go:server.channels.app.App.getEditHistoryForPost:Method#28caed3fe2d0fee27a7c23ec4d02dd750c36ad86ab3e85f225815659b555b8bc#1
+  : location: server/channels/app/post.go:3092
+    rank: 1704
+    score: 0
+    contributions: {}
+  symbol:go:server.channels.app.App.leaveTeam:Method#1c4eeec55102914819b7f663f1f69f2721b2aaa9cf211d685f9183434e442c28#1:
+    location: server/channels/app/team.go:1430
+    rank: 148
+    score: 8
+    contributions:
+      downstream_calls: 8
   symbol:go:server.channels.app.App.leaveTeam:Method#8ddb237d24e472435fd3aa150ccbd1ef8311b04bca8f251fe410b6a08ab3e7d9#1:
     location: server/channels/app/team.go:1417
     rank: 114
@@ -202,6 +601,29 @@ fill_points:
     contributions:
       decision_shape: 1
       downstream_calls: 8
+  symbol:go:server.channels.app.App.leaveTeam:Method#e088b953225daa8bf09ecd479e856049dc35a3b79619d69d2ad39fa85243069b#1:
+    location: server/channels/app/team.go:1442
+    rank: 149
+    score: 8
+    contributions:
+      downstream_calls: 8
+  ? symbol:go:server.channels.app.App.parseAndFetchChannelIdByNameFromInFilter:Method#f95d2993f86915bb767e9ba4956771958bf707ca767f514f4abf774a09816cca#5
+  : location: server/channels/app/post.go:2358
+    rank: 942
+    score: 1
+    contributions:
+      decision_shape: 1
+  ? symbol:go:server.channels.app.App.postRemoveFromTeamMessage:Method#5056ef4221991d2768f599e03fd8f3576e6dc32c2380110dc620dedae376559c#1
+  : location: server/channels/app/team.go:1499
+    rank: 1752
+    score: 0
+    contributions: {}
+  ? symbol:go:server.channels.app.App.postUpdateChannelAutotranslationMessage:Method#7c769a1fa35adfbdcb8f5d3bd4beb048cab12ecc78f0d1c1f0ba3d7b481d3a84#1
+  : location: server/channels/app/channel.go:2245
+    rank: 962
+    score: 1
+    contributions:
+      decision_shape: 1
   ? symbol:go:server.channels.app.App.prepareInviteGuestsToChannels:Method#9a94f37bdbf05dbb2c60bfe20461a4ad4bb686dbf86dcc6c87d9d562fa11a324#1
   : location: server/channels/app/team.go:1825
     rank: 966
@@ -221,9 +643,33 @@ fill_points:
     contributions:
       decision_shape: 1
       downstream_calls: 3
+  ? symbol:go:server.channels.app.App.sendUpdateChannelMemberEvent:Method#7347ce35fa8cb671b50c35c5f5c5b1c1ed6811295e1d8f389a0b9d25d1980db2#1
+  : location: server/channels/app/channel.go:1708
+    rank: 990
+    score: 1
+    contributions:
+      decision_shape: 1
+  ? symbol:go:server.channels.app.App.setupBroadcastHookForAbacFiles:Method#1c0d11bf9b3ea7533965396b74d447fa0f097851bb55b98a573f9ed30016399a#1
+  : location: server/channels/app/post.go:1295
+    rank: 996
+    score: 1
+    contributions:
+      decision_shape: 1
+  ? symbol:go:server.channels.app.App.setupBroadcastHookForAbacFiles:Method#3a03e494604ae56caa6b6c467ed2107a7e2bb581c18980120730ccd54011c919#1
+  : location: server/channels/app/post.go:1305
+    rank: 1816
+    score: 0
+    contributions: {}
   ? symbol:go:server.channels.app.App.supplementWithTranslationUpdatedPosts:Method#0b2f67d5906e50fab072f58c84ef4776683734cb658d444dd81f22f659f0c47a#1
   : location: server/channels/app/post.go:1670
     rank: 580
+    score: 2
+    contributions:
+      decision_shape: 1
+      downstream_calls: 1
+  ? symbol:go:server.channels.app.App.updateTeamMemberRolesInternal:Method#f95d2993f86915bb767e9ba4956771958bf707ca767f514f4abf774a09816cca#1
+  : location: server/channels/app/team.go:402
+    rank: 593
     score: 2
     contributions:
       decision_shape: 1
@@ -709,4 +1155,70 @@ points:
     score: 5
     contributions:
       condition: 4
+      decision_shape: 1
+  mattermost-0073:
+    selected_by: fill
+    rank: 23
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  mattermost-0074:
+    selected_by: fill
+    rank: 545
+    score: 2
+    contributions:
+      decision_shape: 1
+      downstream_calls: 1
+  mattermost-0075:
+    selected_by: fill
+    rank: 35
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  mattermost-0076:
+    selected_by: fill
+    rank: 79
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  mattermost-0077:
+    selected_by: fill
+    rank: 126
+    score: 8
+    contributions:
+      decision_shape: 1
+      downstream_calls: 7
+  mattermost-0078:
+    selected_by: fill
+    rank: 1752
+    score: 0
+    contributions: {}
+  mattermost-0079:
+    selected_by: fill
+    rank: 24
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  mattermost-0080:
+    selected_by: fill
+    rank: 279
+    score: 4
+    contributions:
+      condition: 4
+  mattermost-0081:
+    selected_by: fill
+    rank: 36
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  mattermost-0082:
+    selected_by: fill
+    rank: 686
+    score: 1
+    contributions:
       decision_shape: 1

@@ -30,7 +30,111 @@ fill_order:
 - symbol:python:nova.compute.api._find_service_in_cell:Function#9f3d0aa68b721a2c877de90f5987d87c0d6281f310e10ebd6df90c5efaaa3919#1
 - symbol:python:nova.quota.UnifiedLimitsDriver.get_defaults:Method#e994c54a45f6e48ea3ca8a2601da706b28589979bb6ac8d7567b48343017a37f#1
 - symbol:python:nova.scheduler.filters.image_props_filter.ImagePropertiesFilter._instance_supported:Method#e011705fac4b79d6feddd8179037072fec79c13c9a960b7b34e24715d5ea5418#1
+- symbol:python:nova.scheduler.filters.aggregate_instance_extra_specs.AggregateInstanceExtraSpecsFilter.host_passes:Method#175ac3f02edd98e9c3a9c4664867d44f963348fccdd054b89537ba88c6063b91#1
+- symbol:python:nova.api.openstack.compute.attach_interfaces._translate_interface_attachment_view:Function#62a18617e50df6d0ab29a2b9453e7d338305841d5bd10801de06c5d649d3dc59#1
+- symbol:python:nova.api.openstack.compute.tenant_networks.TenantNetworkController._refresh_default_networks:Method#35d26c1edf8e62655d0c4c45b4233239a43087cbf820d79673b378b8bf1c4743#1
+- symbol:python:nova.api.openstack.compute.floating_ips.FloatingIPActionController._add_floating_ip:Method#fbeb1861b3cbe51013bc156ebb25b0eeee0e6778e02d7bb51880b65a6b46b57f#1
+- symbol:python:nova.compute.api.API.resize:Method#56be6b61132fc285e33304076f93cf990cbe0be4ef2db4538a8fcfbaa1a89d97#1
+- symbol:python:nova.api.openstack.compute.security_groups.SecurityGroupControllerBase._format_security_group:Method#5fabc14941b852dc89c64ad7e94e4fccff08a6f9f2228678d6792c29fa3f1ecf#1
+- symbol:python:nova.quota.UnifiedLimitsDriver.get_project_quotas:Method#13652a16dc83e9bf5c54ff4d844d032462e0711e5596c61601c4c114558f7bb5#1
+- symbol:python:nova.api.openstack.compute.server_migrations.ServerMigrationsController.show:Method#5112f0240e36a744937c7d40fdc66b79684d58c694bdcb60abe0b5b3bdc62a60#1
+- symbol:python:nova.scheduler.filters.compute_capabilities_filter.ComputeCapabilitiesFilter.host_passes:Method#c7936776c2540cc0a3af30dda0ccde27bb1665cf80fd9cd624dd14021873da89#1
+- symbol:python:nova.api.openstack.compute.volume_attachments.VolumeAttachmentController._update_volume_swap:Method#2fa988274c6ee36afc2633295d5897053ca49e67357d28169d0dfe3a275e6e60#1
+- symbol:python:nova.api.openstack.compute.views.servers.ViewBuilder.show:Method#0aa36e6ffcee777af2333313dfb572bf0d589c3e7161062733541419043e551b#1
+- symbol:python:nova.compute.api.KeypairAPI.create_key_pair:Method#4f8e767e3de53eb69eff96552aac02c58defc07fcd7b7c91389069f92be46d6e#1
+- symbol:python:nova.compute.api.load_cells:Function#72995f4fcc0e578e34e7cbb1c0a66aecc94fcd10916264443a0189a09d8516f1#1
+- symbol:python:nova.scheduler.filters.compute_capabilities_filter.ComputeCapabilitiesFilter._get_capabilities:Method#540573081038ea6a1398a1f7573edca027794d525994c3a2c423b2383bf84762#1
+- symbol:python:nova.quota.DbQuotaDriver._process_quotas:Method#36154f2aa5732e8af138e9bda8ab81fd43509b4a53c28763be2d71f14b9ea9b9#1
+- symbol:python:nova.compute.api.API._validate_unshelve_az:Method#988c4e62c192ce9034765b69b16e66b92d9a0e01f62f93ff8d86e2a2b5664aa8#1
+- symbol:python:nova.scheduler.filters.image_props_filter.ImagePropertiesFilter._instance_supported:Method#48111ad9d317204fab94acb9ea7e10b434681cb25e7cd8aa630b23251b8d52ab#1
+- symbol:python:nova.api.openstack.compute.simple_tenant_usage.SimpleTenantUsageController._index:Method#3a450dfd65a97ae43b209e8d317302d4fa4ddbca12a86c6937f24878898f62e3#1
+- symbol:python:nova.api.openstack.compute.volume_attachments.VolumeAttachmentController.update:Method#e48c5e39b348a21b888685c9c27c4725e6e8ab10cc5cb1fe603a993d5529ce33#1
+- symbol:python:nova.compute.api.API._validate_host_or_node:Method#16e1b41cf46c2810d940f4c45bd7b13d99ddea1fd3edd62de555ce52c86acc7d#1
+- symbol:python:nova.compute.api.API._confirm_resize_on_deleting:Method#b269d8601327b6b741cd2734c7b13e5406e8e6fd9b39746fd5015f3383835d48#1
+- symbol:python:nova.compute.api.API.resize:Method#242ba13b3cf27531741c9fad2fd84b105bda7357124e243c3c51950b7dd88f06#1
+- symbol:python:nova.quota.DbQuotaDriver._process_quotas:Method#cacee5d5ffbde3c0fe992b7ed28af94e0864c802db460908bfe572c1ee34008a#1
+- symbol:python:nova.api.openstack.compute.helpers.translate_attributes:Function#27bdbd193795dd6ce13f41bc3620d3af17c59e63761df505c02f3d781a9b1728#1
+- symbol:python:nova.scheduler.filters.image_props_filter.ImagePropertiesFilter.host_passes:Method#608a0d32c9241f56245670dab1f064349b43c21ae1bf28d6ae95bce9767fdd67#1
+- symbol:python:nova.scheduler.filters.image_props_filter.ImagePropertiesFilter._instance_supported._compare_maxphysaddr_bits:Method#8f0dadac007c16644b546f237fe395902b5875324ca3b90ea895f5675f533688#1
+- symbol:python:nova.api.openstack.compute.hypervisors.HypervisorsController._get_hypervisors:Method#552fe763eccacd5a9ee1bd42789084e7eb1ebacf08c28ef9da9228fc621e1925#1
+- symbol:python:nova.compute.api.API.create:Method#dabeb965f7abe78a82fc05743a6528f5153b290e306f0026eceb25fa1ec3de26#1
+- symbol:python:nova.compute.api.API._delete:Method#88a22b5f41e0ea316df8f4474ab8cd6b0dc64074202bdd5b596960fbbbd79e45#1
+- symbol:python:nova.api.openstack.compute.volume_attachments.VolumeAttachmentController._update_volume_swap:Method#5a9c411709cceb615b56d600cfa33e4758f85e07a966ab36dab132e200a9a136#1
+- symbol:python:nova.quota.DbQuotaDriver.get_user_quotas:Method#2d2b6c6ce39554f2984b4a412bb3f39ddd8b250f385946e523accf012e302149#1
+- symbol:python:nova.compute.api.API.snapshot:Method#4a7133d294ba3552f5c14bc2b4e11f6aaad015297e22ddd9238288607e71562f#1
+- symbol:python:nova.scheduler.filters.json_filter.JsonFilter._process_filter:Method#fea802171834850aba7ce1ffe8c1f2725d0888085fd63d71592889dc07f03842#1
+- symbol:python:nova.api.openstack.compute.floating_ips.FloatingIPController.delete:Method#c1e2857cbd15d60c738f483df49cb465a529551aa5b2300084fcb2a6a839d906#1
+- symbol:python:nova.api.openstack.compute.migrations.MigrationsController._output:Method#716c73d0a8e39ccafb97d034edb07d9d78e97d89a5324ebb5b136f5ee87c23de#1
+- symbol:python:nova.compute.api.reject_legacy_vtpm_live_migration.inner:Method#5a04f0e9b7277af29004b115f34359cdf662098c22a3ed61512540a125d3e487#1
+- symbol:python:nova.compute.api.API._delete:Method#f306d506e4e2d3828f02b156cd9d64a9968f9a03ef0bbaa683a42abc6f59407d#1
+- symbol:python:nova.api.openstack.compute.aggregates.AggregateController._add_host:Method#b6db5c814b75705ac3cfd55b54d60e2d0a54ebdea0b3cc8047e6076d28640335#1
+- symbol:python:nova.quota.DbQuotaDriver.get_user_quotas:Method#56bad21e9ca112bba4d078441d76eab5e654461c94fdbf950c7e320cedeca9aa#1
+- symbol:python:nova.api.openstack.compute.security_groups.SecurityGroupActionController._removeSecurityGroup:Method#b7346afc98b5f4bebd6e957ef403c4d208bd5a8faf578fb3dda6cfa7a10fe4e6#1
+- symbol:python:nova.scheduler.filters.image_props_filter.ImagePropertiesFilter._instance_supported:Method#c994cb5a68eea2844b892854f6d2cac69b84b9e791c9e8293fb3a0a5afe4505e#1
+- symbol:python:nova.api.openstack.compute.views.servers.ViewBuilder._list_view:Method#f673be2376136cfc8fb652f7f5ec5d5011954102a13860e92ab55b4149940926#1
+- symbol:python:nova.compute.api.API.snapshot_volume_backed:Method#8a76b069150165287b4a67363d818d9a6830111dda7dab6246fcfde3c6550ac4#1
+- symbol:python:nova.scheduler.filters.aggregate_multitenancy_isolation.AggregateMultiTenancyIsolation.host_passes:Method#ac91dfd256480b9ea3a81f97b2eb4b1b0b7894fa774dda013ac50c81319c6b8a#1
+- symbol:python:nova.quota.DbQuotaDriver.limit_check_project_and_user:Method#9350d9687d4c0fbb26d71f28bff9666b4ecb44da4bb5b801f77e2f121762c1ef#1
+- symbol:python:nova.api.openstack.compute.hypervisors.HypervisorsController.search:Method#c01107ab216e3c6330f76f0b9cec4b5d2be9b4ef167c2ffe6438c2a033fac191#1
+- symbol:python:nova.scheduler.filters.json_filter.JsonFilter.host_passes:Method#9a0d3c381ebfeb876d199a9570e8e991fc4b50a6dc39011cd773d716514e4d0e#1
+- symbol:python:nova.quota.DbQuotaDriver.limit_check_project_and_user:Method#9037eddbd2cfc6aee228990b39195c9b1b1929256beaf8c3da540c7e856474df#1
+- symbol:python:nova.api.openstack.compute.volume_attachments.VolumeAttachmentController.update:Method#bba2844da014e45dca8ab61931d76de20e753201e2600f00259503dcd24c6520#1
+- symbol:python:nova.compute.api.API._check_config_drive:Method#fe9c66b7200ca028a08a69f9191ee3129f6f381dac704842d29a14cc1db900f8#1
+- symbol:python:nova.compute.api.API._check_quota_unshelve_offloaded:Method#e15f25a9d243cc45c23188828e3209b989dd5c1f060060830ee502c2a1b32a5d#1
+- symbol:python:nova.api.openstack.compute.keypairs.KeypairController.index:Method#836808fc972a7758c254c8e32e9d8b051a6a0eb037a5e1626d9cd2456869b859#1
+- symbol:python:nova.quota.DbQuotaDriver.limit_check_project_and_user:Method#b80634aa9dca97fa380cb6e231a85fe2fe1485f107208027339fc54b96c80b48#1
+- symbol:python:nova.scheduler.filters.image_props_filter.ImagePropertiesFilter._instance_supported._compare_maxphysaddr_bits:Method#da9848d8dd1214b8919abbdd9aa32443e5abdab55d0c3895c993e477833e78fc#1
+- symbol:python:nova.scheduler.filters.aggregate_instance_extra_specs.AggregateInstanceExtraSpecsFilter.host_passes:Method#bc97f4e8bcfbf871dc5e0296e4a3f5541767353a92d2b258b0e0921ee062236d#1
+- symbol:python:nova.api.openstack.compute.server_migrations.output:Function#1ecda6afd216ef070e44366fa414f72ae4c093ec968529df0a7359c56bedfec1#1
+- symbol:python:nova.api.openstack.compute.hosts.HostController.update:Method#ae0a0c4400cae11595d1c79791bd1968181780afbfabf127f0ed8c9903a2a66b#1
+- symbol:python:nova.compute.api.API._create_instance:Method#038f6b604d583f19a17693f8ac60b2fc99074003e839ce4b2f9fa17b0ebc87cb#1
+- symbol:python:nova.compute.api.API._delete:Method#9270f76ae9b9ba95f9cc541d3fe8eadf6eb67c9f215db44be680f8fb72585f80#1
+- symbol:python:nova.compute.api.API._check_offloaded:Method#75a450ed427567c80427a335cbc1081a4ee5972d9c40b2782b6c3e3a32c1b989#1
 fill_points:
+  ? symbol:python:nova.api.openstack.compute.aggregates.AggregateController._add_host:Method#b6db5c814b75705ac3cfd55b54d60e2d0a54ebdea0b3cc8047e6076d28640335#1
+  : location: nova/api/openstack/compute/aggregates.py:201
+    rank: 909
+    score: 0
+    contributions: {}
+  ? symbol:python:nova.api.openstack.compute.attach_interfaces._translate_interface_attachment_view:Function#62a18617e50df6d0ab29a2b9453e7d338305841d5bd10801de06c5d649d3dc59#1
+  : location: nova/api/openstack/compute/attach_interfaces.py:34
+    rank: 318
+    score: 1
+    contributions:
+      decision_shape: 1
+  ? symbol:python:nova.api.openstack.compute.floating_ips.FloatingIPActionController._add_floating_ip:Method#fbeb1861b3cbe51013bc156ebb25b0eeee0e6778e02d7bb51880b65a6b46b57f#1
+  : location: nova/api/openstack/compute/floating_ips.py:260
+    rank: 1040
+    score: 0
+    contributions: {}
+  ? symbol:python:nova.api.openstack.compute.floating_ips.FloatingIPController.delete:Method#c1e2857cbd15d60c738f483df49cb465a529551aa5b2300084fcb2a6a839d906#1
+  : location: nova/api/openstack/compute/floating_ips.py:170
+    rank: 1051
+    score: 0
+    contributions: {}
+  ? symbol:python:nova.api.openstack.compute.helpers.translate_attributes:Function#27bdbd193795dd6ce13f41bc3620d3af17c59e63761df505c02f3d781a9b1728#1
+  : location: nova/api/openstack/compute/helpers.py:99
+    rank: 1061
+    score: 0
+    contributions: {}
+  ? symbol:python:nova.api.openstack.compute.hosts.HostController.update:Method#ae0a0c4400cae11595d1c79791bd1968181780afbfabf127f0ed8c9903a2a66b#1
+  : location: nova/api/openstack/compute/hosts.py:120
+    rank: 39
+    score: 5
+    contributions:
+      condition: 4
+      downstream_calls: 1
+  ? symbol:python:nova.api.openstack.compute.hypervisors.HypervisorsController._get_hypervisors:Method#552fe763eccacd5a9ee1bd42789084e7eb1ebacf08c28ef9da9228fc621e1925#1
+  : location: nova/api/openstack/compute/hypervisors.py:163
+    rank: 24
+    score: 6
+    contributions:
+      downstream_calls: 6
+  ? symbol:python:nova.api.openstack.compute.hypervisors.HypervisorsController.search:Method#c01107ab216e3c6330f76f0b9cec4b5d2be9b4ef167c2ffe6438c2a033fac191#1
+  : location: nova/api/openstack/compute/hypervisors.py:458
+    rank: 1099
+    score: 0
+    contributions: {}
   ? symbol:python:nova.api.openstack.compute.instance_actions.InstanceActionsController._format_event:Method#242330cc0a1f60ed2a09fb3e80e5ed5df6b9b6a7a93da7c4244c831a842d612a#1
   : location: nova/api/openstack/compute/instance_actions.py:68
     rank: 1123
@@ -42,9 +146,31 @@ fill_points:
     score: 8
     contributions:
       downstream_calls: 8
+  ? symbol:python:nova.api.openstack.compute.keypairs.KeypairController.index:Method#836808fc972a7758c254c8e32e9d8b051a6a0eb037a5e1626d9cd2456869b859#1
+  : location: nova/api/openstack/compute/keypairs.py:188
+    rank: 1147
+    score: 0
+    contributions: {}
+  ? symbol:python:nova.api.openstack.compute.migrations.MigrationsController._output:Method#716c73d0a8e39ccafb97d034edb07d9d78e97d89a5324ebb5b136f5ee87c23de#1
+  : location: nova/api/openstack/compute/migrations.py:98
+    rank: 25
+    score: 6
+    contributions:
+      condition: 4
+      downstream_calls: 2
   ? symbol:python:nova.api.openstack.compute.remote_consoles.RemoteConsolesController.create:Method#a70d6e675e8d9a5acfd85852f2e66ee90969ff21294f60b878db6d843f18beef#1
   : location: nova/api/openstack/compute/remote_consoles.py:162
     rank: 1206
+    score: 0
+    contributions: {}
+  ? symbol:python:nova.api.openstack.compute.security_groups.SecurityGroupActionController._removeSecurityGroup:Method#b7346afc98b5f4bebd6e957ef403c4d208bd5a8faf578fb3dda6cfa7a10fe4e6#1
+  : location: nova/api/openstack/compute/security_groups.py:464
+    rank: 1233
+    score: 0
+    contributions: {}
+  ? symbol:python:nova.api.openstack.compute.security_groups.SecurityGroupControllerBase._format_security_group:Method#5fabc14941b852dc89c64ad7e94e4fccff08a6f9f2228678d6792c29fa3f1ecf#1
+  : location: nova/api/openstack/compute/security_groups.py:96
+    rank: 1244
     score: 0
     contributions: {}
   ? symbol:python:nova.api.openstack.compute.server_groups.ServerGroupController.index:Method#c3e217961161fa551d9855b37b94d183f45b1ec02b8608088cbe986d64504234#1
@@ -53,6 +179,18 @@ fill_points:
     score: 7
     contributions:
       downstream_calls: 7
+  ? symbol:python:nova.api.openstack.compute.server_migrations.ServerMigrationsController.show:Method#5112f0240e36a744937c7d40fdc66b79684d58c694bdcb60abe0b5b3bdc62a60#1
+  : location: nova/api/openstack/compute/server_migrations.py:182
+    rank: 120
+    score: 4
+    contributions:
+      condition: 4
+  ? symbol:python:nova.api.openstack.compute.server_migrations.output:Function#1ecda6afd216ef070e44366fa414f72ae4c093ec968529df0a7359c56bedfec1#1
+  : location: nova/api/openstack/compute/server_migrations.py:32
+    rank: 434
+    score: 1
+    contributions:
+      decision_shape: 1
   ? symbol:python:nova.api.openstack.compute.servers.ServersController._create_image:Method#497b723a222bed1c8e9faf7dd50f12b7f5e2d6d1af8a74af590da726b14848f8#1
   : location: nova/api/openstack/compute/servers.py:1452
     rank: 8
@@ -71,6 +209,30 @@ fill_points:
     score: 4
     contributions:
       condition: 4
+  ? symbol:python:nova.api.openstack.compute.simple_tenant_usage.SimpleTenantUsageController._index:Method#3a450dfd65a97ae43b209e8d317302d4fa4ddbca12a86c6937f24878898f62e3#1
+  : location: nova/api/openstack/compute/simple_tenant_usage.py:309
+    rank: 1482
+    score: 0
+    contributions: {}
+  ? symbol:python:nova.api.openstack.compute.tenant_networks.TenantNetworkController._refresh_default_networks:Method#35d26c1edf8e62655d0c4c45b4233239a43087cbf820d79673b378b8bf1c4743#1
+  : location: nova/api/openstack/compute/tenant_networks.py:66
+    rank: 15
+    score: 7
+    contributions:
+      downstream_calls: 7
+  ? symbol:python:nova.api.openstack.compute.views.servers.ViewBuilder._list_view:Method#f673be2376136cfc8fb652f7f5ec5d5011954102a13860e92ab55b4149940926#1
+  : location: nova/api/openstack/compute/views/servers.py:526
+    rank: 516
+    score: 1
+    contributions:
+      decision_shape: 1
+  ? symbol:python:nova.api.openstack.compute.views.servers.ViewBuilder.show:Method#0aa36e6ffcee777af2333313dfb572bf0d589c3e7161062733541419043e551b#1
+  : location: nova/api/openstack/compute/views/servers.py:320
+    rank: 16
+    score: 7
+    contributions:
+      condition: 4
+      downstream_calls: 3
   ? symbol:python:nova.api.openstack.compute.views.servers.ViewBuilder.show:Method#ca3b37b62c2eb3a92243c89ff32d0df010408374da13f756b83c98f80ca1eb79#1
   : location: nova/api/openstack/compute/views/servers.py:414
     rank: 26
@@ -78,17 +240,70 @@ fill_points:
     contributions:
       condition: 4
       downstream_calls: 2
+  ? symbol:python:nova.api.openstack.compute.volume_attachments.VolumeAttachmentController._update_volume_swap:Method#2fa988274c6ee36afc2633295d5897053ca49e67357d28169d0dfe3a275e6e60#1
+  : location: nova/api/openstack/compute/volume_attachments.py:321
+    rank: 1594
+    score: 0
+    contributions: {}
+  ? symbol:python:nova.api.openstack.compute.volume_attachments.VolumeAttachmentController._update_volume_swap:Method#5a9c411709cceb615b56d600cfa33e4758f85e07a966ab36dab132e200a9a136#1
+  : location: nova/api/openstack/compute/volume_attachments.py:316
+    rank: 1596
+    score: 0
+    contributions: {}
+  ? symbol:python:nova.api.openstack.compute.volume_attachments.VolumeAttachmentController.update:Method#bba2844da014e45dca8ab61931d76de20e753201e2600f00259503dcd24c6520#1
+  : location: nova/api/openstack/compute/volume_attachments.py:389
+    rank: 27
+    score: 6
+    contributions:
+      downstream_calls: 6
+  ? symbol:python:nova.api.openstack.compute.volume_attachments.VolumeAttachmentController.update:Method#e48c5e39b348a21b888685c9c27c4725e6e8ab10cc5cb1fe603a993d5529ce33#1
+  : location: nova/api/openstack/compute/volume_attachments.py:382
+    rank: 17
+    score: 7
+    contributions:
+      downstream_calls: 7
   ? symbol:python:nova.compute.api.API._allow_cross_cell_resize:Method#63917f458b8f1cd908f18a8ab95d35ce9e9dd563c0d10c9aea4818ec90b662f0#1
   : location: nova/compute/api.py:4185
     rank: 567
     score: 1
     contributions:
       downstream_calls: 1
+  symbol:python:nova.compute.api.API._check_config_drive:Method#fe9c66b7200ca028a08a69f9191ee3129f6f381dac704842d29a14cc1db900f8#1:
+    location: nova/compute/api.py:709
+    rank: 1648
+    score: 0
+    contributions: {}
   symbol:python:nova.compute.api.API._check_image_arch:Method#f9d9a31069c7cbcb311d3ae38851a191becd74ff4a88e18f2af20d48e2d9ce6a#1:
     location: nova/compute/api.py:3679
     rank: 1649
     score: 0
     contributions: {}
+  symbol:python:nova.compute.api.API._check_offloaded:Method#75a450ed427567c80427a335cbc1081a4ee5972d9c40b2782b6c3e3a32c1b989#1:
+    location: nova/compute/api.py:4618
+    rank: 178
+    score: 4
+    contributions:
+      condition: 4
+  ? symbol:python:nova.compute.api.API._check_quota_unshelve_offloaded:Method#e15f25a9d243cc45c23188828e3209b989dd5c1f060060830ee502c2a1b32a5d#1
+  : location: nova/compute/api.py:4684
+    rank: 53
+    score: 5
+    contributions:
+      condition: 4
+      decision_shape: 1
+  ? symbol:python:nova.compute.api.API._confirm_resize_on_deleting:Method#b269d8601327b6b741cd2734c7b13e5406e8e6fd9b39746fd5015f3383835d48#1
+  : location: nova/compute/api.py:2670
+    rank: 28
+    score: 6
+    contributions:
+      decision_shape: 1
+      downstream_calls: 5
+  symbol:python:nova.compute.api.API._create_instance:Method#038f6b604d583f19a17693f8ac60b2fc99074003e839ce4b2f9fa17b0ebc87cb#1:
+    location: nova/compute/api.py:1717
+    rank: 587
+    score: 1
+    contributions:
+      decision_shape: 1
   symbol:python:nova.compute.api.API._create_instance:Method#627d80fd4906b73ee9fefe0fcc7f092317e930e1540bf7e88c673267afa64f77#1:
     location: nova/compute/api.py:1718
     rank: 590
@@ -103,9 +318,58 @@ fill_points:
       condition: 4
       decision_shape: 1
       downstream_calls: 2
+  symbol:python:nova.compute.api.API._delete:Method#88a22b5f41e0ea316df8f4474ab8cd6b0dc64074202bdd5b596960fbbbd79e45#1:
+    location: nova/compute/api.py:2538
+    rank: 29
+    score: 6
+    contributions:
+      condition: 4
+      downstream_calls: 2
+  symbol:python:nova.compute.api.API._delete:Method#9270f76ae9b9ba95f9cc541d3fe8eadf6eb67c9f215db44be680f8fb72585f80#1:
+    location: nova/compute/api.py:2496
+    rank: 54
+    score: 5
+    contributions:
+      decision_shape: 1
+      downstream_calls: 4
+  symbol:python:nova.compute.api.API._delete:Method#f306d506e4e2d3828f02b156cd9d64a9968f9a03ef0bbaa683a42abc6f59407d#1:
+    location: nova/compute/api.py:2484
+    rank: 30
+    score: 6
+    contributions:
+      decision_shape: 1
+      downstream_calls: 5
+  ? symbol:python:nova.compute.api.API._validate_host_or_node:Method#16e1b41cf46c2810d940f4c45bd7b13d99ddea1fd3edd62de555ce52c86acc7d#1
+  : location: nova/compute/api.py:1286
+    rank: 1802
+    score: 0
+    contributions: {}
+  ? symbol:python:nova.compute.api.API._validate_unshelve_az:Method#988c4e62c192ce9034765b69b16e66b92d9a0e01f62f93ff8d86e2a2b5664aa8#1
+  : location: nova/compute/api.py:4662
+    rank: 629
+    score: 1
+    contributions:
+      downstream_calls: 1
+  symbol:python:nova.compute.api.API.create:Method#dabeb965f7abe78a82fc05743a6528f5153b290e306f0026eceb25fa1ec3de26#1:
+    location: nova/compute/api.py:2255
+    rank: 673
+    score: 1
+    contributions:
+      decision_shape: 1
   symbol:python:nova.compute.api.API.resize:Method#14049cd35a33ce6c95e333305983c5728f5ad52268e20f81677dd9a9d2694494#1:
     location: nova/compute/api.py:4394
     rank: 19
+    score: 7
+    contributions:
+      downstream_calls: 7
+  symbol:python:nova.compute.api.API.resize:Method#242ba13b3cf27531741c9fad2fd84b105bda7357124e243c3c51950b7dd88f06#1:
+    location: nova/compute/api.py:4475
+    rank: 1891
+    score: 0
+    contributions: {}
+  symbol:python:nova.compute.api.API.resize:Method#56be6b61132fc285e33304076f93cf990cbe0be4ef2db4538a8fcfbaa1a89d97#1:
+    location: nova/compute/api.py:4407
+    rank: 20
     score: 7
     contributions:
       downstream_calls: 7
@@ -114,6 +378,18 @@ fill_points:
     rank: 1900
     score: 0
     contributions: {}
+  symbol:python:nova.compute.api.API.snapshot:Method#4a7133d294ba3552f5c14bc2b4e11f6aaad015297e22ddd9238288607e71562f#1:
+    location: nova/compute/api.py:3484
+    rank: 1909
+    score: 0
+    contributions: {}
+  ? symbol:python:nova.compute.api.API.snapshot_volume_backed:Method#8a76b069150165287b4a67363d818d9a6830111dda7dab6246fcfde3c6550ac4#1
+  : location: nova/compute/api.py:3564
+    rank: 31
+    score: 6
+    contributions:
+      condition: 4
+      downstream_calls: 2
   ? symbol:python:nova.compute.api.HostAPI._update_compute_provider_status:Method#745782383ca30c4d2eeecad68458131e8cb1b791ee3ac6ef19ba62a8f34603fc#1
   : location: nova/compute/api.py:6380
     rank: 11
@@ -139,6 +415,12 @@ fill_points:
     score: 1
     contributions:
       decision_shape: 1
+  ? symbol:python:nova.compute.api.KeypairAPI.create_key_pair:Method#4f8e767e3de53eb69eff96552aac02c58defc07fcd7b7c91389069f92be46d6e#1
+  : location: nova/compute/api.py:7066
+    rank: 215
+    score: 4
+    contributions:
+      condition: 4
   symbol:python:nova.compute.api._find_service_in_cell:Function#9f3d0aa68b721a2c877de90f5987d87c0d6281f310e10ebd6df90c5efaaa3919#1:
     location: nova/compute/api.py:6133
     rank: 786
@@ -151,12 +433,35 @@ fill_points:
     score: 1
     contributions:
       decision_shape: 1
+  symbol:python:nova.compute.api.load_cells:Function#72995f4fcc0e578e34e7cbb1c0a66aecc94fcd10916264443a0189a09d8516f1#1:
+    location: nova/compute/api.py:355
+    rank: 21
+    score: 7
+    contributions:
+      downstream_calls: 7
+  ? symbol:python:nova.compute.api.reject_legacy_vtpm_live_migration.inner:Method#5a04f0e9b7277af29004b115f34359cdf662098c22a3ed61512540a125d3e487#1
+  : location: nova/compute/api.py:297
+    rank: 1990
+    score: 0
+    contributions: {}
   symbol:python:nova.quota.DbQuotaDriver._get_quotas:Method#1ca0010552c12f1ba4e3fd7fe019d92c880a71a630c107caa542999ee8ccea70#1:
     location: nova/quota.py:352
     rank: 797
     score: 1
     contributions:
       decision_shape: 1
+  symbol:python:nova.quota.DbQuotaDriver._process_quotas:Method#36154f2aa5732e8af138e9bda8ab81fd43509b4a53c28763be2d71f14b9ea9b9#1:
+    location: nova/quota.py:140
+    rank: 223
+    score: 4
+    contributions:
+      condition: 4
+  symbol:python:nova.quota.DbQuotaDriver._process_quotas:Method#cacee5d5ffbde3c0fe992b7ed28af94e0864c802db460908bfe572c1ee34008a#1:
+    location: nova/quota.py:107
+    rank: 224
+    score: 4
+    contributions:
+      condition: 4
   ? symbol:python:nova.quota.DbQuotaDriver._sub_quota_values:Method#365a1a78a5822cb9f61aaee72cb7b14f693d2f2ca0370f57c6bd28ebc418f0c4#1
   : location: nova/quota.py:296
     rank: 60
@@ -177,9 +482,45 @@ fill_points:
     score: 5
     contributions:
       downstream_calls: 5
+  symbol:python:nova.quota.DbQuotaDriver.get_user_quotas:Method#2d2b6c6ce39554f2984b4a412bb3f39ddd8b250f385946e523accf012e302149#1:
+    location: nova/quota.py:228
+    rank: 225
+    score: 4
+    contributions:
+      condition: 4
+  symbol:python:nova.quota.DbQuotaDriver.get_user_quotas:Method#56bad21e9ca112bba4d078441d76eab5e654461c94fdbf950c7e320cedeca9aa#1:
+    location: nova/quota.py:237
+    rank: 226
+    score: 4
+    contributions:
+      condition: 4
+  ? symbol:python:nova.quota.DbQuotaDriver.limit_check_project_and_user:Method#9037eddbd2cfc6aee228990b39195c9b1b1929256beaf8c3da540c7e856474df#1
+  : location: nova/quota.py:568
+    rank: 2016
+    score: 0
+    contributions: {}
+  ? symbol:python:nova.quota.DbQuotaDriver.limit_check_project_and_user:Method#9350d9687d4c0fbb26d71f28bff9666b4ecb44da4bb5b801f77e2f121762c1ef#1
+  : location: nova/quota.py:576
+    rank: 227
+    score: 4
+    contributions:
+      condition: 4
+  ? symbol:python:nova.quota.DbQuotaDriver.limit_check_project_and_user:Method#b80634aa9dca97fa380cb6e231a85fe2fe1485f107208027339fc54b96c80b48#1
+  : location: nova/quota.py:605
+    rank: 228
+    score: 4
+    contributions:
+      condition: 4
   ? symbol:python:nova.quota.UnifiedLimitsDriver.get_defaults:Method#e994c54a45f6e48ea3ca8a2601da706b28589979bb6ac8d7567b48343017a37f#1
   : location: nova/quota.py:817
     rank: 63
+    score: 5
+    contributions:
+      condition: 4
+      downstream_calls: 1
+  ? symbol:python:nova.quota.UnifiedLimitsDriver.get_project_quotas:Method#13652a16dc83e9bf5c54ff4d844d032462e0711e5596c61601c4c114558f7bb5#1
+  : location: nova/quota.py:843
+    rank: 64
     score: 5
     contributions:
       condition: 4
@@ -191,17 +532,96 @@ fill_points:
     contributions:
       condition: 4
       decision_shape: 1
+  ? symbol:python:nova.scheduler.filters.aggregate_instance_extra_specs.AggregateInstanceExtraSpecsFilter.host_passes:Method#175ac3f02edd98e9c3a9c4664867d44f963348fccdd054b89537ba88c6063b91#1
+  : location: nova/scheduler/filters/aggregate_instance_extra_specs.py:47
+    rank: 66
+    score: 5
+    contributions:
+      decision_shape: 1
+      downstream_calls: 4
+  ? symbol:python:nova.scheduler.filters.aggregate_instance_extra_specs.AggregateInstanceExtraSpecsFilter.host_passes:Method#bc97f4e8bcfbf871dc5e0296e4a3f5541767353a92d2b258b0e0921ee062236d#1
+  : location: nova/scheduler/filters/aggregate_instance_extra_specs.py:62
+    rank: 257
+    score: 3
+    contributions:
+      decision_shape: 1
+      downstream_calls: 2
+  ? symbol:python:nova.scheduler.filters.aggregate_multitenancy_isolation.AggregateMultiTenancyIsolation.host_passes:Method#ac91dfd256480b9ea3a81f97b2eb4b1b0b7894fa774dda013ac50c81319c6b8a#1
+  : location: nova/scheduler/filters/aggregate_multitenancy_isolation.py:53
+    rank: 869
+    score: 1
+    contributions:
+      decision_shape: 1
+  ? symbol:python:nova.scheduler.filters.compute_capabilities_filter.ComputeCapabilitiesFilter._get_capabilities:Method#540573081038ea6a1398a1f7573edca027794d525994c3a2c423b2383bf84762#1
+  : location: nova/scheduler/filters/compute_capabilities_filter.py:49
+    rank: 871
+    score: 1
+    contributions:
+      downstream_calls: 1
   ? symbol:python:nova.scheduler.filters.compute_capabilities_filter.ComputeCapabilitiesFilter._satisfies_extra_specs:Method#5b8a7fc80c15c5fe2780170519cb63fd3e3445548cc72baee5ee4c3358723f6a#1
   : location: nova/scheduler/filters/compute_capabilities_filter.py:73
     rank: 2069
     score: 0
     contributions: {}
+  ? symbol:python:nova.scheduler.filters.compute_capabilities_filter.ComputeCapabilitiesFilter.host_passes:Method#c7936776c2540cc0a3af30dda0ccde27bb1665cf80fd9cd624dd14021873da89#1
+  : location: nova/scheduler/filters/compute_capabilities_filter.py:118
+    rank: 67
+    score: 5
+    contributions:
+      condition: 4
+      decision_shape: 1
+  ? symbol:python:nova.scheduler.filters.image_props_filter.ImagePropertiesFilter._instance_supported._compare_maxphysaddr_bits:Method#8f0dadac007c16644b546f237fe395902b5875324ca3b90ea895f5675f533688#1
+  : location: nova/scheduler/filters/image_props_filter.py:96
+    rank: 882
+    score: 1
+    contributions:
+      decision_shape: 1
+  ? symbol:python:nova.scheduler.filters.image_props_filter.ImagePropertiesFilter._instance_supported._compare_maxphysaddr_bits:Method#da9848d8dd1214b8919abbdd9aa32443e5abdab55d0c3895c993e477833e78fc#1
+  : location: nova/scheduler/filters/image_props_filter.py:92
+    rank: 307
+    score: 2
+    contributions:
+      decision_shape: 1
+      downstream_calls: 1
+  ? symbol:python:nova.scheduler.filters.image_props_filter.ImagePropertiesFilter._instance_supported:Method#48111ad9d317204fab94acb9ea7e10b434681cb25e7cd8aa630b23251b8d52ab#1
+  : location: nova/scheduler/filters/image_props_filter.py:104
+    rank: 68
+    score: 5
+    contributions:
+      condition: 4
+      decision_shape: 1
+  ? symbol:python:nova.scheduler.filters.image_props_filter.ImagePropertiesFilter._instance_supported:Method#c994cb5a68eea2844b892854f6d2cac69b84b9e791c9e8293fb3a0a5afe4505e#1
+  : location: nova/scheduler/filters/image_props_filter.py:102
+    rank: 231
+    score: 4
+    contributions:
+      downstream_calls: 4
   ? symbol:python:nova.scheduler.filters.image_props_filter.ImagePropertiesFilter._instance_supported:Method#e011705fac4b79d6feddd8179037072fec79c13c9a960b7b34e24715d5ea5418#1
   : location: nova/scheduler/filters/image_props_filter.py:103
     rank: 308
     score: 2
     contributions:
       downstream_calls: 2
+  ? symbol:python:nova.scheduler.filters.image_props_filter.ImagePropertiesFilter.host_passes:Method#608a0d32c9241f56245670dab1f064349b43c21ae1bf28d6ae95bce9767fdd67#1
+  : location: nova/scheduler/filters/image_props_filter.py:124
+    rank: 69
+    score: 5
+    contributions:
+      condition: 4
+      decision_shape: 1
+  ? symbol:python:nova.scheduler.filters.json_filter.JsonFilter._process_filter:Method#fea802171834850aba7ce1ffe8c1f2725d0888085fd63d71592889dc07f03842#1
+  : location: nova/scheduler/filters/json_filter.py:122
+    rank: 70
+    score: 5
+    contributions:
+      downstream_calls: 5
+  ? symbol:python:nova.scheduler.filters.json_filter.JsonFilter.host_passes:Method#9a0d3c381ebfeb876d199a9570e8e991fc4b50a6dc39011cd773d716514e4d0e#1
+  : location: nova/scheduler/filters/json_filter.py:136
+    rank: 232
+    score: 4
+    contributions:
+      decision_shape: 1
+      downstream_calls: 3
   ? symbol:python:nova.scheduler.filters.numa_topology_filter.NUMATopologyFilter.host_passes:Method#5af24686d211410391057e35dd85288537ebcd8394a83dfa9297048172e45a92#1
   : location: nova/scheduler/filters/numa_topology_filter.py:91
     rank: 37
@@ -599,3 +1019,61 @@ points:
     score: 1
     contributions:
       decision_shape: 1
+  nova-0061:
+    selected_by: fill
+    rank: 1123
+    score: 0
+    contributions: {}
+  nova-0062:
+    selected_by: fill
+    rank: 14
+    score: 7
+    contributions:
+      downstream_calls: 7
+  nova-0063:
+    selected_by: fill
+    rank: 1649
+    score: 0
+    contributions: {}
+  nova-0064:
+    selected_by: fill
+    rank: 19
+    score: 7
+    contributions:
+      downstream_calls: 7
+  nova-0065:
+    selected_by: fill
+    rank: 786
+    score: 1
+    contributions:
+      decision_shape: 1
+  nova-0066:
+    selected_by: fill
+    rank: 308
+    score: 2
+    contributions:
+      downstream_calls: 2
+  nova-0067:
+    selected_by: fill
+    rank: 66
+    score: 5
+    contributions:
+      decision_shape: 1
+      downstream_calls: 4
+  nova-0068:
+    selected_by: fill
+    rank: 318
+    score: 1
+    contributions:
+      decision_shape: 1
+  nova-0069:
+    selected_by: fill
+    rank: 15
+    score: 7
+    contributions:
+      downstream_calls: 7
+  nova-0070:
+    selected_by: fill
+    rank: 1040
+    score: 0
+    contributions: {}

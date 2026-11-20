@@ -352,3 +352,26 @@ The ranking and held-out labels stayed fixed.
 Tuning precision was 35/37 among rated positions. The trivial
 false-positive rate was 2/74. The per-project class quotas remain
 underfilled at the 120-point cap.
+
+#### Final class quotas
+
+Review of the pinned sources resolved 24 unclear points within the frozen
+tuning samples. Both v2 score runs returned `complete` without lost anchors.
+
+| Project | Role | Significant | Trivial | Rated top positions | Second-pass sample |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Hyperswitch | Tuning | 15 | 15 | 8/10 | 24 |
+| Mattermost | Tuning | 15 | 47 | 13/15 | 24 |
+| Zulip | Tuning | 15 | 20 | 16/19 | 24 |
+| Gitea | Gate | 15 | 45 | 6/7 | 24 |
+| Nova | Gate | 17 | 16 | 16/20 | 20 |
+| Vector | Gate | 15 | 15 | 16/19 | 12 |
+
+Tuning precision was 35/37. Two of 82 trivial tuning points triggered a
+question. Gate precision was 38/38. One of 76 trivial gate points triggered
+a question.
+
+The final first pass ended on 2026-11-20. The same reviewer can start the
+final blind pass on 2026-11-27 after the one-week interval. The preliminary
+second labels remain in Git history. Final agreement is pending for all
+six projects.

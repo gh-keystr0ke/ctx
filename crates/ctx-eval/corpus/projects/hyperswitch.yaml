@@ -1767,7 +1767,7 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: hyperswitch-0102
   anchor: symbol:rust:router.core.payments.filters.get_payment_filters:Function#970f71faa4e70d79fc1c9bdf44fee8c4e157ae41c9d47834dea4530b965dbbda#1
   location: crates/router/src/core/payments/filters.rs:205
@@ -1779,7 +1779,7 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: hyperswitch-0103
   anchor: symbol:rust:router.core.routing.helpers.TxnStatus.ForeignFrom<common_enums::AttemptStatus>.foreign_from:Method#76c14bc06a77ebaa90c731643c023a98e8f279286be9d2817fe2868b4dd0ed51#1
   location: crates/router/src/core/routing/helpers.rs:1796
@@ -1791,7 +1791,7 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: hyperswitch-0104
   anchor: symbol:rust:router.core.payments.session_operation.payments_session_operation_core:Function#a4f5c81d48908be977afc5c50128019debe931d5caa82411b573da4cf745a2c2#1
   location: crates/router/src/core/payments/session_operation.rs:157
@@ -1803,7 +1803,7 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "Propagates the conversion error unchanged."
+  note: Propagates the conversion error unchanged.
 - id: hyperswitch-0105
   anchor: symbol:rust:router.core.payments.tokenization.save_payment_method:Function#02813ce8865a7fd99d5cc7b84b8b891d94a383348b6cb970b4e5173fe1efe4cf#1
   location: crates/router/src/core/payments/tokenization.rs:338
@@ -1815,7 +1815,7 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: hyperswitch-0106
   anchor: symbol:rust:router.core.payments.helpers.retrieve_payment_method_with_temporary_token:Function#16f0df4021197d66d74c0fd4501c51d0ea1d7239cb444796e773d496c6149d13#1
   location: crates/router/src/core/payments/helpers.rs:2544
@@ -1827,7 +1827,7 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: hyperswitch-0107
   anchor: symbol:rust:router.core.routing.helpers.TxnStatus.ForeignFrom<common_enums::AttemptStatus>.foreign_from:Method#7ea23f9bbf35951ebb558dfe9432e619f3b95e42b6bdb1007901093dd586eb8f#1
   location: crates/router/src/core/routing/helpers.rs:1800
@@ -1839,7 +1839,7 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: hyperswitch-0108
   anchor: symbol:rust:router.core.payments.flows.setup_mandate_flow.SetupMandateRouterData.Feature<api::SetupMandate,types::SetupMandateRequestData>.create_connector_customer:Method#70c71ad7941b4953274ccaccff175360bc6349ef41f352f08d6c625050b367c4#1
   location: crates/router/src/core/payments/flows/setup_mandate_flow.rs:453
@@ -1851,7 +1851,7 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "Propagates the conversion error unchanged."
+  note: Propagates the conversion error unchanged.
 - id: hyperswitch-0109
   anchor: symbol:rust:router.core.payments.tokenization.save_payment_method:Function#5b2c9fd1bdd2438ba19aa70bf1ae6a630c27fe80ac899d91d15103c424b4357d#1
   location: crates/router/src/core/payments/tokenization.rs:220
@@ -1863,7 +1863,7 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: hyperswitch-0110
   anchor: symbol:rust:router.core.payments.operations.payment_response.payment_response_update_tracker:Function#a7d03178d9c8cad0fba492d04eda13cfdd5bcc7859dcd0707a5e461f75703cc9#1
   location: crates/router/src/core/payments/operations/payment_response.rs:2828
@@ -1875,4 +1875,124 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+- id: hyperswitch-0111
+  anchor: symbol:rust:router.core.routing.helpers.TxnStatus.ForeignFrom<common_enums::AttemptStatus>.foreign_from:Method#91bf1936b8e1cf0b2cca4a857e63a41be0c923a92ce5c9594df930a25ced4b2e#1
+  location: crates/router/src/core/routing/helpers.rs:1803
+  draft: null
+  drafted_by: null
+  label: null
+  category: null
+  evidence: []
+  verified_by: null
+  second_label: null
+  second_by: null
+  note: null
+- id: hyperswitch-0112
+  anchor: symbol:rust:router.core.payments.operations.payment_response.update_modular_pm_and_mandate_impl:Function#0ee7d09a8060cbbb19b6a9938c88b3d317ea49fbafd67ae18c0629e7f32b11f9#1
+  location: crates/router/src/core/payments/operations/payment_response.rs:410
+  draft: null
+  drafted_by: null
+  label: null
+  category: null
+  evidence: []
+  verified_by: null
+  second_label: null
+  second_by: null
+  note: null
+- id: hyperswitch-0113
+  anchor: symbol:rust:router.core.payments.tokenization.save_payment_method:Function#6190d196182aad1508a48aeef3a03a716ad1b6817b9ce466393db5948f6e701b#1
+  location: crates/router/src/core/payments/tokenization.rs:373
+  draft: null
+  drafted_by: null
+  label: null
+  category: null
+  evidence: []
+  verified_by: null
+  second_label: null
+  second_by: null
+  note: null
+- id: hyperswitch-0114
+  anchor: symbol:rust:router.core.payments.gateway.access_token_gateway.AccessTokenAuth.payment_gateway::PaymentGateway<SessionState,RCD,Self,AccessTokenRequestData,hyperswitch_domain_models::router_data::AccessToken,RouterGatewayContext,>.execute:Method#5626e9e19b924bfc563ffd982f1da3104648fb70ed7285ac6e0e67ce86663434#1
+  location: crates/router/src/core/payments/gateway/access_token_gateway.rs:150
+  draft: null
+  drafted_by: null
+  label: null
+  category: null
+  evidence: []
+  verified_by: null
+  second_label: null
+  second_by: null
+  note: null
+- id: hyperswitch-0115
+  anchor: symbol:rust:router.core.routing.helpers.TxnStatus.ForeignFrom<common_enums::AttemptStatus>.foreign_from:Method#a9c34559e68d67927a6ce6779be1488bdc7c3aa3f3403574ffc077c5787eda90#1
+  location: crates/router/src/core/routing/helpers.rs:1789
+  draft: null
+  drafted_by: null
+  label: null
+  category: null
+  evidence: []
+  verified_by: null
+  second_label: null
+  second_by: null
+  note: null
+- id: hyperswitch-0116
+  anchor: symbol:rust:router.core.payments.operations.payment_confirm.PaymentConfirm.Domain<F,api::PaymentsRequest,PaymentData<F>>.call_unified_authentication_service_if_eligible:Method#0c7f3263ffbdbace715bebf69a1dbb1788fb5860ee20367eb11c9745cbf6803a#1
+  location: crates/router/src/core/payments/operations/payment_confirm.rs:2259
+  draft: null
+  drafted_by: null
+  label: null
+  category: null
+  evidence: []
+  verified_by: null
+  second_label: null
+  second_by: null
+  note: null
+- id: hyperswitch-0117
+  anchor: symbol:rust:router.core.routing.helpers.TxnStatus.ForeignFrom<common_enums::AttemptStatus>.foreign_from:Method#d6b1a6e51057bf116165b829e00d10a660af3d798b1f7853c26a21c44e39ffd1#1
+  location: crates/router/src/core/routing/helpers.rs:1799
+  draft: null
+  drafted_by: null
+  label: null
+  category: null
+  evidence: []
+  verified_by: null
+  second_label: null
+  second_by: null
+  note: null
+- id: hyperswitch-0118
+  anchor: symbol:rust:router.core.payments.operations.payment_response.payment_response_update_tracker:Function#b023b8b6d045e090a543818aea6e416985fdf0395365a6224a391e46caa131fe#1
+  location: crates/router/src/core/payments/operations/payment_response.rs:2668
+  draft: null
+  drafted_by: null
+  label: null
+  category: null
+  evidence: []
+  verified_by: null
+  second_label: null
+  second_by: null
+  note: null
+- id: hyperswitch-0119
+  anchor: symbol:rust:router.core.payments.transformers.payments_to_payments_response:Function#2#c6860f64aa50f6a24a5939d35dd24d216b433eefb4fe81289f2f624d8161d47a#1
+  location: crates/router/src/core/payments/transformers.rs:4097
+  draft: null
+  drafted_by: null
+  label: null
+  category: null
+  evidence: []
+  verified_by: null
+  second_label: null
+  second_by: null
+  note: null
+- id: hyperswitch-0120
+  anchor: symbol:rust:router.core.payments.routing.perform_elimination_routing:Function#f1409a6a63454637834f6308d0c3457e2ae2696cf82c756eafe4d140182f350a#1
+  location: crates/router/src/core/payments/routing.rs:4382
+  draft: null
+  drafted_by: null
+  label: null
+  category: null
+  evidence: []
+  verified_by: null
+  second_label: null
+  second_by: null
+  note: null

@@ -1415,16 +1415,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 780ff7e284f4a5f902b6a934653909bea67eb41ac368d2cee0b565a8d8e9f1eb
-  label: unclear
-  category: null
+  label: significant
+  category: state-transition
   evidence:
   - type: docs
-    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/docs/subsystems/sending-messages.md#L353
-    quote: that the messages have not been marked as read by the user). This is
+    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/api_docs/changelog.md#L1245
+    quote: "how resolved-topic notices are marked as read for a user"
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "The message flag builder applies the read state selected for each user, including resolved-topic notices."
 - id: zulip-0068
   anchor: symbol:python:zerver.lib.rate_limiter.RateLimitResult.__init__:Method#137636bd842c841e8dd3ce35a78742027ad31647327d57fe28f175755f7bc588#1
   location: zerver/lib/rate_limiter.py:309

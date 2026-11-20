@@ -221,16 +221,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 56fd3e9843b29bb37abcdc61510d90db646fc2baab6994886ab346115db12bbe
-  label: unclear
-  category: null
+  label: significant
+  category: state-transition
   evidence:
   - type: docs
-    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/integration-guide/workflows/3ds-decision-manager/external-3ds-with-the-juspay-3ds-server.md#L500
-    quote: Read `payment_id` and `payment_intent_client_secret` from the return URL, then retrieve the payment, retrying until the status is terminal.
+    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/integration-guide/payment-experience/payment/README.md#L132
+    quote: "are terminal states requiring no further"
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "A terminal payment skips next-action generation."
 - id: hyperswitch-0010
   anchor: symbol:rust:router.core.routing.helpers.default_specific_dynamic_routing_setup:Function#ad5969815f50f60763ede3cc8ca6f20741ba0beff0405293b3a5d0f8d5d21632#1
   location: crates/router/src/core/routing/helpers.rs:2252

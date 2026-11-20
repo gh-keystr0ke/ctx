@@ -66,13 +66,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 9a28370b3be2d86ec14d4d19d42189f497e3ecaeafba775bebf195d3d547d65c
-  label: unclear
-  category: null
-  evidence: []
+  label: significant
+  category: permission
+  evidence:
+  - type: docs
+    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/manage/admin/abac-channel-access-rules.rst#L125
+    quote: "channel admins can define channel-level permission rules for file upload and file download"
   verified_by: codex-work
   second_label: unclear
   second_by: codex-work-second
-  note: null
+  note: "The destination channel's attachment policy applies when moving a thread with attachments."
 - id: mattermost-0003
   anchor: symbol:go:server.channels.app.App.AddUserToTeamWithToken:Method#228c54dd9d63bd752a8b90782f4909a8550b7daf013689a070f35e3646ae0859#1
   location: server/channels/app/team.go:616
@@ -1466,16 +1469,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: d5c179882a6da53904c24ca68c99380335f506929aee340b6bf60d9d12eec39f
-  label: unclear
-  category: null
+  label: significant
+  category: limit
   evidence:
   - type: docs
-    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/manage/product-limits.rst#L33
-    quote: '":ref:`Attachment image resolution size <end-user-guide/collaborate/share-files-in-messages:attachment limits and sizes>`", "33 MP (mega pixels) or 8K resolution", "Configurable"'
+    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/product-overview/unsupported-legacy-releases.md#L4398
+    quote: "control the maximum dimension (in pixels) of image uploads"
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Checks the configured image upload resolution before accepting a team icon."
 - id: mattermost-0071
   anchor: symbol:go:server.channels.app.App.TeamAccessControlled:Method#f1f83877a71f4680601b5fe9514a8ff77d884e79a3f7920d3d38bcb27708cd75#1
   location: server/channels/app/team.go:951

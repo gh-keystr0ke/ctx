@@ -1304,12 +1304,12 @@ points:
   category: state-transition
   evidence:
   - type: docs
-    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/api-ref/source/server-migrations.inc#L191
-    quote: "Abort an in-progress live migration."
+    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/api-ref/source/server-migrations.inc#L69
+    quote: "Show details for an in-progress live migration for a given server."
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "The API can cancel a migration only while it is in progress."
+  note: "The API returns migration details only for an in-progress live migration."
 - id: nova-0075
   anchor: symbol:python:nova.api.openstack.compute.volume_attachments.VolumeAttachmentController._update_volume_swap:Method#2fa988274c6ee36afc2633295d5897053ca49e67357d28169d0dfe3a275e6e60#1
   location: nova/api/openstack/compute/volume_attachments.py:321

@@ -1450,118 +1450,124 @@ points:
   location: models/organization/org.go:256
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Propagates the existing lookup error."
 - id: gitea-0112
   anchor: symbol:go:models.perm.access.GetDoerRepoPermission:Function#5831c30911676e4dbdde378261dd9850b3a6d5ab300baac6a09c2c8fc5e4ba6c#1
   location: models/perm/access/repo_permission.go:417
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: gitea-0113
   anchor: symbol:go:models.perm.access.RecalculateUserAccess:Function#251f6f73fbcc532967a520aa6b783caf6ae1b632a0f6159c69c103f2491f61b7#1
   location: models/perm/access/access.go:229
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: gitea-0114
   anchor: symbol:go:models.organization.CountOrgMembers:Function#2bf9822ff432487571fdb997547331e3a3fde55467bcb1cd69c0d7ed7333c45a#1
   location: models/organization/org.go:231
   draft: null
   drafted_by: null
-  label: null
-  category: null
-  evidence: []
-  verified_by: null
+  label: significant
+  category: permission
+  evidence:
+  - type: docs
+    url: https://github.com/go-gitea/gitea/blob/0b5dfdeeeaadf6350314246c5936b53cce38170c/templates/swagger/v1-openapi3.generated.json#L15536
+    quote: "List an organization's public members"
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Counts only public memberships on the public member view."
 - id: gitea-0115
   anchor: symbol:go:models.perm.access.IsUserRealRepoAdmin:Function#ecaad4496f6b925c56bd43e0dd545b963849d61ce7638c1841cc43347fa6878a#2
   location: models/perm/access/repo_permission.go:551
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: gitea-0116
   anchor: symbol:go:models.git.IsUserOfficialReviewer:Function#56bc2fff43a4f227f2665ce980ced4f0837d0b62664c69baccb16b0d9eb8f335#1
   location: models/git/protected_branch.go:229
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Propagates the existing error."
 - id: gitea-0117
   anchor: symbol:go:models.perm.access.RecalculateAccesses:Function#172126224bf346d24e40b42db12a13eb0e35dd4bc761d7fe6a754ef5e11d0365#1
   location: models/perm/access/access.go:277
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: gitea-0118
   anchor: symbol:go:services.pull.CheckPullBranchProtections:Function#6ca272c99dd3f6ee6b8172b19f87be69fe428bbeb554e610f55f76e10d66162a#1
   location: services/pull/merge.go:729
   draft: null
   drafted_by: null
-  label: null
-  category: null
-  evidence: []
-  verified_by: null
+  label: significant
+  category: permission
+  evidence:
+  - type: issue
+    url: https://github.com/go-gitea/gitea/pull/34995
+    quote: "allows merge blocking if there are pending reviews from one or more code owners"
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Blocks merging when required code owner reviews are missing."
 - id: gitea-0119
   anchor: symbol:go:models.perm.access.RecalculateUserAccess:Function#e795aeb03812a84f64a8fc600f3acefc4f810d042bd590ed0b338690347bdc76#1
   location: models/perm/access/access.go:268
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Returns the insertion error with diagnostic context."
 - id: gitea-0120
   anchor: symbol:go:services.pull.checkSigningRequirements:Function#41d115b9e7c003b14f9f1fd17c8a7005594e44874fc515d6a2533ecfacea822c#1
   location: services/pull/check.go:239
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Propagates the existing error."

@@ -1194,3 +1194,59 @@ points:
     score: 6
     contributions:
       downstream_calls: 6
+  nova-0091:
+    selected_by: fill
+    rank: 673
+    score: 1
+    contributions:
+      decision_shape: 1
+  nova-0092:
+    selected_by: fill
+    rank: 1596
+    score: 0
+    contributions: {}
+  nova-0093:
+    selected_by: fill
+    rank: 225
+    score: 4
+    contributions:
+      condition: 4
+  nova-0094:
+    selected_by: fill
+    rank: 1909
+    score: 0
+    contributions: {}
+  nova-0095:
+    selected_by: fill
+    rank: 70
+    score: 5
+    contributions:
+      downstream_calls: 5
+  nova-0096:
+    selected_by: fill
+    rank: 1051
+    score: 0
+    contributions: {}
+  nova-0097:
+    selected_by: fill
+    rank: 1990
+    score: 0
+    contributions: {}
+  nova-0098:
+    selected_by: fill
+    rank: 30
+    score: 6
+    contributions:
+      decision_shape: 1
+      downstream_calls: 5
+  nova-0099:
+    selected_by: fill
+    rank: 909
+    score: 0
+    contributions: {}
+  nova-0100:
+    selected_by: fill
+    rank: 226
+    score: 4
+    contributions:
+      condition: 4

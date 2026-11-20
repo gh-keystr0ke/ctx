@@ -1771,7 +1771,7 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: zulip-0093
   anchor: symbol:python:zerver.actions.message_send.send_rate_limited_pm_notification_to_bot_owner:Function#83fd97451fc83395670fb090fe221e3d63039c5a694cde294db6a99d9419bfde#1
   location: zerver/actions/message_send.py:1658
@@ -1783,7 +1783,7 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: zulip-0094
   anchor: symbol:python:zerver.actions.message_send.extract_private_recipients:Function#267266d21a05d18fe5e24cc8a9f128598d42f5c362d404058ccba2888a499680#1
   location: zerver/actions/message_send.py:1513
@@ -1795,7 +1795,7 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "Rejects a value of the wrong type before parsing recipients."
+  note: Rejects a value of the wrong type before parsing recipients.
 - id: zulip-0095
   anchor: symbol:python:zerver.lib.streams.access_stream_for_send_message:Function#80a9e50728b699d2255ab3df01fde57c67fbd6f55112dd5d713c21240b43214a#1
   location: zerver/lib/streams.py:711
@@ -1807,7 +1807,7 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: zulip-0096
   anchor: symbol:python:zerver.lib.streams.access_stream_common:Function#5869145d2b6534f032da01c6cbd6719889726f61ed5162ce5a58d5384c8093ca#1
   location: zerver/lib/streams.py:988
@@ -1819,7 +1819,7 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: zulip-0097
   anchor: symbol:python:zerver.lib.retention.move_expired_direct_messages_to_archive:Function#1e5cb7811addb845b003c41cadb84643071f5efbf3c4a4be763ae8362f8f659c#1
   location: zerver/lib/retention.py:240
@@ -1831,7 +1831,7 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: zulip-0098
   anchor: symbol:python:zerver.actions.message_send.internal_prep_stream_message:Function#1643bb3d8adc5122aebf0616a0e73f7dc72cc13abc633e36fc1dce01b1dd7eb6#1
   location: zerver/actions/message_send.py:2140
@@ -1843,7 +1843,7 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: zulip-0099
   anchor: symbol:python:corporate.lib.stripe.BillingSession.invoice_plan:Method#4e84c0d7516cd694f4369d72a49f6345c97af8988db1a681a81a2af9a9a138cc#1
   location: corporate/lib/stripe.py:3563
@@ -1855,7 +1855,7 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: zulip-0100
   anchor: symbol:python:zerver.lib.retention._process_grouped_messages_deletion:Function#bb2b6b30313d0231c222a8113bd1ab5fe0823125d91ad44a2547e6c4e34e9e37#1
   location: zerver/lib/retention.py:406
@@ -1867,7 +1867,7 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: zulip-0101
   anchor: symbol:python:zerver.actions.message_send.send_user_profile_update_notification:Function#6f328cfb0de06d576bb9ade5eb33d2c4facd701d08f9d8809b6836c5909d43ca#1
   location: zerver/actions/message_send.py:2375
@@ -1879,4 +1879,124 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+- id: zulip-0102
+  anchor: symbol:python:zerver.actions.message_send.do_send_messages:Function#97711f7e19685621c4f8d53bb3c9dc795f609da5e9d35b404dc7cd6112dd175f#1
+  location: zerver/actions/message_send.py:1151
+  draft: null
+  drafted_by: null
+  label: null
+  category: null
+  evidence: []
+  verified_by: null
+  second_label: null
+  second_by: null
+  note: null
+- id: zulip-0103
+  anchor: symbol:python:zerver.lib.streams.access_stream_for_send_message:Function#a503b738eae8b947b2e9d2d5ef1cdd4b7e6016e4ac01be9a7a83c7b844e8e936#1
+  location: zerver/lib/streams.py:690
+  draft: null
+  drafted_by: null
+  label: null
+  category: null
+  evidence: []
+  verified_by: null
+  second_label: null
+  second_by: null
+  note: null
+- id: zulip-0104
+  anchor: symbol:python:corporate.lib.stripe.RealmBillingSession.do_change_plan_type:Method#2068622952a2e69f2b6f12fc0320bdc08b6e459c2055f2b450cf34686c6a8993#1
+  location: corporate/lib/stripe.py:4497
+  draft: null
+  drafted_by: null
+  label: null
+  category: null
+  evidence: []
+  verified_by: null
+  second_label: null
+  second_by: null
+  note: null
+- id: zulip-0105
+  anchor: symbol:python:zerver.lib.retention.move_expired_messages_to_archive_by_recipient:Function#1e5cb7811addb845b003c41cadb84643071f5efbf3c4a4be763ae8362f8f659c#1
+  location: zerver/lib/retention.py:207
+  draft: null
+  drafted_by: null
+  label: null
+  category: null
+  evidence: []
+  verified_by: null
+  second_label: null
+  second_by: null
+  note: null
+- id: zulip-0106
+  anchor: symbol:python:corporate.lib.stripe.get_price_per_license:Function#f79b6c2d28eb19c6194e36dee56d7ef0bd2ad73cc27f1a4aa48a7964063ba533#1
+  location: corporate/lib/stripe.py:5714
+  draft: null
+  drafted_by: null
+  label: null
+  category: null
+  evidence: []
+  verified_by: null
+  second_label: null
+  second_by: null
+  note: null
+- id: zulip-0107
+  anchor: symbol:python:corporate.lib.stripe.RemoteRealmBillingSession.get_audit_log_event:Method#845f006b77af06c9e4c6049a146d66004c1a4eac7ed16306655131c8d50a4329#1
+  location: corporate/lib/stripe.py:4796
+  draft: null
+  drafted_by: null
+  label: null
+  category: null
+  evidence: []
+  verified_by: null
+  second_label: null
+  second_by: null
+  note: null
+- id: zulip-0108
+  anchor: symbol:python:zerver.lib.rate_limiter.RateLimitedIPAddr.__init__:Method#5fbe10075fcb8b011344d0a2a465f3b83666a70310ed949a0e914f86cb1a2949#1
+  location: zerver/lib/rate_limiter.py:139
+  draft: null
+  drafted_by: null
+  label: null
+  category: null
+  evidence: []
+  verified_by: null
+  second_label: null
+  second_by: null
+  note: null
+- id: zulip-0109
+  anchor: symbol:python:corporate.lib.stripe.BillingSession.downgrade_at_the_end_of_billing_cycle:Method#9d710080dec755040816b9f9fa3547056fa2bf6c06cd609fd6e987c4c8ef0fb5#1
+  location: corporate/lib/stripe.py:3146
+  draft: null
+  drafted_by: null
+  label: null
+  category: null
+  evidence: []
+  verified_by: null
+  second_label: null
+  second_by: null
+  note: null
+- id: zulip-0110
+  anchor: symbol:python:zerver.actions.message_send.send_user_profile_update_notification:Function#9254df5e2b75d105c010b80e86aaf89571fec273822546a68982690224d22126#1
+  location: zerver/actions/message_send.py:2372
+  draft: null
+  drafted_by: null
+  label: null
+  category: null
+  evidence: []
+  verified_by: null
+  second_label: null
+  second_by: null
+  note: null
+- id: zulip-0111
+  anchor: symbol:python:zerver.lib.streams.check_for_can_create_topic_group_violation:Function#b3921a026183662f1ac39b156b3be8cd802429089450e2a8d0bc47068719b566#1
+  location: zerver/lib/streams.py:754
+  draft: null
+  drafted_by: null
+  label: null
+  category: null
+  evidence: []
+  verified_by: null
+  second_label: null
+  second_by: null
+  note: null

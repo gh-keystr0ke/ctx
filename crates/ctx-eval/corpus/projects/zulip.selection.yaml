@@ -1278,3 +1278,61 @@ points:
     contributions:
       decision_shape: 1
       downstream_calls: 8
+  zulip-0102:
+    selected_by: fill
+    rank: 1022
+    score: 0
+    contributions: {}
+  zulip-0103:
+    selected_by: fill
+    rank: 151
+    score: 5
+    contributions:
+      decision_shape: 1
+      downstream_calls: 4
+  zulip-0104:
+    selected_by: fill
+    rank: 886
+    score: 0
+    contributions: {}
+  zulip-0105:
+    selected_by: fill
+    rank: 644
+    score: 1
+    contributions:
+      decision_shape: 1
+  zulip-0106:
+    selected_by: fill
+    rank: 962
+    score: 0
+    contributions: {}
+  zulip-0107:
+    selected_by: fill
+    rank: 262
+    score: 2
+    contributions:
+      decision_shape: 1
+      downstream_calls: 1
+  zulip-0108:
+    selected_by: fill
+    rank: 630
+    score: 1
+    contributions:
+      decision_shape: 1
+  zulip-0109:
+    selected_by: fill
+    rank: 803
+    score: 0
+    contributions: {}
+  zulip-0110:
+    selected_by: fill
+    rank: 48
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  zulip-0111:
+    selected_by: fill
+    rank: 1184
+    score: 0
+    contributions: {}

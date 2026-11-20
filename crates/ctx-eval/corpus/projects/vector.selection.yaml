@@ -498,3 +498,63 @@ points:
     rank: 714
     score: 0
     contributions: {}
+  vector-0047:
+    selected_by: fill
+    rank: 153
+    score: 2
+    contributions:
+      downstream_calls: 2
+  vector-0048:
+    selected_by: fill
+    rank: 13
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  vector-0049:
+    selected_by: fill
+    rank: 10
+    score: 9
+    contributions:
+      condition: 4
+      downstream_calls: 5
+  vector-0050:
+    selected_by: fill
+    rank: 683
+    score: 0
+    contributions: {}
+  vector-0051:
+    selected_by: fill
+    rank: 62
+    score: 5
+    contributions:
+      downstream_calls: 5
+  vector-0052:
+    selected_by: fill
+    rank: 166
+    score: 2
+    contributions:
+      downstream_calls: 2
+  vector-0053:
+    selected_by: fill
+    rank: 197
+    score: 1
+    contributions:
+      downstream_calls: 1
+  vector-0054:
+    selected_by: fill
+    rank: 133
+    score: 4
+    contributions:
+      downstream_calls: 4
+  vector-0055:
+    selected_by: fill
+    rank: 304
+    score: 0
+    contributions: {}
+  vector-0056:
+    selected_by: fill
+    rank: 273
+    score: 1
+    contributions:
+      downstream_calls: 1

@@ -621,7 +621,7 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: vector-0038
   anchor: symbol:rust:crate.topology.channel.sender.UsageAccounting.record:Method#c071ea9c324fea988f196df8db7eddccc0001231d5bf5c66ba26b4c44961f0b1#1
   location: lib/vector-buffers/src/topology/channel/sender.rs:187
@@ -633,7 +633,7 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "The arm updates instrumentation for an already discarded event."
+  note: The arm updates instrumentation for an already discarded event.
 - id: vector-0039
   anchor: symbol:rust:crate.variants.disk_v2.writer.BufferWriter.apply_writer_checkpoint_scan:Method#11af5da7738d47c808b8e73b109ae42e6f3c72d4d88b074db3b6a0aceeb3f27a#1
   location: lib/vector-buffers/src/variants/disk_v2/writer.rs:1184
@@ -644,11 +644,11 @@ points:
   evidence:
   - type: issue
     url: https://github.com/vectordotdev/vector/pull/25845
-    quote: "Truncate post-checkpoint or corrupt writer tails"
+    quote: Truncate post-checkpoint or corrupt writer tails
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "Startup recovery truncates the bytes outside the durable checkpoint."
+  note: Startup recovery truncates the bytes outside the durable checkpoint.
 - id: vector-0040
   anchor: symbol:rust:crate.variants.disk_v2.tests.model.filesystem.TestFilesystem.Filesystem.open_file_writable_atomic:Method#ce49d68ba4b705c04603246bb325774604c353248b10e7320c71f3ad970dad58#1
   location: lib/vector-buffers/src/variants/disk_v2/tests/model/filesystem.rs:357
@@ -660,7 +660,7 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "The empty arm reports an existing path in the test filesystem model."
+  note: The empty arm reports an existing path in the test filesystem model.
 - id: vector-0041
   anchor: symbol:rust:crate.variants.disk_v2.checkpoint_recovery.BufferReader.try_next_checkpoint_record:Method#d560a8c726a7a2c0d16da030b2cc0aec5883787b2227a252997bbfe1dca27b38#1
   location: lib/vector-buffers/src/variants/disk_v2/checkpoint_recovery.rs:572
@@ -672,7 +672,7 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: vector-0042
   anchor: symbol:rust:crate.variants.disk_v2.checkpoint_recovery.BufferReader.classify_checkpoint_data_file:Method#1be19f1d7dcbdec385c02da400c7353443574c3fab4b668ee4d3284237fddfc1#1
   location: lib/vector-buffers/src/variants/disk_v2/checkpoint_recovery.rs:451
@@ -684,7 +684,7 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "Routine empty-file guard before parsing records."
+  note: Routine empty-file guard before parsing records.
 - id: vector-0043
   anchor: symbol:rust:crate.topology.channel.limited_queue.LimitedReceiver.next:Method#d4f3babd20bff946b678983f01c216e6a5795147aa863be9767ae6c8fe3ce066#1
   location: lib/vector-buffers/src/topology/channel/limited_queue.rs:431
@@ -696,7 +696,7 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: vector-0044
   anchor: symbol:rust:crate.sinks.util.retries.FibonacciRetryPolicy.Policy<Req,Res,Error>.retry:Method#f7ee109862095a7282ade76227554f8fae783adc6a8d74ced8ee56c3dea4594a#1
   location: src/sinks/util/retries.rs:248
@@ -708,7 +708,7 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: vector-0045
   anchor: symbol:rust:crate.variants.disk_v2.io.File.AsyncFile.truncate:Method#66897020142591b4db6e49869dd2467c9e02543b0e20146596a7731b3927e70b#1
   location: lib/vector-buffers/src/variants/disk_v2/io.rs:301
@@ -720,10 +720,130 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: vector-0046
   anchor: symbol:rust:crate.variants.disk_v2.writer.BufferWriter.validate_last_write:Method#7f9da486c5fd856c090f534e113c10519394245e5bf1f18a8ad89ac7d0fbfb7c#1
   location: lib/vector-buffers/src/variants/disk_v2/writer.rs:1357
+  draft: null
+  drafted_by: null
+  label: unclear
+  category: null
+  evidence: []
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+- id: vector-0047
+  anchor: symbol:rust:crate.finalization.BatchNotifier.maybe_new_with_receiver:Method#919e7c47b7712e7aea6126d08ab2bd8f059eef53ce608aea27a028b24c4aa2ba#1
+  location: lib/vector-common/src/finalization.rs:278
+  draft: null
+  drafted_by: null
+  label: unclear
+  category: null
+  evidence: []
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+- id: vector-0048
+  anchor: symbol:rust:crate.variants.disk_v2.reader.BufferReader.seek_to_next_record:Method#11dfa9a7ecd4fd61d37fed406c46f5c9cbf1ca3383ce2d2bf7b92d54e29988a8#1
+  location: lib/vector-buffers/src/variants/disk_v2/reader.rs:859
+  draft: null
+  drafted_by: null
+  label: trivial
+  category: validation
+  evidence: []
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: "Routine initialization guard prevents repeating an already completed initialization."
+- id: vector-0049
+  anchor: symbol:rust:crate.variants.disk_v2.checkpoint_recovery.BufferReader.classify_checkpoint_data_file:Method#63985e624d242f9f15555532eb83b8906867ee7dc4caca62a741bccffcc13eb4#1
+  location: lib/vector-buffers/src/variants/disk_v2/checkpoint_recovery.rs:456
+  draft: null
+  drafted_by: null
+  label: unclear
+  category: null
+  evidence: []
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+- id: vector-0050
+  anchor: symbol:rust:crate.variants.disk_v2.writer.BufferWriter.reconcile_current_data_file_with_checkpoint:Method#5f3a99bc92fc323f6328caa0f4c5ed4a22a1dcfe53310009d70928800e08f73d#1
+  location: lib/vector-buffers/src/variants/disk_v2/writer.rs:1228
+  draft: null
+  drafted_by: null
+  label: trivial
+  category: validation
+  evidence: []
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: "Stops scanning when the reader reports no more records."
+- id: vector-0051
+  anchor: symbol:rust:crate.sinks.util.retries.FibonacciRetryPolicy.Policy<Req,Res,Error>.retry:Method#37d0e4c24c2cacafbb8ddcee3a62e86b845743e0d01cf37331e32ef727a2f3f8#1
+  location: src/sinks/util/retries.rs:232
+  draft: null
+  drafted_by: null
+  label: unclear
+  category: null
+  evidence: []
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+- id: vector-0052
+  anchor: symbol:rust:crate.variants.disk_v2.ledger.Ledger.load_or_create:Method#b2b2415f23c1b37239121d9c00c2ec28b4606eeb63711ffb10f1a873ee896d32#1
+  location: lib/vector-buffers/src/variants/disk_v2/ledger.rs:784
+  draft: null
+  drafted_by: null
+  label: unclear
+  category: null
+  evidence: []
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+- id: vector-0053
+  anchor: symbol:rust:crate.sinks.util.batch.FinalizersBatch.Batch.push:Method#1fec3d2659403872fade01ab3a1ef2ae7bba5f4756d1ce47ff621ec3be2d072c#1
+  location: src/sinks/util/batch.rs:478
+  draft: null
+  drafted_by: null
+  label: unclear
+  category: null
+  evidence: []
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+- id: vector-0054
+  anchor: symbol:rust:crate.variants.disk_v2.writer.BufferWriter.ensure_ready_for_write:Method#2f9016818c4c27f802736aa8baf82745184b91cf9826e54922b459f1e3ce4634#1
+  location: lib/vector-buffers/src/variants/disk_v2/writer.rs:1647
+  draft: null
+  drafted_by: null
+  label: unclear
+  category: null
+  evidence: []
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+- id: vector-0055
+  anchor: symbol:rust:crate.finalization.BatchStatus.update:Method#d5bb22500b317b78a60e78c741e21d3611bb881caa5a5ce26c38297638af7ae5#1
+  location: lib/vector-common/src/finalization.rs:376
+  draft: null
+  drafted_by: null
+  label: trivial
+  category: state-transition
+  evidence: []
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: "The fallback returns the current value unchanged."
+- id: vector-0056
+  anchor: symbol:rust:crate.variants.in_memory.MemoryBuffer.IntoBuffer<T>.into_buffer_parts:Method#80c2a8e74eb4bfb2b564003e723b64abd17626b2da48b4509739c231ce37db50#1
+  location: lib/vector-buffers/src/variants/in_memory.rs:43
   draft: null
   drafted_by: null
   label: unclear

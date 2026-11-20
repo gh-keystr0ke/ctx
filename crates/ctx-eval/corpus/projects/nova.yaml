@@ -957,11 +957,11 @@ points:
   evidence:
   - type: docs
     url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/api-ref/source/os-keypairs.inc#L52
-    quote: "Imports (or generates) a keypair."
+    quote: Imports (or generates) a keypair.
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "An explicit public key selects import; the API also describes generation."
+  note: An explicit public key selects import; the API also describes generation.
 - id: nova-0047
   anchor: symbol:python:nova.compute.api.API._allow_cross_cell_resize:Method#63917f458b8f1cd908f18a8ab95d35ce9e9dd563c0d10c9aea4818ec90b662f0#1
   location: nova/compute/api.py:4185
@@ -973,7 +973,7 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: nova-0048
   anchor: symbol:python:nova.compute.api.API.resize:Method#d7615027fae02ce21dc500c7b413f9e8def1121652bfea70a6397baf379b6a47#2
   location: nova/compute/api.py:4399
@@ -985,7 +985,7 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "Checks whether the optional classification needs to be loaded."
+  note: Checks whether the optional classification needs to be loaded.
 - id: nova-0049
   anchor: symbol:python:nova.compute.api.API._create_instance:Method#627d80fd4906b73ee9fefe0fcc7f092317e930e1540bf7e88c673267afa64f77#1
   location: nova/compute/api.py:1718
@@ -997,7 +997,7 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: nova-0050
   anchor: symbol:python:nova.api.openstack.compute.servers.ServersController._create_image:Method#497b723a222bed1c8e9faf7dd50f12b7f5e2d6d1af8a74af590da726b14848f8#1
   location: nova/api/openstack/compute/servers.py:1452
@@ -1009,7 +1009,7 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: nova-0051
   anchor: symbol:python:nova.api.openstack.compute.shelve.ShelveController._shelve_offload:Method#b670f10efbcd89269f81c9e2af5cd8bf374229e0d37481713704b33edf5201d9#1
   location: nova/api/openstack/compute/shelve.py:84
@@ -1020,11 +1020,11 @@ points:
   evidence:
   - type: docs
     url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/api-ref/source/servers-action-shelve.inc#L73
-    quote: "The server status must be ``SHELVED``."
+    quote: The server status must be ``SHELVED``.
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "Invalid server state becomes the documented shelve-offload conflict response."
+  note: Invalid server state becomes the documented shelve-offload conflict response.
 - id: nova-0052
   anchor: symbol:python:nova.compute.api.HostAPI.service_get_all:Method#deea6d0e7cc9888194237f70a5773da32635fa17f9a4da82343a73e6fe6f843a#1
   location: nova/compute/api.py:6327
@@ -1036,7 +1036,7 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: nova-0053
   anchor: symbol:python:nova.compute.api.HostAPI.compute_node_get:Method#87ea46dd2ac918a045b15b19326f090aae4a67c84abc3da00c1fefdfbc3200b0#1
   location: nova/compute/api.py:6480
@@ -1048,7 +1048,7 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: nova-0054
   anchor: symbol:python:nova.compute.api.check_instance_state:Function#989b0494b405fd04bd99839b11271faa9b376b33b8dc681c4c4fca8211f5d4ca#1
   location: nova/compute/api.py:142
@@ -1060,10 +1060,70 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: nova-0055
   anchor: symbol:python:nova.api.openstack.compute.remote_consoles.RemoteConsolesController.create:Method#a70d6e675e8d9a5acfd85852f2e66ee90969ff21294f60b878db6d843f18beef#1
   location: nova/api/openstack/compute/remote_consoles.py:162
+  draft: null
+  drafted_by: null
+  label: unclear
+  category: null
+  evidence: []
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+- id: nova-0056
+  anchor: symbol:python:nova.api.openstack.compute.services.ServiceController.delete:Method#2e712635f0a8e39b1ab90af96c247ab501d63a99d380757f5c5d9730328616b6#1
+  location: nova/api/openstack/compute/services.py:264
+  draft: null
+  drafted_by: null
+  label: unclear
+  category: null
+  evidence: []
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+- id: nova-0057
+  anchor: symbol:python:nova.compute.api.HostAPI.service_get_all:Method#e7f310851365a57591da1cd630fd897e8221ad073394c5b42e861e354e7eb7b8#1
+  location: nova/compute/api.py:6305
+  draft: null
+  drafted_by: null
+  label: unclear
+  category: null
+  evidence: []
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+- id: nova-0058
+  anchor: symbol:python:nova.scheduler.filters.compute_capabilities_filter.ComputeCapabilitiesFilter._satisfies_extra_specs:Method#5b8a7fc80c15c5fe2780170519cb63fd3e3445548cc72baee5ee4c3358723f6a#1
+  location: nova/scheduler/filters/compute_capabilities_filter.py:73
+  draft: null
+  drafted_by: null
+  label: trivial
+  category: validation
+  evidence: []
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: "Returns immediately after checking that optional extra specs are absent."
+- id: nova-0059
+  anchor: symbol:python:nova.quota.DbQuotaDriver.get_settable_quotas:Method#211cd6ea744f4677b007908adb51e7e6b871d80514c2261781ca61d544954f4c#1
+  location: nova/quota.py:316
+  draft: null
+  drafted_by: null
+  label: unclear
+  category: null
+  evidence: []
+  verified_by: codex-work
+  second_label: null
+  second_by: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+- id: nova-0060
+  anchor: symbol:python:nova.quota.DbQuotaDriver._get_quotas:Method#1ca0010552c12f1ba4e3fd7fe019d92c880a71a630c107caa542999ee8ccea70#1
+  location: nova/quota.py:352
   draft: null
   drafted_by: null
   label: unclear

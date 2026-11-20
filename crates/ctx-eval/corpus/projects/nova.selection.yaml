@@ -570,3 +570,32 @@ points:
     rank: 1206
     score: 0
     contributions: {}
+  nova-0056:
+    selected_by: fill
+    rank: 9
+    score: 8
+    contributions:
+      downstream_calls: 8
+  nova-0057:
+    selected_by: fill
+    rank: 770
+    score: 1
+    contributions:
+      decision_shape: 1
+  nova-0058:
+    selected_by: fill
+    rank: 2069
+    score: 0
+    contributions: {}
+  nova-0059:
+    selected_by: fill
+    rank: 62
+    score: 5
+    contributions:
+      downstream_calls: 5
+  nova-0060:
+    selected_by: fill
+    rank: 797
+    score: 1
+    contributions:
+      decision_shape: 1

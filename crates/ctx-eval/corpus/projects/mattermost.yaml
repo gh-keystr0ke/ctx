@@ -1774,118 +1774,121 @@ points:
   location: server/channels/app/post.go:2257
   draft: null
   drafted_by: null
-  label: null
-  category: null
-  evidence: []
-  verified_by: null
+  label: significant
+  category: state-transition
+  evidence:
+  - type: docs
+    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/end-user-guide/collaborate/archive-unarchive-channels.rst#L10
+    quote: "Archiving channels removes them from the channel sidebar and marks them as read-only."
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "A post in an archived channel cannot be deleted because archived channels are read-only."
 - id: mattermost-0094
   anchor: symbol:go:server.channels.app.App.RevealPost:Method#8b4d386d05a7aa58c6b151b4b9497e725e1ebf8225e85a9d69e0c464f4293c73#1
   location: server/channels/app/post.go:4104
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Propagates the validation error without adding a rule."
 - id: mattermost-0095
   anchor: symbol:go:server.channels.app.App.CreateTeamWithUser:Method#f95d2993f86915bb767e9ba4956771958bf707ca767f514f4abf774a09816cca#1
   location: server/channels/app/team.go:143
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Propagates the existing error."
 - id: mattermost-0096
   anchor: symbol:go:server.channels.app.App.InviteNewUsersToTeamGracefully:Method#3403433e559528c855ffd5f4f6af23677da00be77041e0f42208fe50ccf42709#1
   location: server/channels/app/team.go:1607
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: mattermost-0097
   anchor: symbol:go:server.channels.app.App.CreateChannelWithUserAndPropertyValues:Method#f95d2993f86915bb767e9ba4956771958bf707ca767f514f4abf774a09816cca#2
   location: server/channels/app/channel.go:205
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Propagates the existing error."
 - id: mattermost-0098
   anchor: symbol:go:server.channels.app.App.CreatePost:Method#251a6e18b6fb1e0118fcc8adfc6171328b46029033a5840f936f6911835503c5#1
   location: server/channels/app/post.go:373
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: mattermost-0099
   anchor: symbol:go:server.channels.app.App.DeletePost:Method#a225847115c06fa5a70adfbdd7da044b1202c319528697bc65d7cd8ccc6f1c25#1
   location: server/channels/app/post.go:2253
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Propagates the application error."
 - id: mattermost-0100
   anchor: symbol:go:server.channels.app.App.sendUpdateChannelMemberEvent:Method#7347ce35fa8cb671b50c35c5f5c5b1c1ed6811295e1d8f389a0b9d25d1980db2#1
   location: server/channels/app/channel.go:1708
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Propagates the JSON serialization error."
 - id: mattermost-0101
   anchor: symbol:go:server.channels.app.App.JoinUserToTeam:Method#312d7962a4017c79a12fa891db61c0606dd1c65bf993349c1f58b23539def558#1
   location: server/channels/app/team.go:842
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: mattermost-0102
   anchor: symbol:go:server.channels.app.App.SearchPublicTeams:Method#c23b5e5240236d24ae48d2421e2fa14a3c4c781da7658ffb13d0ae4783bec982#1
   location: server/channels/app/team.go:1069
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."

@@ -1072,118 +1072,124 @@ points:
   location: models/organization/org_list.go:150
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: gitea-0082
   anchor: symbol:go:models.git.ProtectedBranch.CanUserForcePush:Method#03433be40a04f2290d54a78e575303ab3a602409ccd378ffca935199d9d690e7#1
   location: models/git/protected_branch.go:156
   draft: null
   drafted_by: null
-  label: null
-  category: null
-  evidence: []
-  verified_by: null
+  label: significant
+  category: permission
+  evidence:
+  - type: issue
+    url: https://github.com/go-gitea/gitea/pull/28086
+    quote: "The default value of the rule will be set to `Disabled`"
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "A protected branch denies force pushes unless that option has been enabled."
 - id: gitea-0083
   anchor: symbol:go:models.organization.loadOrganizationOwners:Function#959f2fd772a4a7144e586d871878e374fe2047dc82f6d2854535240a6a915d98#1
   location: models/organization/org_user.go:124
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: validation
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Returns early for an empty collection."
 - id: gitea-0084
   anchor: symbol:go:services.pull.CheckPullBranchProtections:Function#02a704197c7b26ec1869967c43ca7acc6a61e02a0000afb5f5d622b042a23175#1
   location: services/pull/merge.go:721
   draft: null
   drafted_by: null
-  label: null
-  category: null
-  evidence: []
-  verified_by: null
+  label: significant
+  category: state-transition
+  evidence:
+  - type: issue
+    url: https://github.com/go-gitea/gitea/pull/13705
+    quote: "Add block on official review requests branch protection"
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Pending official review requests can block a protected branch merge."
 - id: gitea-0085
   anchor: symbol:go:models.git.ProtectedBranch.CanUserForcePush:Method#9b0733c7e904a0cd0bae880ec45c6ee8d2f21cfaae6c7eada98b246bd539b107#1
   location: models/git/protected_branch.go:168
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: gitea-0086
   anchor: symbol:go:services.pull.CheckPRsForBaseBranch:Function#41d115b9e7c003b14f9f1fd17c8a7005594e44874fc515d6a2533ecfacea822c#1
   location: services/pull/check.go:518
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Propagates the existing error."
 - id: gitea-0087
   anchor: symbol:go:models.perm.access.Permission.HasAnyUnitPublicAccess:Method#f4151b97f74c58b593da74d6be0a0f53b2b66bdfe45c2cfca0ff33391ca4c3cb#1
   location: models/perm/access/repo_permission.go:74
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: gitea-0088
   anchor: symbol:go:models.perm.access.GetActionsUserRepoPermission:Function#e7f71594aeec1e075b0afd94191151593fa07635384ea355c0d29627f00dae09#1
   location: models/perm/access/repo_permission.go:292
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Propagates job load failure."
 - id: gitea-0089
   anchor: symbol:go:models.perm.access.refreshAccesses:Function#7c9872d5662e0fcc2abea18e207fa6d24590bfde9d3c40a3cb166e72871fc2f1#1
   location: models/perm/access/access.go:120
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: gitea-0090
   anchor: symbol:go:models.organization.Organization.AnyRepoUnitPermission:Method#aef8242beb83eec759594ab486dffdd4d13f82b7c020f9b7601e1597b4782d66#1
   location: models/organization/org.go:282
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."

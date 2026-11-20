@@ -1387,118 +1387,121 @@ points:
   location: nova/api/openstack/compute/simple_tenant_usage.py:309
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: validation
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Omits the field when no usage links are available."
 - id: nova-0082
   anchor: symbol:python:nova.api.openstack.compute.volume_attachments.VolumeAttachmentController.update:Method#e48c5e39b348a21b888685c9c27c4725e6e8ab10cc5cb1fe603a993d5529ce33#1
   location: nova/api/openstack/compute/volume_attachments.py:382
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: nova-0083
   anchor: symbol:python:nova.compute.api.API._validate_host_or_node:Method#16e1b41cf46c2810d940f4c45bd7b13d99ddea1fd3edd62de555ce52c86acc7d#1
   location: nova/compute/api.py:1286
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: nova-0084
   anchor: symbol:python:nova.compute.api.API._confirm_resize_on_deleting:Method#b269d8601327b6b741cd2734c7b13e5406e8e6fd9b39746fd5015f3383835d48#1
   location: nova/compute/api.py:2670
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: validation
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Guard for an absent migration before processing its state."
 - id: nova-0085
   anchor: symbol:python:nova.compute.api.API.resize:Method#242ba13b3cf27531741c9fad2fd84b105bda7357124e243c3c51950b7dd88f06#1
   location: nova/compute/api.py:4475
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: nova-0086
   anchor: symbol:python:nova.quota.DbQuotaDriver._process_quotas:Method#cacee5d5ffbde3c0fe992b7ed28af94e0864c802db460908bfe572c1ee34008a#1
   location: nova/quota.py:107
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: nova-0087
   anchor: symbol:python:nova.api.openstack.compute.helpers.translate_attributes:Function#27bdbd193795dd6ce13f41bc3620d3af17c59e63761df505c02f3d781a9b1728#1
   location: nova/api/openstack/compute/helpers.py:99
   draft: null
   drafted_by: null
-  label: null
-  category: null
-  evidence: []
-  verified_by: null
+  label: significant
+  category: state-transition
+  evidence:
+  - type: docs
+    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/api-ref/source/parameters.yaml#L5872
+    quote: "Indicates whether the server is rebuilt with the preservation of the ephemeral"
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Honors the ephemeral partition preservation flag in the rebuild request."
 - id: nova-0088
   anchor: symbol:python:nova.scheduler.filters.image_props_filter.ImagePropertiesFilter.host_passes:Method#608a0d32c9241f56245670dab1f064349b43c21ae1bf28d6ae95bce9767fdd67#1
   location: nova/scheduler/filters/image_props_filter.py:124
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: nova-0089
   anchor: symbol:python:nova.scheduler.filters.image_props_filter.ImagePropertiesFilter._instance_supported._compare_maxphysaddr_bits:Method#8f0dadac007c16644b546f237fe395902b5875324ca3b90ea895f5675f533688#1
   location: nova/scheduler/filters/image_props_filter.py:96
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: validation
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Returns when there are no requested bits to compare."
 - id: nova-0090
   anchor: symbol:python:nova.api.openstack.compute.hypervisors.HypervisorsController._get_hypervisors:Method#552fe763eccacd5a9ee1bd42789084e7eb1ebacf08c28ef9da9228fc621e1925#1
   location: nova/api/openstack/compute/hypervisors.py:163
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."

@@ -307,3 +307,17 @@ All 280 held-out anchors resolved. The held-out scorer returned
 `complete`. Precision was 38/38 across 46 top positions. The trivial
 false-positive rate was 1/76. The tuning scorer returned `incomplete`.
 The expanded samples still require a second review for agreement.
+
+#### Evidence review after the extension
+
+A source review confirmed eight more tuning labels. Three count toward
+the class quotas. The other five are pool points. The tuning scorer
+still returned `incomplete`, with 24 upper positions unrated.
+
+| Tuning project | Significant for quota | Trivial for quota | Unrated top positions |
+| --- | ---: | ---: | ---: |
+| Hyperswitch | 3 | 7 | 9 |
+| Mattermost | 9 | 47 | 5 |
+| Zulip | 8 | 20 | 10 |
+
+The held-out labels and v2 ranking stayed fixed during this review.

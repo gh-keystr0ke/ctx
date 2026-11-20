@@ -392,3 +392,32 @@ The release remains blocked. Most discrepancies concern how to classify
 routine checks, error propagation, and conversions. A smaller set concerns
 whether a source states the exact routing, response, or scheduling rule.
 The next agreement round requires a clarified guide and a new sample.
+
+#### Independent agreement, round 2
+
+Guide version 2 clarifies error propagation, internal no-ops, equivalent
+representations, and evidence for a specific behavior. Reviewers updated 33
+primary labels in the frozen corpus. The ranking remains v2.
+
+A fresh reviewer labeled 128 points from the guide version 2 draw. The
+draw differs from round 1, so differences in kappa include sample effects.
+
+| Project | Paired points | Disagreements | Cohen's kappa |
+| --- | ---: | ---: | ---: |
+| Gitea | 24 | 2 | 0.855 |
+| Hyperswitch | 24 | 6 | 0.556 |
+| Mattermost | 24 | 2 | 0.852 |
+| Nova | 20 | 8 | 0.231 |
+| Vector | 12 | 7 | 0.067 |
+| Zulip | 24 | 5 | 0.665 |
+
+Both score runs returned `complete`, and all six class quotas passed.
+Gate precision was 38/38, with one question among 82 trivial points.
+Tuning precision was 35/38, with 15 questions among 103 trivial points.
+Hyperswitch accounted for 13 of those 15 tuning questions.
+
+The release remains blocked on agreement. Review the link from each
+disputed assertion to its exact condition and effect. The second reviewer
+used some living documentation in addition to pinned sources. Verify
+those citations against a fixed revision before relying on them for
+adjudication.

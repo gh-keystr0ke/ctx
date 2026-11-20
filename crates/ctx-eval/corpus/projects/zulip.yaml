@@ -1129,7 +1129,7 @@ points:
   anchor: symbol:python:zerver.lib.rate_limiter.should_rate_limit:Function#1d556f70a48d7d9613d40c594e36f2754c18db7d45112bcfaaeba38e23eec05c#1
   location: zerver/lib/rate_limiter.py:429
   draft:
-    label: unclear
+    label: significant
     category: limit
     evidence: []
     reason: The branch skips rate limiting for exempt clients. The supplied documentation does not directly describe that exemption.
@@ -1137,13 +1137,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 5234245eb82640b1608e33afe9a740811aa66a6f55e266f7ef897bfa1459e48a
-  label: unclear
-  category: null
-  evidence: []
+  label: significant
+  category: limit
+  evidence:
+  - type: issue
+    url: https://github.com/zulip/zulip/pull/36906/commits/7e1e5ce83b
+    quote: "properly exempt internal requests"
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Skips API throttling for clients that meet the documented exemption."
 - id: zulip-0056
   anchor: symbol:python:corporate.lib.stripe.RemoteRealmBillingSession.save_org_type_from_request_sponsorship_session:Method#dbb3efe5cb9915645399794b49fdd8dc7b134dbb2a7b26aa6b0da7e27ba42645#1
   location: corporate/lib/stripe.py:5115
@@ -1255,7 +1258,7 @@ points:
   anchor: symbol:python:corporate.lib.stripe.BillingSession.get_initial_upgrade_context:Method#401f6285529087b6bd4e7e6bada711044242937dd65742133133d27d4f9bbea2#1
   location: corporate/lib/stripe.py:2940
   draft:
-    label: unclear
+    label: significant
     category: permission
     evidence: []
     reason: The branch lets sponsored customers and customers with pending sponsorship proceed to self-hosted Basic or Business upgrades and redirects other tier requests to sponsorship. The package contains no documentation, specification, or issue directly about this rule.
@@ -1263,13 +1266,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 7c9e798c7499d44e24c260b4953468ed82abd80714508d060824a457daf40d01
-  label: unclear
-  category: null
-  evidence: []
+  label: significant
+  category: permission
+  evidence:
+  - type: issue
+    url: https://github.com/zulip/zulip/pull/28165/commits/e829e52c56
+    quote: "Allow sponsorship pending user to upgrade to business plan"
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Allows the documented self-hosted upgrade path even when a sponsorship request is pending."
 - id: zulip-0062
   anchor: symbol:python:corporate.lib.stripe.BillingSession.invoice_plan:Method#55ef783ed147c52fa50495ead7b217a626320fe1b04d1263c4728fa74666e23a#1
   location: corporate/lib/stripe.py:3570
@@ -1456,7 +1462,7 @@ points:
   anchor: symbol:python:zerver.lib.streams.access_requested_group_permissions_for_streams:Function#d1bb3cf4579d9d7e4424be174a61c704414123a86c5edc3f9b4d3c69cb5994a4#1
   location: zerver/lib/streams.py:1635
   draft:
-    label: unclear
+    label: significant
     category: default
     evidence: []
     reason: When a permission defaults to the channel creator, the code makes that creator the sole member of an anonymous group. None of the supplied documentation directly describes this default.
@@ -1464,13 +1470,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 471b822b47ad41035fdabb2ce741b57ca853227ee7cc472a2bdcfcb88bf65c84
-  label: unclear
-  category: null
-  evidence: []
+  label: significant
+  category: default
+  evidence:
+  - type: docs
+    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/zerver/openapi/zulip.yaml#L30365
+    quote: "the default for the setting is an anonymous group with the channel creator as"
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Creates the documented default permission group with exactly the channel creator."
 - id: zulip-0070
   anchor: symbol:python:zerver.lib.streams.get_stream_permission_policy_key:Function#e6f1d727a752ef7964dd11793d4ed7fd16de4be89c1a30ef942d40a6718ccc2e#1
   location: zerver/lib/streams.py:121
@@ -1494,7 +1503,7 @@ points:
   anchor: symbol:python:zerver.lib.streams.has_metadata_access_to_channel_via_groups:Function#b84f4b4ad8be9c02ebc3a535f851d9979eb2b8800e4852c152fe4ae49f6c085b#1
   location: zerver/lib/streams.py:925
   draft:
-    label: unclear
+    label: significant
     category: permission
     evidence:
     - E1
@@ -1504,19 +1513,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: cd607086f723d607d27e05e5d6ce2d700a76848675cf18317539ea27335c659e
-  label: unclear
-  category: null
+  label: significant
+  category: permission
   evidence:
   - type: docs
-    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/starlight_help/src/content/docs/configure-who-can-subscribe.mdx#L22
-    quote: 'This permission grants access to channel content: users who are allowed to'
-  - type: docs
-    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/starlight_help/src/content/docs/configure-who-can-subscribe.mdx#L14
-    quote: You can give users permission to subscribe to a channel. Everyone other than
+    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/zerver/openapi/zulip.yaml#L30349
+    quote: "guest users cannot exercise this permission even if they are part of"
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Excludes guests from using permissions with the documented restriction when checking channel metadata access."
 - id: zulip-0072
   anchor: symbol:python:zerver.lib.retention.archive_stream_messages:Function#7961f66d94ea7ab280ade382bf8d379cbd09ae7c0e97f0a6780f9dc58d7b8c15#1
   location: zerver/lib/retention.py:516

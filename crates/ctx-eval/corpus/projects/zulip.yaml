@@ -548,7 +548,7 @@ points:
   anchor: symbol:python:zerver.lib.streams.check_channel_creation_permissions:Function#69da6ea7ab729375e0005883e77fe1056e2cbdc9537054d1f1c1d542494deaff#1
   location: zerver/lib/streams.py:263
   draft:
-    label: unclear
+    label: significant
     category: permission
     evidence:
     - E5
@@ -557,16 +557,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 465af874b750cbe1839ffe0a927d47a861fb0630b9e46eb1a16d14d22a157f56
-  label: unclear
-  category: null
+  label: significant
+  category: permission
   evidence:
   - type: docs
-    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/docs/production/authentication-methods.md#L505
-    quote: '`is_realm_owner` (Organization owner), `is_realm_admin` (Organization administrator),'
+    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/starlight_help/src/content/include/_OwnerOnly.mdx#L4
+    quote: "This feature is only available to organization owners."
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "The retention policy includes this owner-only notice and the channel creation check enforces it for a supplied retention policy."
 - id: zulip-0028
   anchor: symbol:python:zerver.actions.message_send.get_validated_user_ids:Function#4429a082478fbff57516728c76b9e9f63ee1138c0ac2d8fb50b0cbdc70977450#1
   location: zerver/actions/message_send.py:1531
@@ -1071,7 +1071,7 @@ points:
   anchor: symbol:python:zerver.lib.streams.get_streams_to_which_user_cannot_add_subscribers:Function#c3624e0f6b67eacf90bf43f2325edaa165e40f6ff9c43ecdf94272055c3f30a8#1
   location: zerver/lib/streams.py:1443
   draft:
-    label: unclear
+    label: significant
     category: permission
     evidence: []
     reason: The invite path bypasses channel-level subscription permission checks for default channels. The supplied documentation excerpts do not address that exception.
@@ -1079,13 +1079,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 2076dd202bdb4a6359406cc06991b129de43615772974e1774618a1fc3ec80e2
-  label: unclear
-  category: null
-  evidence: []
+  label: significant
+  category: permission
+  evidence:
+  - type: docs
+    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/starlight_help/src/content/docs/set-default-channels-for-new-users.mdx#L24-L27
+    quote: "to invite new users can subscribe them to any combination of default channels."
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Invitation handling exempts default channels from the usual channel subscriber permission check."
 - id: zulip-0053
   anchor: symbol:python:corporate.lib.stripe.BillingSession.make_end_of_cycle_updates_if_needed:Method#c800a7c23e5b8ec5bb18b478e3c1657a3f46ab3f38b2d099a406a182abe1f609#1
   location: corporate/lib/stripe.py:2491
@@ -1570,13 +1573,16 @@ points:
   location: zerver/lib/streams.py:1281
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
+  label: significant
+  category: permission
+  evidence:
+  - type: docs
+    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/api_docs/changelog.md#L1979-L1981
+    quote: "with permission to move messages from one channel to another in the organization."
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "The organization-level group grants permission to move messages out of channels."
 - id: zulip-0076
   anchor: symbol:python:corporate.lib.stripe.BillingSession.process_support_view_request:Method#c150cb33f2374a36e1c3bdc85e290d4ac6982c6386995d731930acd5a17e5c0d#1
   location: corporate/lib/stripe.py:3904
@@ -1618,13 +1624,16 @@ points:
   location: zerver/lib/streams.py:876
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
+  label: significant
+  category: permission
+  evidence:
+  - type: docs
+    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/starlight_help/src/content/docs/configure-who-can-administer-a-channel.mdx#L14
+    quote: "Organization administrators can administer certain aspects of all channels."
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "The administrator branch grants channel administration access after checking the organization boundary."
 - id: zulip-0080
   anchor: symbol:python:zerver.lib.streams.check_channel_creation_permissions:Function#2293440cba4ee4a079f75b97f8dda87acf5aec6cd2b78b5f7686ffbd7e221089#1
   location: zerver/lib/streams.py:251
@@ -1837,13 +1846,16 @@ points:
   location: zerver/lib/retention.py:240
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
+  label: significant
+  category: limit
+  evidence:
+  - type: docs
+    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/starlight_help/src/content/docs/message-retention-policy.mdx#L23-L24
+    quote: "Setting an organization-level retention policy, which applies to"
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "The direct-message expiry calculation takes the number of retention days from the organization policy."
 - id: zulip-0098
   anchor: symbol:python:zerver.actions.message_send.internal_prep_stream_message:Function#1643bb3d8adc5122aebf0616a0e73f7dc72cc13abc633e36fc1dce01b1dd7eb6#1
   location: zerver/actions/message_send.py:2140

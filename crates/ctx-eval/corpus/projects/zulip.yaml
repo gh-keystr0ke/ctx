@@ -46,8 +46,8 @@ points:
   category: validation
   evidence: []
   verified_by: codex-work
-  second_label: trivial
-  second_by: codex-work-second
+  second_label: null
+  second_by: null
   note: null
 - id: zulip-0002
   anchor: symbol:python:corporate.lib.stripe.BillingSession.do_update_plan:Method#b4705fe35c4d2a8933ad623c8cb74621a2d9f7d059a3cbd279dfa030e926936e#1
@@ -84,8 +84,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-work-second
+  second_label: null
+  second_by: null
   note: null
 - id: zulip-0004
   anchor: symbol:python:zerver.actions.message_send.internal_send_group_direct_message:Function#1ba2767a1280f0847735a2bb7a5f0892311a402a2fc9c2df73f18a3a9755a827#1
@@ -122,8 +122,8 @@ points:
   category: validation
   evidence: []
   verified_by: codex-work
-  second_label: trivial
-  second_by: codex-work-second
+  second_label: null
+  second_by: null
   note: null
 - id: zulip-0006
   anchor: symbol:python:zerver.lib.retention.restore_all_data_from_archive:Function#70e9b9aa7e38dfb5c465bd5b19c1a4589d85a0316022f06ec2f87d84e1e811cd#1
@@ -370,8 +370,8 @@ points:
     url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/docs/subsystems/schema-migrations.md#L154
     quote: foreign key to a per-realm `NamedUserGroup`, or a value derived
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-work-second
+  second_label: null
+  second_by: null
   note: null
 - id: zulip-0018
   anchor: symbol:python:corporate.lib.stripe.RemoteRealmBillingSession.write_to_audit_log:Method#c9a3a156b15123d2e002eab5225a6562e2ad94bbc4b668ac5b631b20042eba7a#1
@@ -465,8 +465,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-work-second
+  second_label: null
+  second_by: null
   note: null
 - id: zulip-0023
   anchor: symbol:python:corporate.lib.stripe.BillingSession.get_customer_plan_renewal_amount:Method#10adb79a3295ca6b3afcb8be0df5ccbba0fcca0c46d32eee7a1a0b2b6bac7a3b#2
@@ -522,8 +522,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-work-second
+  second_label: null
+  second_by: null
   note: null
 - id: zulip-0026
   anchor: symbol:python:corporate.lib.stripe.RemoteServerBillingSession.check_plan_tier_is_billable:Method#f0824fff3f1ef6f5f86cbc1fc9d3036e3acbd3d4b8bb1a653155320f1c28112b#1
@@ -705,8 +705,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-work-second
+  second_label: null
+  second_by: null
   note: null
 - id: zulip-0035
   anchor: symbol:python:zerver.lib.rate_limiter.RateLimitedUser.rules:Method#178bd4a86bb62cee036d9b6efa9c82788c842e11839254436fd7a004a1eb3b30#1
@@ -732,8 +732,8 @@ points:
     url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/api_docs/http-headers.md#L94
     quote: '* Separate, much lower limits for authentication/login attempts.'
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-work-second
+  second_label: null
+  second_by: null
   note: null
 - id: zulip-0036
   anchor: symbol:python:zerver.actions.message_send.check_send_message:Function#47aa60670912f873b1fb333530298bf8e0fbe0315b6d4120fdc52cef2c30c0f1#1
@@ -770,8 +770,8 @@ points:
   category: validation
   evidence: []
   verified_by: codex-work
-  second_label: trivial
-  second_by: codex-work-second
+  second_label: null
+  second_by: null
   note: null
 - id: zulip-0038
   anchor: symbol:python:corporate.lib.stripe.RemoteServerBillingSession.get_audit_log_event:Method#b381d74d0d31e083dec967fe81143f773094ab56178e140601b80229a60364dd#1
@@ -972,8 +972,8 @@ points:
     url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/docs/translating/internationalization.md#L302
     quote: STREAM_EVENTS_NOTIFICATION_TOPIC = gettext_lazy("channel events")
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-work-second
+  second_label: null
+  second_by: null
   note: null
 - id: zulip-0048
   anchor: symbol:python:corporate.lib.stripe.BillingSession.get_initial_upgrade_context:Method#2fad6af08415d8a6c1785efa93996ff3717b51f6fd12c7a3830915d79bf61f0f#1
@@ -991,8 +991,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-work-second
+  second_label: null
+  second_by: null
   note: null
 - id: zulip-0049
   anchor: symbol:python:zerver.lib.streams.bulk_can_remove_subscribers_from_streams:Function#30411b250064a4a0a760812884781cfb54e174cd49a52324e3f7a02e97ebd35d#1
@@ -1257,8 +1257,8 @@ points:
     url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/docs/production/securing-your-zulip-server.md#L138
     quote: The `RATE_LIMITING` setting can be set to `False` to completely disable all rate-limiting.
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-work-second
+  second_label: null
+  second_by: null
   note: The administrator setting directly controls this bypass.
 - id: zulip-0061
   anchor: symbol:python:corporate.lib.stripe.BillingSession.get_initial_upgrade_context:Method#401f6285529087b6bd4e7e6bada711044242937dd65742133133d27d4f9bbea2#1

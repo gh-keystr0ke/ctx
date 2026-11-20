@@ -115,8 +115,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-work-second
+  second_label: null
+  second_by: null
   note: null
 - id: hyperswitch-0005
   anchor: symbol:rust:router.core.payments.operations.payment_response.create_or_update_payment_method_from_payment_response:Function#2#578555433a37404cd8d7b62bf73ca2be33188e21a61c41cc5dfb97cba733bba5#1
@@ -158,8 +158,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-work-second
+  second_label: null
+  second_by: null
   note: null
 - id: hyperswitch-0007
   anchor: symbol:rust:router.core.payments.routing.try_pre_routing_connectors:Function#9d036b9e7a21213239f3bc00de21f18f16047e473d04f716a94a2bf16084e07e#1
@@ -407,8 +407,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: codex-work
-  second_label: trivial
-  second_by: codex-work-second
+  second_label: null
+  second_by: null
   note: null
 - id: hyperswitch-0019
   anchor: symbol:rust:router.core.payments.helpers.get_token_pm_type_mandate_details:Function#f543c999ac19868bbeed978e170688055203181aed1fda6e0b65808a0ce19568#1
@@ -483,8 +483,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-work-second
+  second_label: null
+  second_by: null
   note: null
 - id: hyperswitch-0023
   anchor: symbol:rust:router.core.payments.tokenization.pre_payment_tokenization:Function#d13843ea3737bff765f330370db67bd0e8fc8b6a5ef96d4b179844ffb6327f98#1
@@ -635,8 +635,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-work-second
+  second_label: null
+  second_by: null
   note: null
 - id: hyperswitch-0031
   anchor: symbol:rust:router.core.routing.helpers.push_metrics_with_update_window_for_contract_based_routing:Function#bf9fa3c8f72b83b2c2514dc23e4bc00ad822a6ada3d70e86a4ac19e304618977#1
@@ -654,8 +654,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-work-second
+  second_label: null
+  second_by: null
   note: null
 - id: hyperswitch-0032
   anchor: symbol:rust:router.core.payments.operations.payment_capture.PaymentCapture.GetTracker<F,payments::PaymentData<F>,api::PaymentsCaptureRequest>.get_trackers:Method#869fd20a589ffb68ceaf1919d89834a2b34c1f08d382ee4f7fa8682cbf68ee2e#1
@@ -752,8 +752,8 @@ points:
     url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/about-hyperswitch/payment-suite.md#L47
     quote: <table data-view="cards"><thead><tr><th align="center"></th><th></th><th data-hidden data-card-cover data-type="image">Cover image</th></tr></thead><tbody><tr><td align="center"><mark style="color:$primary;"><strong>Intelligent Routing</strong></mark></td><td>Dynamically switching between processors in real-time for every transaction to optimally maximise first attempt auth rates and minimise processing cost.</td><td
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-work-second
+  second_label: null
+  second_by: null
   note: null
 - id: hyperswitch-0036
   anchor: symbol:rust:router.core.payments.operations.payment_confirm.PaymentConfirm.Domain<F,api::PaymentsRequest,PaymentData<F>>.create_payment_method:Method#6a8a09c6f5b6b451f4e97fd2d3a21c0d18e23ea4d41e0fb106de11d894ea9d30#1
@@ -819,8 +819,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-work-second
+  second_label: null
+  second_by: null
   note: "Propagates an error fetching the existing payment intent and attempt."
 - id: hyperswitch-0039
   anchor: symbol:rust:router.core.routing.helpers.update_window_for_elimination_routing:Function#b35dd5aa06f5bc6f81b6a2370fbac645f630ad4dc6a93bcfcf5cc4c194e6e36d#1
@@ -876,8 +876,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-work-second
+  second_label: null
+  second_by: null
   note: null
 - id: hyperswitch-0042
   anchor: symbol:rust:router.core.payments.routing.transformers.Option.ForeignFrom<storage_enums::CaptureMethod>.foreign_from:Method#97b4ed697b536ef52fcd26555633083b2cd12699544ee342067c7ace150e5695#1
@@ -895,8 +895,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-work-second
+  second_label: null
+  second_by: null
   note: null
 - id: hyperswitch-0043
   anchor: symbol:rust:router.core.routing.helpers.enable_dynamic_routing_algorithm:Function#74b190bfe30056a484acd459ff78d201aa598e7d001a38283620532888c4ee60#1
@@ -1186,8 +1186,8 @@ points:
     url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/integration-guide/workflows/smart-retries/3ds-step-up-retries.md#L14
     quote: we seamlessly step up the authentication and attempt the payment again with same payment processor
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-work-second
+  second_label: null
+  second_by: null
   note: The step-up branch retries an eligible non-3DS payment with 3DS on the same processor.
 - id: hyperswitch-0058
   anchor: symbol:rust:router.core.payments.operations.payment_session.PaymentSession.GetTracker<F,PaymentData<F>,api::PaymentsSessionRequest>.get_trackers:Method#f72ded31cc1db04b996f09e6db34cb5c80f3b3023d562e2a4266beecf90ca09e#1
@@ -1234,8 +1234,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-work-second
+  second_label: null
+  second_by: null
   note: null
 - id: hyperswitch-0061
   anchor: symbol:rust:router.core.payments.routing.HybridRoutingStage.RoutingStage.route:Method#442978f8d3068e320df3dfc8d36201ed666a8b33265959734d7ff096988b00ec#1

@@ -73,8 +73,8 @@ points:
     url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/manage/admin/abac-channel-access-rules.rst#L125
     quote: "channel admins can define channel-level permission rules for file upload and file download"
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-work-second
+  second_label: null
+  second_by: null
   note: "The destination channel's attachment policy applies when moving a thread with attachments."
 - id: mattermost-0003
   anchor: symbol:go:server.channels.app.App.AddUserToTeamWithToken:Method#228c54dd9d63bd752a8b90782f4909a8550b7daf013689a070f35e3646ae0859#1
@@ -95,8 +95,8 @@ points:
     url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/end-user-guide/collaborate/invite-people.rst#L55
     quote: Invitation links sent by email expire after 48 hours and can only be used once.
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-work-second
+  second_label: null
+  second_by: null
   note: The pinned guide confirms expiry. This branch rejects an expired token. The original second label is retained for agreement.
 - id: mattermost-0004
   anchor: symbol:go:server.channels.app.App.AddChannelMember:Method#5e2dac38c1b48d3eb28b3b66cfc503da9bef51f398ff42f0620a62d67b81e5b5#1
@@ -114,8 +114,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: codex-work
-  second_label: trivial
-  second_by: codex-work-second
+  second_label: null
+  second_by: null
   note: null
 - id: mattermost-0005
   anchor: symbol:go:server.channels.app.App.CheckPostReminders:Method#63e2854e729894cdd002a8d6fed72c277e5b8447ed6bfe8afc3d4cebe786fb6d#1
@@ -209,8 +209,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-work-second
+  second_label: null
+  second_by: null
   note: null
 - id: mattermost-0010
   anchor: symbol:go:server.channels.app.App.AddChannelMember:Method#f95d2993f86915bb767e9ba4956771958bf707ca767f514f4abf774a09816cca#1
@@ -486,8 +486,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-work-second
+  second_label: null
+  second_by: null
   note: null
 - id: mattermost-0023
   anchor: symbol:go:server.channels.app.App.GetSinglePost:Method#1fd8263309b2c88370e9726f1acf404d9b44029d59565db23734c4df653c4c8c#1
@@ -587,8 +587,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-work-second
+  second_label: null
+  second_by: null
   note: null
 - id: mattermost-0028
   anchor: symbol:go:server.channels.app.App.UpdateChannel:Method#f3d00c54faf6c18731af59b0887e17c4a34b2d624abf5239aaf1c6cad1a9ff3d#1
@@ -688,8 +688,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-work-second
+  second_label: null
+  second_by: null
   note: null
 - id: mattermost-0033
   anchor: symbol:go:server.channels.app.App.CreatePost:Method#326cc0bcb334d5c0e9709b0a7adef9079696759d99ef5a46f3bf97c720d4a49d#1
@@ -894,8 +894,8 @@ points:
     url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/comply/embedded-json-audit-log-schema.rst#L513
     quote: '| ``deleteOutgoingHook``        | Deleting outgoing webhooks                                        |'
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-work-second
+  second_label: null
+  second_by: null
   note: null
 - id: mattermost-0043
   anchor: symbol:go:server.channels.app.App.ConvertGroupMessageToChannel:Method#a225847115c06fa5a70adfbdd7da044b1202c319528697bc65d7cd8ccc6f1c25#4
@@ -955,8 +955,8 @@ points:
     url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/onboard/connected-workspaces.rst#L151
     quote: From Mattermost v10.10, creating a direct or group message with remote users across connected workspaces is only available when the feature flag ``EnableSharedChannelsDMs`` is enabled.
   verified_by: codex-work
-  second_label: significant
-  second_by: codex-work-second
+  second_label: null
+  second_by: null
   note: null
 - id: mattermost-0046
   anchor: symbol:go:server.channels.app.App.UpdatePost:Method#cc12a2b8c8ca8329186fbefc6a927c95a339b2d93a76e0cfe64b28b73db9f11c#1
@@ -1107,8 +1107,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: codex-work
-  second_label: trivial
-  second_by: codex-work-second
+  second_label: null
+  second_by: null
   note: null
 - id: mattermost-0054
   anchor: symbol:go:server.channels.app.App.prepareInviteGuestsToChannels:Method#9a94f37bdbf05dbb2c60bfe20461a4ad4bb686dbf86dcc6c87d9d562fa11a324#1
@@ -1134,8 +1134,8 @@ points:
     url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/manage/admin/abac-system-wide-policies.rst#L113
     quote: Private channels with attribute-based access control policies can't have guest users invited to them. Only users who match the defined attribute criteria can be added to ABAC-controlled private channels, ensuring strict adherence to access control policies. Public channels remain joinable by anyone regardless of the policy.
   verified_by: codex-work
-  second_label: significant
-  second_by: codex-work-second
+  second_label: null
+  second_by: null
   note: null
 - id: mattermost-0055
   anchor: symbol:go:server.channels.app.App.CreateChannelWithUserAndPropertyValues:Method#5e2dac38c1b48d3eb28b3b66cfc503da9bef51f398ff42f0620a62d67b81e5b5#1
@@ -1211,8 +1211,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-work-second
+  second_label: null
+  second_by: null
   note: null
 - id: mattermost-0059
   anchor: symbol:go:server.channels.app.App.leaveTeam:Method#a87cdf23c4d93e3f402c59753491b7e916de34c7a297075e429986f4d9a10269#1

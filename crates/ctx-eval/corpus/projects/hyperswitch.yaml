@@ -32,7 +32,7 @@ points:
   anchor: symbol:rust:router.core.payments.operations.payment_response.PaymentResponse.PostUpdateTracker<F,PaymentData<F>,types::PaymentsUpdatePostConfirmData>.update_tracker:Method#13799557877b43519a8bd0367a48381b83570c208184204da9d428a39d57015e#1
   location: crates/router/src/core/payments/operations/payment_response.rs:5364
   draft:
-    label: unclear
+    label: significant
     category: null
     evidence: []
     reason: The code handles a payment resource update response and checks its success status. None of the supplied evidence directly documents this branch or establishes the behavior it controls.
@@ -40,18 +40,21 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 04c931ba3cc96b1a2e67a9f8d35e278d0a264f2184a23f88bfbd3c0794c6d7b7
-  label: unclear
-  category: null
-  evidence: []
+  label: significant
+  category: state-transition
+  evidence:
+  - type: issue
+    url: https://github.com/juspay/hyperswitch/pull/11500
+    quote: "Payment Update Santander Boleto (Post Confirm - call to connector must happen)"
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Routes the connector resource-update response into post-confirmation payment update handling."
 - id: hyperswitch-0002
   anchor: symbol:rust:router.core.routing.helpers.push_metrics_with_update_window_for_contract_based_routing:Function#69769c1c9beeca73fad7cbddd8147dcb86ba8ebd87a3f35b8a7b5dda517947f1#1
   location: crates/router/src/core/routing/helpers.rs:1524
   draft:
-    label: unclear
+    label: significant
     category: null
     evidence:
     - E1
@@ -63,30 +66,21 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 0225f31e546d0cd93246f2047e2d1f0fa9e9eaae9723070883d64e8be12cafbb
-  label: unclear
-  category: null
+  label: significant
+  category: state-transition
   evidence:
-  - type: docs
-    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/integration-guide/payment-suite/payments/manual-capture/README.md#L15
-    quote: 'symbols: manual_multiple with a pending capture and none charged gives AttemptStatus::CaptureInitiated, which maps to IntentStatus::Processing; a charged total equal to the authorized amount gives Charged, and a charged capture short of it gives PartialChargedAndChargeable = crates/router/src/core/payments/types.rs:133-146; crates/common_enums/src/transformers.rs:2128-2135'
-  - type: docs
-    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/about-hyperswitch/sdk-payment-flows.md#L305
-    quote: CaptureMethod --> |automatic| Charged
-  - type: docs
-    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/about-hyperswitch/sdk-payment-flows.md#L309
-    quote: Capture -->|Success| Charged
-  - type: docs
-    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/integration-guide/control-center/reporting/payments-report.md#L13
-    quote: '| `status`                       | The outcome of this attempt — e.g. `charged` (successful), `failed`, `pending`, `cancelled`, `requires_capture`.                                             |'
+  - type: issue
+    url: https://github.com/juspay/hyperswitch/pull/6761
+    quote: "Integrated Contract based routing with hyperswitch"
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "The introducing patch updates the contract routing counters only for the charged outcome."
 - id: hyperswitch-0003
   anchor: symbol:rust:router.core.payments.operations.payment_response.PaymentResponse.PostUpdateTracker<F,PaymentData<F>,types::PaymentsUpdatePostConfirmData>.update_tracker:Method#872088b5c318f49223caa7fff7869faf46cb7abb42317607942d1da54ef71036#1
   location: crates/router/src/core/payments/operations/payment_response.rs:5365
   draft:
-    label: unclear
+    label: significant
     category: state-transition
     evidence:
     - E4
@@ -95,16 +89,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 19a579eca6ecdc999cc25476adc51b2022488415094d5c6e92be8251d5fc3465
-  label: unclear
-  category: null
+  label: significant
+  category: state-transition
   evidence:
-  - type: docs
-    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/about-hyperswitch/hyperswitch-architecture/router.md#L16
-    quote: '* **Data Storage and Response**: Valid data is stored. If the API action is standalone, a success response is returned. If it involves connector calls, the response''s success or failure depends on the connector module''s status.​'
+  - type: issue
+    url: https://github.com/juspay/hyperswitch/pull/11500
+    quote: "Payment Update Santander Boleto (Post Confirm - call to connector must happen)"
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "The introducing patch persists transaction updates only after the connector accepts the post-confirmation update."
 - id: hyperswitch-0004
   anchor: symbol:rust:router.core.routing.helpers.enable_specific_routing_algorithm:Function#bd618ce11b9076a002cde62d2bcc6d5dac62347f4b0c2ab5acefe934568d240e#1
   location: crates/router/src/core/routing/helpers.rs:2093
@@ -232,7 +226,7 @@ points:
   anchor: symbol:rust:router.core.routing.helpers.default_specific_dynamic_routing_setup:Function#ad5969815f50f60763ede3cc8ca6f20741ba0beff0405293b3a5d0f8d5d21632#1
   location: crates/router/src/core/routing/helpers.rs:2252
   draft:
-    label: unclear
+    label: significant
     category: null
     evidence:
     - E4
@@ -243,22 +237,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 2f74004778f04b3127161b9544a1bc14826fe19e149741a22b788941c9b5ea61
-  label: unclear
-  category: null
+  label: significant
+  category: state-transition
   evidence:
-  - type: docs
-    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/integration-guide/workflows/intelligent-routing/least-cost-routing.md#L38
-    quote: 3. Wait for the confirmation message. Check that **Current state** changes to **Enabled** and the button changes to **Disable Debit Routing**.
-  - type: docs
-    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/integration-guide/workflows/intelligent-routing/least-cost-routing.md#L42
-    quote: <figure><img src="../../../.gitbook/assets/decision-engine-debit-routing-enabled.png" alt="Debit Routing page showing Current state as Enabled, the Debit routing enabled confirmation, and the Disable Debit Routing button"><figcaption><p>Confirm that Debit Routing is Enabled after saving the change.</p></figcaption></figure>
-  - type: docs
-    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/integration-guide/workflows/intelligent-routing/least-cost-routing.md#L48
-    quote: 3. Wait for the confirmation message. Check that **Current state** changes to **Disabled** and the button changes back to **Enable Debit Routing**.
+  - type: issue
+    url: https://github.com/juspay/hyperswitch/pull/8755
+    quote: "initialize and register dynamic routing logic"
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "The introducing patch calls the Decision Engine during setup when the engine is configured for dynamic routing."
 - id: hyperswitch-0011
   anchor: symbol:rust:router.core.payments.transformers.payments_to_payments_response:Function#2#ba30d4fe72ef2d12e5cef0c1a9706924d115b5297b07bc636314b6cd31488516#1
   location: crates/router/src/core/payments/transformers.rs:4048
@@ -282,7 +270,7 @@ points:
   anchor: symbol:rust:router.core.routing.helpers.disable_dynamic_routing_algorithm:Function#61f77c1e4d4cba423364a68172d7841402d1284130e6b4686759a6ef533eab4c#1
   location: crates/router/src/core/routing/helpers.rs:1983
   draft:
-    label: unclear
+    label: significant
     category: state-transition
     evidence:
     - E6
@@ -291,16 +279,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: b158532b7cdd63024ef08ea6e4c1b709db8b760c3463dcb6aa358ce49b20a1af
-  label: unclear
-  category: null
+  label: significant
+  category: state-transition
   evidence:
-  - type: docs
-    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/integration-guide/workflows/intelligent-routing/least-cost-routing.md#L48
-    quote: 3. Wait for the confirmation message. Check that **Current state** changes to **Disabled** and the button changes back to **Enable Debit Routing**.
+  - type: issue
+    url: https://github.com/juspay/hyperswitch/pull/8044
+    quote: "if decision engine is enabled, we would call DE instead of Dynamo"
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Removes the routing configuration from the Decision Engine when the engine is configured for dynamic routing."
 - id: hyperswitch-0013
   anchor: symbol:rust:router.core.payments.routing.try_pre_routing_connectors:Function#9ac3f10b26e945121e7d3ffa5b978b3c2a01ba0fe6d1dc29007e2a2ab36e0225#1
   location: crates/router/src/core/payments/routing.rs:1483

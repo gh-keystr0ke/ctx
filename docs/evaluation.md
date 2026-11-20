@@ -336,3 +336,19 @@ Hyperswitch. Its quota counts are now four significant and seven trivial
 points. The tuning scorer still returned `incomplete`, with 23 unrated
 top positions. The held-out result remains complete. Agreement on the
 expanded samples is pending.
+
+#### Completed tuning precision pool
+
+The v2 tuning scorer returned `complete`. The source review confirmed
+16 more top positions. Eight of the 16 count toward the class quotas.
+The ranking and held-out labels stayed fixed.
+
+| Tuning project | Rated top positions | Required | Significant for quota | Trivial for quota |
+| --- | ---: | ---: | ---: | ---: |
+| Hyperswitch | 8/10 | 8 | 10 | 7 |
+| Mattermost | 13/15 | 12 | 9 | 47 |
+| Zulip | 16/19 | 16 | 10 | 20 |
+
+Tuning precision was 35/37 among rated positions. The trivial
+false-positive rate was 2/74. The per-project class quotas remain
+underfilled at the 120-point cap.

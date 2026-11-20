@@ -1370,7 +1370,7 @@ points:
   anchor: symbol:go:server.channels.app.App.PatchChannelModerationsForChannel:Method#858b4e515fc661711d6330142367dcd87c7344945aa1970c8b6a940d03296e2c#1
   location: server/channels/app/channel.go:1290
   draft:
-    label: unclear
+    label: significant
     category: permission
     evidence:
     - E4
@@ -1379,21 +1379,21 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: b462148695d2b64bfa04856deb940286c3d39d5de3fc2fdb7fbb4230ae12bff2
-  label: unclear
-  category: null
+  label: significant
+  category: permission
   evidence:
-  - type: docs
-    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/comply/embedded-json-audit-log-schema.rst#L255
-    quote: '| ``patchChannelModerations``        | Updating channel moderation settings                              |'
+  - type: spec
+    url: https://mattermost.atlassian.net/wiki/spaces/EN/pages/389710345/Tech%2BSpec%2B-%2BChannel%2BModeration%2BSettings
+    quote: "The role can only be less permissive"
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "A channel moderation patch cannot grant members a permission denied at the enclosing scope."
 - id: mattermost-0067
   anchor: symbol:go:server.channels.app.App.PatchChannelModerationsForChannel:Method#ca2e63f8578f4746b82ec10631640f6d395385208e4fba6f6d8937c68476dec9#1
   location: server/channels/app/channel.go:1293
   draft:
-    label: unclear
+    label: significant
     category: permission
     evidence:
     - E2
@@ -1404,27 +1404,21 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: b46459cba919aedfe2018f5647c827b23fd6a04bc577e7667b897be61337a8bf
-  label: unclear
-  category: null
+  label: significant
+  category: permission
   evidence:
-  - type: docs
-    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/comply/embedded-json-audit-log-schema.rst#L255
-    quote: '| ``patchChannelModerations``        | Updating channel moderation settings                              |'
-  - type: docs
-    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/onboard/advanced-permissions.rst#L24
-    quote: 'You can set the default permissions granted to system admins, team admins, channel admins, guests (if enabled), and all members. The permissions granted in the System Scheme apply system-wide, meaning:'
-  - type: docs
-    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/onboard/advanced-permissions.rst#L26
-    quote: '- **Guests:** If Guest Accounts are enabled, permissions apply to guest users in all channels, in all teams.'
+  - type: spec
+    url: https://mattermost.atlassian.net/wiki/spaces/EN/pages/389710345/Tech%2BSpec%2B-%2BChannel%2BModeration%2BSettings
+    quote: "The role can only be less permissive"
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "A channel moderation patch cannot grant guests a permission denied at the enclosing scope."
 - id: mattermost-0068
   anchor: symbol:go:server.channels.app.App.PatchChannelModerationsForChannel:Method#d66f62597687523c199100ea4226fb87290884e5e9a2a0301d16775ffa1d322b#1
   location: server/channels/app/channel.go:1368
   draft:
-    label: unclear
+    label: significant
     category: state-transition
     evidence:
     - E3
@@ -1433,16 +1427,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: ea1c794e8a366e9d21b48b18e5f3125e05ccb2c3c2eb87d5d5138fe7042c5583
-  label: unclear
-  category: null
+  label: significant
+  category: permission
   evidence:
-  - type: docs
-    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/onboard/advanced-permissions-backend-infrastructure.rst#L39
-    quote: When determining whether a user is allowed to carry out a given action in a given context, the union of the permissions of all roles that user has been assigned in the current context and its parent contexts is calculated. This enables permissions to cascade down the scope hierarchy. For example, if a users is granted the ``manage_public_channel_properties`` permission in a role in the system context, then the user h
+  - type: spec
+    url: https://mattermost.atlassian.net/wiki/spaces/EN/pages/389710345/Tech%2BSpec%2B-%2BChannel%2BModeration%2BSettings
+    quote: "the channel’s associated `Schemes` record is deleted"
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Removes the channel scheme when member and guest moderation match the enclosing scheme."
 - id: mattermost-0069
   anchor: symbol:go:server.channels.app.App.SanitizeTeam:Method#938e7bcc9be150e939e29fdc9a41ba4749ef7b7166af9d2f2734c78b988f2f3c#1
   location: server/channels/app/team.go:2333

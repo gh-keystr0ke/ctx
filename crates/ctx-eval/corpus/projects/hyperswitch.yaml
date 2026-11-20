@@ -165,7 +165,7 @@ points:
   anchor: symbol:rust:router.core.payments.routing.try_pre_routing_connectors:Function#9d036b9e7a21213239f3bc00de21f18f16047e473d04f716a94a2bf16084e07e#1
   location: crates/router/src/core/payments/routing.rs:1446
   draft:
-    label: unclear
+    label: significant
     category: null
     evidence: []
     reason: The branch checks pre-routing results only when token data is absent and a payment method type is present. The supplied documentation does not address that condition, so its significance is unclear.
@@ -173,13 +173,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: bea3b619b12dc42627c981b089c4ad92802c6879c9cd2f82a91436ceebdbfaad
-  label: unclear
-  category: null
-  evidence: []
+  label: significant
+  category: permission
+  evidence:
+  - type: issue
+    url: https://github.com/juspay/hyperswitch/pull/4012
+    quote: "only those connectors for which that payment method is set up for MITs"
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Skips ordinary pre-routing when a saved payment token is present so token-based routing can enforce the connector mandate."
 - id: hyperswitch-0008
   anchor: symbol:rust:router.core.routing.helpers.push_metrics_with_update_window_for_success_based_routing:Function#9bb26e49be6b07a0ccac1ef0282523cfd92a3c663fb413caae6ac606a3f20c9c#1
   location: crates/router/src/core/routing/helpers.rs:898

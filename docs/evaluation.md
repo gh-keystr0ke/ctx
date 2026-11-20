@@ -321,3 +321,16 @@ still returned `incomplete`, with 24 upper positions unrated.
 | Zulip | 8 | 20 | 10 |
 
 The held-out labels and v2 ranking stayed fixed during this review.
+
+#### Release build rehearsal
+
+A detached worktree built `ctx` and `ctx-mcp` as version 0.9.0 with the
+locked dependencies on macOS ARM64. The local release archive passed its
+SHA-256 check. The CLI reported version 0.9.0 and exposed the coverage and
+repair commands.
+
+A follow-up source review confirmed deferred payment method creation in
+Hyperswitch. Its quota counts are now four significant and seven trivial
+points. The tuning scorer still returned `incomplete`, with 23 unrated
+top positions. The held-out result remains complete. Agreement on the
+expanded samples is pending.

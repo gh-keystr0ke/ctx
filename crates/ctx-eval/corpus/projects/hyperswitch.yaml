@@ -1278,13 +1278,16 @@ points:
   location: crates/router/src/core/payments/helpers.rs:4773
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
+  label: significant
+  category: validation
+  evidence:
+  - type: docs
+    url: https://github.com/juspay/hyperswitch/blob/cf913c5aaa226e102b257a81a3a53ac841bf45bd/api-reference/v1/openapi_spec_v1.json#L28170-L28171
+    quote: "Refers to the hash key used for calculating the signature for webhooks and redirect response."
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "When response signing is enabled, this guard requires the profile key used to sign the redirect."
 - id: hyperswitch-0065
   anchor: symbol:rust:router.core.payments.routing.SessionRoutingStage.RoutingStage.route:Method#c4f3323def2960e667830033829894cf2889e2c6232df1eda0b1308b2f3fc8ba#1
   location: crates/router/src/core/payments/routing.rs:991
@@ -1350,13 +1353,16 @@ points:
   location: crates/router/src/core/payments/operations/tax_calculation.rs:260
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
+  label: significant
+  category: default
+  evidence:
+  - type: docs
+    url: https://github.com/juspay/hyperswitch/blob/cf913c5aaa226e102b257a81a3a53ac841bf45bd/api-reference/v1/openapi_spec_v1.json#L35773-L35776
+    quote: "Whether to calculate tax for this payment intent"
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "The payment intent override can skip external tax calculation even when a profile tax connector is enabled."
 - id: hyperswitch-0071
   anchor: symbol:rust:router.core.routing.helpers.TxnStatus.ForeignFrom<common_enums::AttemptStatus>.foreign_from:Method#1efd12d3bc079fa8e2a4b4c66aed2a5f2ed9e3f081fe65aab63b94b516763f21#1
   location: crates/router/src/core/routing/helpers.rs:1788
@@ -1386,13 +1392,16 @@ points:
   location: crates/router/src/core/payments/routing.rs:4252
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
+  label: significant
+  category: state-transition
+  evidence:
+  - type: docs
+    url: https://github.com/juspay/hyperswitch/blob/cf913c5aaa226e102b257a81a3a53ac841bf45bd/api-reference/v1/openapi_spec_v1.json#L6767-L6774
+    quote: "Feature to enable for elimination based routing"
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "The branch applies elimination to connector selection only when the profile specifies dynamic connector selection. The API distinguishes that mode from metrics and none."
 - id: hyperswitch-0074
   anchor: symbol:rust:router.core.payments.helpers.generate_mandate:Function#36080c5fd1c80670483eaa17661dd1c8122ba36e93d9a60498c8669740217ba2#1
   location: crates/router/src/core/payments/helpers.rs:4918
@@ -1482,13 +1491,16 @@ points:
   location: crates/router/src/core/payments/routing.rs:3333
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
+  label: significant
+  category: default
+  evidence:
+  - type: docs
+    url: https://github.com/juspay/hyperswitch/blob/cf913c5aaa226e102b257a81a3a53ac841bf45bd/api-reference/v1/openapi_spec_v1.json#L46421-L46428
+    quote: "Currently active routing configuration ID."
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "Session routing loads the active algorithm when the configuration supplies one and otherwise uses the profile fallback."
 - id: hyperswitch-0082
   anchor: symbol:rust:router.core.payments.routing.utils.convert_value_back:Function#4144065364d35e1ca22bafb776dfbf26ac77c9e0b3b9984fa3e749edf4be82db#1
   location: crates/router/src/core/payments/routing/utils.rs:2228
@@ -1938,13 +1950,16 @@ points:
   location: crates/router/src/core/payments/transformers.rs:4097
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
+  label: significant
+  category: state-transition
+  evidence:
+  - type: docs
+    url: https://github.com/juspay/hyperswitch/blob/cf913c5aaa226e102b257a81a3a53ac841bf45bd/api-reference/v1/payments/payment--flows.mdx#L126-L132
+    quote: "Hyperswitch-->>Client: Status: requires_customer_action<br/>+ redirect_url"
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: "The response builder enters next-action assembly for the documented requires_customer_action state. The cited flow illustrates the redirect case."
 - id: hyperswitch-0120
   anchor: symbol:rust:router.core.payments.routing.perform_elimination_routing:Function#f1409a6a63454637834f6308d0c3457e2ae2696cf82c756eafe4d140182f350a#1
   location: crates/router/src/core/payments/routing.rs:4382

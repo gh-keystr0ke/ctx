@@ -558,3 +558,27 @@ points:
     score: 1
     contributions:
       downstream_calls: 1
+  vector-0057:
+    selected_by: fill
+    rank: 11
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  vector-0058:
+    selected_by: fill
+    rank: 44
+    score: 7
+    contributions:
+      downstream_calls: 7
+  vector-0059:
+    selected_by: fill
+    rank: 63
+    score: 5
+    contributions:
+      downstream_calls: 5
+  vector-0060:
+    selected_by: fill
+    rank: 690
+    score: 0
+    contributions: {}

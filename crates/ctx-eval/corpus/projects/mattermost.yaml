@@ -1531,118 +1531,121 @@ points:
   location: server/channels/app/channel.go:198
   draft: null
   drafted_by: null
-  label: null
-  category: null
-  evidence: []
-  verified_by: null
+  label: significant
+  category: limit
+  evidence:
+  - type: docs
+    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/configure/site-configuration-settings.rst#L823
+    quote: "The maximum number of channels per team, including both active and archived channels."
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Rejects channel creation above the configured team channel cap."
 - id: mattermost-0074
   anchor: symbol:go:server.channels.app.App.UpdateTeamMemberSchemeRoles:Method#4f870a8c920ed02a8a8a28864b67d89871e43b0c45e5d235fa1a6d0503f096ea#1
   location: server/channels/app/team.go:486
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: mattermost-0075
   anchor: symbol:go:server.channels.app.App.CreatePostAsUserWithFlags:Method#39545e9b817e995497ff434834eb7579be11d02e07a4d8a014e1a5cdcbb27f31#1
   location: server/channels/app/post.go:50
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: mattermost-0076
   anchor: symbol:go:server.channels.app.App.PatchPost:Method#977b588c23d64354b4d7a58abad1eacffa42a8c118d240988de26a2ba0d50b61#1
   location: server/channels/app/post.go:1438
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: mattermost-0077
   anchor: symbol:go:server.channels.app.App.AddUserToTeamByToken:Method#918268f71092743482b300fe59288b52152d782c344ac65dd1fc7270cc97468a#1
   location: server/channels/app/team.go:605
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: mattermost-0078
   anchor: symbol:go:server.channels.app.App.postRemoveFromTeamMessage:Method#5056ef4221991d2768f599e03fd8f3576e6dc32c2380110dc620dedae376559c#1
   location: server/channels/app/team.go:1499
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: mattermost-0079
   anchor: symbol:go:server.channels.app.App.CreateChannelWithUserAndPropertyValues:Method#b40dfda8374e59c2a94ca13d5854305be6ff2a126217124f4360c70186a359f0#1
   location: server/channels/app/channel.go:184
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: mattermost-0080
   anchor: symbol:go:server.channels.app.App.GetPostsForView:Method#33ac9447dd6cbae17cb761550d51569b4a8d90215507ddb278b3d60d67f6a998#1
   location: server/channels/app/post.go:1512
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: mattermost-0081
   anchor: symbol:go:server.channels.app.App.CreatePostAsUserWithFlags:Method#b7c0ca143f193d76f38a7070c18c2979eb823fd084344bdc5635692c26ad5959#1
   location: server/channels/app/post.go:45
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: mattermost-0082
   anchor: symbol:go:server.channels.app.App.GetAllTeams:Method#cdfe3634d0c3fe8c5248aebb09e55d280702927178ed3ecbfc5553ddf1d0e5cb#1
   location: server/channels/app/team.go:1004
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Wraps and propagates the retrieval error with internal-error status."

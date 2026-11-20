@@ -829,118 +829,121 @@ points:
   location: models/git/protected_branch.go:282
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: validation
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Checks for an empty pattern before matching."
 - id: gitea-0062
   anchor: symbol:go:models.organization.IsOrganizationOwner:Function#7ccd50d78b93011ac13cfa78aa5e0d1ba5ee078b08b2ffacbd7de324dd36b258#1
   location: models/organization/org_user.go:69
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: gitea-0063
   anchor: symbol:go:models.git.UpdateProtectBranch:Function#41d115b9e7c003b14f9f1fd17c8a7005594e44874fc515d6a2533ecfacea822c#9
   location: models/git/protected_branch.go:432
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Returns the existing error unchanged."
 - id: gitea-0064
   anchor: symbol:go:models.git.updateUserWhitelist:Function#873c2e2ca408f8edb148b2da3d3790681f418c0b3c17f02b08b3f02463142631#1
   location: models/git/protected_branch.go:522
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: gitea-0065
   anchor: symbol:go:models.git.IsUserOfficialReviewer:Function#56bc2fff43a4f227f2665ce980ced4f0837d0b62664c69baccb16b0d9eb8f335#2
   location: models/git/protected_branch.go:236
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Propagates the existing error."
 - id: gitea-0066
   anchor: symbol:go:services.pull.getMergeMessage:Function#69fb34773ae9c1b861ac364ec6787e14a9afac622b2feb7d9b6798377e4776fc#1
   location: services/pull/merge.go:46
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Propagates repository loading failure."
 - id: gitea-0067
   anchor: symbol:go:services.pull.getMergeMessage:Function#4d3ad8fd69b786d06b21c7de4ef3be9d66d65c768047de817b977dc90ef8fc64#1
   location: services/pull/merge.go:110
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Propagates issue loading failure."
 - id: gitea-0068
   anchor: symbol:go:services.pull.checkSigningRequirements:Function#04c534594616ff38570b9223e285dca3713469d0461ed8400b2e738df69730da#1
   location: services/pull/check.go:262
   draft: null
   drafted_by: null
-  label: null
-  category: null
-  evidence: []
-  verified_by: null
+  label: significant
+  category: permission
+  evidence:
+  - type: issue
+    url: https://github.com/go-gitea/gitea/pull/37335
+    quote: "Fast-forward-only creates no Gitea commit"
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "A fast-forward merge creates no Gitea commit and skips server-side signing eligibility."
 - id: gitea-0069
   anchor: symbol:go:models.perm.access.GetActionsUserRepoPermission:Function#81ba408cbd1ef492fdfa2e8cc77b99f7b7981f81061509a06498afe8cef2c97f#1
   location: models/perm/access/repo_permission.go:288
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Propagates the existing error."
 - id: gitea-0070
   anchor: symbol:go:models.git.ProtectedBranch.Match:Method#f191b9c43cf768be97d0aad09116ca796338f4a9e0050e3c43bc06a097bdf8f7#1
   location: models/git/protected_branch.go:113
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: validation
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Checks for an unavailable compiled pattern before invoking it."

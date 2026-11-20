@@ -1141,118 +1141,121 @@ points:
   location: nova/api/openstack/compute/instance_actions.py:68
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: nova-0062
   anchor: symbol:python:nova.api.openstack.compute.server_groups.ServerGroupController.index:Method#c3e217961161fa551d9855b37b94d183f45b1ec02b8608088cbe986d64504234#1
   location: nova/api/openstack/compute/server_groups.py:185
   draft: null
   drafted_by: null
-  label: null
-  category: null
-  evidence: []
-  verified_by: null
+  label: significant
+  category: permission
+  evidence:
+  - type: docs
+    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/api-ref/source/os-server-groups.inc#L16
+    quote: "Administrative users can use the ``all_projects`` query parameter"
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Restricts the all-project server-group query to administrators."
 - id: nova-0063
   anchor: symbol:python:nova.compute.api.API._check_image_arch:Method#f9d9a31069c7cbcb311d3ae38851a191becd74ff4a88e18f2af20d48e2d9ce6a#1
   location: nova/compute/api.py:3679
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: validation
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Calls the conversion only when the image architecture value is present."
 - id: nova-0064
   anchor: symbol:python:nova.compute.api.API.resize:Method#14049cd35a33ce6c95e333305983c5728f5ad52268e20f81677dd9a9d2694494#1
   location: nova/compute/api.py:4394
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: nova-0065
   anchor: symbol:python:nova.compute.api._find_service_in_cell:Function#9f3d0aa68b721a2c877de90f5987d87c0d6281f310e10ebd6df90c5efaaa3919#1
   location: nova/compute/api.py:6133
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: nova-0066
   anchor: symbol:python:nova.scheduler.filters.image_props_filter.ImagePropertiesFilter._instance_supported:Method#e011705fac4b79d6feddd8179037072fec79c13c9a960b7b34e24715d5ea5418#1
   location: nova/scheduler/filters/image_props_filter.py:103
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: nova-0067
   anchor: symbol:python:nova.scheduler.filters.aggregate_instance_extra_specs.AggregateInstanceExtraSpecsFilter.host_passes:Method#175ac3f02edd98e9c3a9c4664867d44f963348fccdd054b89537ba88c6063b91#1
   location: nova/scheduler/filters/aggregate_instance_extra_specs.py:47
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: validation
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Checks that there are specs to process before reading them."
 - id: nova-0068
   anchor: symbol:python:nova.api.openstack.compute.attach_interfaces._translate_interface_attachment_view:Function#62a18617e50df6d0ab29a2b9453e7d338305841d5bd10801de06c5d649d3dc59#1
   location: nova/api/openstack/compute/attach_interfaces.py:34
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: nova-0069
   anchor: symbol:python:nova.api.openstack.compute.tenant_networks.TenantNetworkController._refresh_default_networks:Method#35d26c1edf8e62655d0c4c45b4233239a43087cbf820d79673b378b8bf1c4743#1
   location: nova/api/openstack/compute/tenant_networks.py:66
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: nova-0070
   anchor: symbol:python:nova.api.openstack.compute.floating_ips.FloatingIPActionController._add_floating_ip:Method#fbeb1861b3cbe51013bc156ebb25b0eeee0e6778e02d7bb51880b65a6b46b57f#1
   location: nova/api/openstack/compute/floating_ips.py:260
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."

@@ -1522,118 +1522,121 @@ points:
   location: zerver/lib/retention.py:516
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: zulip-0073
   anchor: symbol:python:zerver.actions.message_send.extract_stream_indicator:Function#7a2455b8ec721f16cf54d4a3500f58f900b238b12e5bedd14f074b821a35a5d5#1
   location: zerver/actions/message_send.py:1490
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: validation
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Routine decoded-value type test."
 - id: zulip-0074
   anchor: symbol:python:corporate.lib.stripe.BillingSession.do_update_plan:Method#3f8c36adfb95cd28dff8cb8e24928a0dfd104b92ea224608944c85c5e1061618#1
   location: corporate/lib/stripe.py:3338
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: zulip-0075
   anchor: symbol:python:zerver.lib.streams.can_move_messages_out_of_channel:Function#5b8a7fc80c15c5fe2780170519cb63fd3e3445548cc72baee5ee4c3358723f6a#2
   location: zerver/lib/streams.py:1281
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: zulip-0076
   anchor: symbol:python:corporate.lib.stripe.BillingSession.process_support_view_request:Method#c150cb33f2374a36e1c3bdc85e290d4ac6982c6386995d731930acd5a17e5c0d#1
   location: corporate/lib/stripe.py:3904
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: zulip-0077
   anchor: symbol:python:zerver.actions.message_send.send_rate_limited_pm_notification_to_bot_owner:Function#6b4910fc445b3b7018a758d68a009f9f1fd7735216e3923ea22e902e316f763f#1
   location: zerver/actions/message_send.py:1650
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: zulip-0078
   anchor: symbol:python:corporate.lib.stripe.BillingSession.is_sponsored_or_pending:Method#5b8a7fc80c15c5fe2780170519cb63fd3e3445548cc72baee5ee4c3358723f6a#1
   location: corporate/lib/stripe.py:1179
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: zulip-0079
   anchor: symbol:python:zerver.lib.streams.check_stream_access_for_delete_or_update_requiring_metadata_access:Function#cc40c72cd137523f86c5b54bf677a8d9c7a341e8a6d31c0f7e5ad67b860691f0#1
   location: zerver/lib/streams.py:876
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: zulip-0080
   anchor: symbol:python:zerver.lib.streams.check_channel_creation_permissions:Function#2293440cba4ee4a079f75b97f8dda87acf5aec6cd2b78b5f7686ffbd7e221089#1
   location: zerver/lib/streams.py:251
   draft: null
   drafted_by: null
-  label: null
-  category: null
-  evidence: []
-  verified_by: null
+  label: significant
+  category: permission
+  evidence:
+  - type: docs
+    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/starlight_help/src/content/docs/set-default-channels-for-new-users.mdx#L11
+    quote: "<AdminOnly />"
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Creating a default channel requires organization administration."
 - id: zulip-0081
   anchor: symbol:python:zerver.lib.retention.delete_messages:Function#9a45f7ed3bde2d517a1593d7d394b57cc5dd8f8caab4abc39bdce1d425d0ec8f#1
   location: zerver/lib/retention.py:420
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."

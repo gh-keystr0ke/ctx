@@ -1181,3 +1181,61 @@ points:
     rank: 2051
     score: 0
     contributions: {}
+  hyperswitch-0101:
+    selected_by: fill
+    rank: 27
+    score: 8
+    contributions:
+      downstream_calls: 8
+  hyperswitch-0102:
+    selected_by: fill
+    rank: 128
+    score: 4
+    contributions:
+      condition: 4
+  hyperswitch-0103:
+    selected_by: fill
+    rank: 1223
+    score: 4
+    contributions:
+      condition: 4
+  hyperswitch-0104:
+    selected_by: fill
+    rank: 3793
+    score: 0
+    contributions: {}
+  hyperswitch-0105:
+    selected_by: fill
+    rank: 28
+    score: 8
+    contributions:
+      downstream_calls: 8
+  hyperswitch-0106:
+    selected_by: fill
+    rank: 351
+    score: 4
+    contributions:
+      condition: 4
+  hyperswitch-0107:
+    selected_by: fill
+    rank: 1224
+    score: 4
+    contributions:
+      condition: 4
+  hyperswitch-0108:
+    selected_by: fill
+    rank: 1810
+    score: 0
+    contributions: {}
+  hyperswitch-0109:
+    selected_by: fill
+    rank: 29
+    score: 8
+    contributions:
+      downstream_calls: 8
+  hyperswitch-0110:
+    selected_by: fill
+    rank: 57
+    score: 6
+    contributions:
+      downstream_calls: 6

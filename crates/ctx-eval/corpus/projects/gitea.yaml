@@ -1204,7 +1204,7 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "Propagates the original error."
+  note: Propagates the original error.
 - id: gitea-0092
   anchor: symbol:go:models.git.ProtectedBranch.CanUserForcePush:Method#6383c2006b0539fa5956d0a8ef369ba67367803bc4bb0dc2a8cf1c06acd7d384#1
   location: models/git/protected_branch.go:160
@@ -1215,11 +1215,11 @@ points:
   evidence:
   - type: issue
     url: https://github.com/go-gitea/gitea/pull/28086
-    quote: "allowing force push does not override regular push access"
+    quote: allowing force push does not override regular push access
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "With the force-push allowlist disabled, the regular push permission remains required."
+  note: With the force-push allowlist disabled, the regular push permission remains required.
 - id: gitea-0093
   anchor: symbol:go:models.organization.CreateOrganization:Function#71295cef312bbe347bb31d30c1e4693b8926df51bf2591685ca43c8ebe72a053#1
   location: models/organization/org.go:306
@@ -1231,7 +1231,7 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: gitea-0094
   anchor: symbol:go:services.pull.CheckPullBranchProtections:Function#297b51f995d58684eaf0861e3bd78ccff3e5c5dce8da1b9af28e6c66e9f37baf#1
   location: services/pull/merge.go:733
@@ -1243,7 +1243,7 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: gitea-0095
   anchor: symbol:go:models.git.updateTeamWhitelist:Function#6d6eae4183ad775f6d76cb24a8e651267d87a9b9ed76def7f19b5b027db9ef81#1
   location: models/git/protected_branch.go:551
@@ -1255,7 +1255,7 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: gitea-0096
   anchor: symbol:go:models.perm.access.GetActionsUserRepoPermission:Function#f4d79385d69b64ac09d17c96a5a9557ad3708d25822fb82167d953ffdeb39678#1
   location: models/perm/access/repo_permission.go:284
@@ -1267,7 +1267,7 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: gitea-0097
   anchor: symbol:go:models.git.CanBypassBranchProtection:Function#f4151b97f74c58b593da74d6be0a0f53b2b66bdfe45c2cfca0ff33391ca4c3cb#2
   location: models/git/protected_branch.go:216
@@ -1279,7 +1279,7 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: gitea-0098
   anchor: symbol:go:models.organization.Organization.AnyRepoUnitPermission:Method#c64a7cf53424bfb69c89bdef764c15aab4a95cd59e69e422caa82c5138ea11f1#1
   location: models/organization/org.go:280
@@ -1291,7 +1291,7 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: gitea-0099
   anchor: symbol:go:models.organization.HasOrgsVisible:Function#f4151b97f74c58b593da74d6be0a0f53b2b66bdfe45c2cfca0ff33391ca4c3cb#1
   location: models/organization/org.go:470
@@ -1303,7 +1303,7 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: gitea-0100
   anchor: symbol:go:services.pull.CheckPullBranchProtections:Function#40403a0a11195b6e6edcc62d4360f1e9f92cad80fe604839a0141191a4932137#1
   location: services/pull/merge.go:700
@@ -1315,4 +1315,124 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "Returns the existing branch lookup failure with context."
+  note: Returns the existing branch lookup failure with context.
+- id: gitea-0101
+  anchor: symbol:go:services.pull.manuallyMergedByPushedCommit:Function#2741040ce5f003dfdff1b0b597ffe8cc5470cd6f43b63bc7586b6d1a59718c37#1
+  location: services/pull/check.go:400
+  draft: null
+  drafted_by: null
+  label: null
+  category: null
+  evidence: []
+  verified_by: null
+  second_label: null
+  second_by: null
+  note: null
+- id: gitea-0102
+  anchor: symbol:go:services.pull.StartPullRequestCheckDelayable:Function#71ad5a02508c24568b76bfdf558aedc9c783644bbb94adfe0d54f99275545416#1
+  location: services/pull/check.go:95
+  draft: null
+  drafted_by: null
+  label: null
+  category: null
+  evidence: []
+  verified_by: null
+  second_label: null
+  second_by: null
+  note: null
+- id: gitea-0103
+  anchor: symbol:go:models.perm.access.RecalculateTeamAccesses:Function#e43cb7162b7be7f6adcb2267eea7fb7238395c0863eeb4e8d195b99973c2724e#1
+  location: models/perm/access/access.go:210
+  draft: null
+  drafted_by: null
+  label: null
+  category: null
+  evidence: []
+  verified_by: null
+  second_label: null
+  second_by: null
+  note: null
+- id: gitea-0104
+  anchor: symbol:go:models.perm.access.GetDoerRepoPermission:Function#517e75139842c9b2c1cdcb0fb7f2836bc11c0435f063925abdc094f75eee0b9d#1
+  location: models/perm/access/repo_permission.go:414
+  draft: null
+  drafted_by: null
+  label: null
+  category: null
+  evidence: []
+  verified_by: null
+  second_label: null
+  second_by: null
+  note: null
+- id: gitea-0105
+  anchor: symbol:go:services.pull.getMergeCommit:Function#9ab3379f8e8e815511f212d05e5f3d6e54377668502590d63674aab345a636d5#1
+  location: services/pull/check.go:327
+  draft: null
+  drafted_by: null
+  label: null
+  category: null
+  evidence: []
+  verified_by: null
+  second_label: null
+  second_by: null
+  note: null
+- id: gitea-0106
+  anchor: symbol:go:models.organization.ApplyTeamListFilter:Function#41d115b9e7c003b14f9f1fd17c8a7005594e44874fc515d6a2533ecfacea822c#2
+  location: models/organization/team_list.go:124
+  draft: null
+  drafted_by: null
+  label: null
+  category: null
+  evidence: []
+  verified_by: null
+  second_label: null
+  second_by: null
+  note: null
+- id: gitea-0107
+  anchor: symbol:go:models.perm.access.refreshAccesses:Function#b6051996cf9db82639cf9bf337f6c4bb0b536f371111e5851e5632143d3f4050#1
+  location: models/perm/access/access.go:142
+  draft: null
+  drafted_by: null
+  label: null
+  category: null
+  evidence: []
+  verified_by: null
+  second_label: null
+  second_by: null
+  note: null
+- id: gitea-0108
+  anchor: symbol:go:models.git.ProtectedBranch.CanUserForcePush:Method#f25b9ab43155a41f71a88443b7db7de2f5f03765e738652fdb5bc65936aac147#1
+  location: models/git/protected_branch.go:164
+  draft: null
+  drafted_by: null
+  label: null
+  category: null
+  evidence: []
+  verified_by: null
+  second_label: null
+  second_by: null
+  note: null
+- id: gitea-0109
+  anchor: symbol:go:services.pull.MarkAsMerged:Function#5b734d29e3ad5c1632b96ed289d97780e799992854fa3876449030cd8aca5345#1
+  location: services/pull/merge.go:859
+  draft: null
+  drafted_by: null
+  label: null
+  category: null
+  evidence: []
+  verified_by: null
+  second_label: null
+  second_by: null
+  note: null
+- id: gitea-0110
+  anchor: symbol:go:services.pull.CheckPullBranchProtections:Function#41d115b9e7c003b14f9f1fd17c8a7005594e44874fc515d6a2533ecfacea822c#1
+  location: services/pull/merge.go:708
+  draft: null
+  drafted_by: null
+  label: null
+  category: null
+  evidence: []
+  verified_by: null
+  second_label: null
+  second_by: null
+  note: null

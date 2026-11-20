@@ -1294,3 +1294,65 @@ points:
     contributions:
       decision_shape: 1
       downstream_calls: 3
+  gitea-0101:
+    selected_by: fill
+    rank: 325
+    score: 1
+    contributions:
+      decision_shape: 1
+  gitea-0102:
+    selected_by: fill
+    rank: 283
+    score: 1
+    contributions:
+      decision_shape: 1
+  gitea-0103:
+    selected_by: fill
+    rank: 473
+    score: 0
+    contributions: {}
+  gitea-0104:
+    selected_by: fill
+    rank: 20
+    score: 9
+    contributions:
+      decision_shape: 1
+      downstream_calls: 8
+  gitea-0105:
+    selected_by: fill
+    rank: 310
+    score: 1
+    contributions:
+      decision_shape: 1
+  gitea-0106:
+    selected_by: fill
+    rank: 117
+    score: 2
+    contributions:
+      decision_shape: 1
+      downstream_calls: 1
+  gitea-0107:
+    selected_by: fill
+    rank: 502
+    score: 0
+    contributions: {}
+  gitea-0108:
+    selected_by: fill
+    rank: 34
+    score: 6
+    contributions:
+      decision_shape: 1
+      downstream_calls: 5
+  gitea-0109:
+    selected_by: fill
+    rank: 280
+    score: 1
+    contributions:
+      decision_shape: 1
+  gitea-0110:
+    selected_by: fill
+    rank: 68
+    score: 4
+    contributions:
+      decision_shape: 1
+      downstream_calls: 3

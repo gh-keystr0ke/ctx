@@ -1903,7 +1903,7 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: mattermost-0104
   anchor: symbol:go:server.channels.app.App.setupBroadcastHookForAbacFiles:Method#3a03e494604ae56caa6b6c467ed2107a7e2bb581c18980120730ccd54011c919#1
   location: server/channels/app/post.go:1305
@@ -1915,7 +1915,7 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: mattermost-0105
   anchor: symbol:go:server.channels.app.App.DeletePost:Method#d4bd1db9810aa7b6a922556c096e6c420e40e20d8d0149a0c3eda207a4f1528b#1
   location: server/channels/app/post.go:2248
@@ -1927,7 +1927,7 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: mattermost-0106
   anchor: symbol:go:server.channels.app.App.GetTeamByInviteId:Method#a8d1f69373107bf82e6b277aa273326b59df7e135dcd088fbce1f9e402371c3c#1
   location: server/channels/app/team.go:992
@@ -1939,7 +1939,7 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: mattermost-0107
   anchor: symbol:go:server.channels.app.App.JoinUserToTeam:Method#cd982e1e653bcb1e1d83af3d54382278665f9defb7c7e73938fe4220fec8e1b5#1
   location: server/channels/app/team.go:846
@@ -1951,7 +1951,7 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "Wraps and returns the update error."
+  note: Wraps and returns the update error.
 - id: mattermost-0108
   anchor: symbol:go:server.channels.app.App.GetPermalinkPost:Method#b49613ec2e2f27a6b87da88136fd6c12fcd113c8cc6124fa3cadeb5fa2c90f4e#1
   location: server/channels/app/post.go:1908
@@ -1963,7 +1963,7 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "Propagates the original error."
+  note: Propagates the original error.
 - id: mattermost-0109
   anchor: symbol:go:server.channels.app.App.DeleteChannel:Method#11eed51f5f4bc0797f48b43955634b9f13d14ef7539ba93ba8802edf2644baaf#1
   location: server/channels/app/channel.go:1783
@@ -1975,7 +1975,7 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "Wraps and returns the lookup error."
+  note: Wraps and returns the lookup error.
 - id: mattermost-0110
   anchor: symbol:go:server.channels.app.App.RegenerateTeamInviteId:Method#f95d2993f86915bb767e9ba4956771958bf707ca767f514f4abf774a09816cca#1
   location: server/channels/app/team.go:310
@@ -1987,7 +1987,7 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "Propagates the original error."
+  note: Propagates the original error.
 - id: mattermost-0111
   anchor: symbol:go:server.channels.app.App.GetPermalinkPost:Method#a225847115c06fa5a70adfbdd7da044b1202c319528697bc65d7cd8ccc6f1c25#1
   location: server/channels/app/post.go:1904
@@ -1999,7 +1999,7 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "Propagates the original application error."
+  note: Propagates the original application error.
 - id: mattermost-0112
   anchor: symbol:go:server.channels.app.App.postUpdateChannelAutotranslationMessage:Method#7c769a1fa35adfbdcb8f5d3bd4beb048cab12ecc78f0d1c1f0ba3d7b481d3a84#1
   location: server/channels/app/channel.go:2245
@@ -2011,4 +2011,100 @@ points:
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "Wraps and returns the post creation error."
+  note: Wraps and returns the post creation error.
+- id: mattermost-0113
+  anchor: symbol:go:server.channels.app.App.leaveTeam:Method#1c4eeec55102914819b7f663f1f69f2721b2aaa9cf211d685f9183434e442c28#1
+  location: server/channels/app/team.go:1430
+  draft: null
+  drafted_by: null
+  label: null
+  category: null
+  evidence: []
+  verified_by: null
+  second_label: null
+  second_by: null
+  note: null
+- id: mattermost-0114
+  anchor: symbol:go:server.channels.app.App.CreateChannel:Method#c8d4ad2962c2a365a3ce01d2038ee758bee6764f05b12adf05d32292222e0bfa#1
+  location: server/channels/app/channel.go:315
+  draft: null
+  drafted_by: null
+  label: null
+  category: null
+  evidence: []
+  verified_by: null
+  second_label: null
+  second_by: null
+  note: null
+- id: mattermost-0115
+  anchor: symbol:go:server.channels.app.App.DeleteChannel:Method#1c4b1ecdb2dc6f6dd03c5118cfee13fdf1c631453224b7ee039f5332ee993915#1
+  location: server/channels/app/channel.go:1787
+  draft: null
+  drafted_by: null
+  label: null
+  category: null
+  evidence: []
+  verified_by: null
+  second_label: null
+  second_by: null
+  note: null
+- id: mattermost-0116
+  anchor: symbol:go:server.channels.app.App.getEditHistoryForPost:Method#28caed3fe2d0fee27a7c23ec4d02dd750c36ad86ab3e85f225815659b555b8bc#1
+  location: server/channels/app/post.go:3092
+  draft: null
+  drafted_by: null
+  label: null
+  category: null
+  evidence: []
+  verified_by: null
+  second_label: null
+  second_by: null
+  note: null
+- id: mattermost-0117
+  anchor: symbol:go:server.channels.app.App.GetPermalinkPost:Method#b446ebcb4dc4318b50a66a5dae767a558a071907815b6cebed15b31ec73f0e4a#1
+  location: server/channels/app/post.go:1912
+  draft: null
+  drafted_by: null
+  label: null
+  category: null
+  evidence: []
+  verified_by: null
+  second_label: null
+  second_by: null
+  note: null
+- id: mattermost-0118
+  anchor: symbol:go:server.channels.app.App.SearchPostsForUser:Method#335556ec9c2366e4912def81e6ef8e64552468ab9e8b9a89d47ec979cadeb76c#1
+  location: server/channels/app/post.go:2579
+  draft: null
+  drafted_by: null
+  label: null
+  category: null
+  evidence: []
+  verified_by: null
+  second_label: null
+  second_by: null
+  note: null
+- id: mattermost-0119
+  anchor: symbol:go:server.channels.app.App.leaveTeam:Method#e088b953225daa8bf09ecd479e856049dc35a3b79619d69d2ad39fa85243069b#1
+  location: server/channels/app/team.go:1442
+  draft: null
+  drafted_by: null
+  label: null
+  category: null
+  evidence: []
+  verified_by: null
+  second_label: null
+  second_by: null
+  note: null
+- id: mattermost-0120
+  anchor: symbol:go:server.channels.app.App.buildThreadContextForRewrite:Method#3434dffe3e7ccca398763b4c7756768f6bd91e6b717b5ec59db90bd50b847e84#1
+  location: server/channels/app/post.go:3907
+  draft: null
+  drafted_by: null
+  label: null
+  category: null
+  evidence: []
+  verified_by: null
+  second_label: null
+  second_by: null
+  note: null

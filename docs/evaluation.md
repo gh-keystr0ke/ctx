@@ -256,3 +256,22 @@ A larger sample can address the quota shortfall. The precision pool still
 requires evidence for the actual top positions. Keep unknown outcomes in
 the completeness denominator, and keep the held-out projects sealed during
 calibration.
+
+#### Held-out v2 gate
+
+All 114 anchors resolved on the pinned commits. The scorer returned
+`incomplete` because Gitea fell below the 80% completeness threshold.
+
+| Project | Rated top positions | Required |
+| --- | ---: | ---: |
+| Nova | 16/20 | 16 |
+| Vector | 16/19 | 16 |
+| Gitea | 2/7 | 6 |
+
+Gitea needs evidence for four of the five remaining positions. The fix
+for [Gitea #19352](https://github.com/go-gitea/gitea/issues/19352) blocks
+merges during conflict checking. It gives no rule for the three sampled
+queue and state-update guards. The evidence for the membership and
+merge-error points also remains insufficient. These five labels stay
+`unclear`. The scorer withheld the held-out precision and false-positive
+rates, so the release gate remains open.

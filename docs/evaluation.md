@@ -102,7 +102,7 @@ column separately verified the blocking exit code.
 The [labeling guide](../crates/ctx-eval/corpus/LABELING.md) defines the labels and edge cases.
 The operator pins revisions, creates samples, and starts draft runs.
 A reviewer checks the code and cited evidence. The second review hides the draft and first label.
-Codex performs the corpus review as authorized. The expanded samples still need a second pass.
+An independent agent performs the blind review for this release, as authorized.
 When the same reviewer does both passes, wait at least one week before the second pass.
 
 The commands below use the development-tool binary.
@@ -371,7 +371,24 @@ Tuning precision was 35/37. Two of 82 trivial tuning points triggered a
 question. Gate precision was 38/38. One of 76 trivial gate points triggered
 a question.
 
-The final first pass ended on 2026-11-20. The same reviewer can start the
-final blind pass on 2026-11-27 after the one-week interval. The preliminary
-second labels remain in Git history. Final agreement is pending for all
-six projects.
+The final first pass ended on 2026-11-20. An independent second reviewer
+can start immediately. The preliminary second labels remain in Git history.
+
+#### Independent agreement, round 1
+
+The independent reviewer used the blind CLI on the final 128-point
+sample. The minimum Cohen's kappa is 0.60 for each project.
+
+| Project | Paired points | Disagreements | Cohen's kappa |
+| --- | ---: | ---: | ---: |
+| Gitea | 24 | 10 | 0.394 |
+| Hyperswitch | 24 | 6 | 0.478 |
+| Mattermost | 24 | 6 | 0.642 |
+| Nova | 20 | 5 | 0.590 |
+| Vector | 12 | 1 | 0.867 |
+| Zulip | 24 | 5 | 0.667 |
+
+The release remains blocked. Most discrepancies concern how to classify
+routine checks, error propagation, and conversions. A smaller set concerns
+whether a source states the exact routing, response, or scheduling rule.
+The next agreement round requires a clarified guide and a new sample.

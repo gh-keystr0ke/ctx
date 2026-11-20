@@ -1,5 +1,5 @@
 schema: 1
-guide_version: 2
+guide_version: 3
 project: gitea
 language: go
 role: gate
@@ -117,16 +117,13 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: bf38326dbb4c803a71230b9499430286dc7b6b31af7b383c39f9ca58bc29023c
-  label: unclear
-  category: null
-  evidence:
-  - type: test
-    url: https://github.com/go-gitea/gitea/blob/0b5dfdeeeaadf6350314246c5936b53cce38170c/models/organization/org_user_test.go#L128
-    quote: models.organization.TestAddOrgUser
-  verified_by: codex-work
+  label: trivial
+  category: validation
+  evidence: []
+  verified_by: claude-adjudication-v3
   second_label: null
   second_by: null
-  note: The branch also makes repeated membership additions a no-op. The available test does not establish a product contract.
+  note: "Forwards a membership lookup error, or skips the insert because the user is already a member."
 - id: gitea-0006
   anchor: symbol:go:models.git.UpdateProtectBranch:Function#41d115b9e7c003b14f9f1fd17c8a7005594e44874fc515d6a2533ecfacea822c#2
   location: models/git/protected_branch.go:389
@@ -143,8 +140,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: codex-work
-  second_label: trivial
-  second_by: codex-independent-v2
+  second_label: null
+  second_by: null
   note: null
 - id: gitea-0007
   anchor: symbol:go:services.pull.isUserAllowedToMergeInRepoBranch:Function#8900478b110f38597c2fbf135d12734ef530c5f87cc62d6c292da191e23b0782#1
@@ -386,8 +383,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: codex-work
-  second_label: trivial
-  second_by: codex-independent-v2
+  second_label: null
+  second_by: null
   note: Propagates the selected merge implementation's error unchanged.
 - id: gitea-0026
   anchor: symbol:go:services.pull.doMergeAndPush:Function#7fe9df5969e0ecc28913309d998dfbad777ad4b41ef43374f30c9dd39e4aa758#1
@@ -469,8 +466,8 @@ points:
   location: services/pull/check.go:274
   draft: null
   drafted_by: null
-  label: significant
-  category: state-transition
+  label: unclear
+  category: null
   evidence:
   - type: issue
     url: https://github.com/go-gitea/gitea/pull/19457
@@ -478,25 +475,25 @@ points:
   - type: issue
     url: https://github.com/go-gitea/gitea/pull/27779
     quote: the PR merge box will automatically reload when complete
-  verified_by: codex-work
+  verified_by: claude-adjudication-v3
   second_label: null
   second_by: null
-  note: A completed conflict check promotes only the pending checking state to mergeable. A conflict remains visible and keeps the PR from appearing mergeable.
+  note: "The linked changes fix conflict status reporting in general. They do not state that only a pending check becomes mergeable."
 - id: gitea-0033
   anchor: symbol:go:services.pull.runMergeCommand:Function#eed803983973d0623f39c99833b1e1b54a778285fb83d6e65b98dc4c44d918f5#1
   location: services/pull/merge.go:637
   draft: null
   drafted_by: null
-  label: significant
-  category: error-handling
+  label: unclear
+  category: null
   evidence:
   - type: issue
     url: https://github.com/go-gitea/gitea/pull/8548
     quote: handles merge and rebase failures from merging a little more nicely with Flash errors rather a 500
-  verified_by: codex-work
+  verified_by: claude-adjudication-v3
   second_label: null
   second_by: null
-  note: The original patch uses MERGE_HEAD after a failed command to classify a conflict and give the user a conflict response.
+  note: "Pull request 8548 replaces merge failure errors in general. It does not state the MERGE_HEAD conflict condition."
 - id: gitea-0034
   anchor: symbol:go:models.git.UpdateProtectBranch:Function#41d115b9e7c003b14f9f1fd17c8a7005594e44874fc515d6a2533ecfacea822c#4
   location: models/git/protected_branch.go:401
@@ -506,8 +503,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: codex-work
-  second_label: trivial
-  second_by: codex-independent-v2
+  second_label: null
+  second_by: null
   note: Propagates an allowlist lookup error unchanged.
 - id: gitea-0035
   anchor: symbol:go:models.git.CanBypassBranchProtection:Function#756bf9514e2a928eb316387ebdf36cad72f84dd0732194c9213ac691112943ac#1
@@ -518,8 +515,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-independent-v2
+  second_label: null
+  second_by: null
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: gitea-0036
   anchor: symbol:go:services.pull.MarkAsMerged:Function#ecf5224960fabae43e81570647dfc348903d213457a5f5ae95bbd5966881a684#1
@@ -554,8 +551,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-independent-v2
+  second_label: null
+  second_by: null
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: gitea-0039
   anchor: symbol:go:services.pull.getMergeMessage:Function#90a860d3c5732dc1634dc4f950a18c52cd74353bfbcf7beaad74504ba38cd3fb#1
@@ -578,8 +575,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-independent-v2
+  second_label: null
+  second_by: null
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: gitea-0041
   anchor: symbol:go:services.pull.handleCloseCrossReferences:Function#d040598e8f8e07755168bfdf6b920c4a07ce30d2f7825bd71e14fb449b5a2525#1
@@ -686,8 +683,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-independent-v2
+  second_label: null
+  second_by: null
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: gitea-0050
   anchor: symbol:go:models.perm.access.CheckRepoUnitUser:Function#d4c24436eb263b99ee65454abe4b24995d52dba01ad52835ab43084f4b3e2766#1
@@ -698,8 +695,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-independent-v2
+  second_label: null
+  second_by: null
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: gitea-0051
   anchor: symbol:go:models.organization.Team.GetUnitsMap:Method#5056ef4221991d2768f599e03fd8f3576e6dc32c2380110dc620dedae376559c#1
@@ -785,8 +782,8 @@ points:
     url: https://github.com/go-gitea/gitea/pull/27779
     quote: delay the mergeable check for pull requests that have been inactive for the specified number of days
   verified_by: codex-work
-  second_label: significant
-  second_by: codex-independent-v2
+  second_label: null
+  second_by: null
   note: Defers checking for pull requests outside the configured activity window.
 - id: gitea-0058
   anchor: symbol:go:services.pull.restoreInterruptedMerge:Function#5f9d63ecba9729491bb4c100414ba66efce3ba94f86103144d337b68f91ffc21#1
@@ -821,8 +818,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: codex-work
-  second_label: trivial
-  second_by: codex-independent-v2
+  second_label: null
+  second_by: null
   note: Propagates the repository units load failure unchanged.
 - id: gitea-0061
   anchor: symbol:go:models.git.ProtectedBranch.MergeBlockedByProtectedFiles:Method#8f28c824fe1f7bee5468f5c3b35d43fb41dd824fcb0376f0f451ca5e8b387f22#1
@@ -857,8 +854,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: codex-work
-  second_label: trivial
-  second_by: codex-independent-v2
+  second_label: null
+  second_by: null
   note: Returns the existing error unchanged.
 - id: gitea-0064
   anchor: symbol:go:models.git.updateUserWhitelist:Function#873c2e2ca408f8edb148b2da3d3790681f418c0b3c17f02b08b3f02463142631#1
@@ -869,8 +866,8 @@ points:
   category: validation
   evidence: []
   verified_by: codex-work
-  second_label: trivial
-  second_by: codex-independent-v2
+  second_label: null
+  second_by: null
   note: "Keeps the existing whitelist when the desired membership has not changed."
 - id: gitea-0065
   anchor: symbol:go:models.git.IsUserOfficialReviewer:Function#56bc2fff43a4f227f2665ce980ced4f0837d0b62664c69baccb16b0d9eb8f335#2
@@ -956,8 +953,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-independent-v2
+  second_label: null
+  second_by: null
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: gitea-0072
   anchor: symbol:go:models.organization.ownerVisibilitySatisfiesDoer:Function#42d9055b56c3dbaef55c3b1d05f021e41cdf6ace55c9eef1071f9255425a7aa3#1
@@ -1028,8 +1025,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: trivial
-  second_by: codex-independent-v2
+  second_label: null
+  second_by: null
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: gitea-0078
   anchor: symbol:go:models.perm.access.GetActionsUserRepoPermission:Function#81ba408cbd1ef492fdfa2e8cc77b99f7b7981f81061509a06498afe8cef2c97f#2
@@ -1076,8 +1073,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-independent-v2
+  second_label: null
+  second_by: null
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: gitea-0082
   anchor: symbol:go:models.git.ProtectedBranch.CanUserForcePush:Method#03433be40a04f2290d54a78e575303ab3a602409ccd378ffca935199d9d690e7#1
@@ -1202,8 +1199,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: codex-work
-  second_label: trivial
-  second_by: codex-independent-v2
+  second_label: null
+  second_by: null
   note: Propagates the original error.
 - id: gitea-0092
   anchor: symbol:go:models.git.ProtectedBranch.CanUserForcePush:Method#6383c2006b0539fa5956d0a8ef369ba67367803bc4bb0dc2a8cf1c06acd7d384#1
@@ -1256,8 +1253,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: trivial
-  second_by: codex-independent-v2
+  second_label: null
+  second_by: null
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: gitea-0096
   anchor: symbol:go:models.perm.access.GetActionsUserRepoPermission:Function#f4d79385d69b64ac09d17c96a5a9557ad3708d25822fb82167d953ffdeb39678#1
@@ -1304,8 +1301,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-independent-v2
+  second_label: null
+  second_by: null
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: gitea-0100
   anchor: symbol:go:services.pull.CheckPullBranchProtections:Function#40403a0a11195b6e6edcc62d4360f1e9f92cad80fe604839a0141191a4932137#1
@@ -1334,8 +1331,8 @@ points:
     url: https://github.com/go-gitea/gitea/pull/12543
     quote: Make manual merge autodetection optional
   verified_by: codex-work
-  second_label: significant
-  second_by: codex-independent-v2
+  second_label: null
+  second_by: null
   note: Skips manual merge detection when the repository setting disables it.
 - id: gitea-0102
   anchor: symbol:go:services.pull.StartPullRequestCheckDelayable:Function#71ad5a02508c24568b76bfdf558aedc9c783644bbb94adfe0d54f99275545416#1
@@ -1358,8 +1355,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-independent-v2
+  second_label: null
+  second_by: null
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: gitea-0104
   anchor: symbol:go:models.perm.access.GetDoerRepoPermission:Function#517e75139842c9b2c1cdcb0fb7f2836bc11c0435f063925abdc094f75eee0b9d#1
@@ -1369,13 +1366,13 @@ points:
   label: significant
   category: permission
   evidence:
-  - type: docs
-    url: https://docs.gitea.com/usage/actions/token-permissions/
-    quote: "Every Actions job receives a built-in token"
-  verified_by: codex-work
+  - type: issue
+    url: https://github.com/go-gitea/gitea/pull/37013
+    quote: "Use shared repo permission resolution for Actions task users"
+  verified_by: claude-adjudication-v3
   second_label: null
   second_by: null
-  note: "Uses the Actions job's token permissions for the repository when the actor is that job."
+  note: "Uses the Actions task permission resolution when the actor is an Actions task user."
 - id: gitea-0105
   anchor: symbol:go:services.pull.getMergeCommit:Function#9ab3379f8e8e815511f212d05e5f3d6e54377668502590d63674aab345a636d5#1
   location: services/pull/check.go:327
@@ -1448,8 +1445,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: codex-work
-  second_label: trivial
-  second_by: codex-independent-v2
+  second_label: null
+  second_by: null
   note: Propagates the existing error.
 - id: gitea-0111
   anchor: symbol:go:models.organization.FindOrgMembers:Function#f1e3889319dd60cac10334ec50b38823195fb3d20a7fc71a6d9016ac93850986#2
@@ -1514,8 +1511,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-independent-v2
+  second_label: null
+  second_by: null
   note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: gitea-0116
   anchor: symbol:go:models.git.IsUserOfficialReviewer:Function#56bc2fff43a4f227f2665ce980ced4f0837d0b62664c69baccb16b0d9eb8f335#1
@@ -1538,8 +1535,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-independent-v2
+  second_label: null
+  second_by: null
   note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: gitea-0118
   anchor: symbol:go:services.pull.CheckPullBranchProtections:Function#6ca272c99dd3f6ee6b8172b19f87be69fe428bbeb554e610f55f76e10d66162a#1
@@ -1565,8 +1562,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: codex-work
-  second_label: trivial
-  second_by: codex-independent-v2
+  second_label: null
+  second_by: null
   note: "Returns the insertion error with diagnostic context."
 - id: gitea-0120
   anchor: symbol:go:services.pull.checkSigningRequirements:Function#41d115b9e7c003b14f9f1fd17c8a7005594e44874fc515d6a2533ecfacea822c#1

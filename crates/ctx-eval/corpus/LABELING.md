@@ -1,4 +1,4 @@
-Version: 2
+Version: 3
 
 # Decision point labels
 
@@ -9,8 +9,14 @@ Use at least one relevant source from levels 1 through 3.
 
 1. User documentation or an API reference.
 2. A specification, RFC, or ADR.
-3. An issue or bug referenced by a commit that added or changed the point.
+3. An issue, bug, or pull request referenced by a commit that added or changed the point.
 4. A test that checks the behavior. A test can support evidence from levels 1 through 3.
+
+A source establishes a point only when it states the condition and the effect of that point.
+A purpose statement for a larger change does not establish each branch that the change adds.
+Cite each source at the pinned revision.
+If you find a passage in living documentation, find the same text at the pinned revision and cite that location.
+If the pinned revision does not contain the text, do not use the passage.
 
 **Trivial.** The point performs a routine type check, emptiness check, error propagation, logging, or metrics.
 Record a category. Evidence is optional.
@@ -53,6 +59,12 @@ Use one category from this list.
 | Data moves between equivalent representations with the same values and meaning | Trivial |
 | A conversion merges cases, drops data, or picks a default | Significant if a source establishes the effect, otherwise unclear |
 | A branch enforces an API field's availability, an on/off option, or a documented scheduler predicate | Significant when the source specifies the rule and the code implements it |
+| A fallback arm only logs or returns its input unchanged, and other arms implement the rule | Trivial |
+| A check passes because the request specifies no requirement to check | Trivial |
+| A check passes or fails because the inspected resource lacks data that a requirement needs | Significant if a source states that outcome, otherwise unclear |
+| A lookup continues in the next location after a not-found result, and the final outcome equals one search of all locations | Trivial |
+| Test-only code controls the test run, for example with an assertion, an invariant panic, a shrinker, or a random yield | Trivial, category `validation` |
+| A test model reproduces a product rule | Use the label of that product rule |
 
 A source that describes a feature in general does not establish each branch in its implementation.
 For example, a routing overview does not establish when a metrics-only setting starts a routing call.

@@ -1,5 +1,5 @@
 schema: 1
-guide_version: 2
+guide_version: 3
 project: vector
 language: rust
 role: gate
@@ -76,8 +76,8 @@ points:
     url: https://github.com/vectordotdev/vector/blob/b78d987398d23f19f3705fb76a1cd18642565b66/website/cue/reference/components/sinks.cue#L375
     quote: 'description: "The maximum number of retries to make for failed requests. The default, for all intents and purposes, represents an infinite number of retries."'
   verified_by: codex-work
-  second_label: significant
-  second_by: codex-independent-v2
+  second_label: null
+  second_by: null
   note: The documented retry cap is enforced when the attempts run out for a failed request.
 - id: vector-0003
   anchor: symbol:rust:crate.sinks.util.batch.BatchConfig.into_batch_settings:Method#2#387c9c80e7f2402fb12627958e2f5b0a6cdcaa779fbce206162e7bce02e2d55a#1
@@ -140,16 +140,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: dc3db5aee872aa4d2ec157c7650b5544b0ff5e06b52a38dbf703af8286694032
-  label: significant
-  category: state-transition
+  label: unclear
+  category: null
   evidence:
   - type: issue
     url: https://github.com/vectordotdev/vector/pull/11454
     quote: avoid having to decode every single record
-  verified_by: codex-work
+  verified_by: claude-adjudication-v3
   second_label: null
   second_by: null
-  note: The linked change describes scanning only enough of the buffer to recover startup accounting. This branch reads the last validated record of a fully written file.
+  note: "The cited source states the purpose of a larger change. It does not state the condition and effect of this branch."
 - id: vector-0006
   anchor: symbol:rust:crate.sinks.util.retries.FibonacciRetryPolicy.Policy<Req,Res,Error>.retry:Method#324befb2770b951f7b0540ff08bbcfa4e1032c5e76d9559ccb22a1e1ea58e073#1
   location: src/sinks/util/retries.rs:182
@@ -230,16 +230,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: a621f6c5c0790e5aaa70da18547e228731fcc9977ed5765a78588e1adf596bf1
-  label: significant
-  category: error-handling
+  label: unclear
+  category: null
   evidence:
   - type: issue
     url: https://github.com/vectordotdev/vector/pull/25845
     quote: Reconcile `disk_v2` startup state from the durable checkpoint window
-  verified_by: codex-work
+  verified_by: claude-adjudication-v3
   second_label: null
   second_by: null
-  note: The linked change adds checkpoint reconciliation for a checksum mismatch while preserving the complete span.
+  note: "Pull request 25845 describes truncation of corrupt tails. This branch preserves the record span, and no source states that behavior."
 - id: vector-0010
   anchor: symbol:rust:crate.sinks.util.retries.FibonacciRetryPolicy.Policy<Req,Res,Error>.retry:Method#9973626d655cdb405fa88506e84fd451b4c783c0fa017e5dd3c0788295b546b4#1
   location: src/sinks/util/retries.rs:199
@@ -336,28 +336,28 @@ points:
   location: src/sinks/util/batch.rs:242
   draft: null
   drafted_by: null
-  label: significant
-  category: limit
+  label: unclear
+  category: null
   evidence:
   - type: spec
     url: https://github.com/vectordotdev/vector/blob/b78d987398d23f19f3705fb76a1cd18642565b66/rfcs/2020-06-12-2768-batch-and-buffer-rework.md#L53
     quote: We want to get to the point where as many batching sinks as possible can be configured with either a byte limit or an event limit, or both. Additionally, the batch limits must be inviolable, so that no requests are ever sent that exceed size limits. To accomplish this the
-  verified_by: codex-work
-  second_label: unclear
-  second_by: codex-independent-v2
-  note: The documented batch event limit is enforced by rejecting a configured value beyond the hard ceiling.
+  verified_by: claude-adjudication-v3
+  second_label: null
+  second_by: null
+  note: "The RFC requires batches to stay within their limits. It does not state that a configured event limit above the sink maximum is a configuration error."
 - id: vector-0016
   anchor: symbol:rust:crate.test.variant.Variant.Arbitrary.shrink:Method#94a62a59a297ef4ab586fdcec5f69d4d39734c7bb747d86d088beb8a3ce6f81f#1
   location: lib/vector-buffers/src/test/variant.rs:135
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
+  label: trivial
+  category: validation
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-adjudication-v3
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "Test-only shrinker code selects smaller test variants."
 - id: vector-0017
   anchor: symbol:rust:crate.config.BufferTypeVisitor.visit_map_impl:Method#c084d7e184aa194c48cdd70b83c02992e2c3b0478c405b2a1abec87c96d793e1#1
   location: lib/vector-buffers/src/config.rs:117
@@ -399,13 +399,13 @@ points:
   location: lib/vector-buffers/src/test/action.rs:25
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
+  label: trivial
+  category: validation
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-adjudication-v3
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "Test-only shrinker code selects smaller test actions."
 - id: vector-0021
   anchor: symbol:rust:crate.variants.disk_v2.tests.model.filesystem.TestFilesystem.Filesystem.open_file_readable:Method#cb3b2589d0bbf986a4d11450792422fb44f2fadec5cc293419a929d56e02aa76#1
   location: lib/vector-buffers/src/variants/disk_v2/tests/model/filesystem.rs:364
@@ -435,13 +435,13 @@ points:
   location: lib/vector-buffers/src/topology/channel/limited_queue.rs:1016
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
+  label: trivial
+  category: validation
   evidence: []
-  verified_by: codex-work
-  second_label: trivial
-  second_by: codex-independent-v2
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  verified_by: claude-adjudication-v3
+  second_label: null
+  second_by: null
+  note: "Test-only code yields at random to vary the test schedule."
 - id: vector-0024
   anchor: symbol:rust:crate.config.BufferTypeVisitor.visit_map_impl:Method#38fe6f93b67617e7c919f5abd8567dc8d270863e4494681f14379a819e1d93f1#1
   location: lib/vector-buffers/src/config.rs:96
@@ -495,13 +495,13 @@ points:
   location: lib/vector-buffers/src/variants/disk_v2/tests/model/mod.rs:500
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
+  label: trivial
+  category: validation
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-adjudication-v3
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "The test model accepts a repeated write transition and panics on invalid ones."
 - id: vector-0029
   anchor: symbol:rust:crate.topology.channel.sender.BufferSender.disk_usage_snapshot:Method#121cfcbef77aa4bbfd502a303c7a7635bafa1ca415b8ce10f3d24cd64459d2d9#1
   location: lib/vector-buffers/src/topology/channel/sender.rs:301
@@ -519,13 +519,16 @@ points:
   location: lib/vector-buffers/src/topology/channel/sender.rs:342
   draft: null
   drafted_by: null
-  label: trivial
-  category: observability
-  evidence: []
-  verified_by: codex-work
-  second_label: significant
-  second_by: codex-independent-v2
-  note: Selects the accounting value for an event the write attempt has already dropped.
+  label: significant
+  category: limit
+  evidence:
+  - type: docs
+    url: https://github.com/vectordotdev/vector/blob/b78d987398d23f19f3705fb76a1cd18642565b66/website/content/en/docs/architecture/buffering-model.md#L182
+    quote: "When configured to \"drop newest\", Vector will simply drop an event if the buffer is currently full."
+  verified_by: claude-adjudication-v3
+  second_label: null
+  second_by: null
+  note: "In drop_newest mode, a full buffer drops the event and records it as dropped."
 - id: vector-0031
   anchor: symbol:rust:crate.finalization.BatchStatus.update:Method#fb7c92a01c3b43de737ffbcd4f2cac06cc9fa9e2ab0bf5e9a6dadf34402e3dfc#1
   location: lib/vector-common/src/finalization.rs:374
@@ -538,36 +541,36 @@ points:
     url: https://github.com/vectordotdev/vector/pull/7396/files
     quote: Errored` overrides `Delivered
   verified_by: codex-work
-  second_label: significant
-  second_by: codex-independent-v2
+  second_label: null
+  second_by: null
   note: The linked change defines the precedence used when a batch contains a transient failure.
 - id: vector-0032
   anchor: symbol:rust:crate.finalization.BatchStatusReceiver.Future.poll:Method#928923da3217b056ec2b5cc58cd6aecab6cc0f8960808c74e9995c1ebc47bc22#1
   location: lib/vector-common/src/finalization.rs:236
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
+  label: trivial
+  category: validation
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-adjudication-v3
   second_label: null
   second_by: null
-  note: The branch maps a dropped status receiver to an errored batch. This is more than error propagation.
+  note: "The anchored arm passes the received batch status through unchanged."
 - id: vector-0033
   anchor: symbol:rust:crate.sinks.util.batch.BatchConfig.validate:Method#84781f99c4bdc230f16bf37c96bf7f89617c385c524255e7f4f6b96303b1ed8b#1
   location: src/sinks/util/batch.rs:165
   draft: null
   drafted_by: null
-  label: significant
-  category: retry
+  label: unclear
+  category: null
   evidence:
   - type: issue
     url: https://github.com/vectordotdev/vector/pull/11812/files
     quote: timeout <= 0.0
-  verified_by: codex-work
+  verified_by: claude-adjudication-v3
   second_label: null
   second_by: null
-  note: The linked change allows fractional batch timeouts while preserving the prior positive-only constraint.
+  note: "The linked change allows fractional timeouts. No source states that a nonpositive timeout is invalid."
 - id: vector-0034
   anchor: symbol:rust:crate.sinks.util.batch.SinkBatchSettings.TIMEOUT_SECS:Constant#195464cb05f6c530ec6222256b82b7a5f5abaaf74a68dcd6ceb2840565890168#1
   location: src/sinks/util/batch.rs:36
@@ -600,28 +603,28 @@ points:
   location: lib/vector-buffers/src/variants/disk_v2/writer.rs:1400
   draft: null
   drafted_by: null
-  label: significant
-  category: error-handling
+  label: unclear
+  category: null
   evidence:
   - type: issue
     url: https://github.com/vectordotdev/vector/pull/25845
     quote: focused recovery, truncation, cleanup, and accounting coverage
-  verified_by: codex-work
-  second_label: unclear
-  second_by: codex-independent-v2
-  note: The linked patch adds a distinct case for undecodable archives that have a complete outer length.
+  verified_by: claude-adjudication-v3
+  second_label: null
+  second_by: null
+  note: "Pull request 25845 describes truncation of corrupt tails. This branch preserves the record span, and no source states that behavior."
 - id: vector-0037
   anchor: symbol:rust:crate.variants.disk_v2.tests.model.ReaderModelState.transition_to_idle:Method#8d439dcddb4dcdf19068bb4b6cd50bc17d80dbabcd9b317ef29fd2f12b9ad0f3#1
   location: lib/vector-buffers/src/variants/disk_v2/tests/model/mod.rs:271
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
+  label: trivial
+  category: validation
   evidence: []
-  verified_by: codex-work
-  second_label: trivial
-  second_by: codex-independent-v2
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  verified_by: claude-adjudication-v3
+  second_label: null
+  second_by: null
+  note: "The test model panics on an invalid state transition."
 - id: vector-0038
   anchor: symbol:rust:crate.topology.channel.sender.UsageAccounting.record:Method#c071ea9c324fea988f196df8db7eddccc0001231d5bf5c66ba26b4c44961f0b1#1
   location: lib/vector-buffers/src/topology/channel/sender.rs:187
@@ -670,8 +673,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-independent-v2
+  second_label: null
+  second_by: null
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: vector-0042
   anchor: symbol:rust:crate.variants.disk_v2.checkpoint_recovery.BufferReader.classify_checkpoint_data_file:Method#1be19f1d7dcbdec385c02da400c7353443574c3fab4b668ee4d3284237fddfc1#1
@@ -721,8 +724,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-independent-v2
+  second_label: null
+  second_by: null
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: vector-0046
   anchor: symbol:rust:crate.variants.disk_v2.writer.BufferWriter.validate_last_write:Method#7f9da486c5fd856c090f534e113c10519394245e5bf1f18a8ad89ac7d0fbfb7c#1
@@ -793,8 +796,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-independent-v2
+  second_label: null
+  second_by: null
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: vector-0052
   anchor: symbol:rust:crate.variants.disk_v2.ledger.Ledger.load_or_create:Method#b2b2415f23c1b37239121d9c00c2ec28b4606eeb63711ffb10f1a873ee896d32#1
@@ -837,13 +840,13 @@ points:
   location: lib/vector-common/src/finalization.rs:376
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
+  label: trivial
+  category: validation
   evidence: []
-  verified_by: codex-work
-  second_label: trivial
-  second_by: codex-independent-v2
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  verified_by: claude-adjudication-v3
+  second_label: null
+  second_by: null
+  note: "The fallback arm returns the status unchanged. The preceding arms implement the precedence rule."
 - id: vector-0056
   anchor: symbol:rust:crate.variants.in_memory.MemoryBuffer.IntoBuffer<T>.into_buffer_parts:Method#80c2a8e74eb4bfb2b564003e723b64abd17626b2da48b4509739c231ce37db50#1
   location: lib/vector-buffers/src/variants/in_memory.rs:43
@@ -861,16 +864,16 @@ points:
   location: lib/vector-buffers/src/variants/disk_v2/checkpoint_recovery.rs:385
   draft: null
   drafted_by: null
-  label: significant
-  category: state-transition
+  label: unclear
+  category: null
   evidence:
   - type: issue
     url: https://github.com/vectordotdev/vector/pull/25845
     quote: "Reconcile `disk_v2` startup state from the durable checkpoint window"
-  verified_by: codex-work
-  second_label: unclear
-  second_by: codex-independent-v2
-  note: "The durable writer checkpoint provides the final file boundary for recovery."
+  verified_by: claude-adjudication-v3
+  second_label: null
+  second_by: null
+  note: "The cited source states the purpose of a larger change. It does not state the condition and effect of this branch."
 - id: vector-0058
   anchor: symbol:rust:crate.variants.disk_v2.reader.BufferReader.next:Method#4549c4eabe3887738bd12b763eb3b9b5d30690e22ba7ca5d1528d22b5d551251#1
   location: lib/vector-buffers/src/variants/disk_v2/reader.rs:1140
@@ -900,13 +903,13 @@ points:
   location: lib/vector-buffers/src/variants/disk_v2/writer.rs:1058
   draft: null
   drafted_by: null
-  label: significant
-  category: state-transition
+  label: unclear
+  category: null
   evidence:
   - type: issue
     url: https://github.com/vectordotdev/vector/pull/25845
     quote: "Reconcile `disk_v2` startup state from the durable checkpoint window"
-  verified_by: codex-work
+  verified_by: claude-adjudication-v3
   second_label: null
   second_by: null
-  note: "Recovers the successor file only when it continues the durable checkpoint."
+  note: "The cited source states the purpose of a larger change. It does not state the condition and effect of this branch."

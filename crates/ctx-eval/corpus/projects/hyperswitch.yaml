@@ -1,5 +1,5 @@
 schema: 1
-guide_version: 2
+guide_version: 3
 project: hyperswitch
 language: rust
 role: tuning
@@ -40,16 +40,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 04c931ba3cc96b1a2e67a9f8d35e278d0a264f2184a23f88bfbd3c0794c6d7b7
-  label: significant
-  category: state-transition
+  label: unclear
+  category: null
   evidence:
   - type: issue
     url: https://github.com/juspay/hyperswitch/pull/11500
     quote: "Payment Update Santander Boleto (Post Confirm - call to connector must happen)"
-  verified_by: codex-work
+  verified_by: claude-adjudication-v3
   second_label: null
   second_by: null
-  note: "Routes the connector resource-update response into post-confirmation payment update handling."
+  note: "Pull request 11500 describes the post-confirm update flow in general. It does not state the effect of this response arm."
 - id: hyperswitch-0002
   anchor: symbol:rust:router.core.routing.helpers.push_metrics_with_update_window_for_contract_based_routing:Function#69769c1c9beeca73fad7cbddd8147dcb86ba8ebd87a3f35b8a7b5dda517947f1#1
   location: crates/router/src/core/routing/helpers.rs:1524
@@ -66,16 +66,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 0225f31e546d0cd93246f2047e2d1f0fa9e9eaae9723070883d64e8be12cafbb
-  label: significant
-  category: state-transition
+  label: unclear
+  category: null
   evidence:
   - type: issue
     url: https://github.com/juspay/hyperswitch/pull/6761
     quote: "Integrated Contract based routing with hyperswitch"
-  verified_by: codex-work
-  second_label: unclear
-  second_by: codex-independent-v2
-  note: "The introducing patch updates the contract routing counters only for the charged outcome."
+  verified_by: claude-adjudication-v3
+  second_label: null
+  second_by: null
+  note: "The introducing pull request describes contract routing in general. It does not state that only charged attempts update contract counters."
 - id: hyperswitch-0003
   anchor: symbol:rust:router.core.payments.operations.payment_response.PaymentResponse.PostUpdateTracker<F,PaymentData<F>,types::PaymentsUpdatePostConfirmData>.update_tracker:Method#872088b5c318f49223caa7fff7869faf46cb7abb42317607942d1da54ef71036#1
   location: crates/router/src/core/payments/operations/payment_response.rs:5365
@@ -89,16 +89,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 19a579eca6ecdc999cc25476adc51b2022488415094d5c6e92be8251d5fc3465
-  label: significant
-  category: state-transition
+  label: unclear
+  category: null
   evidence:
   - type: issue
     url: https://github.com/juspay/hyperswitch/pull/11500
     quote: "Payment Update Santander Boleto (Post Confirm - call to connector must happen)"
-  verified_by: codex-work
+  verified_by: claude-adjudication-v3
   second_label: null
   second_by: null
-  note: "The introducing patch persists transaction updates only after the connector accepts the post-confirmation update."
+  note: "Pull request 11500 does not state that only a successful connector update persists the transaction update."
 - id: hyperswitch-0004
   anchor: symbol:rust:router.core.routing.helpers.enable_specific_routing_algorithm:Function#bd618ce11b9076a002cde62d2bcc6d5dac62347f4b0c2ab5acefe934568d240e#1
   location: crates/router/src/core/routing/helpers.rs:2093
@@ -139,8 +139,8 @@ points:
     url: https://github.com/juspay/hyperswitch/pull/14391
     quote: we will create the payment method record on our end once the payment reaches a terminal status
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-independent-v2
+  second_label: null
+  second_by: null
   note: The branch calls deferred creation only if the payment attempt has no payment method record.
 - id: hyperswitch-0006
   anchor: symbol:rust:router.core.routing.helpers.push_metrics_with_update_window_for_success_based_routing:Function#03c2641d44efb7f6d3d6da3a8c5709c339a7047ad16099fb43891b8e779ca4b0#1
@@ -173,16 +173,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: bea3b619b12dc42627c981b089c4ad92802c6879c9cd2f82a91436ceebdbfaad
-  label: significant
-  category: permission
+  label: unclear
+  category: null
   evidence:
   - type: issue
     url: https://github.com/juspay/hyperswitch/pull/4012
     quote: "only those connectors for which that payment method is set up for MITs"
-  verified_by: codex-work
-  second_label: unclear
-  second_by: codex-independent-v2
-  note: "Skips ordinary pre-routing when a saved payment token is present so token-based routing can enforce the connector mandate."
+  verified_by: claude-adjudication-v3
+  second_label: null
+  second_by: null
+  note: "Pull request 4012 states the mandate routing goal for a larger change. It does not state that any saved token skips pre-routing."
 - id: hyperswitch-0008
   anchor: symbol:rust:router.core.routing.helpers.push_metrics_with_update_window_for_success_based_routing:Function#9bb26e49be6b07a0ccac1ef0282523cfd92a3c663fb413caae6ac606a3f20c9c#1
   location: crates/router/src/core/routing/helpers.rs:898
@@ -240,16 +240,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 2f74004778f04b3127161b9544a1bc14826fe19e149741a22b788941c9b5ea61
-  label: significant
-  category: state-transition
+  label: unclear
+  category: null
   evidence:
   - type: issue
     url: https://github.com/juspay/hyperswitch/pull/8755
     quote: "initialize and register dynamic routing logic"
-  verified_by: codex-work
+  verified_by: claude-adjudication-v3
   second_label: null
   second_by: null
-  note: "The introducing patch calls the Decision Engine during setup when the engine is configured for dynamic routing."
+  note: "Pull request 8755 describes the dynamic routing create endpoints in general. It does not state when setup calls the Decision Engine."
 - id: hyperswitch-0011
   anchor: symbol:rust:router.core.payments.transformers.payments_to_payments_response:Function#2#ba30d4fe72ef2d12e5cef0c1a9706924d115b5297b07bc636314b6cd31488516#1
   location: crates/router/src/core/payments/transformers.rs:4048
@@ -308,8 +308,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-independent-v2
+  second_label: null
+  second_by: null
   note: null
 - id: hyperswitch-0014
   anchor: symbol:rust:router.core.routing.helpers.push_metrics_with_update_window_for_contract_based_routing:Function#1c76cb56e0de23cb1b3117095d0d2d1e9e93505c2f2ddcb6ebed5a1f93e7bd6a#1
@@ -445,8 +445,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: codex-work
-  second_label: trivial
-  second_by: codex-independent-v2
+  second_label: null
+  second_by: null
   note: "Propagates the storage error while extracting the address from a successful insert."
 - id: hyperswitch-0021
   anchor: symbol:rust:router.core.routing.helpers.default_specific_dynamic_routing_setup:Function#3425c35c227dc3645cb082d570b78162cdadb689ea597d13d90d8f2bd2050df6#1
@@ -559,8 +559,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-independent-v2
+  second_label: null
+  second_by: null
   note: null
 - id: hyperswitch-0027
   anchor: symbol:rust:router.core.payments.helpers.fetch_card_details_from_external_vault:Function#9a51b5131739cea1fa0e04f1c36309f4fb58d20a6e988d51b8d7f050601a8e1e#1
@@ -578,8 +578,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: codex-work
-  second_label: trivial
-  second_by: codex-independent-v2
+  second_label: null
+  second_by: null
   note: null
 - id: hyperswitch-0028
   anchor: symbol:rust:router.core.payments.operations.payment_attempt_record.PaymentAttemptRecord.UpdateTracker<F,PaymentAttemptRecordData<F>,PaymentsAttemptRecordRequest>.update_trackers:Method#133fdb4c41a72f27777d222fd9b115bba3db7d3561e2b626f0ad1a2968c5f5a2#1
@@ -597,8 +597,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: codex-work
-  second_label: trivial
-  second_by: codex-independent-v2
+  second_label: null
+  second_by: null
   note: null
 - id: hyperswitch-0029
   anchor: symbol:rust:router.core.routing.helpers.fetch_dynamic_routing_configs:Function#b30bfed7af7e62db5237ba0530c7f91a827ecfb70401f89405cb7a8b1af16e3b#1
@@ -635,8 +635,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-independent-v2
+  second_label: null
+  second_by: null
   note: null
 - id: hyperswitch-0031
   anchor: symbol:rust:router.core.routing.helpers.push_metrics_with_update_window_for_contract_based_routing:Function#bf9fa3c8f72b83b2c2514dc23e4bc00ad822a6ada3d70e86a4ac19e304618977#1
@@ -798,8 +798,8 @@ points:
     url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/integration-guide/payment-experience/payment/payment-links/setup-custom-domain.md#L112
     quote: To enable wallet flows such as Apple Pay or Google Pay for payment links, domain validation from Apple or Google is required respectively to obtain session tokens. This validation can be facilitated by utilizing the custom domain feature available for payment links, which can be configured at the business profile level.
   verified_by: codex-work
-  second_label: significant
-  second_by: codex-independent-v2
+  second_label: null
+  second_by: null
   note: null
 - id: hyperswitch-0038
   anchor: symbol:rust:router.core.payments.operations.payment_complete_authorize.CompleteAuthorize.Domain<F,api::PaymentsRequest,PaymentData<F>>.fetch_payment_method:Method#c6748a528f4e447bf2565b53dc109e920eac7e5d637fd3d775f6aebeddedc524#1
@@ -895,8 +895,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-independent-v2
+  second_label: null
+  second_by: null
   note: null
 - id: hyperswitch-0043
   anchor: symbol:rust:router.core.routing.helpers.enable_dynamic_routing_algorithm:Function#74b190bfe30056a484acd459ff78d201aa598e7d001a38283620532888c4ee60#1
@@ -918,8 +918,8 @@ points:
     url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/about-hyperswitch/payment-suite.md#L47
     quote: <table data-view="cards"><thead><tr><th align="center"></th><th></th><th data-hidden data-card-cover data-type="image">Cover image</th></tr></thead><tbody><tr><td align="center"><mark style="color:$primary;"><strong>Intelligent Routing</strong></mark></td><td>Dynamically switching between processors in real-time for every transaction to optimally maximise first attempt auth rates and minimise processing cost.</td><td
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-independent-v2
+  second_label: null
+  second_by: null
   note: null
 - id: hyperswitch-0044
   anchor: symbol:rust:router.core.payments.routing.perform_contract_based_routing:Function#3c921eda3400da5c98b4ea53f563d7d28225d36a6d7ca9967164c31437eb4bcf#1
@@ -1029,8 +1029,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-independent-v2
+  second_label: null
+  second_by: null
   note: null
 - id: hyperswitch-0049
   anchor: symbol:rust:router.core.payments.flows.session_flow.create_gpay_session_token:Function#ecd209e6dbcb78923917bae9e79b237e2e85f877503e08525a4e0577eda3a572#1
@@ -1266,13 +1266,13 @@ points:
   location: crates/router/src/core/routing/helpers.rs:1784
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
+  label: trivial
+  category: validation
   evidence: []
-  verified_by: codex-work
-  second_label: trivial
-  second_by: codex-independent-v2
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  verified_by: claude-adjudication-v3
+  second_label: null
+  second_by: null
+  note: "Maps the authentication success status to the equivalent open router status."
 - id: hyperswitch-0064
   anchor: symbol:rust:router.core.payments.helpers.make_url_with_signature:Function#c3ad433ef7f3c99793f0579070af9f4e491f8ed7601e1cdac933341fa01b8a07#1
   location: crates/router/src/core/payments/helpers.rs:4773
@@ -1345,8 +1345,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-independent-v2
+  second_label: null
+  second_by: null
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: hyperswitch-0070
   anchor: symbol:rust:router.core.payments.operations.tax_calculation.PaymentSessionUpdate.Domain<F,api::PaymentsDynamicTaxCalculationRequest,PaymentData<F>>.payments_dynamic_tax_calculation:Method#4c4beb7f8a5834cb89243a1facb9db53e862a7f4f6d8fe1f6481e57352ecd26d#1
@@ -1360,8 +1360,8 @@ points:
     url: https://github.com/juspay/hyperswitch/blob/cf913c5aaa226e102b257a81a3a53ac841bf45bd/api-reference/v1/openapi_spec_v1.json#L35773-L35776
     quote: "Whether to calculate tax for this payment intent"
   verified_by: codex-work
-  second_label: significant
-  second_by: codex-independent-v2
+  second_label: null
+  second_by: null
   note: "The payment intent override can skip external tax calculation even when a profile tax connector is enabled."
 - id: hyperswitch-0071
   anchor: symbol:rust:router.core.routing.helpers.TxnStatus.ForeignFrom<common_enums::AttemptStatus>.foreign_from:Method#1efd12d3bc079fa8e2a4b4c66aed2a5f2ed9e3f081fe65aab63b94b516763f21#1
@@ -1411,8 +1411,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-independent-v2
+  second_label: null
+  second_by: null
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: hyperswitch-0075
   anchor: symbol:rust:router.core.routing.helpers.TxnStatus.ForeignFrom<common_enums::AttemptStatus>.foreign_from:Method#26553cf66196815c39af60faa16ee3c039c5f30af63dad883afb8df036f3c3a9#1
@@ -1423,21 +1423,21 @@ points:
   category: validation
   evidence: []
   verified_by: codex-work
-  second_label: trivial
-  second_by: codex-independent-v2
+  second_label: null
+  second_by: null
   note: "Transfers the same status or value between representations without changing its meaning."
 - id: hyperswitch-0076
   anchor: symbol:rust:router.core.payments.operations.payment_confirm.PaymentConfirm.GetTracker<F,PaymentData<F>,api::PaymentsRequest>.get_trackers:Method#cde895b77e7fc398a4e91af190d7ca885ee6c91c69d6a7863a33b73a21a3726b#1
   location: crates/router/src/core/payments/operations/payment_confirm.rs:100
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
+  label: trivial
+  category: validation
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-adjudication-v3
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "An absent prefetched record becomes the equivalent pair of absent values."
 - id: hyperswitch-0077
   anchor: symbol:rust:router.core.payments.routing.perform_session_flow_routing:Function#2#31e8539f4f50bf18e381821e5dc7b75b10cc5620650bca1992212e8b71400a13#1
   location: crates/router/src/core/payments/routing.rs:3221
@@ -1666,8 +1666,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-independent-v2
+  second_label: null
+  second_by: null
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: hyperswitch-0096
   anchor: symbol:rust:router.core.payments.operations.payment_update.PaymentUpdate.Domain<F,api::PaymentsRequest,PaymentData<F>>.payments_dynamic_tax_calculation:Method#fce54e04788c87f62037a987a3cf229b290f39909ec70ac0f9bbc4ed81f10b1e#1
@@ -1738,8 +1738,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-independent-v2
+  second_label: null
+  second_by: null
   note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
 - id: hyperswitch-0102
   anchor: symbol:rust:router.core.payments.filters.get_payment_filters:Function#970f71faa4e70d79fc1c9bdf44fee8c4e157ae41c9d47834dea4530b965dbbda#1
@@ -1822,8 +1822,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: codex-work
-  second_label: trivial
-  second_by: codex-independent-v2
+  second_label: null
+  second_by: null
   note: Propagates the conversion error unchanged.
 - id: hyperswitch-0109
   anchor: symbol:rust:router.core.payments.tokenization.save_payment_method:Function#5b2c9fd1bdd2438ba19aa70bf1ae6a630c27fe80ac899d91d15103c424b4357d#1
@@ -1866,13 +1866,13 @@ points:
   location: crates/router/src/core/payments/operations/payment_response.rs:410
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
+  label: trivial
+  category: observability
   evidence: []
-  verified_by: codex-work
-  second_label: trivial
-  second_by: codex-independent-v2
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  verified_by: claude-adjudication-v3
+  second_label: null
+  second_by: null
+  note: "The fallback arm only logs. The preceding arm implements the eligibility rule."
 - id: hyperswitch-0113
   anchor: symbol:rust:router.core.payments.tokenization.save_payment_method:Function#6190d196182aad1508a48aeef3a03a716ad1b6817b9ce466393db5948f6e701b#1
   location: crates/router/src/core/payments/tokenization.rs:373
@@ -1906,8 +1906,8 @@ points:
   category: validation
   evidence: []
   verified_by: codex-work
-  second_label: trivial
-  second_by: codex-independent-v2
+  second_label: null
+  second_by: null
   note: "Transfers the same status or value between representations without changing its meaning."
 - id: hyperswitch-0116
   anchor: symbol:rust:router.core.payments.operations.payment_confirm.PaymentConfirm.Domain<F,api::PaymentsRequest,PaymentData<F>>.call_unified_authentication_service_if_eligible:Method#0c7f3263ffbdbace715bebf69a1dbb1788fb5860ee20367eb11c9745cbf6803a#1
@@ -1942,8 +1942,8 @@ points:
   category: null
   evidence: []
   verified_by: codex-work
-  second_label: unclear
-  second_by: codex-independent-v2
+  second_label: null
+  second_by: null
   note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: hyperswitch-0119
   anchor: symbol:rust:router.core.payments.transformers.payments_to_payments_response:Function#2#c6860f64aa50f6a24a5939d35dd24d216b433eefb4fe81289f2f624d8161d47a#1

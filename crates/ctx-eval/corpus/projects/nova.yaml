@@ -99,13 +99,13 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: be4be6693ca03dd2dbf2f17da0107ff106f69ef191298f9468dea1f5e05f4943
-  label: null
-  category: null
+  label: trivial
+  category: validation
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Routine presence guard before processing optional extra specs."
 - id: nova-0004
   anchor: symbol:python:nova.api.openstack.compute.services.ServiceController.update:Method#24c078fe9f5d7abdfbe6e0ea0e2b3ab67fd5d6a122fe4ea7e39b0856e304f2d0#1
   location: nova/api/openstack/compute/services.py:411
@@ -118,13 +118,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 7242b0dbde969fbc4daa854f47832ccf5403d22f060dda2a9434dfaec0beb8cb
-  label: null
-  category: null
-  evidence: []
-  verified_by: null
+  label: significant
+  category: state-transition
+  evidence:
+  - type: docs
+    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/api-ref/source/os-services.inc#L278
+    quote: "This API is available starting with microversion 2.53."
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Dispatches to the documented compute service update API at microversion 2.53."
 - id: nova-0005
   anchor: symbol:python:nova.compute.api.API._delete:Method#2c2557dc31b79363003ea58083aae89cb4000b19fa4d3f36965cd1d387c5d5df#1
   location: nova/compute/api.py:2465
@@ -203,16 +206,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 914a351bcd0126a333cb124736e8671a0683af40a14626ccffb971d4b177833a
-  label: null
-  category: null
+  label: significant
+  category: state-transition
   evidence:
   - type: docs
-    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/doc/source/contributor/testing/down-cell.rst#L163
-    quote: 'The server in cell1 (which is down) will show up with status UNKNOWN:'
-  verified_by: null
+    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/api-ref/source/servers.inc#L191
+    quote: "the response body for those unavailable servers will be missing keys"
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Returns the documented partial list representation for unavailable servers."
 - id: nova-0009
   anchor: symbol:python:nova.compute.api.API.detach_volume:Method#e39096c44693d8c328020b8c1a311cba5afeb4b7f015e8c156f4aaaf966ac69f#1
   location: nova/compute/api.py:5320
@@ -366,13 +369,13 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: b1f7b972c11cea2a08c5717eca4bcce761012b061e13781e7b0ab36f22ac9695
-  label: null
-  category: null
+  label: trivial
+  category: validation
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Routine empty query check before indexing the first element."
 - id: nova-0016
   anchor: symbol:python:nova.compute.api.API._get_relevant_hosts:Method#66cd9cc2412c4dcc6719e7ba751b16a30c60129e3fbf1fb856e7f87cb9af6e92#1
   location: nova/compute/api.py:6040
@@ -438,22 +441,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: f2df6404324d432e6edb759fb918e7ec134dadeb05a094a3c04b31674aca3d8b
-  label: null
-  category: null
+  label: significant
+  category: state-transition
   evidence:
   - type: docs
-    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/doc/source/contributor/testing/down-cell.rst#L159
-    quote: 2. List servers with the 2.69 microversion for down cells.
-  - type: docs
-    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/doc/source/contributor/testing/down-cell.rst#L163
-    quote: 'The server in cell1 (which is down) will show up with status UNKNOWN:'
-  - type: spec
-    url: https://opendev.org/openstack/nova-specs/src/commit/bb9651bea014f19960b340047c767e0eb268ad66/specs/rocky/approved/handling-down-cell.rst#L137
-    quote: constructs for the servers in the down cells into the same list of full
-  verified_by: null
+    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/api-ref/source/servers.inc#L734
+    quote: "the response body for the unavailable server will be missing keys"
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Enables the documented partial server detail response from microversion 2.69."
 - id: nova-0019
   anchor: symbol:python:nova.api.openstack.compute.migrate_server.MigrateServerController._migrate_live:Method#765b8212864eb04556542c0a9fbd3e55e2da1573dfd8b8e7e10969e285c7f9c4#1
   location: nova/api/openstack/compute/migrate_server.py:125
@@ -466,13 +463,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: d3983c6f885a8a8d4967bbcc06b1d8c584de468ae45cceeb679e131ef2b210b8
-  label: null
-  category: null
-  evidence: []
-  verified_by: null
+  label: significant
+  category: state-transition
+  evidence:
+  - type: docs
+    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/api-ref/source/parameters.yaml#L2039
+    quote: "Set to ``auto`` which means"
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Enables automatic block migration selection at the documented microversion boundary."
 - id: nova-0020
   anchor: symbol:python:nova.api.openstack.compute.floating_ips.FloatingIPActionController._add_floating_ip:Method#f2ffd83ed7fe8e805f08bceba2ea4cec8124a7260843822bf0d70c656778168c#1
   location: nova/api/openstack/compute/floating_ips.py:237
@@ -554,13 +554,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: a7f25da5a3fdaeeff440867683f6ac7b7c0ed85c91efe1215ac001365ecfd1e7
-  label: null
-  category: null
-  evidence: []
-  verified_by: null
+  label: significant
+  category: state-transition
+  evidence:
+  - type: docs
+    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/api-ref/source/parameters.yaml#L5168
+    quote: "Therefore this parameter was removed."
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Microversion 2.14 removes the explicit shared storage flag in favor of automatic detection."
 - id: nova-0024
   anchor: symbol:python:nova.scheduler.filters.numa_topology_filter.NUMATopologyFilter.host_passes:Method#5ecf89f56558d37a3e9f46b02ec45532df35c2659351df3c1c40bb0aa42ed6e0#1
   location: nova/scheduler/filters/numa_topology_filter.py:93
@@ -676,13 +679,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 0946e928d5d05151504f7958abe59cdc09dfe3df9bd7a6c3ffc6857011882b6b
-  label: null
-  category: null
-  evidence: []
-  verified_by: null
+  label: significant
+  category: default
+  evidence:
+  - type: docs
+    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/api-ref/source/servers.inc#L513
+    quote: "If ``return_reservation_id`` is set to ``true`` only the"
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Selects the documented reservation-ID-only response when requested."
 - id: nova-0030
   anchor: symbol:python:nova.api.openstack.compute.servers.ServersController._add_location:Method#f89dd17d2b22d9630675fda18ed9ab356b4d3c80d26c05be8466aa9c0df7ef1b#1
   location: nova/api/openstack/compute/servers.py:105
@@ -695,13 +701,13 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 6aa37853a980fde11bfb3181607cde3babdfcbcd4be67afea08e3aaf9a70ba23
-  label: null
-  category: null
+  label: trivial
+  category: validation
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Routine response key presence guard before reading the server field."
 - id: nova-0031
   anchor: symbol:python:nova.api.openstack.compute.hosts.HostController.update:Method#ae0a0c4400cae11595d1c79791bd1968181780afbfabf127f0ed8c9903a2a66b#1
   location: nova/api/openstack/compute/hosts.py:120

@@ -1,4 +1,4 @@
-Version: 1
+Version: 2
 
 # Decision point labels
 
@@ -15,6 +15,9 @@ Use at least one relevant source from levels 1 through 3.
 **Trivial.** The point performs a routine type check, emptiness check, error propagation, logging, or metrics.
 Record a category. Evidence is optional.
 Examples of routine propagation include Rust `?`, Go `if err != nil { return err }`, and a Python re-raise with no added behavior.
+Classify the anchored expression or branch. Consider its callers when its effect is unclear.
+For Rust `?`, check whether the operand also selects a fallback or enforces a product rule.
+Adding diagnostic context alone still counts as routine propagation.
 
 **Unclear.** Use this label if evidence is missing, the source describes different behavior, or the reviewer is unsure.
 Metrics exclude this label.
@@ -44,3 +47,12 @@ Use one category from this list.
 | Routine nonempty check | Trivial |
 | Compatibility branch for an API version or old format | Significant when an API reference describes it |
 | Logging or metrics with no other behavior | Trivial |
+| Error return forwards the failure with an optional diagnostic message and no changed outcome | Trivial |
+| Failed lookup becomes a permission decision, domain outcome, or distinct API status | Significant if a source identifies that outcome for the condition, otherwise unclear |
+| Internal work is skipped because the requested state already holds | Trivial |
+| Data moves between equivalent representations with the same values and meaning | Trivial |
+| A conversion merges cases, drops data, or picks a default | Significant if a source establishes the effect, otherwise unclear |
+| A branch enforces an API field's availability, an on/off option, or a documented scheduler predicate | Significant when the source specifies the rule and the code implements it |
+
+A source that describes a feature in general does not establish each branch in its implementation.
+For example, a routing overview does not establish when a metrics-only setting starts a routing call.

@@ -78,13 +78,13 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 6392731dc1c5ffb2213da07f719781d1a469e3ec566cf9f8b60cdafae5433a41
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: gitea-0004
   anchor: symbol:go:models.perm.access.CanBeAssigned:Function#f6a6a1eb9c3a96b92fee0c96400d3dcd6a43836e9bd9d3a5a91c23e466f7875d#1
   location: models/perm/access/repo_permission.go:589
@@ -97,13 +97,13 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: d7f71f97d1a330d833cbee80a251063bfbde917bca8c1e1abe74c4d0f4e39f0a
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: gitea-0005
   anchor: symbol:go:models.organization.AddOrgUser:Function#be1356c9cb23a18977ce8b4c4f065ceba13adbd197fdc0abfe758ada0cf77940#1
   location: models/organization/org.go:518
@@ -151,13 +151,13 @@ points:
   location: services/pull/merge.go:677
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: validation
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Checks for an absent user before accessing that user."
 - id: gitea-0008
   anchor: symbol:go:services.pull.StartPullRequestCheckDelayable:Function#4ecbd8611414e73330949d127f2cf35e687d0f0447c7f63505cfb86ed24c990c#1
   location: services/pull/check.go:90
@@ -193,13 +193,13 @@ points:
   location: models/organization/team_list.go:113
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: gitea-0011
   anchor: symbol:go:models.git.UpdateProtectBranch:Function#41d115b9e7c003b14f9f1fd17c8a7005594e44874fc515d6a2533ecfacea822c#3
   location: models/git/protected_branch.go:395
@@ -217,13 +217,13 @@ points:
   location: services/pull/merge.go:796
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: gitea-0013
   anchor: symbol:go:services.pull.StartPullRequestCheckImmediately:Function#4ecbd8611414e73330949d127f2cf35e687d0f0447c7f63505cfb86ed24c990c#1
   location: services/pull/check.go:77
@@ -246,13 +246,13 @@ points:
   location: models/perm/access/repo_permission.go:697
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: gitea-0015
   anchor: symbol:go:models.organization.Team.CanNonMemberReadMeta:Method#19e502c5a27a8b9a287153e4f0cf850988898c06dbed68d12d43bd409ba7d29e#1
   location: models/organization/team.go:119
@@ -285,13 +285,13 @@ points:
   location: models/git/protected_branch.go:316
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: gitea-0018
   anchor: symbol:go:models.perm.access.RecalculateUserAccess:Function#2459b055c76d9bbeb671e8344351e8e2a89b3fd4b3e3b012e638075ac5fbe0c1#1
   location: models/perm/access/access.go:242
@@ -321,25 +321,25 @@ points:
   location: services/pull/merge.go:506
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: gitea-0021
   anchor: symbol:go:models.perm.access.Permission.ReadableUnitTypes:Method#0a1629d871deddf6d8a6e0f4219f388521dd6c275cd6bb5c3121e4704328db1a#1
   location: models/perm/access/repo_permission.go:169
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: gitea-0022
   anchor: symbol:go:models.organization.SearchTeam:Function#56e203b08f3d73e071441a07e2bf8f67c4ff2aed131784d06dacf60e137c2106#1
   location: models/organization/team_list.go:143
@@ -357,25 +357,25 @@ points:
   location: models/organization/team_list.go:108
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: gitea-0024
   anchor: symbol:go:models.organization.Team.IsMember:Method#f4151b97f74c58b593da74d6be0a0f53b2b66bdfe45c2cfca0ff33391ca4c3cb#1
   location: models/organization/team.go:180
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: gitea-0025
   anchor: symbol:go:services.pull.doMergeAndPush:Function#ae4e026a9b83dc4695cd07929842838390604f4e23504e198586725ec6936ce2#1
   location: services/pull/merge.go:462
@@ -393,37 +393,37 @@ points:
   location: services/pull/merge.go:507
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: gitea-0027
   anchor: symbol:go:models.perm.access.applyPublicAccessPermission:Function#f93597eb33d796ebf45f7731ec08e64c63216419f357111662161b8bffa15c1a#1
   location: models/perm/access/repo_permission.go:206
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: gitea-0028
   anchor: symbol:go:services.pull.markPullRequestStatusAsChecking:Function#f4151b97f74c58b593da74d6be0a0f53b2b66bdfe45c2cfca0ff33391ca4c3cb#2
   location: services/pull/check.go:62
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: gitea-0029
   anchor: symbol:go:services.pull.MarkAsMerged:Function#5b83427e90d04bf29f5dc20317886fd6e97e13020d60d5279a0508bd27383549#1
   location: services/pull/merge.go:864
@@ -441,13 +441,13 @@ points:
   location: services/pull/check.go:537
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Converts an absent queue during initialization into a standard initialization error."
 - id: gitea-0031
   anchor: symbol:go:services.pull.StartPullRequestCheckOnView:Function#726ed3b7270f4e1636d6a1083e84fe76d740e76508ec71b720af3792e6f24cc3#1
   location: services/pull/check.go:111

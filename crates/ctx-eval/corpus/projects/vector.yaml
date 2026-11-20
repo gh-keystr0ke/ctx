@@ -92,16 +92,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 1e1355df247eb32c05bd42312dc5fdee73ff4bc7948cd4805d9fdebbcd7d4248
-  label: null
-  category: null
+  label: trivial
+  category: validation
   evidence:
   - type: spec
     url: https://github.com/vectordotdev/vector/blob/b78d987398d23f19f3705fb76a1cd18642565b66/rfcs/2020-06-12-2768-batch-and-buffer-rework.md#L76
     quote: 'timeout_secs: Option<u64>,'
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Defensive presence guard after timeout validation."
 - id: vector-0004
   anchor: symbol:rust:crate.finalization.BatchNotifier.update_status:Method#103d7bd8e750063fdaebd3b8b092a6b6b23d23245304cabcd17abd11031f04c6#1
   location: lib/vector-common/src/finalization.rs:312
@@ -186,13 +186,13 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 0c42202c995b3aa280ae9b18f8a1690e9c2ee4e16717b1a700d2a234364598c6
-  label: null
-  category: null
+  label: trivial
+  category: validation
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Defensive presence guard after timeout validation."
 - id: vector-0008
   anchor: symbol:rust:crate.finalization.BatchStatus.update:Method#9cf34e5ead14ce5cfcc31aaf2690ba1d30991f4ae5f8b382bebccca5a6686164#1
   location: lib/vector-common/src/finalization.rs:372
@@ -351,25 +351,25 @@ points:
   location: lib/vector-buffers/src/test/variant.rs:135
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: vector-0017
   anchor: symbol:rust:crate.config.BufferTypeVisitor.visit_map_impl:Method#c084d7e184aa194c48cdd70b83c02992e2c3b0478c405b2a1abec87c96d793e1#1
   location: lib/vector-buffers/src/config.rs:117
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: vector-0018
   anchor: symbol:rust:crate.variants.disk_v2.tests.model.filesystem.TestFilesystem.Filesystem.open_file_readable:Method#abf1e79cc530e319982cac1bf925907c2f8010fcc57371ac40a13657b666a093#1
   location: lib/vector-buffers/src/variants/disk_v2/tests/model/filesystem.rs:365
@@ -399,13 +399,13 @@ points:
   location: lib/vector-buffers/src/test/action.rs:25
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: vector-0021
   anchor: symbol:rust:crate.variants.disk_v2.tests.model.filesystem.TestFilesystem.Filesystem.open_file_readable:Method#cb3b2589d0bbf986a4d11450792422fb44f2fadec5cc293419a929d56e02aa76#1
   location: lib/vector-buffers/src/variants/disk_v2/tests/model/filesystem.rs:364
@@ -435,49 +435,49 @@ points:
   location: lib/vector-buffers/src/topology/channel/limited_queue.rs:1016
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: vector-0024
   anchor: symbol:rust:crate.config.BufferTypeVisitor.visit_map_impl:Method#38fe6f93b67617e7c919f5abd8567dc8d270863e4494681f14379a819e1d93f1#1
   location: lib/vector-buffers/src/config.rs:96
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: vector-0025
   anchor: symbol:rust:crate.topology.channel.sender.BufferSender.send:Method#8a60221d75dd0042446c1780758a44f5efbbb86e07d10362a4ca1ae59997029a#1
   location: lib/vector-buffers/src/topology/channel/sender.rs:336
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: observability
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Selects the accepted value for usage accounting."
 - id: vector-0026
   anchor: symbol:rust:crate.config.BufferTypeVisitor.visit_map_impl:Method#bcf8142e7385d8a87ad8dfb293b0d57bc3511dcaffe8200bc31e8d642f765408#1
   location: lib/vector-buffers/src/config.rs:88
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: vector-0027
   anchor: symbol:rust:crate.topology.channel.sender.BufferSender.flush:Method#bdc5869a15d3395c3eececa71d99a4671808016c7539b15e8ce9d082f287a385#1
   location: lib/vector-buffers/src/topology/channel/sender.rs:404
@@ -495,13 +495,13 @@ points:
   location: lib/vector-buffers/src/variants/disk_v2/tests/model/mod.rs:500
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: vector-0029
   anchor: symbol:rust:crate.topology.channel.sender.BufferSender.disk_usage_snapshot:Method#121cfcbef77aa4bbfd502a303c7a7635bafa1ca415b8ce10f3d24cd64459d2d9#1
   location: lib/vector-buffers/src/topology/channel/sender.rs:301
@@ -519,13 +519,13 @@ points:
   location: lib/vector-buffers/src/topology/channel/sender.rs:342
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: observability
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Selects the accounting value for an event the write attempt has already dropped."
 - id: vector-0031
   anchor: symbol:rust:crate.finalization.BatchStatus.update:Method#fb7c92a01c3b43de737ffbcd4f2cac06cc9fa9e2ab0bf5e9a6dadf34402e3dfc#1
   location: lib/vector-common/src/finalization.rs:374

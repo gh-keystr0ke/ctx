@@ -140,13 +140,13 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 9f27745824f1ea96ec792c7ac1ac50115acdc7d91de77af1a5ddb1a4d9bb3f2e
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: nova-0006
   anchor: symbol:python:nova.quota.DbQuotaDriver._process_quotas:Method#a53a8f7fd7b7de3165544d82bfe3a4bf62d076f70a3ec7d5b8a5a5733cace6df#1
   location: nova/quota.py:133
@@ -161,19 +161,13 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: d2a313dbdc3351f02bd3e3cc775d211151a355becaeab56fa33d5a71f9b729e3
-  label: null
+  label: unclear
   category: null
-  evidence:
-  - type: docs
-    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/doc/source/admin/architecture.rst#L114
-    quote: For projects, you can use quota controls to limit the number of processor cores
-  - type: docs
-    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/doc/source/admin/architecture.rst#L115
-    quote: and the amount of RAM that can be allocated. Other projects also allow quotas
-  verified_by: null
+  evidence: []
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: nova-0007
   anchor: symbol:python:nova.scheduler.filters.image_props_filter.ImagePropertiesFilter._instance_supported:Method#ce709f3c517b624bf3d5602e42a4671a59020ff7649170748be540a34a307023#1
   location: nova/scheduler/filters/image_props_filter.py:62
@@ -186,13 +180,13 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 6492600c83c40372296d82395a9ada01a7b741253c2e8c7d0fd166c26df68c22
-  label: null
-  category: null
+  label: trivial
+  category: validation
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Returns before processing the absent set of image requirements."
 - id: nova-0008
   anchor: symbol:python:nova.api.openstack.compute.views.servers.ViewBuilder.show:Method#8d90a5fbcd1a81c6ae30eff004d7e8ad5b7cab8446d2310fa36c41fad8c42e51#1
   location: nova/api/openstack/compute/views/servers.py:282
@@ -261,19 +255,13 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 881c0e4c4941cdeb579362a156bbca9bd6df4bb5d63f7f51e892318b5ee9ca2c
-  label: null
+  label: unclear
   category: null
-  evidence:
-  - type: spec
-    url: https://opendev.org/openstack/nova-specs/src/commit/bb9651bea014f19960b340047c767e0eb268ad66/specs/train/implemented/count-quota-usage-from-placement.rst#L81
-    quote: '``_instances_cores_ram_count_legacy`` that counts cores and ram from the cell'
-  - type: spec
-    url: https://opendev.org/openstack/nova-specs/src/commit/bb9651bea014f19960b340047c767e0eb268ad66/specs/train/implemented/count-quota-usage-from-placement.rst#L89
-    quote: False. If False, we use the legacy quota counting method for instances, cores,
-  verified_by: null
+  evidence: []
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: nova-0011
   anchor: symbol:python:nova.scheduler.filters.image_props_filter.ImagePropertiesFilter._instance_supported:Method#e3a5031cb5dc53799b5a6c00c079679a9811f6a9c2b977f7ef57b40f1e92e8e6#1
   location: nova/scheduler/filters/image_props_filter.py:68
@@ -286,13 +274,13 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 0c1fd84c3b5f85e107ed8b8fb4168cff31e053ea38de87769908e3ebf333f7ad
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: nova-0012
   anchor: symbol:python:nova.api.openstack.compute.hosts.HostController.update:Method#5b905e8af639e5d281447f9446acbde250b3e7c6167a97e04229d333722b25b5#1
   location: nova/api/openstack/compute/hosts.py:126
@@ -327,13 +315,13 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 5133fd5bb4304abe719fcf7a09fbc0cf07b8a0e1a58f69f821daf2b9b6b8ce80
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: nova-0014
   anchor: symbol:python:nova.quota.DbQuotaDriver._get_usages:Method#cd8ac330eeab8c1d5f552c432e269548954d0c25c53c54e867b26a5ad7b0fe2a#1
   location: nova/quota.py:183
@@ -391,22 +379,13 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 77dbb49b9c6e176745ef178580a1662e0204eeec466b1da740102ec66a85b35c
-  label: null
+  label: unclear
   category: null
-  evidence:
-  - type: spec
-    url: https://opendev.org/openstack/nova-specs/src/commit/bb9651bea014f19960b340047c767e0eb268ad66/specs/2024.2/approved/ephemeral-storage-encryption.rst#L629
-    quote: hosts as needed during instance migrations.
-  - type: spec
-    url: https://opendev.org/openstack/nova-specs/src/commit/bb9651bea014f19960b340047c767e0eb268ad66/specs/stein/approved/cross-cell-resize.rst#L219
-    quote: Copy the ``instance.migration_context`` from the target DB to the source DB.
-  - type: spec
-    url: https://opendev.org/openstack/nova-specs/src/commit/bb9651bea014f19960b340047c767e0eb268ad66/specs/stein/approved/cross-cell-resize.rst#L333
-    quote: '* Drop the migration context on the instance in the target cell DB.'
-  verified_by: null
+  evidence: []
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: nova-0017
   anchor: symbol:python:nova.api.openstack.compute.volumes.VolumeController.delete:Method#92463ee817e753b5145c8264778d75b932530924b4c4f51d1cd877cd3a83463a#1
   location: nova/api/openstack/compute/volumes.py:131
@@ -419,13 +398,13 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: d91129e31fae1184a66f50145fa330a720094a58434e3cb206b85bf6a33f7a0c
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: nova-0018
   anchor: symbol:python:nova.api.openstack.compute.servers.ServersController._get_server:Method#e7f310851365a57591da1cd630fd897e8221ad073394c5b42e861e354e7eb7b8#1
   location: nova/api/openstack/compute/servers.py:370
@@ -486,16 +465,13 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: e4236b71f27a1a801a80fd662c0a090e1a0ca6dead119427ed43a7f2a6b23aea
-  label: null
+  label: unclear
   category: null
-  evidence:
-  - type: docs
-    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/api-ref/source/index.rst#L84
-    quote: '.. include:: os-floating-ips.inc'
-  verified_by: null
+  evidence: []
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: nova-0021
   anchor: symbol:python:nova.api.openstack.compute.simple_tenant_usage.SimpleTenantUsageController._get_instances_all_cells:Method#79a433884be895c4182f0788d420a6bbf09a1bce78c76a21cdc5a0378e98df20#1
   location: nova/api/openstack/compute/simple_tenant_usage.py:133
@@ -508,13 +484,13 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 9582917b7c019178d3e3220dccbbfd8cfb17bae2da612dcf79baa4af41aae756
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: nova-0022
   anchor: symbol:python:nova.api.openstack.compute.security_groups.SecurityGroupController.create:Method#00ac25c974c2f757ce36db27181694b2dbe8b75f88a76fded2c9e9fe3f58f9e1#1
   location: nova/api/openstack/compute/security_groups.py:221
@@ -529,19 +505,13 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: b5a177f3084c384af491a433dd79c1a854ecdbce2401e55117644351b9494320
-  label: null
+  label: unclear
   category: null
-  evidence:
-  - type: docs
-    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/doc/source/admin/unified-limits.rst#L295
-    quote: exceeded exception will be raised.
-  - type: docs
-    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/doc/source/user/security-groups.rst#L43
-    quote: $ openstack security group create --description <description> ... <name>
-  verified_by: null
+  evidence: []
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: nova-0023
   anchor: symbol:python:nova.api.openstack.compute.evacuate.EvacuateController._get_on_shared_storage:Method#463ef7590a903993085b3ea6f11b84ff546f3611886b8f8818a4875f44c1946d#1
   location: nova/api/openstack/compute/evacuate.py:49
@@ -578,19 +548,13 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 5d0c3b82b8aab907e4356b205910ec7aca6f1e2f4cc50759238019333619d907
-  label: null
+  label: unclear
   category: null
-  evidence:
-  - type: docs
-    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/doc/source/admin/scheduling.rst#L1401
-    quote: 'implement one method: ``host_passes``. This method should return ``True`` if a'
-  - type: docs
-    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/doc/source/admin/scheduling.rst#L1402
-    quote: 'host passes the filter and return ``False`` elsewhere. It takes two parameters:'
-  verified_by: null
+  evidence: []
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: nova-0025
   anchor: symbol:python:nova.compute.api.block_accelerators.inner.wrapper:Method#8504292ae33014d7b5110253523deb9baeff24ec3136c171edc3b40b909e378f#1
   location: nova/compute/api.py:388
@@ -603,13 +567,13 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 62493bfdf3b17a22b752ceb5ad6ce44138f1f9d155675b60018186b602c6cd00
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: nova-0026
   anchor: symbol:python:nova.scheduler.filters.affinity_filter._GroupAffinityFilter.host_passes:Method#cde7d9f07c918d6861ee9f3bbcd5554f702d0ea929805a827f8556a69e0b7b04#1
   location: nova/scheduler/filters/affinity_filter.py:147
@@ -622,13 +586,13 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 688b279dc924657d97866b06e06fba77ed7cee7ac4302a049e406791d4bea661
-  label: null
-  category: null
+  label: trivial
+  category: validation
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Skips the filter when the corresponding policy is absent."
 - id: nova-0027
   anchor: symbol:python:nova.compute.api.API._prepare_image_mapping:Method#1052020a7610685db3efe518d8b9540f0eee88f556640d30c75177a0a062c798#1
   location: nova/compute/api.py:1918
@@ -641,13 +605,13 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 85a2d359ff6ba014d14f9e22f3293108a025b10c8ff6fc71c7bc3b5a43c11886
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: nova-0028
   anchor: symbol:python:nova.api.openstack.compute.simple_tenant_usage.SimpleTenantUsageController._show:Method#f2e58bcc1195947468a33b12d2e6aac37973ff2b62be01d160effa1e5d10dc53#1
   location: nova/api/openstack/compute/simple_tenant_usage.py:356
@@ -660,13 +624,13 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: d9fc4de9be47b3be4a0b136ee3a123d72ecd6165a1aa7709d3ea3832e00b453d
-  label: null
-  category: null
+  label: trivial
+  category: validation
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Checks the collection before reading its first element."
 - id: nova-0029
   anchor: symbol:python:nova.api.openstack.compute.servers.ServersController.create:Method#984279fcd18f39dca29a91d9ea4651e14feb3e149cf11758a234c6fc5ed48b87#1
   location: nova/api/openstack/compute/servers.py:913

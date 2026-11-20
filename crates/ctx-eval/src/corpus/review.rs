@@ -45,10 +45,7 @@ fn review_indexes(project: &Project, second: bool, requested: Option<&str>) -> V
             .enumerate()
             .filter(|(_, point)| point.label.is_some() && point.verified_by.is_some())
             .collect();
-        eligible.sort_by_cached_key(|(_, point)| {
-            let key = format!("{}second{}", project.sample.seed, point.id);
-            blake3::hash(key.as_bytes()).to_hex().to_string()
-        });
+        eligible.sort_by_cached_key(|(_, point)| second_review_key(project, &point.id));
         let count = eligible.len().div_ceil(5);
         return eligible
             .into_iter()
@@ -64,6 +61,19 @@ fn review_indexes(project: &Project, second: bool, requested: Option<&str>) -> V
         .filter(|(_, point)| requested.map_or(point.label.is_none(), |id| point.id == id))
         .map(|(index, _)| index)
         .collect()
+}
+
+fn second_review_key(project: &Project, id: &str) -> [u8; 32] {
+    // Preserve the original cohort for version 1 of the guide.
+    let key = if project.guide_version == 1 {
+        format!("{}second{id}", project.sample.seed)
+    } else {
+        format!(
+            "{}second:{}:{id}",
+            project.sample.seed, project.guide_version
+        )
+    };
+    *blake3::hash(key.as_bytes()).as_bytes()
 }
 
 pub(super) fn code_excerpt(checkout: &Path, location: &str) -> io::Result<String> {
@@ -256,6 +266,15 @@ mod tests {
         self,
         tests::{points, project},
     };
+
+    #[test]
+    fn second_review_key_changes_with_guide_version() {
+        let mut project = project();
+        let expected = blake3::hash(format!("{}secondpoint", project.sample.seed).as_bytes());
+        assert_eq!(&second_review_key(&project, "point"), expected.as_bytes());
+        project.guide_version += 1;
+        assert_ne!(&second_review_key(&project, "point"), expected.as_bytes());
+    }
 
     #[test]
     fn second_review_hides_draft_and_first_label() {

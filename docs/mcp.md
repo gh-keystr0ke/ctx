@@ -15,7 +15,7 @@ Set the absolute path to `ctx` and the working directory in the MCP client confi
 }
 ```
 
-The server exposes six tools over newline-delimited stdio JSON-RPC.
+The server exposes nine tools over newline-delimited stdio JSON-RPC.
 
 | Tool | Purpose | Same as |
 | --- | --- | --- |
@@ -25,6 +25,9 @@ The server exposes six tools over newline-delimited stdio JSON-RPC.
 | `explain_relation` | Explain a node or a directed `source -> target` relationship from stored provenance and evidence. | `ctx explain` |
 | `find_requirements` | Find indexed requirements by stable ID or lexical terms. | `ctx find --kind requirement` |
 | `review_change` | Review a Git branch or working-tree diff using high-confidence product claims. | `ctx review` |
+| `get_coverage` | Read structural coverage, gap counts, and suspected divergence. Accepts a path or symbol. | `ctx coverage` |
+| `list_gaps` | List up to 25 ranked actionable gaps. Accepts a path or symbol. | [Context coverage](coverage.md) |
+| `explain_gap` | Read one decision point and its recorded evidence by stable anchor. | [Context coverage](coverage.md) |
 
 All graph and review decisions remain in `ctx-app`; MCP is a thin transport adapter, not a second implementation. There is no MCP tool for `ctx ingest`/`ctx enrich`/`ctx verify` or federation — those are explicit, side-effecting operations run from the CLI.
 

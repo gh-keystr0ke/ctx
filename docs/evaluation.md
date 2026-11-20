@@ -102,7 +102,8 @@ column separately verified the blocking exit code.
 The [labeling guide](../crates/ctx-eval/corpus/LABELING.md) defines the labels and edge cases.
 The operator pins revisions, creates samples, and starts draft runs.
 A reviewer checks the code and cited evidence. The second review hides the draft and first label.
-For this run, Codex performed both reviews as authorized. The procedure did not use independent human reviewers.
+Codex performs the corpus review as authorized. The expanded samples still need a second pass.
+When the same reviewer does both passes, wait at least one week before the second pass.
 
 The commands below use the development-tool binary.
 
@@ -114,7 +115,8 @@ corpus() { cargo run --locked -p ctx-eval --bin ctx-corpus -- "$@"; }
 2. Run `corpus sample PROJECT`. Commit the v0 sample and fill order before changing the ranking rules.
 3. Run `corpus draft PROJECT --agent codex`. Drafting reads only the code and evidence package for each point.
 4. Run `corpus review PROJECT --reviewer NAME`. Use `corpus sample PROJECT --extend --fill` for fixed batches of ten.
-   Continue to the 15/15 quota or 60 points. Record a shortfall when the cap is reached.
+   Continue to the 15/15 quota or the default cap of 60 points. Record any shortfall.
+   Use the [extension procedure](#extension-to-the-frozen-sample) for an approved higher cap.
 5. Run `corpus review PROJECT --reviewer NAME --second`. Then run `corpus agreement PROJECT --min 0.6`.
 6. If agreement is low, resolve ambiguous rules in the labeling guide. Update its version and review all affected points.
 7. Run `corpus check` and `corpus score --tuning`. Freeze the ranking before running `corpus score --gate`.

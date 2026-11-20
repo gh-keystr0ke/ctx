@@ -73,6 +73,14 @@ ctx review --base main
 ```
 Add `-v` for lower-confidence diagnostics and suppressed-change counts. See [docs/commands.md](docs/commands.md#review) for what the three finding streams mean.
 
+**Find unexplained behavior in a change.** Run `ctx coverage --base main`.
+Use `ctx coverage research --agent codex` to look for evidence and `ctx coverage ask` to answer open questions.
+[Context coverage](docs/coverage.md)
+
+**Repair a mapping after a rename.** Run `ctx repair plan` to inspect drift.
+Use `ctx repair apply --policy safe` for link changes supported by committed identity evidence.
+[Context repair](docs/repair.md)
+
 **What should I actually run before merging this?** `ctx review --related-tests` (or `--related-tests=<N>` to cap it to `N` call-graph hops). Deliberately broader than each finding's own `related_tests`: no product-intent gating, no confidence threshold — every test structurally reachable from a changed symbol, for recall over precision.
 
 **Check blast radius before touching a symbol.** `ctx impact <target>` where `<target>` is a file path, canonical symbol, stable ID, or `table.column`. Not sure of the exact symbol name? `ctx find <name>` first. `ctx explain <id-or-relation>` shows the full evidence behind any one claim.
@@ -147,6 +155,8 @@ exclude = ["generated", "vendor", "build", "dist", "target", ".venv"]
 | `ctx explain <target>` | Show stored claims and evidence for an ID or quoted `source -> target` pair |
 | `ctx find <name>` | Discover indexed symbols/nodes by short or exact name |
 | `ctx review [--base REV]` | Review a branch or working diff against product, schema, and API contracts |
+| `ctx coverage [--base REV]` | Report structural mappings and unexplained behavioral decisions |
+| `ctx repair <plan\|apply\|propose\|review>` | Inspect and repair product-context mappings |
 | `ctx context <task>` | Compile a bounded Context Pack; accepts repeated `--file`/`--symbol` seeds |
 | `ctx report <html\|markdown>` | Generate a complete internal static report under `.ctx/report/<format>/` or `--out DIR` |
 | `ctx ingest <source> [--refresh]` | Ingest external artifacts (`git`, `code-comments`, `gitlab`, `jira`) as separately stored source material; refresh is Jira/GitLab-only |
@@ -172,7 +182,7 @@ Every full flag list, plus what each output stream means, is in **[docs/commands
 }
 ```
 
-Run `ctx init` before you start the server. MCP exposes six tools, including `get_status`. See [MCP integration](docs/mcp.md).
+Run `ctx init` before you start the server. MCP exposes nine tools, including coverage queries. See [MCP integration](docs/mcp.md).
 
 ## Docker
 

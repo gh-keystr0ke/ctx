@@ -31,6 +31,15 @@ Every command accepts these global flags, which must appear before the subcomman
 | --- | --- | --- |
 | `ctx review` | `--base <REV>` (default `HEAD`), `--related-tests[=<DEPTH>]`, `-v` | Review the working diff (or a branch's diff against `--base`) for product-contract, schema, and API-contract impact. See the README's "Review a change" scenario and [docs/architecture.md](architecture.md#schema-aware-review). `--related-tests` additionally reports `tests_to_run`: every test structurally reachable from a changed symbol via the call graph — no product-intent gating, no confidence threshold — deliberately broader than each finding's own `related_tests`. Bare `--related-tests` (or `--related-tests=deep`) walks the reachable neighborhood to exhaustion; `--related-tests=<N>` caps it to `N` call-graph hops. |
 
+## Context coverage and repair
+
+Use `ctx coverage` to report symbol mappings and ranked behavioral gaps.
+Scope it with `--path`, `--symbol`, `--requirement`, or `--base`.
+The [coverage guide](coverage.md) describes research, interviews, and stored decisions.
+
+Use `ctx repair plan` to inspect mapping drift.
+The [repair guide](repair.md) describes safe edits and proposal review.
+
 ## Context compilation
 
 | Command | Flags | Purpose |

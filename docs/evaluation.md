@@ -275,3 +275,17 @@ Combined precision was 38/38 among the rated top positions. The trivial
 false-positive rate was 0/46. Nova needs one more significant label and
 seven more trivial labels. Gitea needs 11 more significant labels.
 The held-out projects still need a second review to measure agreement.
+
+#### Extension to the frozen sample
+
+The original 60-point results are recorded in Git at commit `cfd1b65`.
+For the quota extension, use a cap of 120 total points per project,
+including any pool points. Keep the pinned commits, modules, seed, and v0 ranking.
+Keep the existing labels and the original selection.
+
+Run `ctx-corpus sample PROJECT --extend --fill --fill-cap 120` to append
+the next batch. The command reproduces v0 and checks the initial sample
+and the saved fill prefix before it extends the order. It skips anchors
+already selected and adds up to ten points. Review the batch before
+adding more. Stop at the quota, the cap, or the end of the order.
+Report any remaining shortfall.

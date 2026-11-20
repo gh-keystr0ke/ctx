@@ -47,8 +47,8 @@ points:
   category: validation
   evidence: []
   verified_by: codex-work
-  second_label: trivial
-  second_by: claude-blind-v3
+  second_label: null
+  second_by: null
   note: null
 - id: zulip-0002
   anchor: symbol:python:corporate.lib.stripe.BillingSession.do_update_plan:Method#b4705fe35c4d2a8933ad623c8cb74621a2d9f7d059a3cbd279dfa030e926936e#1
@@ -142,12 +142,12 @@ points:
     model: null
     prompt_fingerprint: 2009f68e39ea550976c69b96f3494609fd2a7a85d1b7c72433849d90a487e11c
   label: unclear
-  category: null
+  category: state-transition
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: null
+  note: "With --all --restore-deleted, restore_all_data_from_archive also restores MANUAL (user-deleted) archive transactions. Searched help docs (delete-a-message.mdx 'Restoring deleted messages', message-retention-policy.mdx), docs/production and api_docs, and blame commit 6e46c6d752 (no issue/PR ref): only the restore_messages command help string in code describes the flag; no level 1-3 source states it."
 - id: zulip-0007
   anchor: symbol:python:corporate.lib.stripe.BillingSession.make_end_of_cycle_updates_if_needed:Method#3a81183c2b6baded99ce75711b62d27c939ddfffccf2d5433206f4f104892fc5#1
   location: corporate/lib/stripe.py:2487
@@ -182,13 +182,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: c4dd504fa816c8f0638f8d5da3432498335092fb0b5bbb85b0c1825d0170b210
-  label: unclear
-  category: null
-  evidence: []
-  verified_by: codex-work
+  label: significant
+  category: limit
+  evidence:
+  - type: docs
+    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/docs/production/securing-your-zulip-server.md#L138-139
+    quote: "- The `RATE_LIMITING` setting can be set to `False` to completely\n  disable all rate-limiting."
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: null
+  note: "rate_limit_user returns without rate limiting when should_rate_limit is false (RATE_LIMITING disabled, or exempt internal client); the production docs state the RATE_LIMITING=False condition and the effect of disabling all rate limiting (the internal-client exemption is not documented)."
 - id: zulip-0009
   anchor: symbol:python:zerver.actions.message_send.internal_send_private_message:Function#1ba2767a1280f0847735a2bb7a5f0892311a402a2fc9c2df73f18a3a9755a827#1
   location: zerver/actions/message_send.py:2231
@@ -262,15 +265,12 @@ points:
     model: null
     prompt_fingerprint: d1bd56f328177e1f9d097a5bd46f3d19ffaadc13a71a7af474d066bf7fddd61e
   label: unclear
-  category: null
-  evidence:
-  - type: issue
-    url: https://github.com/zulip/zulip/pull/27799/commits/69d8442ab4
-    quote: "Allow user to switch between billing frequencies"
-  verified_by: claude-adjudication-v3
-  second_label: unclear
-  second_by: claude-blind-v3
-  note: "The introducing commit title describes billing frequency changes in general. No pinned source states the end-of-cycle switch."
+  category: state-transition
+  evidence: []
+  verified_by: claude-relabel-v4
+  second_label: null
+  second_by: null
+  note: "At the end of a cycle, a plan in SWITCH_TO_MONTHLY_AT_END_OF_CYCLE is ended and replaced by a new monthly plan. Searched help docs (_ManageBillingIntro.mdx says only 'Change your billing frequency to be monthly or annual.'), docs/subsystems/billing.md, and commit 69d8442ab4 (no issue/PR referenced; the attached PR #27799 is not referenced by the commit and its page text does not state the end-of-cycle switch): no source states the condition and effect."
 - id: zulip-0013
   anchor: symbol:python:zerver.lib.rate_limiter.should_rate_limit:Function#200d739bebcf8424cad5b450423cc292654fe358d0a81a89d0160ffc9a4f3255#1
   location: zerver/lib/rate_limiter.py:426
@@ -328,13 +328,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: c246265e26672572d1c6d87b3d6286f771e30f8645ce10b5f001395f3dbaf555
-  label: unclear
-  category: null
-  evidence: []
-  verified_by: codex-work
-  second_label: significant
-  second_by: claude-blind-v3
-  note: null
+  label: significant
+  category: permission
+  evidence:
+  - type: docs
+    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/zerver/openapi/zulip.yaml#L24601-24608
+    quote: "Include all channels that the user has metadata access to.\n\n            For organization administrators, this will be all channels\n            in the organization, since organization administrators\n            implicitly have metadata access to all channels."
+  verified_by: claude-relabel-v4
+  second_label: null
+  second_by: null
+  note: "When include_all is set, get_streams_for_user returns all channels the user has metadata access to; the GET /streams API reference states this parameter and its effect."
 - id: zulip-0016
   anchor: symbol:python:corporate.lib.stripe.BillingSession.update_customer_minimum_licenses:Method#e59f5201c2532ff3430f99fac6a8815c72eb61aef9ad139f778f410e8458106d#1
   location: corporate/lib/stripe.py:1513
@@ -348,12 +351,12 @@ points:
     model: null
     prompt_fingerprint: c5a5c743dd1d654833aec105eb0b29d3b73aaf6420d3d03931603bc674e7b4ac
   label: unclear
-  category: null
+  category: validation
   evidence: []
-  verified_by: codex-work
-  second_label: unclear
-  second_by: claude-blind-v3
-  note: null
+  verified_by: claude-relabel-v4
+  second_label: null
+  second_by: null
+  note: "The support action to set minimum licenses is rejected when the customer has an active plan or a scheduled upgrade from a complimentary plan. Searched help docs (zulip-cloud-billing.mdx, self-hosted-billing.mdx), docs/subsystems/billing.md, blame commit 20352aff9e and origin commit fb29a35262 (commit text describes it but references no issue/PR): no level 1-3 source."
 - id: zulip-0017
   anchor: symbol:python:zerver.lib.streams.create_stream_if_needed:Function#f6f36950e7fedc090d5e4727e5067b2481892692ea759d9ca059a7ed2aa2806f#1
   location: zerver/lib/streams.py:385
@@ -368,15 +371,12 @@ points:
     model: null
     prompt_fingerprint: 0559ad77b566ec3e2dfe0637c0bd060cd8cbde7101ec354027b7f48752c7d3ef
   label: unclear
-  category: null
-  evidence:
-  - type: docs
-    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/docs/subsystems/schema-migrations.md#L154
-    quote: foreign key to a per-realm `NamedUserGroup`, or a value derived
-  verified_by: codex-work
-  second_label: unclear
-  second_by: claude-blind-v3
-  note: null
+  category: default
+  evidence: []
+  verified_by: claude-relabel-v4
+  second_label: null
+  second_by: null
+  note: "A None can_add_subscribers_group makes create_stream_if_needed use the setting's default group (Nobody per GroupPermissionSetting). Searched the API reference (ChannelCanAddSubscribersGroup schema, POST /users/me/subscriptions), help docs (configure-who-can-invite-to-channels.mdx) and commit 97996b9929 (no issue/PR): no source states the default; the attached schema-migrations.md passage is unrelated."
 - id: zulip-0018
   anchor: symbol:python:corporate.lib.stripe.RemoteRealmBillingSession.write_to_audit_log:Method#c9a3a156b15123d2e002eab5225a6562e2ad94bbc4b668ac5b631b20042eba7a#1
   location: corporate/lib/stripe.py:4814
@@ -408,13 +408,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: dde22370afabf1c36b6f44a8acb987c542436ef39e0e0f71c11a432bb779f846
-  label: unclear
-  category: null
-  evidence: []
-  verified_by: codex-work
+  label: significant
+  category: validation
+  evidence:
+  - type: docs
+    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/zerver/openapi/zulip.yaml#L9228-9229
+    quote: "For channel messages, this is either the name or integer ID of the\n                    channel."
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: null
+  note: "For a channel message addressed by ID, the stream is looked up by ID (raising an error if missing); the send-message API reference states that `to` may be the channel's integer ID."
 - id: zulip-0020
   anchor: symbol:python:corporate.lib.stripe.BillingSession.do_change_schedule_after_free_trial:Method#6c1ffaad4a41695710af5f6b7412284c004c19c3741becefa0918a6dd52e7a85#1
   location: corporate/lib/stripe.py:2424
@@ -446,13 +449,13 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: b94ea2ca15944cf643f3b6f1a2b46e54b5c73d2baf3a54529591606039e7e749
-  label: unclear
-  category: null
+  label: trivial
+  category: state-transition
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: null
+  note: "Writes org_type for the remote server only when it differs; internal work is skipped because the requested state already holds."
 - id: zulip-0022
   anchor: symbol:python:corporate.lib.stripe.BillingSession.process_initial_upgrade:Method#b542045627f14b16c526ca623bfcdd2dd8609454505f206762d1a09bc7f3acc0#1
   location: corporate/lib/stripe.py:2137
@@ -466,12 +469,12 @@ points:
     model: null
     prompt_fingerprint: 1c9c6f7f38e0f58702301d46e5f0a4041f3984af2cf956540d212dfbdb082d22
   label: unclear
-  category: null
+  category: default
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: null
+  note: "Without a fixed-price offer, the initial upgrade computes price per license and percent discount from the tier/schedule/customer discount. Searched help docs (zulip-cloud-billing.mdx, self-hosted-billing.mdx discounts), docs/subsystems/billing.md, and commit 244b771096 (no issue/PR ref): no source states this branch's rule."
 - id: zulip-0023
   anchor: symbol:python:corporate.lib.stripe.BillingSession.get_customer_plan_renewal_amount:Method#10adb79a3295ca6b3afcb8be0df5ccbba0fcca0c46d32eee7a1a0b2b6bac7a3b#2
   location: corporate/lib/stripe.py:2716
@@ -485,12 +488,12 @@ points:
     model: null
     prompt_fingerprint: 0212b750b2d8345c3b327307be522d8487c7c84c44719f2938bdc8614d045212
   label: unclear
-  category: null
+  category: default
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: null
+  note: "renewal_amount returns 0 when the last ledger entry has no licenses at next renewal. Searched help billing docs, docs/subsystems/billing.md, and commits 484c0df076/fb60368c7c (no issue/PR ref): no source states this outcome."
 - id: zulip-0024
   anchor: symbol:python:zerver.lib.streams.user_has_metadata_access:Function#630c6c7777b2a4e93c99a9f64189ad989347d1ef883a5c26d0ef0aaa1477442a#1
   location: zerver/lib/streams.py:801
@@ -503,13 +506,19 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 79a88e21900e1e3fef1ba6425126886a505d7d979f9d3114e1294ee960342854
-  label: unclear
-  category: null
-  evidence: []
-  verified_by: codex-work
-  second_label: significant
-  second_by: claude-blind-v3
-  note: null
+  label: significant
+  category: permission
+  evidence:
+  - type: docs
+    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/starlight_help/src/content/docs/channel-permissions.mdx#L99-100
+    quote: "Guest users can't see public (or private) channels, unless they have been specifically\nsubscribed to the channel."
+  - type: docs
+    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/starlight_help/src/content/docs/channel-permissions.mdx#L76-77
+    quote: "can't get any other information about private channels they are not subscribed\nto."
+  verified_by: claude-relabel-v4
+  second_label: null
+  second_by: null
+  note: "Subscribers (including guests, since the check precedes the guest check) have metadata access to the channel; the channel-permissions help page states subscription grants guests visibility of a channel and that non-subscribers without special permission get no information about private channels."
 - id: zulip-0025
   anchor: symbol:python:zerver.lib.rate_limiter.rate_limit_endpoint_absolute:Function#274ddd73340e5e975dfad15c985c9d69941e9d8eb11f10bcf321074acb07e917#1
   location: zerver/lib/rate_limiter.py:421
@@ -522,16 +531,13 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: b1254318153033cc6a74827bd80adefe91c0ca9c0e6e0e47530931ac60e906ff
-  label: significant
-  category: limit
-  evidence:
-  - type: docs
-    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/api_docs/changelog.md#L4392-L4394
-    quote: "with a value of `\"RATE_LIMIT_HIT\"`."
-  verified_by: codex-work
-  second_label: unclear
-  second_by: claude-blind-v3
-  note: "The endpoint limiter raises the exception responsible for the documented API failure once the rate limit is reached."
+  label: unclear
+  category: null
+  evidence: []
+  verified_by: claude-relabel-v4
+  second_label: null
+  second_by: null
+  note: "The changelog describes the generic rate limit error. It does not state the absolute limit for this endpoint, and the caller rewraps the error."
 - id: zulip-0026
   anchor: symbol:python:corporate.lib.stripe.RemoteServerBillingSession.check_plan_tier_is_billable:Method#f0824fff3f1ef6f5f86cbc1fc9d3036e3acbd3d4b8bb1a653155320f1c28112b#1
   location: corporate/lib/stripe.py:5469
@@ -545,12 +551,12 @@ points:
     model: null
     prompt_fingerprint: 2eb0c8c7d86cbc43d1f2b56b535ba62b750076e3c6819ec855c48fad02576278
   label: unclear
-  category: null
+  category: validation
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: null
+  note: "Remote server billing sessions treat only Self-hosted Basic and Business tiers as billable (used when setting a required plan tier in support). Searched self-hosted-billing.mdx, docs/subsystems/billing.md, and commit a5f2883a75 (no issue/PR ref): no source states which tiers support can require."
 - id: zulip-0027
   anchor: symbol:python:zerver.lib.streams.check_channel_creation_permissions:Function#69da6ea7ab729375e0005883e77fe1056e2cbdc9537054d1f1c1d542494deaff#1
   location: zerver/lib/streams.py:263
@@ -571,8 +577,8 @@ points:
     url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/starlight_help/src/content/include/_OwnerOnly.mdx#L4
     quote: "This feature is only available to organization owners."
   verified_by: codex-work
-  second_label: significant
-  second_by: claude-blind-v3
+  second_label: null
+  second_by: null
   note: "The retention policy includes this owner-only notice and the channel creation check enforces it for a supplied retention policy."
 - id: zulip-0028
   anchor: symbol:python:zerver.actions.message_send.get_validated_user_ids:Function#4429a082478fbff57516728c76b9e9f63ee1138c0ac2d8fb50b0cbdc70977450#1
@@ -586,13 +592,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 3150c34c76abd865ee41d55c9f2b19b987c008a0bbf098b61888631acb137531
-  label: trivial
+  label: significant
   category: validation
-  evidence: []
-  verified_by: codex-work
-  second_label: significant
-  second_by: claude-blind-v3
-  note: null
+  evidence:
+  - type: docs
+    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/zerver/openapi/zulip.yaml#L9231-L9232
+    quote: "For direct messages, this is either a list containing integer user IDs or a list containing string Zulip API email addresses."
+  verified_by: claude-relabel-v4
+  second_label: null
+  second_by: null
+  note: "Rejects a direct message recipient list that mixes user IDs and emails, as the API reference requires."
 - id: zulip-0029
   anchor: symbol:python:corporate.lib.stripe.BillingSession.get_initial_upgrade_context:Method#590be6d6a5ad8957055a741ce7b6b84076613738e672d9ccbb890fca30d3eb8f#1
   location: corporate/lib/stripe.py:3032
@@ -606,12 +615,12 @@ points:
     model: null
     prompt_fingerprint: 568b007154bece3eaf6116633115c4309ce9f320c00796d9c3840231b8812998
   label: unclear
-  category: null
+  category: default
   evidence: []
-  verified_by: codex-work
-  second_label: unclear
-  second_by: claude-blind-v3
-  note: null
+  verified_by: claude-relabel-v4
+  second_label: null
+  second_by: null
+  note: "Free trial days are only computed when there is no fixed price and no complimentary access plan. Searched self-hosted-billing.mdx ('New customers are eligible for a free 30-day trial' covers only the existing-customer branch), docs/subsystems/billing.md, and commits 713bef6ff5/f22ccd3125 (no issue/PR ref): no source states the fixed-price/complimentary exclusion."
 - id: zulip-0030
   anchor: symbol:python:corporate.lib.stripe.BillingSession.do_upgrade:Method#202eeeed833bd0de3f10e75633bd0b1a6222c2e83d65acfcdac1a350a155fb59#1
   location: corporate/lib/stripe.py:2290
@@ -624,13 +633,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 12520f9a9239c4294663598cdbeaf4db4f430ca7a440942399fa8fedd8087df5
-  label: unclear
-  category: null
-  evidence: []
-  verified_by: codex-work
+  label: significant
+  category: default
+  evidence:
+  - type: docs
+    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/starlight_help/src/content/include/_PaymentOptions.mdx#L5-6
+    quote: "Note that automatic license management is only available if you pay by\ncredit card. Paying by invoice requires manual license management."
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: null
+  note: "When billing modality is send_invoice, the upgrade forces license_management to manual; the billing help states that paying by invoice requires manual license management."
 - id: zulip-0031
   anchor: symbol:python:zerver.lib.retention.archive_direct_messages:Function#1e5cb7811addb845b003c41cadb84643071f5efbf3c4a4be763ae8362f8f659c#1
   location: zerver/lib/retention.py:509
@@ -644,12 +656,12 @@ points:
     model: null
     prompt_fingerprint: c65457d2fc2dd4cf3a4dc95a1327eff72d6d72e2eccd0958abba459a850b04b3
   label: unclear
-  category: null
+  category: limit
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: null
+  note: "archive_direct_messages defaults chunk_size to MESSAGE_BATCH_SIZE (1000), an internal batch limit. Searched message-retention-policy.mdx, delete-a-message.mdx, docs/production and blame commit 52692a6448 (rename only): no source documents the batch size."
 - id: zulip-0032
   anchor: symbol:python:corporate.lib.stripe.BillingSession.update_license_ledger_for_automanaged_plan:Method#c74c251eb104fef92c058bfe9f2100beeb3769ebd5dcf92011a76c87e9c709a7#1
   location: corporate/lib/stripe.py:4104
@@ -664,19 +676,13 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 64df2a438f530a117a0ca3832337aa79c62155da4844855f8d99140cb851c2b9
-  label: unclear
-  category: null
-  evidence:
-  - type: docs
-    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/starlight_help/src/content/include/_ManualAddLicenseInstructions.mdx#L4
-    quote: licenses for next billing period**, and click **Update**.
-  - type: docs
-    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/starlight_help/src/content/include/_ManualAddLicenseInstructions.mdx#L8
-    quote: automatically updates the number of licenses for the next
-  verified_by: codex-work
+  label: trivial
+  category: state-transition
+  evidence: []
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: null
+  note: "After make_end_of_cycle_updates_if_needed, the code continues with the replacement plan if one was created; a routine None check that only picks the current plan object."
 - id: zulip-0033
   anchor: symbol:python:corporate.lib.stripe.BillingSession.make_end_of_cycle_updates_if_needed:Method#7a162ee96027fe0109cecfab3e244655f34d5ad7074e149a415dd2d4eb2e35f5#1
   location: corporate/lib/stripe.py:2582
@@ -690,12 +696,12 @@ points:
     model: null
     prompt_fingerprint: 6237aacfb944c418e560bb2d4d889da01b79d674d06c86774a045f331070d728
   label: unclear
-  category: null
+  category: state-transition
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: null
+  note: "At the end of a cycle, a plan in SWITCH_TO_ANNUAL_AT_END_OF_CYCLE is ended and replaced by a new annual plan. Searched help docs (_ManageBillingIntro.mdx only says billing frequency can be changed), docs/subsystems/billing.md, and commits f8a0035215/69d8442ab4 (no issue/PR ref): no source states the end-of-cycle effect."
 - id: zulip-0034
   anchor: symbol:python:zerver.lib.streams.bulk_can_access_stream_metadata_user_ids:Function#5e9ea88db98db54ba4c00ea8e070ac653ea2ac503231f44289aa4f43eedd2790#1
   location: zerver/lib/streams.py:1177
@@ -708,13 +714,13 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 501abe624c2ecd030d0d93abca48d6daefe08ae521e3138a57034ed3efcfa01e
-  label: unclear
-  category: null
+  label: trivial
+  category: validation
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: null
+  note: "Routine nonempty check before computing subscriber-visibility user IDs for public streams (also guards public_streams[0])."
 - id: zulip-0035
   anchor: symbol:python:zerver.lib.rate_limiter.RateLimitedUser.rules:Method#178bd4a86bb62cee036d9b6efa9c82788c842e11839254436fd7a004a1eb3b30#1
   location: zerver/lib/rate_limiter.py:128
@@ -730,18 +736,12 @@ points:
     model: null
     prompt_fingerprint: 0491db85e4237aacd01f0778e59739150a89ca0084df36dd2fe2083bbe9af658
   label: unclear
-  category: null
-  evidence:
-  - type: docs
-    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/api_docs/http-headers.md#L89
-    quote: '[Zulip''s rate limiting rules are configurable][rate-limiting-rules],'
-  - type: docs
-    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/api_docs/http-headers.md#L94
-    quote: '* Separate, much lower limits for authentication/login attempts.'
-  verified_by: codex-work
-  second_label: unclear
-  second_by: claude-blind-v3
-  note: null
+  category: limit
+  evidence: []
+  verified_by: claude-relabel-v4
+  second_label: null
+  second_by: null
+  note: "Per-user rate_limits override RATE_LIMITING_RULES for the api_by_user domain. Searched docs/production/securing-your-zulip-server.md (documents RATE_LIMITING and RATE_LIMITING_RULES only), api_docs/http-headers.md (attached quotes are general), and commits 7cf859882d/cb71a6571e (no issue/PR ref): the per-user override is undocumented."
 - id: zulip-0036
   anchor: symbol:python:zerver.actions.message_send.check_send_message:Function#47aa60670912f873b1fb333530298bf8e0fbe0315b6d4120fdc52cef2c30c0f1#1
   location: zerver/actions/message_send.py:1610
@@ -755,12 +755,12 @@ points:
     model: null
     prompt_fingerprint: aca9d7edadf2dfab993d39befeb7c449a435e0a8eb3ea30559b51bcbcd448263
   label: unclear
-  category: null
+  category: default
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: null
+  note: "check_send_message defaults read_by_sender to False for internal callers. Searched the API reference (read_by_sender: 'If unspecified, the server uses a heuristic based on the client name and the recipient' — describes the view, not this default) and commit 77a6f44455 (no issue/PR ref): no source states this default."
 - id: zulip-0037
   anchor: symbol:python:zerver.actions.message_send.internal_send_stream_message_by_name:Function#1ba2767a1280f0847735a2bb7a5f0892311a402a2fc9c2df73f18a3a9755a827#1
   location: zerver/actions/message_send.py:2288
@@ -834,8 +834,8 @@ points:
   category: validation
   evidence: []
   verified_by: codex-work
-  second_label: trivial
-  second_by: claude-blind-v3
+  second_label: null
+  second_by: null
   note: null
 - id: zulip-0041
   anchor: symbol:python:zerver.lib.retention.archive_messages:Function#1e5cb7811addb845b003c41cadb84643071f5efbf3c4a4be763ae8362f8f659c#1
@@ -851,15 +851,12 @@ points:
     model: null
     prompt_fingerprint: a96d37476862c2ac2f661c32801c0d9c22f686c19f5fe85cd622047b1342e0ea
   label: unclear
-  category: null
-  evidence:
-  - type: docs
-    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/starlight_help/src/content/docs/message-retention-policy.mdx#L68
-    quote: '* Deleted messages are preserved temporarily in a special archive.  So'
-  verified_by: codex-work
+  category: limit
+  evidence: []
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: null
+  note: "archive_messages defaults chunk_size to MESSAGE_BATCH_SIZE (1000), an internal batch limit. Searched message-retention-policy.mdx (attached quote describes the archive, not batch size), delete-a-message.mdx, docs/production, and blame commit 11741543da (reformat): no source documents it."
 - id: zulip-0042
   anchor: symbol:python:zerver.lib.streams.list_to_streams:Function#9c0d25f1fc11f9dda39d016b5b8984deb74ac48ece8ac7c7a0b3288bd2563d06#1
   location: zerver/lib/streams.py:1649
@@ -872,13 +869,13 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 0c3966652523a91f016e865bb662e445dad3c469f1f85d29ab569dd6eb8ae3fa
-  label: unclear
-  category: null
+  label: trivial
+  category: permission
   evidence: []
-  verified_by: codex-work
-  second_label: unclear
-  second_by: claude-blind-v3
-  note: null
+  verified_by: claude-relabel-v4
+  second_label: null
+  second_by: null
+  note: "Default unsubscribing_others=False means list_to_streams skips the unsubscribe-others permission check; the check passes because the caller specifies no requirement to check (callers pass True when unsubscribing others)."
 - id: zulip-0043
   anchor: symbol:python:corporate.lib.stripe.BillingSession.make_end_of_cycle_updates_if_needed:Method#9cf4a36a7fed65d71ab2177d322e4a09d21117269008f319310e4cbcf5143bea#1
   location: corporate/lib/stripe.py:2560
@@ -892,12 +889,12 @@ points:
     model: null
     prompt_fingerprint: 3153539ea8a1d9d0950cea4dcfd20b960a3313339e822bccbced82f301162f4a
   label: unclear
-  category: null
+  category: state-transition
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: null
+  note: "At plan end, a plan in SWITCH_PLAN_TIER_AT_PLAN_END is ended and the NEVER_STARTED next plan is activated. Searched self-hosted-billing.mdx, zulip-cloud-billing.mdx, docs/subsystems/billing.md, and commit cd45b6f6f8 (no issue/PR ref): no source states this transition."
 - id: zulip-0044
   anchor: symbol:python:corporate.lib.stripe.BillingSession.do_change_plan_to_new_tier:Method#cc22b7635096c136364fc6aba0bbef5f76b4dbb7e43dfdd14b4e00a2fae4f141#1
   location: corporate/lib/stripe.py:3714
@@ -911,12 +908,12 @@ points:
     model: null
     prompt_fingerprint: 305ab4991e4f6458c303ad374d48ccbb6c08b33bf755dfdb5b5dadb82a1942e6
   label: unclear
-  category: null
+  category: state-transition
   evidence: []
-  verified_by: codex-work
-  second_label: unclear
-  second_by: claude-blind-v3
-  note: null
+  verified_by: claude-relabel-v4
+  second_label: null
+  second_by: null
+  note: "A tier upgrade switches the plan immediately (SWITCH_PLAN_TIER_NOW, next invoice now). Searched billing help docs, docs/subsystems/billing.md, and commits 2c34dcf7dc/cd45b6f6f8 (no issue/PR ref): no source states that tier upgrades take effect immediately."
 - id: zulip-0045
   anchor: symbol:python:zerver.lib.rate_limiter.get_tor_ips:Function#d928a952869f75d1aaed5b913e7c562ed6c7ddbc85f82c0b245d65735b2c76ef#1
   location: zerver/lib/rate_limiter.py:348
@@ -953,12 +950,12 @@ points:
     model: null
     prompt_fingerprint: daa75399a490bc3d0787e077ba19140352cac88d53428ef8e3512b204a0b4070
   label: unclear
-  category: null
+  category: default
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: null
+  note: "move_rows uses the base model's table when src_db_table is None. Searched docs/subsystems, docs/production and blame commit 531b34cb4c (type annotation change): no source documents this internal default."
 - id: zulip-0047
   anchor: symbol:python:zerver.actions.message_send.maybe_send_channel_events_notice:Function#a6481fad00bfcdbcb57d81ce48767fd2eee27c0428533946c340172915000a58#1
   location: zerver/actions/message_send.py:2347
@@ -995,12 +992,12 @@ points:
     model: null
     prompt_fingerprint: 8dd85ff4974538a616306bebd3aa7cee801a1ccdfa129585593a41f133cf9f16
   label: unclear
-  category: null
+  category: state-transition
   evidence: []
-  verified_by: codex-work
-  second_label: unclear
-  second_by: claude-blind-v3
-  note: null
+  verified_by: claude-relabel-v4
+  second_label: null
+  second_by: null
+  note: "Customers with a current plan (and no complimentary plan) are redirected from the upgrade page to the billing page. Searched billing help docs (_PayByInvoiceSteps.mdx describes the pre-payment page only), docs/subsystems/billing.md, and commit f22ccd3125 (no issue/PR ref): no source states this redirect."
 - id: zulip-0049
   anchor: symbol:python:zerver.lib.streams.bulk_can_remove_subscribers_from_streams:Function#30411b250064a4a0a760812884781cfb54e174cd49a52324e3f7a02e97ebd35d#1
   location: zerver/lib/streams.py:1362
@@ -1013,13 +1010,19 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: a61d1d1dc9897c334f2cf5947bb547d1c4f2e178045f7b43747efeec32c03bdf
-  label: unclear
-  category: null
-  evidence: []
-  verified_by: codex-work
-  second_label: significant
-  second_by: claude-blind-v3
-  note: null
+  label: significant
+  category: permission
+  evidence:
+  - type: docs
+    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/starlight_help/src/content/docs/unsubscribe-users-from-a-channel.mdx#L7-8
+    quote: "Organization [administrators](/help/user-roles) can\nunsubscribe users from any channel."
+  - type: docs
+    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/zerver/openapi/zulip.yaml#L25078-25079
+    quote: "Organization administrators can unsubscribe others from a channel as though\n                        they were in this group without being explicitly listed here."
+  verified_by: claude-relabel-v4
+  second_label: null
+  second_by: null
+  note: "Realm administrators may remove subscribers from any channel regardless of channel settings; the help docs and API reference state this rule."
 - id: zulip-0050
   anchor: symbol:python:corporate.lib.stripe.BillingSession.get_initial_upgrade_context:Method#79a7cd12b1e6febea2f441d285304488119e0bed8487e73220700f4647a0296b#1
   location: corporate/lib/stripe.py:3037
@@ -1065,15 +1068,12 @@ points:
     model: null
     prompt_fingerprint: b578d8bc50ced18f17ea48d2ed3837c73fa154ffcdfc603f69513293ec0ed722
   label: unclear
-  category: null
-  evidence:
-  - type: docs
-    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/starlight_help/src/content/docs/message-retention-policy.mdx#L68
-    quote: '* Deleted messages are preserved temporarily in a special archive.  So'
-  verified_by: codex-work
+  category: limit
+  evidence: []
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: null
+  note: "archive_messages_by_recipient defaults chunk_size to MESSAGE_BATCH_SIZE (1000), an internal batch limit. Searched message-retention-policy.mdx (attached quote is about the archive generally), docs/production, and blame commit 11741543da (reformat): no source documents it."
 - id: zulip-0052
   anchor: symbol:python:zerver.lib.streams.get_streams_to_which_user_cannot_add_subscribers:Function#c3624e0f6b67eacf90bf43f2325edaa165e40f6ff9c43ecdf94272055c3f30a8#1
   location: zerver/lib/streams.py:1443
@@ -1093,8 +1093,8 @@ points:
     url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/starlight_help/src/content/docs/set-default-channels-for-new-users.mdx#L24-L27
     quote: "to invite new users can subscribe them to any combination of default channels."
   verified_by: codex-work
-  second_label: significant
-  second_by: claude-blind-v3
+  second_label: null
+  second_by: null
   note: "Invitation handling exempts default channels from the usual channel subscriber permission check."
 - id: zulip-0053
   anchor: symbol:python:corporate.lib.stripe.BillingSession.make_end_of_cycle_updates_if_needed:Method#c800a7c23e5b8ec5bb18b478e3c1657a3f46ab3f38b2d099a406a182abe1f609#1
@@ -1108,13 +1108,19 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 871c6ec14a298aca35675d7f7ae7e3c9ea207c61b2688c9873abae8bba618a87
-  label: unclear
-  category: null
-  evidence: []
-  verified_by: codex-work
+  label: significant
+  category: state-transition
+  evidence:
+  - type: docs
+    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/starlight_help/src/content/include/_AutomaticBilling.mdx#L8-10
+    quote: "With automatic license management, you automatically purchase a Zulip\nlicense for each user in your organization at the start of each billing\nperiod (month or year), and whenever you need additional licenses."
+  - type: docs
+    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/starlight_help/src/content/include/_ManualAddLicenseInstructions.mdx#L7-9
+    quote: "Modifying the number of licenses for the current billing period also\n  automatically updates the number of licenses for the next\n  billing period."
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: null
+  note: "At the next billing cycle an ACTIVE plan renews with a renewal ledger entry for licenses_at_next_renewal; the billing help states licenses are purchased at the start of each billing period."
 - id: zulip-0054
   anchor: symbol:python:zerver.lib.rate_limiter.rate_limit_spectator_attachment_access_by_file:Function#ec9c41e00448a40d6f959894d388b9e50abece6b2733e3cff98771fea3becac1#1
   location: zerver/lib/rate_limiter.py:334
@@ -1172,13 +1178,13 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: f216a524338660c44ccda486801a34b61a21d61e9c60627f0f4ddca3f347c17b
-  label: unclear
-  category: null
+  label: trivial
+  category: state-transition
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: null
+  note: "Writes org_type for the remote realm only when it differs; internal work is skipped because the requested state already holds."
 - id: zulip-0057
   anchor: symbol:python:zerver.actions.message_send.send_rate_limited_pm_notification_to_bot_owner:Function#02b05e721860cecf7a762f14e82ced3053476eaf6cfb8354bb695b8724920d42#1
   location: zerver/actions/message_send.py:1643
@@ -1211,16 +1217,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: cdb51d1de16e755e22e7bf25e0a39f6a55492e44585bc6c5a1ade062a2832ac2
-  label: unclear
-  category: null
+  label: significant
+  category: permission
   evidence:
   - type: docs
-    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/starlight_help/src/content/docs/change-the-privacy-of-a-channel.mdx#L21
-    quote: 'web-public if they have content access to it:'
-  verified_by: codex-work
-  second_label: significant
-  second_by: claude-blind-v3
-  note: null
+    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/zerver/openapi/zulip.yaml#L24558-24564
+    quote: "- name: include_web_public\n          in: query\n          description: |\n            Include all web-public channels.\n          schema:\n            type: boolean\n            default: false"
+  verified_by: claude-relabel-v4
+  second_label: null
+  second_by: null
+  note: "When include_web_public is set (and content-access channels were not already included), web-public channels are added to GET /streams results; the API reference specifies this on/off option."
 - id: zulip-0059
   anchor: symbol:python:zerver.lib.streams.create_stream_if_needed:Function#d18448cfcc575d5040d23593659f00c7c83f745512ffc000da9669a69eb61b35#1
   location: zerver/lib/streams.py:457
@@ -1234,16 +1240,13 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: fb3366e0025a7b2332cf55df99e8a525b4507b3ca7778f59b36ab7feefe17746
-  label: unclear
-  category: null
-  evidence:
-  - type: docs
-    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/docs/translating/chinese.md#L36
-    quote: '"Stream" can be "Created/Deleted" or "Subscribed/Unsubscribed",'
-  verified_by: codex-work
+  label: trivial
+  category: state-transition
+  evidence: []
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: null
+  note: "create_stream_if_needed creates the Recipient, audit log and creation events only for a newly created stream; for an existing stream the work is skipped because the state already holds."
 - id: zulip-0060
   anchor: symbol:python:zerver.lib.rate_limiter.should_rate_limit:Function#5ecf89f56558d37a3e9f46b02ec45532df35c2659351df3c1c40bb0aa42ed6e0#1
   location: zerver/lib/rate_limiter.py:427
@@ -1304,18 +1307,12 @@ points:
     model: null
     prompt_fingerprint: 3acd7a1bb36c5d1a6a0352ca4575126b0393180d928787c0914d7793c3f51b10
   label: unclear
-  category: null
-  evidence:
-  - type: docs
-    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/starlight_help/src/content/include/_PayByInvoiceSteps.mdx#L12
-    quote: 1. Your plan will be upgraded when the initial invoice is paid.
-  - type: docs
-    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/docs/subsystems/billing.md#L89
-    quote: '- Renewals can be tested by calling `./manage.py invoice_plans --date'
-  verified_by: codex-work
+  category: validation
+  evidence: []
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: null
+  note: "Invoices are generated only for paid-type plans (a defensive check per the code comment). Searched billing help (attached _PayByInvoiceSteps.mdx line is about upgrade on payment), docs/subsystems/billing.md (testing notes), and commit 4eacd25ad5 (rename, no issue/PR): no source states this rule."
 - id: zulip-0063
   anchor: symbol:python:zerver.actions.message_send.check_can_send_direct_message:Function#16de41acaef7b9aee0530ab72fdd07f8b2346a4956abfb490ce6dc655f4d6f1d#1
   location: zerver/actions/message_send.py:1766
@@ -1366,8 +1363,8 @@ points:
     url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/starlight_help/src/content/docs/restrict-direct-messages.mdx#L19
     quote: Who can **start** a direct message conversation.
   verified_by: codex-work
-  second_label: significant
-  second_by: claude-blind-v3
+  second_label: null
+  second_by: null
   note: null
 - id: zulip-0065
   anchor: symbol:python:zerver.actions.message_send.check_can_send_direct_message:Function#72f522d211ac768ba1f5b0e59ec206ca265a4d65378933782118aad6aa2756b9#1
@@ -1396,8 +1393,8 @@ points:
     url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/starlight_help/src/content/docs/restrict-direct-messages.mdx#L17
     quote: must include at least one user who can authorize the conversation (the sender
   verified_by: codex-work
-  second_label: significant
-  second_by: claude-blind-v3
+  second_label: null
+  second_by: null
   note: null
 - id: zulip-0066
   anchor: symbol:python:zerver.actions.message_send.check_can_send_direct_message:Function#d09744aafa1107e43fa1cfd10a39170cdb210617dc0f276d9c1a9c0e6c7252fa#1
@@ -1545,12 +1542,12 @@ points:
   draft: null
   drafted_by: null
   label: unclear
-  category: null
+  category: limit
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "archive_stream_messages defaults chunk_size to STREAM_MESSAGE_BATCH_SIZE (100), an internal batch limit. Searched message-retention-policy.mdx, docs/production, and blame commit e08a24e47f (type annotation): no source documents it."
 - id: zulip-0073
   anchor: symbol:python:zerver.actions.message_send.extract_stream_indicator:Function#7a2455b8ec721f16cf54d4a3500f58f900b238b12e5bedd14f074b821a35a5d5#1
   location: zerver/actions/message_send.py:1490
@@ -1569,12 +1566,12 @@ points:
   draft: null
   drafted_by: null
   label: unclear
-  category: null
+  category: validation
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "During an invoice-paid free trial, a customer with a paid invoice cannot reduce next-period licenses. Searched self-hosted-billing.mdx ('You can adjust this number to update your initial invoice any time during your trial' does not cover a paid invoice), and commit ed2de77895 (no issue/PR ref): no source states this rule."
 - id: zulip-0075
   anchor: symbol:python:zerver.lib.streams.can_move_messages_out_of_channel:Function#5b8a7fc80c15c5fe2780170519cb63fd3e3445548cc72baee5ee4c3358723f6a#2
   location: zerver/lib/streams.py:1281
@@ -1596,36 +1593,36 @@ points:
   draft: null
   drafted_by: null
   label: unclear
-  category: null
+  category: state-transition
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "Support view dispatch arm for attach_discount that sets monthly/annual discounted prices. Searched billing help docs (discounts described only generally), docs/subsystems/billing.md, and commit 5d25cab42b (no issue/PR ref): no source states this support action's rule."
 - id: zulip-0077
   anchor: symbol:python:zerver.actions.message_send.send_rate_limited_pm_notification_to_bot_owner:Function#6b4910fc445b3b7018a758d68a009f9f1fd7735216e3923ea22e902e316f763f#1
   location: zerver/actions/message_send.py:1650
   draft: null
   drafted_by: null
   label: unclear
-  category: null
+  category: permission
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "In send_rate_limited_pm_notification_to_bot_owner, returns without notifying when the bot's realm differs from the message realm (cross-realm bots such as the email gateway bot). Searched help center (bots-overview, manage-a-bot), api_docs, zulip.yaml and docs/webhooks; blame points only to the 2022 file-split commit 975066e3f0e (no issue), and no source states this skip."
 - id: zulip-0078
   anchor: symbol:python:corporate.lib.stripe.BillingSession.is_sponsored_or_pending:Method#5b8a7fc80c15c5fe2780170519cb63fd3e3445548cc72baee5ee4c3358723f6a#1
   location: corporate/lib/stripe.py:1179
   draft: null
   drafted_by: null
   label: unclear
-  category: null
+  category: state-transition
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "is_sponsored_or_pending returns True when the customer's sponsorship is pending or the entity is sponsored; its caller then redirects the upgrade page to /sponsorship except for self-hosted Basic/Business. Searched zulip-cloud-billing.mdx and self-hosted-billing.mdx (sponsorship sections) and blame commit 5eabd517026 (refactor, no issue); none states this redirect rule."
 - id: zulip-0079
   anchor: symbol:python:zerver.lib.streams.check_stream_access_for_delete_or_update_requiring_metadata_access:Function#cc40c72cd137523f86c5b54bf677a8d9c7a341e8a6d31c0f7e5ad67b860691f0#1
   location: zerver/lib/streams.py:876
@@ -1638,8 +1635,8 @@ points:
     url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/starlight_help/src/content/docs/configure-who-can-administer-a-channel.mdx#L14
     quote: "Organization administrators can administer certain aspects of all channels."
   verified_by: codex-work
-  second_label: significant
-  second_by: claude-blind-v3
+  second_label: null
+  second_by: null
   note: "The administrator branch grants channel administration access after checking the organization boundary."
 - id: zulip-0080
   anchor: symbol:python:zerver.lib.streams.check_channel_creation_permissions:Function#2293440cba4ee4a079f75b97f8dda87acf5aec6cd2b78b5f7686ffbd7e221089#1
@@ -1662,36 +1659,36 @@ points:
   draft: null
   drafted_by: null
   label: unclear
-  category: null
+  category: default
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "Parameter default acting_user=None for delete_messages; with no acting user, no separate deletion event with the acting user's accessible message IDs is sent. Searched help center, api_docs, docs/ and zulip.yaml (message deletion events); this internal default is not documented."
 - id: zulip-0082
   anchor: symbol:python:zerver.actions.message_send.extract_stream_indicator:Function#618092667ba9970bce53a42a251dede02a2d9784833d24185cabdb25ccd338e5#1
   location: zerver/actions/message_send.py:1486
   draft: null
   drafted_by: null
   label: unclear
-  category: null
+  category: validation
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "extract_stream_indicator rejects a JSON list channel indicator that does not hold exactly one element. The send-message API reference only says the channel `to` is \"either the name or integer ID of the channel\" and does not describe the legacy list form; blame reaches only the 2022 file-split commit 975066e3f0e and c1f1dc4b258 (string rename), older history could not be fetched, and only a level-4 test exists."
 - id: zulip-0083
   anchor: symbol:python:corporate.lib.stripe.BillingSession.do_update_plan:Method#dc821dc2dd19d0244e1e76e1bf7515ab5a20b86d588d1815ae3cfcc61304b9fb#1
   location: corporate/lib/stripe.py:3258
   draft: null
   drafted_by: null
   label: unclear
-  category: null
+  category: state-transition
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "In do_update_plan, the FREE_TRIAL target status either changes the post-trial schedule or reverts a DOWNGRADE_AT_END_OF_FREE_TRIAL plan back to FREE_TRIAL. Issue #27875 (referenced by fe1a40279c2) only describes canceling a trial at its end, and the billing help pages do not describe reverting the cancellation or this schedule change."
 - id: zulip-0084
   anchor: symbol:python:corporate.lib.stripe.BillingSession.ensure_current_plan_is_upgradable:Method#e834864c754809854a83197a0c605d464d11024de19f69d9f429c6c81a88cf1c#1
   location: corporate/lib/stripe.py:1968
@@ -1709,13 +1706,19 @@ points:
   location: zerver/lib/rate_limiter.py:66
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
-  verified_by: codex-work
+  label: significant
+  category: limit
+  evidence:
+  - type: docs
+    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/zerver/openapi/zulip.yaml#L31079-L31084
+    quote: "A typical failed JSON response for when a rate limit is exceeded."
+  - type: docs
+    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/api_docs/http-headers.md#L93
+    quote: "* Every user is limited to 200 total API requests per minute."
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "rate_limit_request raises RateLimitedError (RATE_LIMIT_HIT with retry-after seconds) when the entity is over its rate limit. The API reference documents this error response for an exceeded rate limit and that retry-after gives the seconds to wait."
 - id: zulip-0086
   anchor: symbol:python:corporate.lib.stripe.RemoteRealmBillingSession.write_to_audit_log:Method#2dfb1c60afe73dd815656cdf5ca3d6accdd329c5d4657078dd84b3bb7b499e96#1
   location: corporate/lib/stripe.py:4839
@@ -1734,12 +1737,12 @@ points:
   draft: null
   drafted_by: null
   label: unclear
-  category: null
+  category: state-transition
   evidence: []
-  verified_by: codex-work
-  second_label: unclear
-  second_by: claude-blind-v3
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  verified_by: claude-relabel-v4
+  second_label: null
+  second_by: null
+  note: "Skips the bot-owner error DM when the sender's realm is deactivated (formerly also for Zephyr mirror realms, commit 40a022dcc3a). Searched help center, api_docs, docs/webhooks and zulip.yaml; no source states this condition."
 - id: zulip-0088
   anchor: symbol:python:zerver.lib.streams.access_requested_group_permissions_for_streams:Function#f7e298e9a5dcefd3ffc1148cb3d132df3ed90697ab65a9fdf49e4fa2c1ddf464#1
   location: zerver/lib/streams.py:1629
@@ -1758,60 +1761,60 @@ points:
   draft: null
   drafted_by: null
   label: unclear
-  category: null
+  category: permission
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "access_stream_for_send_message lets a non-guest send to a public (not invite-only) channel without being subscribed. The help center says public channels \"are open to everyone in your organization other than guests\" and lists what non-guests can see, but no source (help center channel-permissions/guest-users/channel-posting-policy, zulip.yaml send-message; blame commit 16218d6de33 is a refactor) states that unsubscribed non-guests may post."
 - id: zulip-0090
   anchor: symbol:python:corporate.lib.stripe.BillingSession.update_customer_minimum_licenses:Method#99a9cb39702b6894a7e230ab8f899509af84bfd1324bc2c87e35dc047eb48266#1
   location: corporate/lib/stripe.py:1514
   draft: null
   drafted_by: null
   label: unclear
-  category: null
+  category: validation
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "When setting minimum licenses on a customer with a complimentary access plan, it errors only if an upgrade plan is already scheduled, otherwise allows it. This is support-admin logic; searched billing help pages and the blame commit 20352aff9e0 (rename only), none documents it."
 - id: zulip-0091
   anchor: symbol:python:zerver.lib.retention.delete_messages:Function#bb29eefaf91022fc98f51793a31195984398834ddc2c3e00a422bdff54d09280#1
   location: zerver/lib/retention.py:419
   draft: null
   drafted_by: null
   label: unclear
-  category: null
+  category: default
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "Parameter default skip_notify=False for delete_messages, so deletion events go to affected users unless a caller (e.g. realm scrub, commit 279c72de3a7) opts out. Searched help center, api_docs, docs/ and zulip.yaml delete-message events; this internal default is not documented."
 - id: zulip-0092
   anchor: symbol:python:corporate.lib.stripe.BillingSession.get_billing_context_from_plan:Method#5dab81ee89c8222ab241fd7e670c54f72d431d3815f9e1125efea1552bccb2eb#1
   location: corporate/lib/stripe.py:2790
   draft: null
   drafted_by: null
   label: unclear
-  category: null
+  category: state-transition
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "When the plan is scheduled to switch to monthly at end of cycle, the billing page computes the next renewal with the monthly price per license for one month. The help center only says you can \"Change your billing frequency to be monthly or annual\"; blame commit 74ef6194125 has no issue reference, so no source states this renewal computation."
 - id: zulip-0093
   anchor: symbol:python:zerver.actions.message_send.send_rate_limited_pm_notification_to_bot_owner:Function#83fd97451fc83395670fb090fe221e3d63039c5a694cde294db6a99d9419bfde#1
   location: zerver/actions/message_send.py:1658
   draft: null
   drafted_by: null
   label: unclear
-  category: null
+  category: limit
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "Suppresses a bot-owner error DM if one was sent within BOT_OWNER_STREAM_ALERT_WAITPERIOD (1 minute, though the docstring says 5 minutes). Searched help center, api_docs, docs/webhooks and zulip.yaml; blame reaches only the 2022 file-split commit 975066e3f0e, and no source states the wait period."
 - id: zulip-0094
   anchor: symbol:python:zerver.actions.message_send.extract_private_recipients:Function#267266d21a05d18fe5e24cc8a9f128598d42f5c362d404058ccba2888a499680#1
   location: zerver/actions/message_send.py:1513
@@ -1830,24 +1833,24 @@ points:
   draft: null
   drafted_by: null
   label: unclear
-  category: null
+  category: permission
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "A sender with can_forge_sender may send to a private channel it is not subscribed to. bots-overview.mdx only says can_forge_sender gives \"permission to send messages as users\" and lets bots see all channel names; blame commits d0dc04a0934 (rename) and 6e11754642a (CVE fix, no issue) do not state this rule."
 - id: zulip-0096
   anchor: symbol:python:zerver.lib.streams.access_stream_common:Function#5869145d2b6534f032da01c6cbd6719889726f61ed5162ce5a58d5384c8093ca#1
   location: zerver/lib/streams.py:988
   draft: null
   drafted_by: null
   label: unclear
-  category: null
+  category: default
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "Parameter default require_content_access=True for access_stream_common, so callers need content access unless they opt into metadata-only access. Only a code comment explains it; searched channel-permissions.mdx and zulip.yaml, which describe content vs metadata access in general but not this internal default."
 - id: zulip-0097
   anchor: symbol:python:zerver.lib.retention.move_expired_direct_messages_to_archive:Function#1e5cb7811addb845b003c41cadb84643071f5efbf3c4a4be763ae8362f8f659c#1
   location: zerver/lib/retention.py:240
@@ -1869,228 +1872,249 @@ points:
   draft: null
   drafted_by: null
   label: unclear
-  category: null
+  category: default
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "Parameter default limit_unread_user_ids=None for internal_prep_stream_message; None means unread flags are not restricted to a subset of recipients. Internal helper parameter; searched help center, api_docs and zulip.yaml and found no documentation of it."
 - id: zulip-0099
   anchor: symbol:python:corporate.lib.stripe.BillingSession.invoice_plan:Method#4e84c0d7516cd694f4369d72a49f6345c97af8988db1a681a81a2af9a9a138cc#1
   location: corporate/lib/stripe.py:3563
   draft: null
   drafted_by: null
   label: unclear
-  category: null
+  category: state-transition
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "invoice_plan skips make_end_of_cycle_updates_if_needed for plans in SWITCH_PLAN_TIER_NOW status because switch_plan_tier handles them. Internal billing sequencing; billing help pages and blame commit 4eea4d47179 (move only) do not describe it."
 - id: zulip-0100
   anchor: symbol:python:zerver.lib.retention._process_grouped_messages_deletion:Function#bb2b6b30313d0231c222a8113bd1ab5fe0823125d91ad44a2547e6c4e34e9e37#1
   location: zerver/lib/retention.py:406
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
-  verified_by: codex-work
+  label: significant
+  category: state-transition
+  evidence:
+  - type: docs
+    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/zerver/openapi/zulip.yaml#L1720-L1723
+    quote: "sent when the `first_message_id` property of a channel was"
+  - type: docs
+    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/zerver/openapi/zulip.yaml#L28112
+    quote: "The ID of the first message in the channel."
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "When deleted messages belong to a channel (and notification is not skipped), check_update_first_message_id recomputes the channel's first_message_id and sends a stream update event. The API reference documents that the stream update event is sent when first_message_id changes because the channel's oldest message changed."
 - id: zulip-0101
   anchor: symbol:python:zerver.actions.message_send.send_user_profile_update_notification:Function#6f328cfb0de06d576bb9ade5eb33d2c4facd701d08f9d8809b6836c5909d43ca#1
   location: zerver/actions/message_send.py:2375
   draft: null
   drafted_by: null
   label: unclear
-  category: null
+  category: state-transition
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "Skips the Notification Bot profile-change DM when the acting user changed their own profile. The help center and issue #23641 (referenced by 5e51b7d33cf) describe notices when an administrator modifies a user's account but do not explicitly state that self-made changes produce no notice."
 - id: zulip-0102
   anchor: symbol:python:zerver.actions.message_send.do_send_messages:Function#97711f7e19685621c4f8d53bb3c9dc795f609da5e9d35b404dc7cd6112dd175f#1
   location: zerver/actions/message_send.py:1151
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
+  label: trivial
+  category: default
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "If the send request has no cached Stream object, it loads it by the recipient's type_id; the same stream data is obtained either way. Routine emptiness check that fills an equivalent representation."
 - id: zulip-0103
   anchor: symbol:python:zerver.lib.streams.access_stream_for_send_message:Function#a503b738eae8b947b2e9d2d5ef1cdd4b7e6016e4ac01be9a7a83c7b844e8e936#1
   location: zerver/lib/streams.py:690
   draft: null
   drafted_by: null
   label: unclear
-  category: null
+  category: permission
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "Cross-realm (system) bots may send to any non-archived channel, before the same-realm check. Introduced in the CVE-2021-30478 fix 6e11754642a (no issue/PR reference); zulip.yaml only describes cross-realm bots as special system bot accounts, and no help page states this send rule."
 - id: zulip-0104
   anchor: symbol:python:corporate.lib.stripe.RealmBillingSession.do_change_plan_type:Method#2068622952a2e69f2b6f12fc0320bdc08b6e459c2055f2b450cf34686c6a8993#1
   location: corporate/lib/stripe.py:4497
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
+  label: trivial
+  category: state-transition
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "Maps CustomerPlan.TIER_CLOUD_STANDARD to Realm.PLAN_TYPE_STANDARD in do_change_plan_type; the code comment says it translates between the two formats of the same plan tier. Equivalent-representation conversion."
 - id: zulip-0105
   anchor: symbol:python:zerver.lib.retention.move_expired_messages_to_archive_by_recipient:Function#1e5cb7811addb845b003c41cadb84643071f5efbf3c4a4be763ae8362f8f659c#1
   location: zerver/lib/retention.py:207
   draft: null
   drafted_by: null
   label: unclear
-  category: null
+  category: limit
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "Default chunk_size=MESSAGE_BATCH_SIZE (1000) for archiving expired messages by recipient. Internal batch limit; searched message-retention-policy.mdx, docs/ and zulip.yaml and found no documentation of the batch size."
 - id: zulip-0106
   anchor: symbol:python:corporate.lib.stripe.get_price_per_license:Function#f79b6c2d28eb19c6194e36dee56d7ef0bd2ad73cc27f1a4aa48a7964063ba533#1
   location: corporate/lib/stripe.py:5714
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "A KeyError from the price lookup is re-raised as InvalidTierError or InvalidBillingScheduleError; the failure is forwarded with a more specific diagnostic and no changed outcome."
 - id: zulip-0107
   anchor: symbol:python:corporate.lib.stripe.RemoteRealmBillingSession.get_audit_log_event:Method#845f006b77af06c9e4c6049a146d66004c1a4eac7ed16306655131c8d50a4329#1
   location: corporate/lib/stripe.py:4796
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
+  label: trivial
+  category: observability
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "Maps BillingSessionEventType.CUSTOMER_SWITCHED_FROM_MONTHLY_TO_ANNUAL_PLAN to the equal AuditLogEventType value for audit logging; equivalent-representation mapping with no other behavior."
 - id: zulip-0108
   anchor: symbol:python:zerver.lib.rate_limiter.RateLimitedIPAddr.__init__:Method#5fbe10075fcb8b011344d0a2a465f3b83666a70310ed949a0e914f86cb1a2949#1
   location: zerver/lib/rate_limiter.py:139
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
-  verified_by: codex-work
+  label: significant
+  category: limit
+  evidence:
+  - type: issue
+    url: https://github.com/zulip/zulip/issues/21544
+    quote: "We should shift to bucketing IPv6 addresses by their /64, as a very first limit."
+  - type: test
+    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/zerver/tests/test_rate_limiter.py#L230-L231
+    quote: "RateLimitedIPAddr(ipv6, domain=domain, ipv6_network_prefix=64).key(),"
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "RateLimitedIPAddr defaults to the api_by_ip domain and ipv6_network_prefix=64, so IPv6 clients share one rate-limit bucket per /64 (all production callers pass domain explicitly, so the operative default is the /64 prefix). Commit bc1ed82620f, which changed this line, says \"Fixes #21544\", and that issue states the /64 bucketing rule."
 - id: zulip-0109
   anchor: symbol:python:corporate.lib.stripe.BillingSession.downgrade_at_the_end_of_billing_cycle:Method#9d710080dec755040816b9f9fa3547056fa2bf6c06cd609fd6e987c4c8ef0fb5#1
   location: corporate/lib/stripe.py:3146
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
+  label: trivial
+  category: default
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "If no plan is passed, downgrade_at_the_end_of_billing_cycle looks up the customer's current plan; routine emptiness check that fills an omitted argument with the same object callers would pass."
 - id: zulip-0110
   anchor: symbol:python:zerver.actions.message_send.send_user_profile_update_notification:Function#9254df5e2b75d105c010b80e86aaf89571fec273822546a68982690224d22126#1
   location: zerver/actions/message_send.py:2372
   draft: null
   drafted_by: null
   label: unclear
-  category: null
+  category: state-transition
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "Skips the Notification Bot profile-change DM for bot users. The help center section and issue #23641 (referenced by 5e51b7d33cf) describe notifying users of admin changes but do not state that bots are excluded."
 - id: zulip-0111
   anchor: symbol:python:zerver.lib.streams.check_for_can_create_topic_group_violation:Function#b3921a026183662f1ac39b156b3be8cd802429089450e2a8d0bc47068719b566#1
   location: zerver/lib/streams.py:754
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
+  label: trivial
+  category: permission
   evidence: []
-  verified_by: codex-work
-  second_label: trivial
-  second_by: claude-blind-v3
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  verified_by: claude-relabel-v4
+  second_label: null
+  second_by: null
+  note: "Lazily computes the user's recursive group IDs only if not already cached (commit f06bb51b087: \"computing user_recursive_group_ids only when needed\"). Routine emptiness check; the permission result is unchanged."
 - id: zulip-0112
   anchor: symbol:python:zerver.lib.streams.access_stream_for_send_message:Function#caa20b02f223ccbcfa6de9c2e49d46fdce8037a74d369017de7d830be8b58d95#1
   location: zerver/lib/streams.py:698
   draft: null
   drafted_by: null
   label: unclear
-  category: null
+  category: permission
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: "Any same-realm user, including guests, may send to a web-public channel without subscribing. Blame commit e22e12fe604 cites PR #14638, whose body says \"Guest users can browse and subscribe to them\" but not that guests may post; the web-public and guest-users help pages do not state it either."
 - id: zulip-0113
   anchor: symbol:python:zerver.lib.streams.can_edit_topic:Function#5b8a7fc80c15c5fe2780170519cb63fd3e3445548cc72baee5ee4c3358723f6a#2
   location: zerver/lib/streams.py:1316
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
-  verified_by: codex-work
+  label: significant
+  category: permission
+  evidence:
+  - type: docs
+    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/zerver/openapi/zulip.yaml#L31603-L31604
+    quote: "who have permission to move messages within this channel."
+  - type: docs
+    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/starlight_help/src/content/docs/restrict-moving-messages.mdx#L26-L28
+    quote: "group to move messages just in the #engineering channel."
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: "can_edit_topic allows a topic edit when the user may move messages within the original channel (can_move_messages_within_channel_group, channel admins). The API reference and help center document this channel-level permission to move messages within a channel."
 - id: zulip-0114
   anchor: symbol:python:zerver.lib.retention.move_messages_to_archive:Function#1e5cb7811addb845b003c41cadb84643071f5efbf3c4a4be763ae8362f8f659c#1
   location: zerver/lib/retention.py:611
   draft: null
   drafted_by: null
   label: unclear
-  category: null
+  category: limit
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: "Default chunk_size=MESSAGE_BATCH_SIZE (1000) for move_messages_to_archive. Internal batch limit; searched message-retention-policy.mdx, docs/ and zulip.yaml and found no documentation of the batch size."
 - id: zulip-0115
   anchor: symbol:python:zerver.lib.streams.get_streams_for_user:Function#22996155a78b20b31938578b354e32f98edf599bc510a45c7348a8dc195c3ed1#1
   location: zerver/lib/streams.py:2016
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
-  verified_by: codex-work
+  label: significant
+  category: permission
+  evidence:
+  - type: docs
+    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/zerver/openapi/zulip.yaml#L24566-L24569
+    quote: "Include all channels that the user is subscribed to."
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: "For GET /streams, when include_subscribed is set (and include_can_access_content has not already added them), adds the user's subscribed channels to the result. The API reference documents include_subscribed with this effect; the include_can_access_content guard only skips work already done."
 - id: zulip-0116
   anchor: symbol:python:corporate.lib.stripe.BillingSession.make_end_of_cycle_updates_if_needed:Method#2769a574e1bdab47557d85cafb4291c45b95149705cafca3972764c442ed40e7#1
   location: corporate/lib/stripe.py:2509
   draft: null
   drafted_by: null
   label: unclear
-  category: null
+  category: state-transition
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: "At the end of an invoice-billed free trial, if the last invoice is PAID the plan continues as a non-renewal ledger entry with the billing anchor moved; otherwise it is downgraded. Blame commit cfe589e725b has no issue reference, and self-hosted-billing.mdx describes pay-by-invoice trials without stating this outcome."
 - id: zulip-0117
   anchor: symbol:python:zerver.lib.streams.access_stream_for_delete_or_update_requiring_metadata_access:Function#604c0516bef47722a4684ce954d1b2760293bb86322fd8b3f9acfb99375db4c5#1
   location: zerver/lib/streams.py:909
@@ -2100,42 +2124,54 @@ points:
   category: validation
   evidence: []
   verified_by: codex-work
-  second_label: trivial
-  second_by: claude-blind-v3
+  second_label: null
+  second_by: null
   note: "Uses the ordinary absent-value representation for a missing subscription."
 - id: zulip-0118
   anchor: symbol:python:zerver.lib.rate_limiter.RateLimitedIPAddr.__init__:Method#c5117e3206d63da9446f156c9960d2869268f316b4836c41318c61b0d5bdb18a#1
   location: zerver/lib/rate_limiter.py:139
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
-  verified_by: codex-work
+  label: significant
+  category: limit
+  evidence:
+  - type: issue
+    url: https://github.com/zulip/zulip/issues/21544
+    quote: "We should shift to bucketing IPv6 addresses by their /64, as a very first limit."
+  - type: test
+    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/zerver/tests/test_rate_limiter.py#L230-L231
+    quote: "RateLimitedIPAddr(ipv6, domain=domain, ipv6_network_prefix=64).key(),"
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: "Same line as zulip-0108: RateLimitedIPAddr's default ipv6_network_prefix=64 (with default domain api_by_ip) buckets IPv6 clients per /64. Commit bc1ed82620f (\"Fixes #21544\") changed this line, and issue #21544 states the /64 rule."
 - id: zulip-0119
   anchor: symbol:python:zerver.lib.streams.list_to_streams:Function#006931f1392c314698f516820cd55b0e77cac61455957f955b66db7303114ddd#1
   location: zerver/lib/streams.py:1680
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
-  verified_by: codex-work
+  label: significant
+  category: permission
+  evidence:
+  - type: docs
+    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/zerver/openapi/zulip.yaml#L31489-L31490
+    quote: "who have permission to remove subscribers from this channel."
+  - type: docs
+    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/zerver/openapi/zulip.yaml#L13593-L13594
+    quote: "- Organization administrators can remove any user from any"
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: "When a request unsubscribes other users, it fails with \"Insufficient permission\" unless the user may remove subscribers from all target channels. The unsubscribe API reference and can_remove_subscribers_group describe who may remove other users from channels."
 - id: zulip-0120
   anchor: symbol:python:zerver.actions.message_send.send_user_profile_update_notification:Function#f41a393da0dc386ce3b2898386c6c54e654c9eceb2e62ca69a6e7525a6326f6e#1
   location: zerver/actions/message_send.py:2369
   draft: null
   drafted_by: null
   label: unclear
-  category: null
+  category: state-transition
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: "Skips the profile-change notification when the target user is deactivated (commit 0f65e36f93d fixes an exception regression, citing #36208/#23641). Neither issue #23641 nor configure-automated-notices.mdx states behavior for deactivated users."

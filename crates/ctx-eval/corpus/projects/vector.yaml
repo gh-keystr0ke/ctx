@@ -52,8 +52,8 @@ points:
     url: https://github.com/vectordotdev/vector/pull/25795
     quote: drop over-limit disk_v2 records instead of crashing
   verified_by: codex-work
-  second_label: significant
-  second_by: claude-blind-v3
+  second_label: null
+  second_by: null
   note: The sampled test model enforces the documented drop behavior for oversized records.
 - id: vector-0002
   anchor: symbol:rust:crate.sinks.util.retries.FibonacciRetryPolicy.Policy<Req,Res,Error>.retry:Method#b6e37645550aea6a40e99cb8816f358b452347643b8b1e614dd6fb4ae76654f7#1
@@ -76,8 +76,8 @@ points:
     url: https://github.com/vectordotdev/vector/blob/b78d987398d23f19f3705fb76a1cd18642565b66/website/cue/reference/components/sinks.cue#L375
     quote: 'description: "The maximum number of retries to make for failed requests. The default, for all intents and purposes, represents an infinite number of retries."'
   verified_by: codex-work
-  second_label: significant
-  second_by: claude-blind-v3
+  second_label: null
+  second_by: null
   note: The documented retry cap is enforced when the attempts run out for a failed request.
 - id: vector-0003
   anchor: symbol:rust:crate.sinks.util.batch.BatchConfig.into_batch_settings:Method#2#387c9c80e7f2402fb12627958e2f5b0a6cdcaa779fbce206162e7bce02e2d55a#1
@@ -141,15 +141,12 @@ points:
     model: null
     prompt_fingerprint: dc3db5aee872aa4d2ec157c7650b5544b0ff5e06b52a38dbf703af8286694032
   label: unclear
-  category: null
-  evidence:
-  - type: issue
-    url: https://github.com/vectordotdev/vector/pull/11454
-    quote: avoid having to decode every single record
-  verified_by: claude-adjudication-v3
+  category: state-transition
+  evidence: []
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: "The cited source states the purpose of a larger change. It does not state the condition and effect of this branch."
+  note: "Valid-last-record arm of the startup fast path: decodes the last record of a non-writer data file and skips the whole file if it is behind the acknowledged record ID. Searched pinned docs (website/content/en/docs/architecture/buffering-model.md, generated buffer/batch reference under website/cue), rfcs/2021-10-14-9477-buffer-improvements.md, PR #11454 (only says the change can 'avoid having to decode every single record') and PR #25845 (general checkpoint-recovery summary); none states this skip condition and effect."
 - id: vector-0006
   anchor: symbol:rust:crate.sinks.util.retries.FibonacciRetryPolicy.Policy<Req,Res,Error>.retry:Method#324befb2770b951f7b0540ff08bbcfa4e1032c5e76d9559ccb22a1e1ea58e073#1
   location: src/sinks/util/retries.rs:182
@@ -190,8 +187,8 @@ points:
   category: validation
   evidence: []
   verified_by: codex-work
-  second_label: trivial
-  second_by: claude-blind-v3
+  second_label: null
+  second_by: null
   note: Defensive presence guard after timeout validation.
 - id: vector-0008
   anchor: symbol:rust:crate.finalization.BatchStatus.update:Method#9cf34e5ead14ce5cfcc31aaf2690ba1d30991f4ae5f8b382bebccca5a6686164#1
@@ -231,15 +228,12 @@ points:
     model: null
     prompt_fingerprint: a621f6c5c0790e5aaa70da18547e228731fcc9977ed5765a78588e1adf596bf1
   label: unclear
-  category: null
-  evidence:
-  - type: issue
-    url: https://github.com/vectordotdev/vector/pull/25845
-    quote: Reconcile `disk_v2` startup state from the durable checkpoint window
-  verified_by: claude-adjudication-v3
+  category: error-handling
+  evidence: []
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: "Pull request 25845 describes truncation of corrupt tails. This branch preserves the record span, and no source states that behavior."
+  note: "Writer startup arm for a checksum-corrupted last record: logs an error, keeps the corrupt span and reconciles the file with the durable checkpoint. Searched pinned docs (website/content/en/docs/architecture/buffering-model.md, generated buffer/batch reference under website/cue), rfcs/2021-10-14-9477-buffer-improvements.md, PR #10143, PR #25845; #25845 says to 'Truncate post-checkpoint or corrupt writer tails', but this arm keeps the corrupt span, so the source describes different behavior. The docs' corruption text covers reads only."
 - id: vector-0010
   anchor: symbol:rust:crate.sinks.util.retries.FibonacciRetryPolicy.Policy<Req,Res,Error>.retry:Method#9973626d655cdb405fa88506e84fd451b4c783c0fa017e5dd3c0788295b546b4#1
   location: src/sinks/util/retries.rs:199
@@ -279,16 +273,13 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 51e6f2492b3c0867099a321fd1c0be89e16da1c41016cf3b2738c71a054bc083
-  label: significant
-  category: limit
-  evidence:
-  - type: spec
-    url: https://github.com/vectordotdev/vector/blob/b78d987398d23f19f3705fb76a1cd18642565b66/rfcs/2020-06-12-2768-batch-and-buffer-rework.md#L53
-    quote: We want to get to the point where as many batching sinks as possible can be configured with either a byte limit or an event limit, or both. Additionally, the batch limits must be inviolable, so that no requests are ever sent that exceed size limits. To accomplish this the
-  verified_by: codex-work
-  second_label: unclear
-  second_by: claude-blind-v3
-  note: The documented batch byte limit is enforced by rejecting a configured value beyond the hard ceiling.
+  label: unclear
+  category: null
+  evidence: []
+  verified_by: claude-relabel-v4
+  second_label: null
+  second_by: null
+  note: "The RFC requires batches to stay within their limits. It does not state that a configured byte limit above the sink maximum is a configuration error."
 - id: vector-0012
   anchor: symbol:rust:crate.finalization.BatchStatus.update:Method#a8fd9ee0fea2068406685690c60cdfeeddee99be15e87b8b3f89a4dcf9fb621d#1
   location: lib/vector-common/src/finalization.rs:370
@@ -301,8 +292,8 @@ points:
     url: https://github.com/vectordotdev/vector/blob/b78d987398d23f19f3705fb76a1cd18642565b66/website/content/en/docs/architecture/guarantees.md#L43
     quote: the event will be considered as having been delivered with no error
   verified_by: codex-work
-  second_label: significant
-  second_by: claude-blind-v3
+  second_label: null
+  second_by: null
   note: Dropped and delivered events both preserve the previously accumulated batch outcome.
 - id: vector-0013
   anchor: symbol:rust:crate.variants.disk_v2.writer.BufferWriter.validate_last_write:Method#876e03c8d265be634dd1a5fd1e224c10864841df28353926680a427b59cb9e95#1
@@ -310,12 +301,12 @@ points:
   draft: null
   drafted_by: null
   label: unclear
-  category: null
+  category: state-transition
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: The branch treats valid record framing as distinct from successful payload decoding. No source established the recovery rule.
+  note: "Writer startup arm for a valid last record: decodes it and compares record ID plus event count with the ledger's next writer ID to decide sync/roll/fast-forward. Searched pinned docs (website/content/en/docs/architecture/buffering-model.md, generated buffer/batch reference under website/cue), rfcs/2021-10-14-9477-buffer-improvements.md, PR #11454 and PR #10479 (general statement that the writer validates the file it left off in); no source states this condition and its effect."
 - id: vector-0014
   anchor: symbol:rust:crate.sinks.util.retries.FibonacciRetryPolicy.Policy<Req,Res,Error>.retry:Method#b506faabac6063bb262fc288ab2b9d5f8ac7db8d2f7f304c2ad19d250d4849b4#1
   location: src/sinks/util/retries.rs:198
@@ -337,15 +328,12 @@ points:
   draft: null
   drafted_by: null
   label: unclear
-  category: null
-  evidence:
-  - type: spec
-    url: https://github.com/vectordotdev/vector/blob/b78d987398d23f19f3705fb76a1cd18642565b66/rfcs/2020-06-12-2768-batch-and-buffer-rework.md#L53
-    quote: We want to get to the point where as many batching sinks as possible can be configured with either a byte limit or an event limit, or both. Additionally, the batch limits must be inviolable, so that no requests are ever sent that exceed size limits. To accomplish this the
-  verified_by: claude-adjudication-v3
-  second_label: unclear
-  second_by: claude-blind-v3
-  note: "The RFC requires batches to stay within their limits. It does not state that a configured event limit above the sink maximum is a configuration error."
+  category: limit
+  evidence: []
+  verified_by: claude-relabel-v4
+  second_label: null
+  second_by: null
+  note: "limit_max_events returns MaxEventsExceeded when the configured max_events is above a sink-specific hard limit. Searched RFC 2768 (says batch limits must be inviolable for requests, not that over-limit configs are rejected), PR #10006, the generated batch docs for callers (aws_kinesis_streams, datadog_logs: defaults only) and the pinned docs; none states the rejection."
 - id: vector-0016
   anchor: symbol:rust:crate.test.variant.Variant.Arbitrary.shrink:Method#94a62a59a297ef4ab586fdcec5f69d4d39734c7bb747d86d088beb8a3ce6f81f#1
   location: lib/vector-buffers/src/test/variant.rs:135
@@ -363,13 +351,16 @@ points:
   location: lib/vector-buffers/src/config.rs:117
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
-  verified_by: codex-work
+  label: significant
+  category: validation
+  evidence:
+  - type: docs
+    url: https://github.com/vectordotdev/vector/blob/b78d987398d23f19f3705fb76a1cd18642565b66/website/cue/reference/components/generated/schema_definitions/derived_vector_buffers_config_buffertype_6c60e9549d874ce4350c077a.cue#L4-L8
+    quote: "relevant_when: \"type = \\\"memory\\\"\""
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "For type = disk, a configured max_events is rejected as an unknown field. The buffer reference limits max_events to type = memory, and this branch enforces that field availability (guide row for API field availability)."
 - id: vector-0018
   anchor: symbol:rust:crate.variants.disk_v2.tests.model.filesystem.TestFilesystem.Filesystem.open_file_readable:Method#abf1e79cc530e319982cac1bf925907c2f8010fcc57371ac40a13657b666a093#1
   location: lib/vector-buffers/src/variants/disk_v2/tests/model/filesystem.rs:365
@@ -447,13 +438,19 @@ points:
   location: lib/vector-buffers/src/config.rs:96
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
-  verified_by: codex-work
+  label: significant
+  category: limit
+  evidence:
+  - type: issue
+    url: https://github.com/vectordotdev/vector/pull/23330
+    quote: "This PR adds support for memory buffers to be bound in terms of bytes allocated."
+  - type: docs
+    url: https://github.com/vectordotdev/vector/blob/b78d987398d23f19f3705fb76a1cd18642565b66/website/cue/reference/components/generated/schema_definitions/derived_vector_buffers_config_buffertype_6c60e9549d874ce4350c077a.cue#L10-L12
+    quote: "The maximum allowed amount of allocated memory the buffer can hold."
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "A memory buffer with max_size set gets a byte-bounded MaxSize capacity instead of an event count. PR #23330, which added this line, and the buffer reference both state this."
 - id: vector-0025
   anchor: symbol:rust:crate.topology.channel.sender.BufferSender.send:Method#8a60221d75dd0042446c1780758a44f5efbbb86e07d10362a4ca1ae59997029a#1
   location: lib/vector-buffers/src/topology/channel/sender.rs:336
@@ -471,13 +468,22 @@ points:
   location: lib/vector-buffers/src/config.rs:88
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
-  verified_by: codex-work
+  label: significant
+  category: default
+  evidence:
+  - type: docs
+    url: https://github.com/vectordotdev/vector/blob/b78d987398d23f19f3705fb76a1cd18642565b66/website/cue/reference/components/generated/schema_definitions/derived_vector_buffers_config_buffertype_6c60e9549d874ce4350c077a.cue#L19-L23
+    quote: "default: \"memory\""
+  - type: docs
+    url: https://github.com/vectordotdev/vector/blob/b78d987398d23f19f3705fb76a1cd18642565b66/website/cue/reference/components/generated/schema_definitions/derived_vector_buffers_config_buffertype_6c60e9549d874ce4350c077a.cue#L4-L8
+    quote: "The maximum number of events allowed in the buffer."
+  - type: docs
+    url: https://github.com/vectordotdev/vector/blob/b78d987398d23f19f3705fb76a1cd18642565b66/website/content/en/docs/architecture/buffering-model.md#L54-L55
+    quote: "By default, sinks use an in-memory buffer like all other components do, but the default buffer size\nis slightly increased, at 500 events."
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "Memory arm (also used when type is omitted): builds an in-memory buffer limited by max_events with a default of 500 unless max_size is given. The docs state the memory default type and the 500-event default."
 - id: vector-0027
   anchor: symbol:rust:crate.topology.channel.sender.BufferSender.flush:Method#bdc5869a15d3395c3eececa71d99a4671808016c7539b15e8ce9d082f287a385#1
   location: lib/vector-buffers/src/topology/channel/sender.rs:404
@@ -487,8 +493,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: codex-work
-  second_label: trivial
-  second_by: claude-blind-v3
+  second_label: null
+  second_by: null
   note: The question mark propagates the existing flush error unchanged.
 - id: vector-0028
   anchor: symbol:rust:crate.variants.disk_v2.tests.model.WriterModelState.transition_to_writing:Method#80d6bf7efe9973fc7c82a640dff10e15741deec0dd7da736f11b2be1a35b5115#1
@@ -562,27 +568,24 @@ points:
   draft: null
   drafted_by: null
   label: unclear
-  category: null
-  evidence:
-  - type: issue
-    url: https://github.com/vectordotdev/vector/pull/11812/files
-    quote: timeout <= 0.0
-  verified_by: claude-adjudication-v3
+  category: validation
+  evidence: []
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: "The linked change allows fractional timeouts. No source states that a nonpositive timeout is invalid."
+  note: "Batch validation rejects a timeout_secs that is zero or negative (InvalidTimeout). Searched the generated batch reference (timeout_secs only says 'The maximum age of a batch before it is flushed.'), RFC 2768, PR #11812 and issue #11790 (allow fractional timeouts); none states the positivity rule."
 - id: vector-0034
   anchor: symbol:rust:crate.sinks.util.batch.SinkBatchSettings.TIMEOUT_SECS:Constant#195464cb05f6c530ec6222256b82b7a5f5abaaf74a68dcd6ceb2840565890168#1
   location: src/sinks/util/batch.rs:36
   draft: null
   drafted_by: null
   label: unclear
-  category: null
+  category: default
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: The anchor declares a timeout constant without assigning a default. No product behavior is established at this declaration.
+  note: "Trait declaration that requires every sink's batch-settings type to give a non-optional f64 default TIMEOUT_SECS. It sets no value: the documented per-sink defaults (for example timeout_secs default 1.0) come from the impls. Searched PR #10006, PR #11812, issue #11790, RFC 2768 and the batch reference; none establishes a rule for this declaration itself."
 - id: vector-0035
   anchor: symbol:rust:crate.sinks.util.retries.FibonacciRetryPolicy.Policy<Req,Res,Error>.retry:Method#baa6ab5d5ef6fb57daa1c96bb36f205152eeb2463bed2ee00d1cb18f8c1738d3#1
   location: src/sinks/util/retries.rs:181
@@ -604,15 +607,12 @@ points:
   draft: null
   drafted_by: null
   label: unclear
-  category: null
-  evidence:
-  - type: issue
-    url: https://github.com/vectordotdev/vector/pull/25845
-    quote: focused recovery, truncation, cleanup, and accounting coverage
-  verified_by: claude-adjudication-v3
+  category: error-handling
+  evidence: []
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: "Pull request 25845 describes truncation of corrupt tails. This branch preserves the record span, and no source states that behavior."
+  note: "Writer startup arm for a last record whose archive cannot be deserialized: logs an error, keeps the span and reconciles the file with the checkpoint. Searched pinned docs (website/content/en/docs/architecture/buffering-model.md, generated buffer/batch reference under website/cue), rfcs/2021-10-14-9477-buffer-improvements.md, PR #10143, PR #25845; #25845's 'Truncate post-checkpoint or corrupt writer tails' does not match this keep-the-span behavior."
 - id: vector-0037
   anchor: symbol:rust:crate.variants.disk_v2.tests.model.ReaderModelState.transition_to_idle:Method#8d439dcddb4dcdf19068bb4b6cd50bc17d80dbabcd9b317ef29fd2f12b9ad0f3#1
   location: lib/vector-buffers/src/variants/disk_v2/tests/model/mod.rs:271
@@ -670,12 +670,12 @@ points:
   draft: null
   drafted_by: null
   label: unclear
-  category: null
+  category: error-handling
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "Error arm of the checkpoint-boundary scan: truncates a corrupt frame beyond the writer checkpoint, keeps a complete corrupt frame inside it, truncates a torn tail, and otherwise propagates. Searched pinned docs (website/content/en/docs/architecture/buffering-model.md, generated buffer/batch reference under website/cue), rfcs/2021-10-14-9477-buffer-improvements.md, PR #25845 (summary bullet 'Truncate post-checkpoint or corrupt writer tails' does not state the keep-inside-checkpoint outcome); not established."
 - id: vector-0042
   anchor: symbol:rust:crate.variants.disk_v2.checkpoint_recovery.BufferReader.classify_checkpoint_data_file:Method#1be19f1d7dcbdec385c02da400c7353443574c3fab4b668ee4d3284237fddfc1#1
   location: lib/vector-buffers/src/variants/disk_v2/checkpoint_recovery.rs:451
@@ -693,13 +693,19 @@ points:
   location: lib/vector-buffers/src/topology/channel/limited_queue.rs:431
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
-  verified_by: codex-work
-  second_label: unclear
-  second_by: claude-blind-v3
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  label: significant
+  category: state-transition
+  evidence:
+  - type: issue
+    url: https://github.com/vectordotdev/vector/pull/24695
+    quote: "This change makes the receive loop try again if there are outstanding sends even though the channel reports that no further events are available."
+  - type: docs
+    url: https://github.com/vectordotdev/vector/blob/b78d987398d23f19f3705fb76a1cd18642565b66/website/cue/reference/releases/0.54.0.cue#L34-L35
+    quote: "Fixed a hard-to-trigger race between closing a memory buffer and outstanding\n\t\t\t\tsends that could rarely cause a lost event array at shutdown."
+  verified_by: claude-relabel-v4
+  second_label: null
+  second_by: null
+  note: "When the channel is closed, the receiver ends the stream only after all permits are back; while sends are still in flight it yields and retries. PR #24695, which changed this branch, states this condition and effect."
 - id: vector-0044
   anchor: symbol:rust:crate.sinks.util.retries.FibonacciRetryPolicy.Policy<Req,Res,Error>.retry:Method#f7ee109862095a7282ade76227554f8fae783adc6a8d74ced8ee56c3dea4594a#1
   location: src/sinks/util/retries.rs:248
@@ -712,8 +718,8 @@ points:
     url: https://github.com/vectordotdev/vector/blob/b78d987398d23f19f3705fb76a1cd18642565b66/website/cue/reference/components/generated/schema_definitions/derived_vector_sinks_util_http_retrystrategy_64fe77681a1c274eed24cca6.cue#L15-L19
     quote: "Don't retry any errors, including request timeouts."
   verified_by: codex-work
-  second_label: significant
-  second_by: claude-blind-v3
+  second_label: null
+  second_by: null
   note: "The retry handler creates a retry for a timeout only when the configured policy permits it."
 - id: vector-0045
   anchor: symbol:rust:crate.variants.disk_v2.io.File.AsyncFile.truncate:Method#66897020142591b4db6e49869dd2467c9e02543b0e20146596a7731b3927e70b#1
@@ -721,36 +727,42 @@ points:
   draft: null
   drafted_by: null
   label: unclear
-  category: null
+  category: validation
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "The file truncate helper returns InvalidInput when asked to grow a file instead of shrinking it. This is an internal precondition added by PR #25845. Searched the pinned docs, the buffer RFC and PR #25845; no source states it."
 - id: vector-0046
   anchor: symbol:rust:crate.variants.disk_v2.writer.BufferWriter.validate_last_write:Method#7f9da486c5fd856c090f534e113c10519394245e5bf1f18a8ad89ac7d0fbfb7c#1
   location: lib/vector-buffers/src/variants/disk_v2/writer.rs:1357
   draft: null
   drafted_by: null
   label: unclear
-  category: null
+  category: state-transition
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "The ledger's next writer ID is ahead of the last record in the data file: logs that events were likely lost and rolls the writer to the next data file. Searched pinned docs (website/content/en/docs/architecture/buffering-model.md, generated buffer/batch reference under website/cue), rfcs/2021-10-14-9477-buffer-improvements.md, PR #10479 (it describes the opposite case, a write without an increment, which can be detected) and PR #10143; not established."
 - id: vector-0047
   anchor: symbol:rust:crate.finalization.BatchNotifier.maybe_new_with_receiver:Method#919e7c47b7712e7aea6126d08ab2bd8f059eef53ce608aea27a028b24c4aa2ba#1
   location: lib/vector-common/src/finalization.rs:278
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
-  verified_by: codex-work
+  label: significant
+  category: state-transition
+  evidence:
+  - type: docs
+    url: https://github.com/vectordotdev/vector/blob/b78d987398d23f19f3705fb76a1cd18642565b66/website/content/en/docs/architecture/end-to-end-acknowledgements.md#L12-L14
+    quote: "When a participating [source][sources] receives an event, or batch of events, it can optionally\ncreate a **batch notifier** for those events. The batch notifier has two parts: one part stays with\nthe source, and the other part is attached to the events."
+  - type: docs
+    url: https://github.com/vectordotdev/vector/blob/b78d987398d23f19f3705fb76a1cd18642565b66/website/cue/reference/components/sinks.cue#L47
+    quote: "Controls if all connected sources will wait for this sink to deliver the events before acknowledging receipt."
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "When acknowledgements are enabled, creates a batch notifier and its receiver for the source; when disabled, creates none. The docs describe this on/off rule and the notifier's two parts."
 - id: vector-0048
   anchor: symbol:rust:crate.variants.disk_v2.reader.BufferReader.seek_to_next_record:Method#11dfa9a7ecd4fd61d37fed406c46f5c9cbf1ca3383ce2d2bf7b92d54e29988a8#1
   location: lib/vector-buffers/src/variants/disk_v2/reader.rs:859
@@ -769,12 +781,12 @@ points:
   draft: null
   drafted_by: null
   label: unclear
-  category: null
+  category: state-transition
   evidence: []
-  verified_by: codex-work
-  second_label: unclear
-  second_by: claude-blind-v3
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  verified_by: claude-relabel-v4
+  second_label: null
+  second_by: null
+  note: "Valid-final-record arm of checkpoint file classification: decodes the record to compute the file's last record ID, or asks for a boundary scan if decoding fails. Searched pinned docs (website/content/en/docs/architecture/buffering-model.md, generated buffer/batch reference under website/cue), rfcs/2021-10-14-9477-buffer-improvements.md, PR #25845 (general checkpoint-reconciliation summary); no source states this rule."
 - id: vector-0050
   anchor: symbol:rust:crate.variants.disk_v2.writer.BufferWriter.reconcile_current_data_file_with_checkpoint:Method#5f3a99bc92fc323f6328caa0f4c5ed4a22a1dcfe53310009d70928800e08f73d#1
   location: lib/vector-buffers/src/variants/disk_v2/writer.rs:1228
@@ -793,48 +805,48 @@ points:
   draft: null
   drafted_by: null
   label: unclear
-  category: null
+  category: retry
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "For a service error of the sink's error type, retries with backoff if the sink logic calls it retriable, otherwise drops the request. Searched sinks.cue retry_policy (covers only HTTP response status codes), components.cue ('Automatically retries failed requests, with backoff.'), and the commits that touched this branch (cbe6668d7, PR #6542, logging only); the error classification is not established."
 - id: vector-0052
   anchor: symbol:rust:crate.variants.disk_v2.ledger.Ledger.load_or_create:Method#b2b2415f23c1b37239121d9c00c2ec28b4606eeb63711ffb10f1a873ee896d32#1
   location: lib/vector-buffers/src/variants/disk_v2/ledger.rs:784
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
+  label: trivial
+  category: default
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "An empty ledger file means it was just created, so a default ledger state is serialized into it. This is a routine emptiness check that initializes new state."
 - id: vector-0053
   anchor: symbol:rust:crate.sinks.util.batch.FinalizersBatch.Batch.push:Method#1fec3d2659403872fade01ab3a1ef2ae7bba5f4756d1ce47ff621ec3be2d072c#1
   location: src/sinks/util/batch.rs:478
   draft: null
   drafted_by: null
   label: unclear
-  category: null
+  category: state-transition
   evidence: []
-  verified_by: codex-work
-  second_label: unclear
-  second_by: claude-blind-v3
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  verified_by: claude-relabel-v4
+  second_label: null
+  second_by: null
+  note: "When the inner batch accepts an item, the wrapper merges the item's finalizers into the batch and updates count and byte sizes, then forwards the inner result. Searched the end-to-end acknowledgements doc (general feature description), RFC 2768 and PR #7265; none states this branch's effect."
 - id: vector-0054
   anchor: symbol:rust:crate.variants.disk_v2.writer.BufferWriter.ensure_ready_for_write:Method#2f9016818c4c27f802736aa8baf82745184b91cf9826e54922b459f1e3ce4634#1
   location: lib/vector-buffers/src/variants/disk_v2/writer.rs:1647
   draft: null
   drafted_by: null
   label: unclear
-  category: null
+  category: state-transition
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "After the writer opens the next data file, it increments the writer file ID and wakes waiters. Searched pinned docs (website/content/en/docs/architecture/buffering-model.md, generated buffer/batch reference under website/cue), rfcs/2021-10-14-9477-buffer-improvements.md, PR #10479 and PR #10143; the docs only describe 128MiB data files in general, so the branch is not established."
 - id: vector-0055
   anchor: symbol:rust:crate.finalization.BatchStatus.update:Method#d5bb22500b317b78a60e78c741e21d3611bb881caa5a5ce26c38297638af7ae5#1
   location: lib/vector-common/src/finalization.rs:376
@@ -852,40 +864,37 @@ points:
   location: lib/vector-buffers/src/variants/in_memory.rs:43
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
+  label: trivial
+  category: observability
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "MaxSize arm only computes the values passed to usage_handle.set_buffer_limits (buffer max-size gauges). The real byte limit comes from limited(self.capacity, ...), so this arm is metrics only."
 - id: vector-0057
   anchor: symbol:rust:crate.variants.disk_v2.checkpoint_recovery.BufferReader.find_checkpoint_reader_file_id:Method#f129e8f2365f007a577376addf9e07032302ea6525c8b9655a06feb667330dba#1
   location: lib/vector-buffers/src/variants/disk_v2/checkpoint_recovery.rs:385
   draft: null
   drafted_by: null
   label: unclear
-  category: null
-  evidence:
-  - type: issue
-    url: https://github.com/vectordotdev/vector/pull/25845
-    quote: "Reconcile `disk_v2` startup state from the durable checkpoint window"
-  verified_by: claude-adjudication-v3
+  category: state-transition
+  evidence: []
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: "The cited source states the purpose of a larger change. It does not state the condition and effect of this branch."
+  note: "While finding the checkpoint reader file, reaching the writer file always returns it as the boundary file, so a post-checkpoint tail can be truncated. Searched pinned docs (website/content/en/docs/architecture/buffering-model.md, generated buffer/batch reference under website/cue), rfcs/2021-10-14-9477-buffer-improvements.md, PR #25845 (attached quote is a purpose summary for the whole change); not established."
 - id: vector-0058
   anchor: symbol:rust:crate.variants.disk_v2.reader.BufferReader.next:Method#4549c4eabe3887738bd12b763eb3b9b5d30690e22ba7ca5d1528d22b5d551251#1
   location: lib/vector-buffers/src/variants/disk_v2/reader.rs:1140
   draft: null
   drafted_by: null
   label: unclear
-  category: null
+  category: state-transition
   evidence: []
-  verified_by: codex-work
-  second_label: unclear
-  second_by: claude-blind-v3
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  verified_by: claude-relabel-v4
+  second_label: null
+  second_by: null
+  note: "At EOF during normal reading (ready_to_read), the reader rolls to the next file if the writer has moved on, or else waits for the writer. During startup seeking it returns or rolls instead. Searched pinned docs (website/content/en/docs/architecture/buffering-model.md, generated buffer/batch reference under website/cue), rfcs/2021-10-14-9477-buffer-improvements.md, PR #10143 and PR #25845; no source states this rule."
 - id: vector-0059
   anchor: symbol:rust:crate.sinks.util.retries.FibonacciRetryPolicy.Policy<Req,Res,Error>.retry:Method#d2a1cdefe73bc2ca8cef913320f97c60708c479ec7076d0a1fdff4d7aca644a8#1
   location: src/sinks/util/retries.rs:231
@@ -904,12 +913,9 @@ points:
   draft: null
   drafted_by: null
   label: unclear
-  category: null
-  evidence:
-  - type: issue
-    url: https://github.com/vectordotdev/vector/pull/25845
-    quote: "Reconcile `disk_v2` startup state from the durable checkpoint window"
-  verified_by: claude-adjudication-v3
+  category: state-transition
+  evidence: []
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: "The cited source states the purpose of a larger change. It does not state the condition and effect of this branch."
+  note: "Successor-file recovery is skipped (returns false) unless the next data file starts at the checkpoint's next record ID with a decodable non-empty record. Searched pinned docs (website/content/en/docs/architecture/buffering-model.md, generated buffer/batch reference under website/cue), rfcs/2021-10-14-9477-buffer-improvements.md, PR #25845 (summary 'Reconcile disk_v2 startup state from the durable checkpoint window' is a purpose statement), changelog fragment of 35868e30d; not established."

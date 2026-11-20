@@ -141,12 +141,12 @@ points:
     model: null
     prompt_fingerprint: 9f27745824f1ea96ec792c7ac1ac50115acdc7d91de77af1a5ddb1a4d9bb3f2e
   label: unclear
-  category: null
+  category: state-transition
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "If instance.disable_terminate is set, _delete logs and returns, so the delete request is silently ignored. Searched doc/source, api-ref/source and nova-specs (no mention of disable_terminate), plus bug 905270 from the introducing commit 932f3aaf; the bug only says the attribute is unsupported and does not state that deletes are skipped."
 - id: nova-0006
   anchor: symbol:python:nova.quota.DbQuotaDriver._process_quotas:Method#a53a8f7fd7b7de3165544d82bfe3a4bf62d076f70a3ec7d5b8a5a5733cace6df#1
   location: nova/quota.py:133
@@ -161,13 +161,19 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: d2a313dbdc3351f02bd3e3cc775d211151a355becaeab56fa33d5a71f9b729e3
-  label: unclear
-  category: null
-  evidence: []
-  verified_by: codex-work
+  label: significant
+  category: limit
+  evidence:
+  - type: issue
+    url: https://blueprints.launchpad.net/nova/+spec/per-user-quotas
+    quote: "The sum of all users' quotas under a same project should not exceed"
+  - type: issue
+    url: https://blueprints.launchpad.net/nova/+spec/per-user-quotas
+    quote: "User quota is a sub-division of a project quota"
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "When remains is requested, get_project_quotas subtracts every per-user quota limit from the project limit to give the quota left to hand out, which the quota_sets update uses as the user maximum. Blueprint per-user-quotas, implemented by commit 77b4012a02c that added this branch, states the rule that user quotas must not sum beyond the project quota."
 - id: nova-0007
   anchor: symbol:python:nova.scheduler.filters.image_props_filter.ImagePropertiesFilter._instance_supported:Method#ce709f3c517b624bf3d5602e42a4671a59020ff7649170748be540a34a307023#1
   location: nova/scheduler/filters/image_props_filter.py:62
@@ -255,13 +261,22 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 881c0e4c4941cdeb579362a156bbca9bd6df4bb5d63f7f51e892318b5ee9ca2c
-  label: unclear
-  category: null
-  evidence: []
-  verified_by: codex-work
-  second_label: significant
-  second_by: claude-blind-v3
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  label: significant
+  category: default
+  evidence:
+  - type: issue
+    url: https://bugs.launchpad.net/nova/+bug/1878979
+    quote: "Quota code does not respect [api]/instance_list_per_project_cells"
+  - type: issue
+    url: https://bugs.launchpad.net/nova/+bug/1878979
+    quote: "However, the quota code does not implement it which means quota count take a big toll on the database server.  We should ideally mirror the same behaviour in the quota code."
+  - type: docs
+    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/nova/conf/api.py#L249-L250
+    quote: "When enabled, this will cause the API to only query cell databases\nin which the tenant has mapped instances."
+  verified_by: claude-relabel-v4
+  second_label: null
+  second_by: null
+  note: "When [api]instance_list_per_project_cells is enabled, legacy quota counting queries only the cells mapped to the project; otherwise it loads and queries all cells. Commit ab16946885e (Closes-Bug #1878979) added this branch, and the bug plus the option's help text state the option and its effect."
 - id: nova-0011
   anchor: symbol:python:nova.scheduler.filters.image_props_filter.ImagePropertiesFilter._instance_supported:Method#e3a5031cb5dc53799b5a6c00c079679a9811f6a9c2b977f7ef57b40f1e92e8e6#1
   location: nova/scheduler/filters/image_props_filter.py:68
@@ -275,12 +290,12 @@ points:
     model: null
     prompt_fingerprint: 0c1fd84c3b5f85e107ed8b8fb4168cff31e053ea38de87769908e3ebf333f7ad
   label: unclear
-  category: null
+  category: validation
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "ImagePropertiesFilter rejects a host when the image requests architecture/hv_type/vm_mode but the host advertises no supported_instances. The scheduling.rst filter section only describes passing hosts that support the properties; it, the api-ref, nova-specs (only an unrelated juno mention of supported_instances) and bug 1037339 from introducing commit 5ea7db9b719 do not state the outcome for a host that advertises nothing."
 - id: nova-0012
   anchor: symbol:python:nova.api.openstack.compute.hosts.HostController.update:Method#5b905e8af639e5d281447f9446acbde250b3e7c6167a97e04229d333722b25b5#1
   location: nova/api/openstack/compute/hosts.py:126
@@ -315,13 +330,19 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 5133fd5bb4304abe719fcf7a09fbc0cf07b8a0e1a58f69f821daf2b9b6b8ce80
-  label: unclear
-  category: null
-  evidence: []
-  verified_by: codex-work
-  second_label: significant
-  second_by: claude-blind-v3
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  label: significant
+  category: state-transition
+  evidence:
+  - type: issue
+    url: https://bugs.launchpad.net/nova/+bug/1404867
+    quote: "Volume remains in-use status, if instance booted from volume is deleted in error state"
+  - type: issue
+    url: https://bugs.launchpad.net/nova/+bug/1404867
+    quote: "IMO, volume should be detached so that it can be used to boot other instance."
+  verified_by: claude-relabel-v4
+  second_label: null
+  second_by: null
+  note: "Only an instance with no host that is not ERROR or SHELVED_OFFLOADED takes the delete-while-booting shortcut (destroy the build request/record and return); host-less ERROR/shelved-offloaded instances fall through to local delete so ports and volumes are cleaned. Commit b3f39244a3e (Closes-Bug 1404867, 1408527) introduced this condition, and bug 1404867 states that deleting an ERROR instance must detach its volume."
 - id: nova-0014
   anchor: symbol:python:nova.quota.DbQuotaDriver._get_usages:Method#cd8ac330eeab8c1d5f552c432e269548954d0c25c53c54e867b26a5ad7b0fe2a#1
   location: nova/quota.py:183
@@ -379,13 +400,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 77dbb49b9c6e176745ef178580a1662e0204eeec466b1da740102ec66a85b35c
-  label: unclear
-  category: null
-  evidence: []
-  verified_by: codex-work
+  label: significant
+  category: state-transition
+  evidence:
+  - type: issue
+    url: https://bugs.launchpad.net/nova/+bug/1624052
+    quote: "The evacuation will fail because the destination compute host waits for a network-vif-plugged event from Neutron, which it never received because Nova sends the event to the source compute."
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "If the instance has a migration_context, the external server event is sent to the migration's source and destination computes as well as instance.host (and cross-cell handling is flagged). Commit a5b920a197c (Closes-bug 1535918, 1624052) added the branch; bug 1624052 states that during evacuation the event must reach the destination compute rather than only the source."
 - id: nova-0017
   anchor: symbol:python:nova.api.openstack.compute.volumes.VolumeController.delete:Method#92463ee817e753b5145c8264778d75b932530924b4c4f51d1cd877cd3a83463a#1
   location: nova/api/openstack/compute/volumes.py:131
@@ -398,13 +422,13 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: d91129e31fae1184a66f50145fa330a720094a58434e3cb206b85bf6a33f7a0c
-  label: unclear
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "The os-volumes proxy delete maps InvalidInput, which translate_cinder_exception raises for a Cinder BadRequest, to HTTP 400 with Cinder's message, forwarding the backend failure with the same meaning. The DELETE /os-volumes api-ref lists no 400, and bug 1630783 (commit 2afc4e46695) only reports the 500, so this is routine error propagation."
 - id: nova-0018
   anchor: symbol:python:nova.api.openstack.compute.servers.ServersController._get_server:Method#e7f310851365a57591da1cd630fd897e8221ad073394c5b42e861e354e7eb7b8#1
   location: nova/api/openstack/compute/servers.py:370
@@ -466,12 +490,12 @@ points:
     model: null
     prompt_fingerprint: e4236b71f27a1a801a80fd662c0a090e1a0ca6dead119427ed43a7f2a6b23aea
   label: unclear
-  category: null
+  category: validation
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "When addFloatingIp gives no fixed_address and the instance has no IPv4 fixed IP, the API returns 400 instead of associating. Bug 1437855 from introducing commit c5dfd2c3ef7 states the first-IPv4 selection rule but not the no-IPv4 rejection; the addFloatingIp section of api-ref/source/servers-actions.inc and nova-specs do not describe it either."
 - id: nova-0021
   anchor: symbol:python:nova.api.openstack.compute.simple_tenant_usage.SimpleTenantUsageController._get_instances_all_cells:Method#79a433884be895c4182f0788d420a6bbf09a1bce78c76a21cdc5a0378e98df20#1
   location: nova/api/openstack/compute/simple_tenant_usage.py:133
@@ -484,13 +508,13 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 9582917b7c019178d3e3220dccbbfd8cfb17bae2da612dcf79baa4af41aae756
-  label: unclear
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "After the per-cell lookup skips cells raising MarkerNotFound, a marker never found in any cell raises MarkerNotFound, mimicking the single-database behavior. This is the guide row for a lookup that continues to the next location after not-found with a final outcome equal to one search of all locations."
 - id: nova-0022
   anchor: symbol:python:nova.api.openstack.compute.security_groups.SecurityGroupController.create:Method#00ac25c974c2f757ce36db27181694b2dbe8b75f88a76fded2c9e9fe3f58f9e1#1
   location: nova/api/openstack/compute/security_groups.py:221
@@ -506,12 +530,12 @@ points:
     model: null
     prompt_fingerprint: b5a177f3084c384af491a433dd79c1a854ecdbce2401e55117644351b9494320
   label: unclear
-  category: null
+  category: error-handling
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "A Neutron 409 on security group create becomes SecurityGroupLimitExceeded and is returned as HTTP 403. The os-security-groups api-ref lists 403 without saying when, doc/source/user/quotas.rst only names the security_groups quota, nova-specs have nothing, and introducing commit 61ce9805008 (blueprint v2-on-v3-api) references no issue stating that over-limit maps to 403."
 - id: nova-0023
   anchor: symbol:python:nova.api.openstack.compute.evacuate.EvacuateController._get_on_shared_storage:Method#463ef7590a903993085b3ea6f11b84ff546f3611886b8f8818a4875f44c1946d#1
   location: nova/api/openstack/compute/evacuate.py:49
@@ -548,13 +572,19 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 5d0c3b82b8aab907e4356b205910ec7aca6f1e2f4cc50759238019333619d907
-  label: unclear
-  category: null
-  evidence: []
-  verified_by: codex-work
+  label: significant
+  category: validation
+  evidence:
+  - type: docs
+    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/doc/source/admin/cpu-topologies.rst#L391-L395
+    quote: "     --property hw:cpu_policy=dedicated \\\n     --property hw:cpu_thread_policy=require\n\nThis will ensure the instance gets scheduled to a host with SMT by requesting\nhosts that report the ``HW_CPU_HYPERTHREADING`` trait."
+  - type: docs
+    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/nova/api/validation/extra_specs/hw.py#L95
+    quote: "'If ``require``, hosts with hardware threads will be required. '"
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "NUMATopologyFilter rejects a host when _satisfies_cpu_policy fails, i.e. the request asks for dedicated CPUs with the require thread policy and the host has no hyperthreading. cpu-topologies.rst and the hw:cpu_thread_policy extra-spec description document that require places the instance only on hosts with SMT."
 - id: nova-0025
   anchor: symbol:python:nova.compute.api.block_accelerators.inner.wrapper:Method#8504292ae33014d7b5110253523deb9baeff24ec3136c171edc3b40b909e378f#1
   location: nova/compute/api.py:388
@@ -568,12 +598,12 @@ points:
     model: null
     prompt_fingerprint: 62493bfdf3b17a22b752ceb5ad6ce44138f1f9d155675b60018186b602c6cd00
   label: unclear
-  category: null
+  category: validation
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "For an instance with an accel:device_profile, an operation decorated with until_service is allowed only when the minimum nova-compute service version in all cells reaches that version, otherwise ForbiddenWithAccelerators. Searched doc/source and api-ref (accelerators only in extra-specs), nova-specs ussuri nova-cyborg-interaction (Upgrade impact: None) and blueprint cyborg-rebuild-and-evacuate from commit 1356ef5b571; none states the service-version gate."
 - id: nova-0026
   anchor: symbol:python:nova.scheduler.filters.affinity_filter._GroupAffinityFilter.host_passes:Method#cde7d9f07c918d6861ee9f3bbcd5554f702d0ea929805a827f8556a69e0b7b04#1
   location: nova/scheduler/filters/affinity_filter.py:147
@@ -606,12 +636,12 @@ points:
     model: null
     prompt_fingerprint: 85a2d359ff6ba014d14f9e22f3293108a025b10c8ff6fc71c7bc3b5a43c11886
   label: unclear
-  category: null
+  category: default
   evidence: []
-  verified_by: codex-work
-  second_label: unclear
-  second_by: claude-blind-v3
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  verified_by: claude-relabel-v4
+  second_label: null
+  second_by: null
+  note: "When an image's swap/ephemeral mapping resolves to volume_size 0 (no size given and the flavor has no swap/ephemeral), the mapping is dropped from the prepared BDMs. Searched doc/source/user/block-device-mapping.rst, api-ref, nova-specs and blueprint improve-block-device-handling from commit 0ef7e15e225; none states that zero-size image mappings are skipped."
 - id: nova-0028
   anchor: symbol:python:nova.api.openstack.compute.simple_tenant_usage.SimpleTenantUsageController._show:Method#f2e58bcc1195947468a33b12d2e6aac37973ff2b62be01d160effa1e5d10dc53#1
   location: nova/api/openstack/compute/simple_tenant_usage.py:356
@@ -669,8 +699,8 @@ points:
   category: validation
   evidence: []
   verified_by: codex-work
-  second_label: trivial
-  second_by: claude-blind-v3
+  second_label: null
+  second_by: null
   note: Routine response key presence guard before reading the server field.
 - id: nova-0031
   anchor: symbol:python:nova.api.openstack.compute.hosts.HostController.update:Method#ae0a0c4400cae11595d1c79791bd1968181780afbfabf127f0ed8c9903a2a66b#1
@@ -752,19 +782,19 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: c66ea0bd3a1350054dd8138bef85e7f8ff96ef9ea8d171ab49a01ee274e75b76
-  label: unclear
-  category: null
+  label: significant
+  category: permission
   evidence:
   - type: spec
-    url: https://opendev.org/openstack/nova-specs/src/commit/bb9651bea014f19960b340047c767e0eb268ad66/specs/mitaka/implemented/get-valid-server-state.rst#L92
-    quote: 'detail`` will return ``host_status`` field if "os_compute_api:servers:show:'
-  - type: spec
-    url: https://opendev.org/openstack/nova-specs/src/commit/bb9651bea014f19960b340047c767e0eb268ad66/specs/mitaka/implemented/get-valid-server-state.rst#L156
-    quote: '"os_compute_api:servers:show:host_status": "rule:admin_api"'
-  verified_by: codex-work
-  second_label: unclear
-  second_by: claude-blind-v3
-  note: The API reference specifies policy-controlled visibility. The branch controls when to reuse or compute that result.
+    url: https://opendev.org/openstack/nova-specs/src/commit/bb9651bea014f19960b340047c767e0eb268ad66/specs/mitaka/implemented/get-valid-server-state.rst#L91-L93
+    quote: "GET ``/v2.1/{tenant_id}/servers/{server_id}`` and ``/v2.1/{tenant_id}/servers/\ndetail`` will return ``host_status`` field if \"os_compute_api:servers:show:\nhost_status\" policy is defined for the user. This will require a microversion."
+  - type: docs
+    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/api-ref/source/parameters.yaml#L3688-L3689
+    quote: "This attribute appears in the response only if the policy permits.\n    By default, only administrators can get this parameter."
+  verified_by: claude-relabel-v4
+  second_label: null
+  second_by: null
+  note: "For microversion >= 2.16 when the caller has not already handled host_status in aggregate (show path), the view checks the host_status policies and adds host_status only if permitted (only UNKNOWN under the unknown-only policy). The get-valid-server-state spec and the api-ref host_status parameter state this policy-gated inclusion."
 - id: nova-0035
   anchor: symbol:python:nova.compute.api.API._delete:Method#338b2d00c11ec6a4be4760e6a4a68f2d7a9dd5292e83ba8e279842d78c895bde#1
   location: nova/compute/api.py:2609
@@ -777,13 +807,13 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: aac82fb2b7fe5a56b13f04d6314353339399e561159841a7e4f5678b32a501ba
-  label: unclear
-  category: null
+  label: trivial
+  category: state-transition
   evidence: []
-  verified_by: codex-work
-  second_label: trivial
-  second_by: claude-blind-v3
-  note: The branch suppresses duplicate deletes in two task states. No source established that rule.
+  verified_by: claude-relabel-v4
+  second_label: null
+  second_by: null
+  note: "When the compute service is up and the instance's original task_state is already DELETING or SOFT_DELETING, the delete request is logged and ignored because the deletion is already in progress. This is internal work skipped because the requested state already holds; bug 1248563 (Partial-Bug of introducing commit b3c9cc50490) only motivates it."
 - id: nova-0036
   anchor: symbol:python:nova.compute.api.API._delete:Method#88a22b5f41e0ea316df8f4474ab8cd6b0dc64074202bdd5b596960fbbbd79e45#1
   location: nova/compute/api.py:2538
@@ -799,22 +829,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: fbf23313b8f255a7304459c8eb4e7d21dc5186b8d646e7b55021db117dc05804
-  label: unclear
-  category: null
+  label: significant
+  category: state-transition
   evidence:
-  - type: spec
-    url: https://opendev.org/openstack/nova-specs/src/commit/bb9651bea014f19960b340047c767e0eb268ad66/specs/mitaka/implemented/volume-ops-when-shelved.rst#L22
-    quote: instance is in the shelved or shelved_offloaded states. From a user's
-  - type: spec
-    url: https://opendev.org/openstack/nova-specs/src/commit/bb9651bea014f19960b340047c767e0eb268ad66/specs/mitaka/implemented/volume-ops-when-shelved.rst#L38
-    quote: 'Shelved instances can be in one of two possible states: shelved and'
-  - type: spec
-    url: https://opendev.org/openstack/nova-specs/src/commit/bb9651bea014f19960b340047c767e0eb268ad66/specs/mitaka/implemented/volume-ops-when-shelved.rst#L82
-    quote: be allowed when the instance is in the shelved and shelved_offloaded states.
-  verified_by: codex-work
+  - type: issue
+    url: https://bugs.launchpad.net/nova/+bug/1259462
+    quote: "In addition, when deleting a vm with state \"shelved\" or \"shelved-offloaded\", the vm's snapshot like ‘shelved image’ should also be removed."
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: The branch cleans up shelved snapshots on deletion. The volume-operation specification does not establish this rule.
+  note: "When a SHELVED or SHELVED_OFFLOADED instance is deleted, the API deletes its shelved_image_id snapshot from Glance. Commit 48729259c57 (Closes-Bug #1259462) added the branch and the bug states this condition and effect; the attached volume-ops-when-shelved spec is about volume attach and does not apply."
 - id: nova-0037
   anchor: symbol:python:nova.compute.api.HostAPI._update_compute_provider_status:Method#745782383ca30c4d2eeecad68458131e8cb1b791ee3ac6ef19ba62a8f34603fc#1
   location: nova/compute/api.py:6380
@@ -835,16 +859,13 @@ points:
   location: nova/quota.py:296
   draft: null
   drafted_by: null
-  label: significant
-  category: limit
-  evidence:
-  - type: issue
-    url: https://bugs.launchpad.net/nova/+bug/1292494
-    quote: Invalid validation for unlimited values when updating user quota
-  verified_by: codex-work
-  second_label: unclear
-  second_by: claude-blind-v3
-  note: The linked fix applies sentinel-aware quota calculations, including subtraction to compute the available quota.
+  label: unclear
+  category: null
+  evidence: []
+  verified_by: claude-relabel-v4
+  second_label: null
+  second_by: null
+  note: "Bug 1292494 describes the sum of unlimited values. It does not state the subtraction branch."
 - id: nova-0039
   anchor: symbol:python:nova.quota.DbQuotaDriver._sum_quota_values:Method#365a1a78a5822cb9f61aaee72cb7b14f693d2f2ca0370f57c6bd28ebc418f0c4#1
   location: nova/quota.py:287
@@ -866,12 +887,12 @@ points:
   draft: null
   drafted_by: null
   label: unclear
-  category: null
+  category: default
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: The branch takes a Placement limit when available and otherwise uses a fallback. No direct source established both paths.
+  note: "UnifiedLimitsDriver.get_defaults uses the Keystone registered limit for placement-backed resources, otherwise the local limit, and -1 (unlimited) for resources with neither. Searched doc/source/admin/unified-limits.rst, the os-quota-sets api-ref, the yoga unified-limits-nova spec and blueprint unified-limits-nova from commit 22bc8419716; they say the nova-network limits are unsupported but do not state that the quota APIs report them as -1."
 - id: nova-0041
   anchor: symbol:python:nova.scheduler.filters.affinity_filter._GroupAntiAffinityFilter.host_passes:Method#30e913bd7bfbcd3b779e3f2f1e73f182e2695d594d22575ab3cfd32dfdfe8e5e#1
   location: nova/scheduler/filters/affinity_filter.py:98
@@ -914,8 +935,8 @@ points:
     url: https://opendev.org/openstack/nova-specs/src/commit/bb9651bea014f19960b340047c767e0eb268ad66/specs/2024.1/implemented/libvirt-maxphysaddr-support.rst#L107
     quote: If ``hw_maxphysaddr_bits`` is set to image properties, perform a numeric comparison with ``ImagePropertiesFilter``.
   verified_by: codex-work
-  second_label: significant
-  second_by: claude-blind-v3
+  second_label: null
+  second_by: null
   note: The blueprint linked from 1038a633 requires the image address-width check.
 - id: nova-0044
   anchor: symbol:python:nova.scheduler.filters.numa_topology_filter.NUMATopologyFilter.host_passes:Method#5af24686d211410391057e35dd85288537ebcd8394a83dfa9297048172e45a92#1
@@ -944,8 +965,8 @@ points:
     url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/doc/source/admin/scheduling.rst#L698
     quote: The filter schedules instances on a host if the host has devices that meet the device requests in the ``extra_specs`` attribute for the flavor.
   verified_by: codex-work
-  second_label: significant
-  second_by: claude-blind-v3
+  second_label: null
+  second_by: null
   note: The filter excludes hosts without PCI devices that satisfy the flavor request.
 - id: nova-0046
   anchor: symbol:python:nova.api.openstack.compute.keypairs.KeypairController._create:Method#e806bb65050498d39b0dbef6025aecf67243c5665021386b2f160ec8b2627f48#1
@@ -959,8 +980,8 @@ points:
     url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/api-ref/source/os-keypairs.inc#L52
     quote: Imports (or generates) a keypair.
   verified_by: codex-work
-  second_label: significant
-  second_by: claude-blind-v3
+  second_label: null
+  second_by: null
   note: An explicit public key selects import; the API also describes generation.
 - id: nova-0047
   anchor: symbol:python:nova.compute.api.API._allow_cross_cell_resize:Method#63917f458b8f1cd908f18a8ab95d35ce9e9dd563c0d10c9aea4818ec90b662f0#1
@@ -995,12 +1016,12 @@ points:
   draft: null
   drafted_by: null
   label: unclear
-  category: null
+  category: default
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "Anchored line is the supports_multiattach=False parameter default of internal API._create_instance; create() always passes the value, which servers.py derives from microversion 2.60, so the default only applies to direct internal callers. Searched the api-ref multiattach parameters, doc/source and nova-specs; they document the 2.60 microversion gate in the API layer, not this internal default."
 - id: nova-0050
   anchor: symbol:python:nova.api.openstack.compute.servers.ServersController._create_image:Method#497b723a222bed1c8e9faf7dd50f12b7f5e2d6d1af8a74af590da726b14848f8#1
   location: nova/api/openstack/compute/servers.py:1452
@@ -1039,10 +1060,10 @@ points:
   label: unclear
   category: null
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "With all_cells=True, HostAPI.service_get_all scatter-gathers services from every cell (optionally with down-cell minimal records); otherwise it lists services only from the current context's database. Searched api-ref os-services/os-hosts/os-availability-zone, doc/source/admin/cells.rst, nova-specs and commit 39c1b252e8a (Related to blueprint cells-aware-api, no bug); none states this internal all_cells scope switch."
 - id: nova-0053
   anchor: symbol:python:nova.compute.api.HostAPI.compute_node_get:Method#87ea46dd2ac918a045b15b19326f090aae4a67c84abc3da00c1fefdfbc3200b0#1
   location: nova/compute/api.py:6480
@@ -1052,8 +1073,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: claude-adjudication-v3
-  second_label: trivial
-  second_by: claude-blind-v3
+  second_label: null
+  second_by: null
   note: "A not-found result continues the search in the next cell. The final outcome equals one search of all cells."
 - id: nova-0054
   anchor: symbol:python:nova.compute.api.check_instance_state:Function#989b0494b405fd04bd99839b11271faa9b376b33b8dc681c4c4fca8211f5d4ca#1
@@ -1061,24 +1082,24 @@ points:
   draft: null
   drafted_by: null
   label: unclear
-  category: null
+  category: default
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "The check_instance_state decorator defaults require no task_state in progress (task_state=(None,)) and must_have_launched=True for every decorated operation unless overridden. Bug 1183946 (Fixes bug of introducing commit 99c51e34230) states the launched_at rule only for reboot; doc/source/reference/vm-states.rst, the servers api-ref and nova-specs do not state these defaults for all operations."
 - id: nova-0055
   anchor: symbol:python:nova.api.openstack.compute.remote_consoles.RemoteConsolesController.create:Method#a70d6e675e8d9a5acfd85852f2e66ee90969ff21294f60b878db6d843f18beef#1
   location: nova/api/openstack/compute/remote_consoles.py:162
   draft: null
   drafted_by: null
   label: unclear
-  category: null
+  category: validation
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "POST /servers/{id}/remote-consoles with protocol rdp is rejected with HTTP 400 'Unavailable console type'. The api-ref says rdp needs the removed Hyper-V driver but does not state the 400 for this endpoint (the explicit 400 sentence is for os-console-auth-tokens); introducing commit c4f81a54d5c references no bug and nova-specs have nothing on it."
 - id: nova-0056
   anchor: symbol:python:nova.api.openstack.compute.services.ServiceController.delete:Method#2e712635f0a8e39b1ab90af96c247ab501d63a99d380757f5c5d9730328616b6#1
   location: nova/api/openstack/compute/services.py:264
@@ -1091,8 +1112,8 @@ points:
     url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/api-ref/source/os-services.inc#L348
     quote: Attempts to delete a ``nova-compute`` service which is still hosting instances
   verified_by: codex-work
-  second_label: significant
-  second_by: claude-blind-v3
+  second_label: null
+  second_by: null
   note: Compute service deletion checks for hosted instances before accepting the request.
 - id: nova-0057
   anchor: symbol:python:nova.compute.api.HostAPI.service_get_all:Method#e7f310851365a57591da1cd630fd897e8221ad073394c5b42e861e354e7eb7b8#1
@@ -1100,12 +1121,12 @@ points:
   draft: null
   drafted_by: null
   label: unclear
-  category: null
+  category: default
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "Anchored line holds the all_cells=False and cell_down_support=False parameter defaults of HostAPI.service_get_all, so callers that omit them get current-database services with no down-cell records; os-services passes both explicitly. Searched api-ref (os-services, microversion 2.69 down-cell notes), doc/source, nova-specs and commit 39c1b252e8a (blueprint cells-aware-api); none documents these internal defaults."
 - id: nova-0058
   anchor: symbol:python:nova.scheduler.filters.compute_capabilities_filter.ComputeCapabilitiesFilter._satisfies_extra_specs:Method#5b8a7fc80c15c5fe2780170519cb63fd3e3445548cc72baee5ee4c3358723f6a#1
   location: nova/scheduler/filters/compute_capabilities_filter.py:73
@@ -1123,25 +1144,31 @@ points:
   location: nova/quota.py:316
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
-  verified_by: codex-work
+  label: significant
+  category: limit
+  evidence:
+  - type: issue
+    url: https://blueprints.launchpad.net/nova/+spec/per-user-quotas
+    quote: "The sum of all users' quotas under a same project should not exceed"
+  - type: issue
+    url: https://bugs.launchpad.net/nova/+bug/968175
+    quote: "Quota update should not allow negative headroom"
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "With a user_id, settable quotas for a user are bounded below by in_use and above by the project's remaining quota plus the user's current quota; otherwise the project minimum is max(sum of user limits, in_use) with no maximum. Commit 77b4012a02c (Implements blueprint per-user-quotas, Fixes bug 968175) added the branch; the blueprint states the user-quota ceiling and the bug the no-negative-headroom floor."
 - id: nova-0060
   anchor: symbol:python:nova.quota.DbQuotaDriver._get_quotas:Method#1ca0010552c12f1ba4e3fd7fe019d92c880a71a630c107caa542999ee8ccea70#1
   location: nova/quota.py:352
   draft: null
   drafted_by: null
   label: unclear
-  category: null
+  category: default
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "Anchored line is the user_id=None parameter default of the internal helper DbQuotaDriver._get_quotas; with no user_id it returns project quotas instead of user quotas, and all callers pass user_id explicitly. Searched doc/source/admin/quotas.rst, api-ref/source/os-quota-sets.inc, nova-specs and blueprint per-user-quotas/bug 968175 from commit 77b4012a02c; none describes this internal parameter default."
 - id: nova-0061
   anchor: symbol:python:nova.api.openstack.compute.instance_actions.InstanceActionsController._format_event:Method#242330cc0a1f60ed2a09fb3e80e5ed5df6b9b6a7a93da7c4244c831a842d612a#1
   location: nova/api/openstack/compute/instance_actions.py:68
@@ -1189,37 +1216,49 @@ points:
   location: nova/compute/api.py:4394
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
-  verified_by: codex-work
+  label: significant
+  category: validation
+  evidence:
+  - type: spec
+    url: https://opendev.org/openstack/nova-specs/src/commit/bb9651bea014f19960b340047c767e0eb268ad66/specs/stein/implemented/flavor-extra-spec-image-property-validation.rst#L34-L37
+    quote: "If validation fails then synchronously return error to user.\n\nWe'd need to do this anywhere the flavor or image changes, so basically\ninstance creation, rebuild, and resize."
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "On resize, only when the new flavor differs from the current one does the API validate the new flavor against the instance image (NUMA/PCI and min_ram for volume-backed, full flavor/image validation otherwise), failing the request synchronously. The stein flavor-extra-spec-image-property-validation spec (blueprint of commit 5e7b840e48e) states validation whenever the flavor changes, including resize."
 - id: nova-0065
   anchor: symbol:python:nova.compute.api._find_service_in_cell:Function#9f3d0aa68b721a2c877de90f5987d87c0d6281f310e10ebd6df90c5efaaa3919#1
   location: nova/compute/api.py:6133
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "Anchor is the def of _find_service_in_cell, a helper that looks a service up by id or host in each cell, continues to the next cell on NotFound and returns the single match, so the outcome equals one search over all cells (guide: lookup continues in next location). Searched: doc/source and api-ref (os-aggregates.inc, os-services.inc), bug 1686744 (commit 62878ef5a6c), which documents the caller's HostMapping fallback for aggregates, not this helper."
 - id: nova-0066
   anchor: symbol:python:nova.scheduler.filters.image_props_filter.ImagePropertiesFilter._instance_supported:Method#e011705fac4b79d6feddd8179037072fec79c13c9a960b7b34e24715d5ea5418#1
   location: nova/scheduler/filters/image_props_filter.py:103
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
-  verified_by: codex-work
-  second_label: significant
-  second_by: claude-blind-v3
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  label: significant
+  category: validation
+  evidence:
+  - type: docs
+    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/doc/source/admin/scheduling.rst#L513-L518
+    quote: "Describes the hypervisor version required by the image."
+  - type: docs
+    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/doc/source/admin/scheduling.rst#L517-L518
+    quote: "If available, the property value is compared to the hypervisor version of the compute host."
+  - type: docs
+    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/doc/source/admin/scheduling.rst#L478-L481
+    quote: "It passes hosts that can support the specified image properties contained in the instance. Properties include the architecture, hypervisor type, hypervisor version, and virtual machine mode."
+  verified_by: claude-relabel-v4
+  second_label: null
+  second_by: null
+  note: "ImagePropertiesFilter passes a host only if its hypervisor version satisfies the image's img_hv_requested_version (and the other checks); the scheduling guide documents this predicate."
 - id: nova-0067
   anchor: symbol:python:nova.scheduler.filters.aggregate_instance_extra_specs.AggregateInstanceExtraSpecsFilter.host_passes:Method#175ac3f02edd98e9c3a9c4664867d44f963348fccdd054b89537ba88c6063b91#1
   location: nova/scheduler/filters/aggregate_instance_extra_specs.py:47
@@ -1229,81 +1268,105 @@ points:
   category: validation
   evidence: []
   verified_by: codex-work
-  second_label: trivial
-  second_by: claude-blind-v3
+  second_label: null
+  second_by: null
   note: Checks that there are specs to process before reading them.
 - id: nova-0068
   anchor: symbol:python:nova.api.openstack.compute.attach_interfaces._translate_interface_attachment_view:Function#62a18617e50df6d0ab29a2b9453e7d338305841d5bd10801de06c5d649d3dc59#1
   location: nova/api/openstack/compute/attach_interfaces.py:34
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
-  verified_by: codex-work
-  second_label: significant
-  second_by: claude-blind-v3
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  label: significant
+  category: default
+  evidence:
+  - type: docs
+    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/api-ref/source/parameters.yaml#L2499-L2505
+    quote: "The device tag applied to the virtual network interface or ``null``."
+  - type: docs
+    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/api-ref/source/parameters.yaml#L2505
+    quote: "min_version: 2.70"
+  - type: docs
+    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/nova/api/openstack/compute/rest_api_version_history.rst#L918-L920
+    quote: "Exposes virtual device tags for volume attachments and virtual interfaces (ports). A ``tag`` parameter is added to the response body for the following APIs:"
+  verified_by: claude-relabel-v4
+  second_label: null
+  second_by: null
+  note: "The interface-attachment view omits 'tag' by default (show_tag=False) and, when callers request it for microversion >= 2.70, adds the VIF tag or null; the API reference documents the tag field as tag-or-null from 2.70."
 - id: nova-0069
   anchor: symbol:python:nova.api.openstack.compute.tenant_networks.TenantNetworkController._refresh_default_networks:Method#35d26c1edf8e62655d0c4c45b4233239a43087cbf820d79673b378b8bf1c4743#1
   location: nova/api/openstack/compute/tenant_networks.py:66
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
-  verified_by: codex-work
+  label: significant
+  category: default
+  evidence:
+  - type: docs
+    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/nova/conf/api.py#L327-L331
+    quote: "When True, the TenantNetworkController will query the Neutron API to get the default networks to use."
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "Only when [api]use_neutron_default_nets is True does the os-tenant-networks controller fetch default networks from Neutron; the option help (rendered into the configuration reference via doc/source/configuration/config.rst show-options) states this on/off rule."
 - id: nova-0070
   anchor: symbol:python:nova.api.openstack.compute.floating_ips.FloatingIPActionController._add_floating_ip:Method#fbeb1861b3cbe51013bc156ebb25b0eeee0e6778e02d7bb51880b65a6b46b57f#1
   location: nova/api/openstack/compute/floating_ips.py:260
   draft: null
   drafted_by: null
   label: unclear
-  category: null
+  category: error-handling
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "Maps FloatingIpNotFoundForAddress during addFloatingIp to HTTP 404. Searched api-ref servers-actions.inc (addFloatingIp lists itemNotFound(404) but gives no condition), os-floating-ips.inc, and the blame commit 9a47137f535 (v2.1 port, blueprint v2-on-v3-api, no bug); no source ties a missing floating IP to 404."
 - id: nova-0071
   anchor: symbol:python:nova.compute.api.API.resize:Method#56be6b61132fc285e33304076f93cf990cbe0be4ef2db4538a8fcfbaa1a89d97#1
   location: nova/compute/api.py:4407
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
-  verified_by: codex-work
+  label: significant
+  category: validation
+  evidence:
+  - type: issue
+    url: https://bugs.launchpad.net/nova/+bug/1825020
+    quote: "Did not expect resize of instance, that was booted from volume, to trigger image size check"
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "For a volume-backed resize the API validates only NUMA/PCI and min_ram, skipping the image disk-size check; bug 1825020 (Closes-Bug of commit 8aae3e39e58 that added this branch) states that volume-backed resize must not trigger the image size check."
 - id: nova-0072
   anchor: symbol:python:nova.api.openstack.compute.security_groups.SecurityGroupControllerBase._format_security_group:Method#5fabc14941b852dc89c64ad7e94e4fccff08a6f9f2228678d6792c29fa3f1ecf#1
   location: nova/api/openstack/compute/security_groups.py:96
   draft: null
   drafted_by: null
   label: unclear
-  category: null
+  category: error-handling
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "Skips a rule whose referenced remote security group was not found when formatting a security group. Searched api-ref os-security-groups.inc and server-security-groups.inc, and bug 1729741 (commit dc658dbdcf2), which is only about redundant Neutron queries; no source states that such rules are omitted."
 - id: nova-0073
   anchor: symbol:python:nova.quota.UnifiedLimitsDriver.get_project_quotas:Method#13652a16dc83e9bf5c54ff4d844d032462e0711e5596c61601c4c114558f7bb5#1
   location: nova/quota.py:843
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
-  verified_by: codex-work
+  label: significant
+  category: limit
+  evidence:
+  - type: spec
+    url: https://opendev.org/openstack/nova-specs/src/commit/bb9651bea014f19960b340047c767e0eb268ad66/specs/yoga/implemented/unified-limits-nova.rst#L238-L239
+    quote: "The following limits will be changed to only be set via registered limits in the unified limits system that applies equally to all projects:"
+  - type: spec
+    url: https://opendev.org/openstack/nova-specs/src/commit/bb9651bea014f19960b340047c767e0eb268ad66/specs/yoga/implemented/unified-limits-nova.rst#L254-L257
+    quote: "Using registered limits only means: * no per project overrides * no per user overrides"
+  - type: spec
+    url: https://opendev.org/openstack/nova-specs/src/commit/bb9651bea014f19960b340047c767e0eb268ad66/specs/yoga/implemented/unified-limits-nova.rst#L337-L339
+    quote: "a best effort will be made to keep the older micro-versions working by proxing API calls to Keystone and Placement as needed."
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "With the unified limits driver, project quotas report the Keystone project limit for resources Keystone limits (instances/cores/ram) and otherwise the registered default limit (or -1); the unified-limits-nova spec (blueprint referenced by commit 22bc8419716) states the registered-limit-only rule and the Keystone proxying of the quota APIs."
 - id: nova-0074
   anchor: symbol:python:nova.api.openstack.compute.server_migrations.ServerMigrationsController.show:Method#5112f0240e36a744937c7d40fdc66b79684d58c694bdcb60abe0b5b3bdc62a60#1
   location: nova/api/openstack/compute/server_migrations.py:182
@@ -1324,25 +1387,40 @@ points:
   location: nova/api/openstack/compute/volume_attachments.py:321
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
-  verified_by: codex-work
+  label: significant
+  category: permission
+  evidence:
+  - type: docs
+    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/api-guide/source/server_concepts.rst#L594-L595
+    quote: "Lock a server so the following actions by non-admin users are not allowed to the server."
+  - type: docs
+    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/api-guide/source/server_concepts.rst#L619
+    quote: "- Update a volume attachment"
+  - type: docs
+    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/api-ref/source/os-volume-attachments-swap.inc#L40
+    quote: "Error response codes: badRequest(400), unauthorized(401), forbidden(403), itemNotFound(404), conflict(409)"
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "Swap volume on a locked instance (InstanceIsLocked) is rejected with 409; the API guide lists 'Update a volume attachment' among actions not allowed on a locked server and the API reference lists conflict(409)."
 - id: nova-0076
   anchor: symbol:python:nova.compute.api.KeypairAPI.create_key_pair:Method#4f8e767e3de53eb69eff96552aac02c58defc07fcd7b7c91389069f92be46d6e#1
   location: nova/compute/api.py:7066
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
-  verified_by: codex-work
+  label: significant
+  category: limit
+  evidence:
+  - type: docs
+    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/nova/conf/quota.py#L245-L248
+    quote: "When recheck_quota is True, quota will be checked a second time after resources have been created and if the resource is over quota, it will be deleted and OverQuota will be raised, usually resulting in a 403 response to the REST API user."
+  - type: docs
+    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/doc/source/admin/unified-limits.rst#L308-L313
+    quote: "Nova will perform a second quota check after allocating resources."
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "On the post-create quota recheck, a KeypairLimitExceeded destroys the new keypair and re-raises; the recheck_quota option documentation states that an over-quota resource is deleted and the over-quota error raised."
 - id: nova-0077
   anchor: symbol:python:nova.compute.api.load_cells:Function#72995f4fcc0e578e34e7cbb1c0a66aecc94fcd10916264443a0189a09d8516f1#1
   location: nova/compute/api.py:355
@@ -1361,24 +1439,24 @@ points:
   draft: null
   drafted_by: null
   label: unclear
-  category: null
+  category: validation
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "When a capabilities scope is not an attribute of the host state, ComputeCapabilitiesFilter falls back to the host's stats dict. Searched doc/source/admin/scheduling.rst (ComputeCapabilitiesFilter section, no mention of stats), bug 1370948 (commit 670647e7184f, logging refactor) and blueprint no-compute-fanout-to-scheduler (commit 108b83a4c1, summary only); none states the stats fallback."
 - id: nova-0079
   anchor: symbol:python:nova.quota.DbQuotaDriver._process_quotas:Method#36154f2aa5732e8af138e9bda8ab81fd43509b4a53c28763be2d71f14b9ea9b9#1
   location: nova/quota.py:140
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
+  label: trivial
+  category: limit
   evidence: []
-  verified_by: codex-work
-  second_label: trivial
-  second_by: claude-blind-v3
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  verified_by: claude-relabel-v4
+  second_label: null
+  second_by: null
+  note: "In the remains calculation, user quota rows are subtracted only for resources present in the requested resource set; the membership guard just skips resources not requested (guide: check passes because no requirement to check), the subtraction itself is the loop body."
 - id: nova-0080
   anchor: symbol:python:nova.compute.api.API._validate_unshelve_az:Method#988c4e62c192ce9034765b69b16e66b92d9a0e01f62f93ff8d86e2a2b5664aa8#1
   location: nova/compute/api.py:4662
@@ -1426,13 +1504,19 @@ points:
   location: nova/compute/api.py:1286
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
-  verified_by: codex-work
+  label: significant
+  category: validation
+  evidence:
+  - type: docs
+    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/api-ref/source/parameters.yaml#L6431-L6434
+    quote: "The API will return 400 if no compute services are found with the given host name."
+  - type: docs
+    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/api-ref/source/parameters.yaml#L6475-L6478
+    quote: "The API will return 400 if no hypervisors are found with the given hostname."
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "When a host is requested at server create, its HostMapping (and node if given) must exist, otherwise ComputeHostNotFound (400); the API reference for the create 'host' parameter states this rule."
 - id: nova-0084
   anchor: symbol:python:nova.compute.api.API._confirm_resize_on_deleting:Method#b269d8601327b6b741cd2734c7b13e5406e8e6fd9b39746fd5015f3383835d48#1
   location: nova/compute/api.py:2670
@@ -1442,33 +1526,39 @@ points:
   category: validation
   evidence: []
   verified_by: codex-work
-  second_label: trivial
-  second_by: claude-blind-v3
+  second_label: null
+  second_by: null
   note: Guard for an absent migration before processing its state.
 - id: nova-0085
   anchor: symbol:python:nova.compute.api.API.resize:Method#242ba13b3cf27531741c9fad2fd84b105bda7357124e243c3c51950b7dd88f06#1
   location: nova/compute/api.py:4475
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
-  verified_by: codex-work
+  label: significant
+  category: default
+  evidence:
+  - type: docs
+    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/api-ref/source/servers-admin-action.inc#L65-L67
+    quote: "Starting from microversion 2.56, the ``host`` parameter is available to specify the destination host. If you specify ``null`` or don't specify this parameter, the scheduler chooses a host."
+  - type: docs
+    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/api-ref/source/parameters.yaml#L3608-L3609
+    quote: "If you specify ``null`` or don't specify this parameter, the scheduler chooses a host."
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "Without a target host the request spec destination is cleared so the scheduler picks a host; with a host, it is set as the requested destination for scheduler validation, as the migrate API reference documents."
 - id: nova-0086
   anchor: symbol:python:nova.quota.DbQuotaDriver._process_quotas:Method#cacee5d5ffbde3c0fe992b7ed28af94e0864c802db460908bfe572c1ee34008a#1
   location: nova/quota.py:107
   draft: null
   drafted_by: null
   label: unclear
-  category: null
+  category: limit
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "Loads class quotas from the DB only when a quota_class is set (context or argument), else uses no class quotas. Searched doc/source/admin/quotas.rst (documents only the default class and states 'Only the default class is supported by nova'), api-ref os-quota-sets.inc and os-quota-class-sets.inc, and commit d9cee6b2ee23 (revert, no bug); no source documents this non-default class branch."
 - id: nova-0087
   anchor: symbol:python:nova.api.openstack.compute.helpers.translate_attributes:Function#27bdbd193795dd6ce13f41bc3620d3af17c59e63761df505c02f3d781a9b1728#1
   location: nova/api/openstack/compute/helpers.py:99
@@ -1505,24 +1595,27 @@ points:
   draft: null
   drafted_by: null
   label: unclear
-  category: null
+  category: validation
   evidence: []
-  verified_by: claude-adjudication-v3
-  second_label: unclear
-  second_by: claude-blind-v3
-  note: "The anchored branch passes a host that does not report maxphysaddr bits. No pinned source states that outcome."
+  verified_by: claude-relabel-v4
+  second_label: null
+  second_by: null
+  note: "If the host reports no maxphysaddr bits, the image hw_maxphysaddr_bits check passes. Searched doc/source (no maxphysaddr text), api-ref, and spec libvirt-maxphysaddr-support (2024.1 implemented, blueprint of commit 1038a633870), which only says a numeric comparison is done in ImagePropertiesFilter; no source states the outcome when the host lacks the data."
 - id: nova-0090
   anchor: symbol:python:nova.api.openstack.compute.hypervisors.HypervisorsController._get_hypervisors:Method#552fe763eccacd5a9ee1bd42789084e7eb1ebacf08c28ef9da9228fc621e1925#1
   location: nova/api/openstack/compute/hypervisors.py:163
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
-  verified_by: codex-work
+  label: significant
+  category: validation
+  evidence:
+  - type: docs
+    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/api-ref/source/parameters.yaml#L770-L773
+    quote: ".. note:: ``limit`` and ``marker`` query parameters for paging are not supported when listing hypervisors using a hostname pattern. Also, ``links`` will not be returned in the response when using this query parameter."
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "When hypervisor_hostname_pattern is given, paging (limit/marker) is rejected with 400 and no links are generated; the API reference states exactly this."
 - id: nova-0091
   anchor: symbol:python:nova.compute.api.API.create:Method#dabeb965f7abe78a82fc05743a6528f5153b290e306f0026eceb25fa1ec3de26#1
   location: nova/compute/api.py:2255
@@ -1531,22 +1624,31 @@ points:
   label: unclear
   category: null
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: "Anchor is a line of the API.create() signature defaulting access_ip_v4, access_ip_v6 and requested_networks to None (not provided); no branch is taken here. Searched api-ref servers.inc and the blame commit 1de6e960af8 (instance_type rename, no bug); no source documents a decision at this line."
 - id: nova-0092
   anchor: symbol:python:nova.api.openstack.compute.volume_attachments.VolumeAttachmentController._update_volume_swap:Method#5a9c411709cceb615b56d600cfa33e4758f85e07a966ab36dab132e200a9a136#1
   location: nova/api/openstack/compute/volume_attachments.py:316
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
-  verified_by: codex-work
+  label: significant
+  category: validation
+  evidence:
+  - type: docs
+    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/api-ref/source/os-volume-attachments-swap.inc#L35-L36
+    quote: "Updating, or what is commonly referred to as \"swapping\", volume attachments with volumes that have more than one read/write attachment, is not supported."
+  - type: docs
+    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/api-ref/source/os-volume-attachments-swap.inc#L40
+    quote: "Error response codes: badRequest(400), unauthorized(401), forbidden(403), itemNotFound(404), conflict(409)"
+  - type: issue
+    url: https://bugs.launchpad.net/nova/+bug/1775418
+    quote: "In the short term we should at least prevent data corruption by preventing swap volume of a multiattached volume."
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: "Swap volume failures for invalid volumes or a source volume with more than one read/write attachment become 400; the API reference states the multiattach swap is not supported and bug 1775418 (Closes-Bug of commit 5a1d159d142 that added MultiattachSwapVolumeNotSupported here) requires blocking it."
 - id: nova-0093
   anchor: symbol:python:nova.quota.DbQuotaDriver.get_user_quotas:Method#2d2b6c6ce39554f2984b4a412bb3f39ddd8b250f385946e523accf012e302149#1
   location: nova/quota.py:228
@@ -1564,13 +1666,13 @@ points:
   location: nova/compute/api.py:3484
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: "If the instance vanished during snapshot, the branch only picks vm_state=DELETED instead of task_state=DELETING for the InstanceInvalidState message; the same exception (409) is raised either way, so only the diagnostic changes."
 - id: nova-0095
   anchor: symbol:python:nova.scheduler.filters.json_filter.JsonFilter._process_filter:Method#fea802171834850aba7ce1ffe8c1f2725d0888085fd63d71592889dc07f03842#1
   location: nova/scheduler/filters/json_filter.py:122
@@ -1589,57 +1691,69 @@ points:
   draft: null
   drafted_by: null
   label: unclear
-  category: null
+  category: error-handling
   evidence: []
-  verified_by: codex-work
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: "Maps InvalidID from get_floating_ip during floating IP delete to HTTP 400. Searched api-ref os-floating-ips.inc (lists badRequest(400) with no condition) and commit f88c725f212 ('change exception.InvalidID from 404 to 400', no bug referenced); no level 1-3 source states the rule."
 - id: nova-0097
   anchor: symbol:python:nova.compute.api.reject_legacy_vtpm_live_migration.inner:Method#5a04f0e9b7277af29004b115f34359cdf662098c22a3ed61512540a125d3e487#1
   location: nova/compute/api.py:297
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
-  verified_by: codex-work
-  second_label: significant
-  second_by: claude-blind-v3
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  label: significant
+  category: validation
+  evidence:
+  - type: spec
+    url: https://opendev.org/openstack/nova-specs/src/commit/bb9651bea014f19960b340047c767e0eb268ad66/specs/2026.1/implemented/vtpm-live-migration.rst#L269-L271
+    quote: "Live migration of instances with vTPM will be blocked until the minimum service version of the deployment is the upgraded version. The cloud must be fully upgraded."
+  verified_by: claude-relabel-v4
+  second_label: null
+  second_by: null
+  note: "Live migration of a vTPM instance is rejected (VTPMOldCompute) while the cell's minimum nova-compute version is below MIN_COMPUTE_VTPM_LIVE_MIGRATION; the vtpm-live-migration spec (blueprint of commit 2919e41560e) states this upgrade gate."
 - id: nova-0098
   anchor: symbol:python:nova.compute.api.API._delete:Method#f306d506e4e2d3828f02b156cd9d64a9968f9a03ef0bbaa683a42abc6f59407d#1
   location: nova/compute/api.py:2484
   draft: null
   drafted_by: null
   label: unclear
-  category: null
+  category: state-transition
   evidence: []
-  verified_by: codex-work
-  second_label: significant
-  second_by: claude-blind-v3
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  verified_by: claude-relabel-v4
+  second_label: null
+  second_by: null
+  note: "When an unscheduled instance's BuildRequest is deleted first, the API destroys the instance locally and returns. Searched api-ref servers.inc (Delete Server), specs ocata/implemented/cells-scheduling-interaction.rst (blueprint of commit 3c2ce9450be, mentions only deletion races) and the blueprint page; none states this delete-while-booting outcome."
 - id: nova-0099
   anchor: symbol:python:nova.api.openstack.compute.aggregates.AggregateController._add_host:Method#b6db5c814b75705ac3cfd55b54d60e2d0a54ebdea0b3cc8047e6076d28640335#1
   location: nova/api/openstack/compute/aggregates.py:201
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
-  verified_by: codex-work
+  label: significant
+  category: validation
+  evidence:
+  - type: docs
+    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/api-ref/source/os-aggregates.inc#L217-L218
+    quote: "It is not allowed to move a host with servers between Availability Zones. Such request is rejected with 409 error."
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: "add_host failures AggregateHostExists/InvalidAggregateAction become 409; InvalidAggregateAction is raised when adding the host would move its servers to another AZ, which the API reference says is rejected with 409."
 - id: nova-0100
   anchor: symbol:python:nova.quota.DbQuotaDriver.get_user_quotas:Method#56bad21e9ca112bba4d078441d76eab5e654461c94fdbf950c7e320cedeca9aa#1
   location: nova/quota.py:237
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
-  verified_by: codex-work
+  label: significant
+  category: default
+  evidence:
+  - type: issue
+    url: https://bugs.launchpad.net/nova/+bug/1205582
+    quote: "Instances quota for user should be 3, but in fact it's 2, and 2 is the default quota i have set in the config file."
+  - type: issue
+    url: https://bugs.launchpad.net/nova/+bug/1205582
+    quote: "When user quota is not set, it's not restricted by the project quota."
+  verified_by: claude-relabel-v4
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: "For each resource with no user-specific quota, the user's quota defaults to the project quota. The condition was introduced by commit 2c84198f2b ('Use project quota as default user quota', Fixes bug 1205582) and moved here by b4905b40fd2 (bug 1208400); bug 1205582 states that an unset user quota should equal the project quota."

@@ -97,7 +97,12 @@ fn show(output: &mut impl Write, point: &Point, code: &str, second: bool) -> io:
             evidence.quote.as_deref().unwrap_or_default()
         )?;
     }
-    if !second {
+    if second {
+        writeln!(
+            output,
+            "e <kind> <url> <quote> | add evidence for this second review"
+        )?;
+    } else {
         if let Some(draft) = &point.draft {
             writeln!(output, "Draft {:?}: {}", draft.label, draft.reason)?;
         }
@@ -126,6 +131,7 @@ fn edit_point(
     reviewer: &str,
     second: bool,
 ) -> io::Result<Progress> {
+    let mut independent_evidence = Vec::new();
     loop {
         let mut line = String::new();
         if input.read_line(&mut line)? == 0 {
@@ -149,7 +155,12 @@ fn edit_point(
             } else {
                 point.category
             };
-            if label_allowed(point, label, category, second) {
+            if label_allowed(
+                point.evidence.iter().chain(&independent_evidence),
+                label,
+                category,
+                second,
+            ) {
                 if second {
                     point.second_label = Some(label);
                     point.second_by = Some(reviewer.to_owned());
@@ -164,7 +175,9 @@ fn edit_point(
                 output,
                 "Significant needs documented evidence. Trivial needs a category. Use u if unclear."
             )?;
-        } else if !second && edit_metadata(point, action, argument) {
+        } else if second && action == "e" && add_evidence(&mut independent_evidence, argument)
+            || !second && edit_metadata(point, action, argument)
+        {
             continue;
         } else {
             writeln!(output, "Choose an available action.")?;
@@ -175,7 +188,7 @@ fn edit_point(
 
 fn edit_metadata(point: &mut Point, action: &str, argument: &str) -> bool {
     match action {
-        "e" => add_evidence(point, argument),
+        "e" => add_evidence(&mut point.evidence, argument),
         "c" => {
             point.category =
                 serde_json::from_value(serde_json::Value::String(argument.to_owned())).ok();
@@ -201,7 +214,7 @@ fn edit_metadata(point: &mut Point, action: &str, argument: &str) -> bool {
     }
 }
 
-fn add_evidence(point: &mut Point, argument: &str) -> bool {
+fn add_evidence(evidence: &mut Vec<Evidence>, argument: &str) -> bool {
     let mut fields = argument.splitn(3, ' ');
     let Some(kind) = fields.next().and_then(|name| {
         serde_json::from_value::<EvidenceKind>(serde_json::Value::String(name.to_owned())).ok()
@@ -214,7 +227,7 @@ fn add_evidence(point: &mut Point, argument: &str) -> bool {
     let Some(quote) = fields.next().filter(|quote| !quote.trim().is_empty()) else {
         return false;
     };
-    point.evidence.push(Evidence {
+    evidence.push(Evidence {
         kind,
         url: url.to_owned(),
         quote: Some(quote.to_owned()),
@@ -222,13 +235,15 @@ fn add_evidence(point: &mut Point, argument: &str) -> bool {
     true
 }
 
-fn label_allowed(point: &Point, label: Label, category: Option<Category>, second: bool) -> bool {
+fn label_allowed<'a>(
+    mut evidence: impl Iterator<Item = &'a Evidence>,
+    label: Label,
+    category: Option<Category>,
+    second: bool,
+) -> bool {
     let kinds = [EvidenceKind::Docs, EvidenceKind::Spec, EvidenceKind::Issue];
     match label {
-        Label::Significant => point
-            .evidence
-            .iter()
-            .any(|evidence| kinds.contains(&evidence.kind)),
+        Label::Significant => evidence.any(|item| kinds.contains(&item.kind)),
         Label::Trivial => second || category.is_some(),
         Label::Unclear => true,
     }
@@ -266,5 +281,30 @@ mod tests {
         ));
         assert_eq!(point.label, Some(Label::Significant));
         assert_eq!(point.second_label, Some(Label::Trivial));
+    }
+
+    #[test]
+    fn second_review_accepts_independent_evidence_without_changing_first_review() {
+        let mut project = project();
+        sample::freeze(&mut project, &points()).unwrap();
+        let point = &mut project.points[0];
+        point.label = Some(Label::Unclear);
+        let input = b"s\ne test https://example.org/test Test result\ns\ne docs https://example.org/rule Rule text\ns\n";
+        let mut output = Vec::new();
+
+        assert!(matches!(
+            edit_point(&mut &input[..], &mut output, point, "second", true).unwrap(),
+            Progress::Save
+        ));
+        assert_eq!(
+            String::from_utf8(output)
+                .unwrap()
+                .matches("Significant needs")
+                .count(),
+            2
+        );
+        assert_eq!(point.label, Some(Label::Unclear));
+        assert!(point.evidence.is_empty());
+        assert_eq!(point.second_label, Some(Label::Significant));
     }
 }

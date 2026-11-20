@@ -2017,94 +2017,94 @@ points:
   location: server/channels/app/team.go:1430
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: mattermost-0114
   anchor: symbol:go:server.channels.app.App.CreateChannel:Method#c8d4ad2962c2a365a3ce01d2038ee758bee6764f05b12adf05d32292222e0bfa#1
   location: server/channels/app/channel.go:315
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: mattermost-0115
   anchor: symbol:go:server.channels.app.App.DeleteChannel:Method#1c4b1ecdb2dc6f6dd03c5118cfee13fdf1c631453224b7ee039f5332ee993915#1
   location: server/channels/app/channel.go:1787
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: mattermost-0116
   anchor: symbol:go:server.channels.app.App.getEditHistoryForPost:Method#28caed3fe2d0fee27a7c23ec4d02dd750c36ad86ab3e85f225815659b555b8bc#1
   location: server/channels/app/post.go:3092
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: mattermost-0117
   anchor: symbol:go:server.channels.app.App.GetPermalinkPost:Method#b446ebcb4dc4318b50a66a5dae767a558a071907815b6cebed15b31ec73f0e4a#1
   location: server/channels/app/post.go:1912
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: mattermost-0118
   anchor: symbol:go:server.channels.app.App.SearchPostsForUser:Method#335556ec9c2366e4912def81e6ef8e64552468ab9e8b9a89d47ec979cadeb76c#1
   location: server/channels/app/post.go:2579
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Propagates the existing filtering error."
 - id: mattermost-0119
   anchor: symbol:go:server.channels.app.App.leaveTeam:Method#e088b953225daa8bf09ecd479e856049dc35a3b79619d69d2ad39fa85243069b#1
   location: server/channels/app/team.go:1442
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: mattermost-0120
   anchor: symbol:go:server.channels.app.App.buildThreadContextForRewrite:Method#3434dffe3e7ccca398763b4c7756768f6bd91e6b717b5ec59db90bd50b847e84#1
   location: server/channels/app/post.go:3907
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."

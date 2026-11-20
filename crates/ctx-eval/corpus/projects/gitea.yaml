@@ -1321,118 +1321,127 @@ points:
   location: services/pull/check.go:400
   draft: null
   drafted_by: null
-  label: null
-  category: null
-  evidence: []
-  verified_by: null
+  label: significant
+  category: default
+  evidence:
+  - type: docs
+    url: https://github.com/go-gitea/gitea/blob/0b5dfdeeeaadf6350314246c5936b53cce38170c/templates/swagger/v1-openapi3.generated.json#L5978
+    quote: "either `true` to enable AutodetectManualMerge, or `false` to prevent it"
+  - type: issue
+    url: https://github.com/go-gitea/gitea/pull/12543
+    quote: "Make manual merge autodetection optional"
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Skips manual merge detection when the repository setting disables it."
 - id: gitea-0102
   anchor: symbol:go:services.pull.StartPullRequestCheckDelayable:Function#71ad5a02508c24568b76bfdf558aedc9c783644bbb94adfe0d54f99275545416#1
   location: services/pull/check.go:95
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: gitea-0103
   anchor: symbol:go:models.perm.access.RecalculateTeamAccesses:Function#e43cb7162b7be7f6adcb2267eea7fb7238395c0863eeb4e8d195b99973c2724e#1
   location: models/perm/access/access.go:210
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: gitea-0104
   anchor: symbol:go:models.perm.access.GetDoerRepoPermission:Function#517e75139842c9b2c1cdcb0fb7f2836bc11c0435f063925abdc094f75eee0b9d#1
   location: models/perm/access/repo_permission.go:414
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: gitea-0105
   anchor: symbol:go:services.pull.getMergeCommit:Function#9ab3379f8e8e815511f212d05e5f3d6e54377668502590d63674aab345a636d5#1
   location: services/pull/check.go:327
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Returns the existing ref lookup error with diagnostic context."
 - id: gitea-0106
   anchor: symbol:go:models.organization.ApplyTeamListFilter:Function#41d115b9e7c003b14f9f1fd17c8a7005594e44874fc515d6a2533ecfacea822c#2
   location: models/organization/team_list.go:124
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Propagates the existing error."
 - id: gitea-0107
   anchor: symbol:go:models.perm.access.refreshAccesses:Function#b6051996cf9db82639cf9bf337f6c4bb0b536f371111e5851e5632143d3f4050#1
   location: models/perm/access/access.go:142
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: validation
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Skips the delete query when its ID list is empty."
 - id: gitea-0108
   anchor: symbol:go:models.git.ProtectedBranch.CanUserForcePush:Method#f25b9ab43155a41f71a88443b7db7de2f5f03765e738652fdb5bc65936aac147#1
   location: models/git/protected_branch.go:164
   draft: null
   drafted_by: null
-  label: null
-  category: null
-  evidence: []
-  verified_by: null
+  label: significant
+  category: permission
+  evidence:
+  - type: issue
+    url: https://github.com/go-gitea/gitea/pull/28086
+    quote: "both will need to be enabled for a user to force push"
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "An allowlisted user still needs regular push permission."
 - id: gitea-0109
   anchor: symbol:go:services.pull.MarkAsMerged:Function#5b734d29e3ad5c1632b96ed289d97780e799992854fa3876449030cd8aca5345#1
   location: services/pull/merge.go:859
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: gitea-0110
   anchor: symbol:go:services.pull.CheckPullBranchProtections:Function#41d115b9e7c003b14f9f1fd17c8a7005594e44874fc515d6a2533ecfacea822c#1
   location: services/pull/merge.go:708
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Propagates the existing error."

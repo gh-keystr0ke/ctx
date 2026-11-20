@@ -6,11 +6,14 @@ All notable changes to `ctx` are documented here. The project follows semantic v
 
 ### Added
 
-- `ctx repair` plans context drift, applies verified link repairs, and queues proposals for review.
-- `ctx coverage` reports structural mappings and ranked behavior in Python, Rust, and Go.
-- Coverage research and interviews preserve evidence and stage anchored knowledge for verification.
-- HTML reports and read-only MCP tools expose coverage. Verbose review lists new unexplained decisions.
-- `ctx-corpus` builds, reviews, and scores pinned decision point samples.
+- Find unexplained behavior in Python, Rust, and Go with `ctx coverage`. Scope the report to changes, paths, symbols, or requirements.
+- Run `ctx coverage research` to look for explanations in linked context, code, tests, and Git history. Use `ctx coverage ask` for gaps that remain open.
+- Use `ctx verify --knowledge` to review and accept new explanations. Future Context Packs and reviews can include the confirmed rule and its evidence.
+- Run `ctx repair plan` to inspect drift after code changes. Use `ctx repair apply --policy safe` to apply verified link repairs and `ctx repair review` to review proposals.
+- Inspect decision states in HTML and read-only MCP coverage reports. Verbose `ctx review` lists new unexplained decisions.
+- Build, review, and score pinned decision point samples with `ctx-corpus`.
+
+See [Context coverage](docs/coverage.md) and [Context repair](docs/repair.md) for examples.
 
 ## 0.8.8 — 2026-11-18
 

@@ -1645,118 +1645,118 @@ points:
   location: zerver/actions/message_send.py:1486
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: zulip-0083
   anchor: symbol:python:corporate.lib.stripe.BillingSession.do_update_plan:Method#dc821dc2dd19d0244e1e76e1bf7515ab5a20b86d588d1815ae3cfcc61304b9fb#1
   location: corporate/lib/stripe.py:3258
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: zulip-0084
   anchor: symbol:python:corporate.lib.stripe.BillingSession.ensure_current_plan_is_upgradable:Method#e834864c754809854a83197a0c605d464d11024de19f69d9f429c6c81a88cf1c#1
   location: corporate/lib/stripe.py:1968
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: validation
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Returns immediately for an absent plan."
 - id: zulip-0085
   anchor: symbol:python:zerver.lib.rate_limiter.RateLimitedObject.rate_limit_request:Method#274ddd73340e5e975dfad15c985c9d69941e9d8eb11f10bcf321074acb07e917#1
   location: zerver/lib/rate_limiter.py:66
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: zulip-0086
   anchor: symbol:python:corporate.lib.stripe.RemoteRealmBillingSession.write_to_audit_log:Method#2dfb1c60afe73dd815656cdf5ca3d6accdd329c5d4657078dd84b3bb7b499e96#1
   location: corporate/lib/stripe.py:4839
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: observability
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Adds optional data to the log record."
 - id: zulip-0087
   anchor: symbol:python:zerver.actions.message_send.send_rate_limited_pm_notification_to_bot_owner:Function#746e45ffd66f905e709ef28b293a9444193a6bdc6c48898a8b7c288a7c13c5af#1
   location: zerver/actions/message_send.py:1640
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: zulip-0088
   anchor: symbol:python:zerver.lib.streams.access_requested_group_permissions_for_streams:Function#f7e298e9a5dcefd3ffc1148cb3d132df3ed90697ab65a9fdf49e4fa2c1ddf464#1
   location: zerver/lib/streams.py:1629
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: validation
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "A type check chooses the representation for the setting."
 - id: zulip-0089
   anchor: symbol:python:zerver.lib.streams.access_stream_for_send_message:Function#41588ff0ba5746697a806a6145a9456054336f0e2223265ec7774e9e670d962f#1
   location: zerver/lib/streams.py:702
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: zulip-0090
   anchor: symbol:python:corporate.lib.stripe.BillingSession.update_customer_minimum_licenses:Method#99a9cb39702b6894a7e230ab8f899509af84bfd1324bc2c87e35dc047eb48266#1
   location: corporate/lib/stripe.py:1514
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: zulip-0091
   anchor: symbol:python:zerver.lib.retention.delete_messages:Function#bb29eefaf91022fc98f51793a31195984398834ddc2c3e00a422bdff54d09280#1
   location: zerver/lib/retention.py:419
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."

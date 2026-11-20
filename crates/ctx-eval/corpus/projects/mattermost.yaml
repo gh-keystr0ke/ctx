@@ -1654,118 +1654,118 @@ points:
   location: server/channels/app/team.go:58
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: mattermost-0084
   anchor: symbol:go:server.channels.app.App.MarkAllDirectAndGroupMessagesViewed:Method#810ab2f45177b57622127f5fa60777e5de0331b79db89e1efc6d3aa35bb7c1b5#1
   location: server/channels/app/channel.go:3679
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: mattermost-0085
   anchor: symbol:go:server.channels.app.App.CreateChannelWithUserAndPropertyValues:Method#cb471591cef255d47b734d4fe8c5bdf70a41161943789111e998bad779a07596#1
   location: server/channels/app/channel.go:188
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: validation
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Checks that the required team identifier is nonempty."
 - id: mattermost-0086
   anchor: symbol:go:server.channels.app.App.setupBroadcastHookForAbacFiles:Method#1c0d11bf9b3ea7533965396b74d447fa0f097851bb55b98a573f9ed30016399a#1
   location: server/channels/app/post.go:1295
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: mattermost-0087
   anchor: symbol:go:server.channels.app.App.CreatePostAsUserWithFlags:Method#e88d369623f67d46fd76617e728fb1026aedafd7e06bab044b9f37a7d48bdf73#1
   location: server/channels/app/post.go:54
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: mattermost-0088
   anchor: symbol:go:server.channels.app.App.parseAndFetchChannelIdByNameFromInFilter:Method#f95d2993f86915bb767e9ba4956771958bf707ca767f514f4abf774a09816cca#5
   location: server/channels/app/post.go:2358
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Propagates the existing error."
 - id: mattermost-0089
   anchor: symbol:go:server.channels.app.App.CreateTeamWithUser:Method#735a291c7be89155bd4144c98e50ae4d0bb7757a9c6d27b29e7b52c0eec08b26#1
   location: server/channels/app/team.go:148
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: mattermost-0090
   anchor: symbol:go:server.channels.app.App.PostUpdateChannelHeaderMessage:Method#c561fd18ef38993cb2880b9c794e57050308ecafa6a13a9a35d293539d8ca0b3#1
   location: server/channels/app/channel.go:2156
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: mattermost-0091
   anchor: symbol:go:server.channels.app.App.CreateChannelWithUserAndPropertyValues:Method#f95d2993f86915bb767e9ba4956771958bf707ca767f514f4abf774a09816cca#1
   location: server/channels/app/channel.go:194
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Propagates the existing error."
 - id: mattermost-0092
   anchor: symbol:go:server.channels.app.App.ValidateMoveOrCopy:Method#cadbdad0cf2ce27bdd986ad83cc012c00e15e98c961195d148e4e937567d2d91#1
   location: server/channels/app/post.go:3408
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."

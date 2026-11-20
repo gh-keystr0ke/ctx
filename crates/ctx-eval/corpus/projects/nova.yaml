@@ -1264,118 +1264,121 @@ points:
   location: nova/compute/api.py:4407
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: nova-0072
   anchor: symbol:python:nova.api.openstack.compute.security_groups.SecurityGroupControllerBase._format_security_group:Method#5fabc14941b852dc89c64ad7e94e4fccff08a6f9f2228678d6792c29fa3f1ecf#1
   location: nova/api/openstack/compute/security_groups.py:96
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: nova-0073
   anchor: symbol:python:nova.quota.UnifiedLimitsDriver.get_project_quotas:Method#13652a16dc83e9bf5c54ff4d844d032462e0711e5596c61601c4c114558f7bb5#1
   location: nova/quota.py:843
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: nova-0074
   anchor: symbol:python:nova.api.openstack.compute.server_migrations.ServerMigrationsController.show:Method#5112f0240e36a744937c7d40fdc66b79684d58c694bdcb60abe0b5b3bdc62a60#1
   location: nova/api/openstack/compute/server_migrations.py:182
   draft: null
   drafted_by: null
-  label: null
-  category: null
-  evidence: []
-  verified_by: null
+  label: significant
+  category: state-transition
+  evidence:
+  - type: docs
+    url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/api-ref/source/server-migrations.inc#L191
+    quote: "Abort an in-progress live migration."
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "The API can cancel a migration only while it is in progress."
 - id: nova-0075
   anchor: symbol:python:nova.api.openstack.compute.volume_attachments.VolumeAttachmentController._update_volume_swap:Method#2fa988274c6ee36afc2633295d5897053ca49e67357d28169d0dfe3a275e6e60#1
   location: nova/api/openstack/compute/volume_attachments.py:321
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: nova-0076
   anchor: symbol:python:nova.compute.api.KeypairAPI.create_key_pair:Method#4f8e767e3de53eb69eff96552aac02c58defc07fcd7b7c91389069f92be46d6e#1
   location: nova/compute/api.py:7066
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: nova-0077
   anchor: symbol:python:nova.compute.api.load_cells:Function#72995f4fcc0e578e34e7cbb1c0a66aecc94fcd10916264443a0189a09d8516f1#1
   location: nova/compute/api.py:355
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: validation
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Checks whether the cached collection needs loading."
 - id: nova-0078
   anchor: symbol:python:nova.scheduler.filters.compute_capabilities_filter.ComputeCapabilitiesFilter._get_capabilities:Method#540573081038ea6a1398a1f7573edca027794d525994c3a2c423b2383bf84762#1
   location: nova/scheduler/filters/compute_capabilities_filter.py:49
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: nova-0079
   anchor: symbol:python:nova.quota.DbQuotaDriver._process_quotas:Method#36154f2aa5732e8af138e9bda8ab81fd43509b4a53c28763be2d71f14b9ea9b9#1
   location: nova/quota.py:140
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: nova-0080
   anchor: symbol:python:nova.compute.api.API._validate_unshelve_az:Method#988c4e62c192ce9034765b69b16e66b92d9a0e01f62f93ff8d86e2a2b5664aa8#1
   location: nova/compute/api.py:4662
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."

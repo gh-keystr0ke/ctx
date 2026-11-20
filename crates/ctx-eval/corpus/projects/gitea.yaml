@@ -952,118 +952,118 @@ points:
   location: models/organization/org.go:287
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: gitea-0072
   anchor: symbol:go:models.organization.ownerVisibilitySatisfiesDoer:Function#42d9055b56c3dbaef55c3b1d05f021e41cdf6ace55c9eef1071f9255425a7aa3#1
   location: models/organization/org.go:442
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: gitea-0073
   anchor: symbol:go:models.git.updateUserWhitelist:Function#e0fcddfd8d5ae5514a728453db7f2aedc156ea5e25b5c22d980e631ca63c0130#1
   location: models/git/protected_branch.go:529
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: gitea-0074
   anchor: symbol:go:models.organization.TeamList.HasAllRepoAdminAccess:Method#b782a35a2ac26a07cdce0011dae2da76215390690a312ba5944a756979592c46#2
   location: models/organization/team_list.go:48
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: gitea-0075
   anchor: symbol:go:services.pull.getMergeMessage:Function#cda2dabb8f48ec8c785e4be085dbb458a2f3a85a16d3a1829ed2e6f68cccec37#1
   location: services/pull/merge.go:55
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Propagates issue poster loading failure."
 - id: gitea-0076
   anchor: symbol:go:services.pull.getMergeMessage:Function#0793f681b84eadb9c77104eab81a285d510b12aed96dd5c47511e217a99ee5a0#1
   location: services/pull/merge.go:109
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: gitea-0077
   anchor: symbol:go:services.pull.hasPullRequestCommitBeenMerged:Function#a67bbf943ddd2934ed2f5fa0f93d85fc7d78b22492c367063bbd7c9527cb9382#1
   location: services/pull/merge.go:295
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: gitea-0078
   anchor: symbol:go:models.perm.access.GetActionsUserRepoPermission:Function#81ba408cbd1ef492fdfa2e8cc77b99f7b7981f81061509a06498afe8cef2c97f#2
   location: models/perm/access/repo_permission.go:308
   draft: null
   drafted_by: null
-  label: null
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Propagates the existing permission lookup error."
 - id: gitea-0079
   anchor: symbol:go:models.organization.DoerViewOtherVisibility:Function#df9a74e9b588c1bb9d97049d7c9a121ec0335b7096365268629310eea4836b22#1
   location: models/organization/org_list.go:86
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
 - id: gitea-0080
   anchor: symbol:go:models.organization.Organization.AnyRepoUnitPermission:Method#3717cd3009efffcb9612024e728925a8257f14f4288544cfedc70120cc057603#1
   location: models/organization/org.go:292
   draft: null
   drafted_by: null
-  label: null
+  label: unclear
   category: null
   evidence: []
-  verified_by: null
+  verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."

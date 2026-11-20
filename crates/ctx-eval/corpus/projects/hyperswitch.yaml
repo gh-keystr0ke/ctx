@@ -441,13 +441,13 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 29356d8049fa607a75d0128623eef9a785b8e0defa68d3b315a69716fe76c2e3
-  label: unclear
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Propagates the storage error while extracting the address from a successful insert."
 - id: hyperswitch-0021
   anchor: symbol:rust:router.core.routing.helpers.default_specific_dynamic_routing_setup:Function#3425c35c227dc3645cb082d570b78162cdadb689ea597d13d90d8f2bd2050df6#1
   location: crates/router/src/core/routing/helpers.rs:2253
@@ -528,7 +528,7 @@ points:
   anchor: symbol:rust:router.core.payments.operations.payment_cancel_post_capture_sync.PaymentCancelPostCaptureSync.GetTracker<F,PaymentData<F>,id_type::PaymentId>.get_trackers:Method#0cfd0dc19962a8cb04ae4daa60a6c5eba5d541da1089124e65a2693a986834a2#1
   location: crates/router/src/core/payments/operations/payment_cancel_post_capture_sync.rs:102
   draft:
-    label: unclear
+    label: trivial
     category: null
     evidence: []
     reason: trivial label requires a category
@@ -536,13 +536,13 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: c46e9704ba202b3bd047ba124ffe7ca75c9f271a96709d1b04b8c77faee297f9
-  label: unclear
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Propagates a billing address lookup error in the cancellation flow."
 - id: hyperswitch-0026
   anchor: symbol:rust:router.core.payments.flows.authorize_flow.PaymentsAuthorizeRouterData.Feature<api::Authorize,types::PaymentsAuthorizeData>.pre_authentication_step:Method#cdd8eebf704aa4f55f3e1d59161f33a74821e4748e6c24cdef46d854067f68a9#1
   location: crates/router/src/core/payments/flows/authorize_flow.rs:515
@@ -661,7 +661,7 @@ points:
   anchor: symbol:rust:router.core.payments.operations.payment_capture.PaymentCapture.GetTracker<F,payments::PaymentData<F>,api::PaymentsCaptureRequest>.get_trackers:Method#869fd20a589ffb68ceaf1919d89834a2b34c1f08d382ee4f7fa8682cbf68ee2e#1
   location: crates/router/src/core/payments/operations/payment_capture.rs:179
   draft:
-    label: unclear
+    label: trivial
     category: null
     evidence:
     - E2
@@ -676,34 +676,13 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 7005c012191e4d03292b6f6334b16a7d290eb91b49d6d3610d02b29016cae6ca
-  label: unclear
-  category: null
-  evidence:
-  - type: docs
-    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/integration-guide/payment-experience/pay-then-vault/alternate-payment-method-widgets/hyperwidget-integration-guide.md#L20
-    quote: '| Payment Method | Region  | Type         | Supported flow          | Shipping Address availability | Billing address availability |'
-  - type: docs
-    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/integration-guide/payment-experience/pay-then-vault/mobile/android/README.md#L36
-    quote: <table data-view="cards"><thead><tr><th></th><th></th></tr></thead><tbody><tr><td><strong>Include New Fields</strong></td><td>Adapt swiftly to various use cases by adding new fields to the payment form, such as collecting billing addresses or zip codes for additional information.</td></tr><tr><td><strong>Prioritize Payment Methods</strong></td><td>Impact your payment mix and conversion rates by prioritizing or promot
-  - type: docs
-    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/integration-guide/payment-experience/pay-then-vault/mobile/cross-platform/react-native/react-native-reference.md#L295
-    quote: '| `PAYMENT_METHOD_INFO_BILLING_ADDRESS` | `{ country: string; state: string; postalCode: string }`                                                         | Billing address inputs             |'
-  - type: docs
-    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/integration-guide/payment-experience/pay-then-vault/mobile/cross-platform/react-native/react-native-with-rest-api-integration.md#L151
-    quote: '**Collect Billing Address From Wallet** should be enabled in the Hyperswitch Dashboard for wallet payment methods to work.'
-  - type: docs
-    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/integration-guide/payment-experience/payment/enable-alternate-payment-method-widgets/hyperwidget-integration-guide.md#L23
-    quote: '| Payment Method | Region  | Type         | Supported flow          | Shipping Address availability | Billing address availability |'
-  - type: docs
-    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/integration-guide/payment-experience/sdk-reference/js (1).md#L270
-    quote: '| `billingDetails (object)` | Specify customer''s billing details, which lets you pre-fill a customer’s name, email, phone number and address if required by payment method. Pre-filling as much information as possible streamlines the checkout process. |'
-  - type: docs
-    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/integration-guide/payment-experience/sdk-reference/js.md#L270
-    quote: '| `billingDetails (object)` | Specify customer''s billing details, which lets you pre-fill a customer’s name, email, phone number and address if required by payment method. Pre-filling as much information as possible streamlines the checkout process. |'
+  label: trivial
+  category: error-handling
+  evidence: []
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Propagates a billing address lookup error in the capture flow."
 - id: hyperswitch-0033
   anchor: symbol:rust:router.core.payments.retry.do_gsm_actions:Function#2214548bcc9fac88729046b91c23599428f02a1934bce676b0112993d649da3b#1
   location: crates/router/src/core/payments/retry.rs:158
@@ -826,7 +805,7 @@ points:
   anchor: symbol:rust:router.core.payments.operations.payment_complete_authorize.CompleteAuthorize.Domain<F,api::PaymentsRequest,PaymentData<F>>.fetch_payment_method:Method#c6748a528f4e447bf2565b53dc109e920eac7e5d637fd3d775f6aebeddedc524#1
   location: crates/router/src/core/payments/operations/payment_complete_authorize.rs:462
   draft:
-    label: unclear
+    label: trivial
     category: null
     evidence:
     - E1
@@ -836,19 +815,13 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 2199221f3900e460097c30ecfea0dc2e9792f8a9a1aa89c1973b61c1d8fa82d0
-  label: unclear
-  category: null
-  evidence:
-  - type: docs
-    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/about-hyperswitch/sdk-payment-flows.md#L244
-    quote: Hyperswitch uses the `PaymentIntent` object to track the status of a payment initiated by you. Since, Hyperswitch enables retrying a single payment multiple times across different processors until a successful transaction, we track each of these payment attempts through separate `PaymentAttempt` objects.
-  - type: docs
-    url: https://github.com/juspay/hyperswitch-docs/blob/6b4306d2f722da7dad938c8bf3bf4506fa75d689/about-hyperswitch/sdk-payment-flows.md#L246
-    quote: While `PaymentIntent` and `PaymentAttempt` have their own state machines, the various states in `PaymentAttempt` are also constrained by their respective mapping to the `PaymentIntent` statuses.
+  label: trivial
+  category: error-handling
+  evidence: []
   verified_by: codex-work
   second_label: unclear
   second_by: codex-work-second
-  note: null
+  note: "Propagates an error fetching the existing payment intent and attempt."
 - id: hyperswitch-0039
   anchor: symbol:rust:router.core.routing.helpers.update_window_for_elimination_routing:Function#b35dd5aa06f5bc6f81b6a2370fbac645f630ad4dc6a93bcfcf5cc4c194e6e36d#1
   location: crates/router/src/core/routing/helpers.rs:1266
@@ -960,13 +933,13 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 22ebdd22ba55dd19d39e65a6436af4113c326ecc7ab9eef75b0653a1ed3e87e1
-  label: unclear
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Propagates a telemetry event builder error."
 - id: hyperswitch-0045
   anchor: symbol:rust:router.core.payments.flows.session_flow.create_applepay_session_token:Function#db510f9ca5fbca088070883bb4636afde8011fb5e6b51a41e7874467c7cee45e#1
   location: crates/router/src/core/payments/flows/session_flow.rs:282
@@ -1545,13 +1518,13 @@ points:
   location: crates/router/src/core/payments/operations/payment_create_intent.rs:150
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "Propagates a domain conversion error from the payment intent builder."
 - id: hyperswitch-0085
   anchor: symbol:rust:router.core.payments.routing.perform_static_routing_v1:Function#5a0ed020e546396e578d50fb62b4bd8b9d9be72d35dcf686de8fdf2fe76be1f3#1
   location: crates/router/src/core/payments/routing.rs:1983
@@ -1593,13 +1566,13 @@ points:
   location: crates/router/src/core/payments/helpers.rs:8009
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "Propagates a key conversion error with diagnostic context."
 - id: hyperswitch-0089
   anchor: symbol:rust:router.core.payments.routing.perform_static_routing_v1:Function#7802665df972cdb3fd768f5e6cba19c501609d672c8d72093a3a7c6fa3b42296#1
   location: crates/router/src/core/payments/routing.rs:1979
@@ -1809,13 +1782,13 @@ points:
   location: crates/router/src/core/payments/helpers.rs:2544
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
+  label: trivial
+  category: error-handling
   evidence: []
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "Propagates an error from storing the already updated data."
 - id: hyperswitch-0107
   anchor: symbol:rust:router.core.routing.helpers.TxnStatus.ForeignFrom<common_enums::AttemptStatus>.foreign_from:Method#7ea23f9bbf35951ebb558dfe9432e619f3b95e42b6bdb1007901093dd586eb8f#1
   location: crates/router/src/core/routing/helpers.rs:1800

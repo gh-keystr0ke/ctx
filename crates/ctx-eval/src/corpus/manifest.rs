@@ -146,7 +146,7 @@ pub struct Selection {
     pub points: BTreeMap<String, SelectedPoint>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct SelectedPoint {
     pub selected_by: SelectedBy,
@@ -164,7 +164,7 @@ pub enum SelectedBy {
     Pool,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct FillPoint {
     pub location: String,

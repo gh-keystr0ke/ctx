@@ -65,7 +65,17 @@ pub(super) fn index(cache: &Path, project: &Project) -> Result<ctx_core::graph::
     Ok(store.load_graph(&scoped.descriptor()?.id)?)
 }
 
+pub(super) const DEFAULT_FILL_CAP: usize = 60;
+
 pub(super) fn freeze(project: &mut Project, ranked: &[RankedDecision]) -> Result<Selection> {
+    freeze_with_cap(project, ranked, DEFAULT_FILL_CAP)
+}
+
+fn freeze_with_cap(
+    project: &mut Project,
+    ranked: &[RankedDecision],
+    fill_cap: usize,
+) -> Result<Selection> {
     if !project.points.is_empty() {
         return Err(io::Error::other("sample already frozen").into());
     }
@@ -106,7 +116,7 @@ pub(super) fn freeze(project: &mut Project, ranked: &[RankedDecision]) -> Result
             selected_by,
         );
     }
-    for offset in 0..60usize.saturating_sub(project.sample.size) {
+    for offset in 0..fill_cap.saturating_sub(project.sample.size) {
         let next = if offset % 2 == 0 {
             next_index(&mut ordering, &mut used).or_else(|| next_index(&mut random, &mut used))
         } else {
@@ -121,6 +131,40 @@ pub(super) fn freeze(project: &mut Project, ranked: &[RankedDecision]) -> Result
             .insert(anchor, metadata(point, index + 1));
     }
     Ok(selection)
+}
+
+pub(super) fn extend_frozen_order(
+    project: &mut Project,
+    selection: &mut Selection,
+    ranked: &[RankedDecision],
+    fill_cap: usize,
+) -> Result<()> {
+    let original_points = std::mem::take(&mut project.points);
+    let reproduced = freeze_with_cap(project, ranked, fill_cap);
+    let initial_points = std::mem::replace(&mut project.points, original_points);
+    let reproduced = reproduced?;
+    let initial_matches = initial_points.iter().all(|point| {
+        project
+            .points
+            .iter()
+            .find(|original| original.id == point.id)
+            .is_some_and(|original| {
+                original.anchor == point.anchor && original.location == point.location
+            })
+            && selection.points.get(&point.id) == reproduced.points.get(&point.id)
+    });
+    if !initial_matches
+        || !reproduced.fill_order.starts_with(&selection.fill_order)
+        || selection
+            .fill_points
+            .iter()
+            .any(|(anchor, metadata)| reproduced.fill_points.get(anchor) != Some(metadata))
+    {
+        return Err(io::Error::other("v0 did not reproduce the frozen selection").into());
+    }
+    selection.fill_order = reproduced.fill_order;
+    selection.fill_points = reproduced.fill_points;
+    Ok(())
 }
 
 fn next_index(queue: &mut VecDeque<usize>, used: &mut BTreeSet<usize>) -> Option<usize> {
@@ -327,5 +371,21 @@ pub(super) mod tests {
             yaml_serde::to_string(&repeat).unwrap()
         );
         assert!(freeze(&mut first, &ranked).is_err());
+    }
+    #[test]
+    fn extends_only_a_reproduced_frozen_prefix() {
+        let mut project = project();
+        let ranked = points();
+        let mut selection = freeze_with_cap(&mut project, &ranked, 6).unwrap();
+        let initial = yaml_serde::to_string(&project).unwrap();
+        let prefix = selection.fill_order.clone();
+        extend_frozen_order(&mut project, &mut selection, &ranked, 10).unwrap();
+        assert!(selection.fill_order.starts_with(&prefix));
+        assert_eq!(selection.fill_order.len(), 6);
+        assert_eq!(yaml_serde::to_string(&project).unwrap(), initial);
+
+        selection.fill_order.swap(0, 1);
+        assert!(extend_frozen_order(&mut project, &mut selection, &ranked, 10).is_err());
+        assert_eq!(yaml_serde::to_string(&project).unwrap(), initial);
     }
 }

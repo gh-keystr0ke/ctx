@@ -34,6 +34,8 @@ enum Command {
         extend: Option<Vec<String>>,
         #[arg(long, requires = "extend")]
         fill: bool,
+        #[arg(long, requires = "fill", value_parser = clap::value_parser!(u32).range(60..))]
+        fill_cap: Option<u32>,
     },
     Draft {
         project: String,
@@ -86,7 +88,8 @@ impl Cli {
                 project,
                 extend,
                 fill,
-            } => sample_project(root, &project, extend.as_deref(), fill),
+                fill_cap,
+            } => sample_project(root, &project, extend.as_deref(), fill, fill_cap),
             Command::Draft {
                 project,
                 agent,
@@ -134,7 +137,13 @@ impl Cli {
     }
 }
 
-fn sample_project(root: &Path, name: &str, extend: Option<&[String]>, fill: bool) -> Result<()> {
+fn sample_project(
+    root: &Path,
+    name: &str,
+    extend: Option<&[String]>,
+    fill: bool,
+    fill_cap: Option<u32>,
+) -> Result<()> {
     let mut project = read_project(root, name)?;
     let selection = if let Some(anchors) = extend {
         let mut selection = read_selection(root, name)?;
@@ -144,7 +153,18 @@ fn sample_project(root: &Path, name: &str, extend: Option<&[String]>, fill: bool
                     io::Error::other("--fill takes its order from the selection file").into(),
                 );
             }
-            extend_fill(&mut project, &mut selection)?;
+            let cap = fill_cap.map_or(sample::DEFAULT_FILL_CAP, |cap| cap as usize);
+            if cap > sample::DEFAULT_FILL_CAP
+                && selection.fill_order.len() < cap.saturating_sub(project.sample.size)
+            {
+                let ranked = sample::rank_with(
+                    &fetch::cache_root()?,
+                    &project,
+                    ctx_core::coverage::RankingVersion::Initial,
+                )?;
+                sample::extend_frozen_order(&mut project, &mut selection, &ranked, cap)?;
+            }
+            extend_fill(&mut project, &mut selection, cap)?;
         } else {
             extend_pool(&mut project, &mut selection, anchors)?;
         }
@@ -172,6 +192,7 @@ fn sample_project(root: &Path, name: &str, extend: Option<&[String]>, fill: bool
 fn extend_fill(
     project: &mut super::manifest::Project,
     selection: &mut super::manifest::Selection,
+    cap: usize,
 ) -> Result<()> {
     let mut significant = 0;
     let mut trivial = 0;
@@ -207,7 +228,7 @@ fn extend_fill(
         .fill_order
         .iter()
         .filter(|anchor| !existing.contains(*anchor))
-        .take(10.min(60usize.saturating_sub(project.points.len())))
+        .take(10.min(cap.saturating_sub(project.points.len())))
         .cloned()
         .collect::<Vec<_>>();
     for anchor in order {

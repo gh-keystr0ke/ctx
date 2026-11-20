@@ -289,3 +289,21 @@ and the saved fill prefix before it extends the order. It skips anchors
 already selected and adds up to ten points. Review the batch before
 adding more. Stop at the quota, the cap, or the end of the order.
 Report any remaining shortfall.
+
+The extension met the quota for all three held-out projects. Nova
+stopped at the end of its first batch that met the quota. Vector had
+already met the quota at the original cap. Gitea reached the new cap.
+
+| Project | Total points | Significant for quota | Trivial for quota | Quota |
+| --- | ---: | ---: | ---: | --- |
+| Gitea | 120 | 15 | 45 | Met |
+| Nova | 100 | 17 | 16 | Met |
+| Vector | 60 | 15 | 15 | Met |
+| Hyperswitch | 120 | 2 | 7 | Underfilled |
+| Mattermost | 120 | 7 | 47 | Underfilled |
+| Zulip | 120 | 8 | 20 | Underfilled |
+
+All 280 held-out anchors resolved. The held-out scorer returned
+`complete`. Precision was 38/38 across 46 top positions. The trivial
+false-positive rate was 1/76. The tuning scorer returned `incomplete`.
+The expanded samples still require a second review for agreement.

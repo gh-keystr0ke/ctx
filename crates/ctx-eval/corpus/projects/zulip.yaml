@@ -249,7 +249,7 @@ points:
   anchor: symbol:python:corporate.lib.stripe.BillingSession.make_end_of_cycle_updates_if_needed:Method#59252f9f1f36d620b836be1054d7d48dc5e9a07dee27778b4eff699148104c55#1
   location: corporate/lib/stripe.py:2627
   draft:
-    label: unclear
+    label: significant
     category: state-transition
     evidence: []
     reason: The branch ends the current plan when an end-of-cycle switch to monthly billing is scheduled. The supplied documentation excerpts concern contributor practices and do not describe this billing transition.
@@ -257,13 +257,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: d1bd56f328177e1f9d097a5bd46f3d19ffaadc13a71a7af474d066bf7fddd61e
-  label: unclear
-  category: null
-  evidence: []
+  label: significant
+  category: state-transition
+  evidence:
+  - type: issue
+    url: https://github.com/zulip/zulip/pull/27799/commits/69d8442ab4
+    quote: "Allow user to switch between billing frequencies"
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "At renewal, the scheduled monthly transition closes the annual plan and creates its monthly replacement. The billing page exposes the renewal date for this transition."
 - id: zulip-0013
   anchor: symbol:python:zerver.lib.rate_limiter.should_rate_limit:Function#200d739bebcf8424cad5b450423cc292654fe358d0a81a89d0160ffc9a4f3255#1
   location: zerver/lib/rate_limiter.py:426
@@ -1484,7 +1487,7 @@ points:
   anchor: symbol:python:zerver.lib.streams.get_stream_permission_policy_key:Function#e6f1d727a752ef7964dd11793d4ed7fd16de4be89c1a30ef942d40a6718ccc2e#1
   location: zerver/lib/streams.py:121
   draft:
-    label: unclear
+    label: significant
     category: permission
     evidence: []
     reason: The condition selects a permission policy by matching three channel flags. The supplied documentation does not describe this mapping or require an exact match.
@@ -1492,13 +1495,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: f78cd52e849184c6c367042bb4e1bc5c78769d49e005e99cfe4d3785d46992bb
-  label: unclear
-  category: null
-  evidence: []
+  label: significant
+  category: permission
+  evidence:
+  - type: docs
+    url: https://github.com/zulip/zulip/blob/542731df0211f4c397fbac80e45a8145192b2b56/starlight_help/src/content/docs/channel-permissions.mdx#L53
+    quote: "There are two types of private channels"
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "Uses the privacy, history, and web visibility flags to select the documented channel privacy type shown in channel notifications."
 - id: zulip-0071
   anchor: symbol:python:zerver.lib.streams.has_metadata_access_to_channel_via_groups:Function#b84f4b4ad8be9c02ebc3a535f851d9979eb2b8800e4852c152fe4ae49f6c085b#1
   location: zerver/lib/streams.py:925

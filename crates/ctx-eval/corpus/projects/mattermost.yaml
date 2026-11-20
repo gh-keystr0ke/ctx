@@ -613,7 +613,7 @@ points:
   anchor: symbol:go:server.channels.app.App.removeUserFromChannel:Method#16f215e5b46b0a02e1a1cfdff5f970446139989ee2e55d290be7b3b7f576fed5#1
   location: server/channels/app/channel.go:3072
   draft:
-    label: unclear
+    label: significant
     category: permission
     evidence: []
     reason: The branch denies removal by another user when the target is a non-bot who still qualifies for membership in a group-constrained channel. The package contains no documentation, specification, or issue directly addressing this rule.
@@ -621,18 +621,21 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 4623a9e090d3c9a2b856c3ff92775d780a591a5ba87ef25c00a3cab7860308d0
-  label: unclear
-  category: null
-  evidence: []
+  label: significant
+  category: permission
+  evidence:
+  - type: docs
+    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/onboard/ad-ldap-groups-synchronization.rst#L196
+    quote: "Users can remove themselves from teams and Private channels managed by synchronized groups."
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "The synchronized-group membership restriction excludes voluntary removal."
 - id: mattermost-0030
   anchor: symbol:go:server.channels.app.App.validateAndNormalizeMemberInviteProfiles:Method#4cdbbd476947a4b89da8ac22d8f0b3dacfb60b5034a3ca2508bdaa3aa2173ef5#1
   location: server/channels/app/team.go:1663
   draft:
-    label: unclear
+    label: significant
     category: permission
     evidence: []
     reason: The branch rejects invitations with profile data when profile field locking for email users is disabled. The package contains no documentation, specification, or issue directly about this behavior.
@@ -640,13 +643,16 @@ points:
     agent: codex
     model: null
     prompt_fingerprint: 593507b3c2679e572b09fa7c517b27cf0f7e695ac417abd31c2e6ed2e6226869
-  label: unclear
-  category: null
-  evidence: []
+  label: significant
+  category: permission
+  evidence:
+  - type: docs
+    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/product-overview/mattermost-v11-changelog.md#L56
+    quote: "When enabled, users with the Invite Users permission can pre-set the first name, last name, and username on email invitations"
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: null
+  note: "The email invitation handler requires the documented profile-lock setting to accept preset profiles."
 - id: mattermost-0031
   anchor: symbol:go:server.channels.app.App.ConvertGroupMessageToChannel:Method#a225847115c06fa5a70adfbdd7da044b1202c319528697bc65d7cd8ccc6f1c25#2
   location: server/channels/app/channel.go:4355
@@ -1570,13 +1576,16 @@ points:
   location: server/channels/app/post.go:1438
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
+  label: significant
+  category: permission
+  evidence:
+  - type: docs
+    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/end-user-guide/collaborate/archive-unarchive-channels.rst#L10
+    quote: "Archiving channels removes them from the channel sidebar and marks them as read-only."
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "The patch path enforces read-only behavior by rejecting edits in archived channels."
 - id: mattermost-0077
   anchor: symbol:go:server.channels.app.App.AddUserToTeamByToken:Method#918268f71092743482b300fe59288b52152d782c344ac65dd1fc7270cc97468a#1
   location: server/channels/app/team.go:605
@@ -1702,13 +1711,16 @@ points:
   location: server/channels/app/post.go:54
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
+  label: significant
+  category: permission
+  evidence:
+  - type: docs
+    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/end-user-guide/collaborate/channel-types.rst#L70
+    quote: "marks it read-only to prevent new messages from being sent and preserve channel history"
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "The posting path rejects new messages in archived channels."
 - id: mattermost-0088
   anchor: symbol:go:server.channels.app.App.parseAndFetchChannelIdByNameFromInFilter:Method#f95d2993f86915bb767e9ba4956771958bf707ca767f514f4abf774a09816cca#5
   location: server/channels/app/post.go:2358
@@ -1762,13 +1774,16 @@ points:
   location: server/channels/app/post.go:3408
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
+  label: significant
+  category: permission
+  evidence:
+  - type: docs
+    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/product-overview/unsupported-legacy-releases.md#L867
+    quote: "a boolean value representing whether moving should work from within a private channel."
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: No pinned source establishes a product rule, and the branch does more than a routine check or error propagation.
+  note: "The thread move operation checks the documented private-channel setting."
 - id: mattermost-0093
   anchor: symbol:go:server.channels.app.App.DeletePost:Method#2c2726c7abccd4a402617ad37057837a5ebde175980058d6200df92a2e8fafdf#1
   location: server/channels/app/post.go:2257
@@ -2017,13 +2032,16 @@ points:
   location: server/channels/app/team.go:1430
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
+  label: significant
+  category: default
+  evidence:
+  - type: docs
+    url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/configure/experimental-configuration-settings.rst#L279-L283
+    quote: "This setting determines whether team leave/join system messages are posted in the default"
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "No pinned source establishes a product rule, and the branch does more than a routine check or error propagation."
+  note: "Team leave handling posts a system message in the default channel only under the documented flag."
 - id: mattermost-0114
   anchor: symbol:go:server.channels.app.App.CreateChannel:Method#c8d4ad2962c2a365a3ce01d2038ee758bee6764f05b12adf05d32292222e0bfa#1
   location: server/channels/app/channel.go:315

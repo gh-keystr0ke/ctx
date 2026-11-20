@@ -163,13 +163,19 @@ points:
   location: services/pull/check.go:90
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
+  label: significant
+  category: state-transition
+  evidence:
+  - type: issue
+    url: https://github.com/go-gitea/gitea/pull/10132
+    quote: "Only check for conflicts/merging if the PR has not been merged in the interim"
+  - type: issue
+    url: https://github.com/go-gitea/gitea/pull/27779
+    quote: "only mark their status as \"checking\""
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "The check depends on successful transition to checking. No source established the scheduling rule for this branch."
+  note: "A delayed check requires a persisted checking state. This preserves the merged state when a base branch update races a merge."
 - id: gitea-0009
   anchor: symbol:go:models.perm.access.CanReadWorkflowCrossRepo:Function#419be570e8945acba6da237f0afb261d5aee4ec6605fd1c3a88343efe9d26a63#1
   location: models/perm/access/repo_permission.go:689
@@ -223,13 +229,18 @@ points:
   location: services/pull/check.go:77
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
+  label: significant
+  category: state-transition
+  evidence:
+  - type: issue
+    url: https://github.com/go-gitea/gitea/pull/10132
+    quote: "Only check for conflicts/merging if the PR has not been merged in the interim"
+  - type: issue
+    url: https://github.com/go-gitea/gitea/pull/27779
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "The immediate path depends on successful transition to checking. No source established its scheduling rule."
+  note: "The immediate path skips enqueueing when the checking state could not be confirmed. The original race fix explains why completed merges must not be rechecked."
 - id: gitea-0014
   anchor: symbol:go:models.perm.access.CanReadWorkflowCrossRepo:Function#75809a4b10a1847b0434cca778075c57c8d3cc806cab3091641ccec463407a24#1
   location: models/perm/access/repo_permission.go:697
@@ -457,22 +468,31 @@ points:
   location: services/pull/check.go:274
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
+  label: significant
+  category: state-transition
+  evidence:
+  - type: issue
+    url: https://github.com/go-gitea/gitea/pull/19457
+    quote: "PR status wasn't correctly on conflicted PR's"
+  - type: issue
+    url: https://github.com/go-gitea/gitea/pull/27779
+    quote: "the PR merge box will automatically reload when complete"
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "The branch assumes conflict checks have already run. No source specifies this status transition."
+  note: "A completed conflict check promotes only the pending checking state to mergeable. A conflict remains visible and keeps the PR from appearing mergeable."
 - id: gitea-0033
   anchor: symbol:go:services.pull.runMergeCommand:Function#eed803983973d0623f39c99833b1e1b54a778285fb83d6e65b98dc4c44d918f5#1
   location: services/pull/merge.go:637
   draft: null
   drafted_by: null
-  label: unclear
-  category: null
-  evidence: []
+  label: significant
+  category: error-handling
+  evidence:
+  - type: issue
+    url: https://github.com/go-gitea/gitea/pull/8548
+    quote: "handles merge and rebase failures from merging a little more nicely with Flash errors rather a 500"
   verified_by: codex-work
   second_label: null
   second_by: null
-  note: "The branch maps MERGE_HEAD to a merge conflict. General conflict documentation does not establish this mapping."
+  note: "The original patch uses MERGE_HEAD after a failed command to classify a conflict and give the user a conflict response."

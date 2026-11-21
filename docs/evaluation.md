@@ -121,12 +121,17 @@ corpus() { cargo run --locked -p ctx-eval --bin ctx-corpus -- "$@"; }
 6. If agreement is low, resolve ambiguous rules in the labeling guide. Update its version and review all affected points.
 7. Run `corpus check` and `corpus score --tuning`. Freeze the ranking before running `corpus score --gate`.
    If the precision pool is incomplete, add its listed anchors with `corpus sample PROJECT --extend ANCHOR...`.
+   A pool that stays below 80% rated top positions completes only when the combined lower bound
+   meets the 60% threshold. The lower bound counts every unrated top position as a miss.
 
 Precision@5 uses reviewed labels from all sources, including the pool. The quota and trivial false-positive rate exclude the pool.
 
 ### 0.9.0 release verification
 
-Release status is blocked. The first-party regression corpus passed 145 checks
+The sections below record each measurement in order. The final agreement and
+gate results are in [Guide version 4, primary relabel, and round 4](#guide-version-4-primary-relabel-and-round-4).
+
+The first measurement blocked the release. The first-party regression corpus passed 145 checks
 across 48 cases, including 12 deterministic coverage scenarios. Two coverage
 reports for the same indexed ctx revision matched byte for byte.
 
@@ -493,3 +498,63 @@ points, below the planned 30. As a diagnostic only, rated gate positions
 gave a precision of 31/33, and 2 of 88 trivial gate points triggered a
 question. The release remains blocked on agreement, the gate pool, and the
 Rust quota.
+
+#### Guide version 4, primary relabel, and round 4
+
+The pinned Gitea documentation now uses the version 28 docs at
+`757fb19` (2026-11-13), the last docs commit before the v28.4.0 release
+commit. The Swagger, Mattermost API, and Zulip OpenAPI files in the code
+repositories are evidence sources.
+
+Guide version 4 counts an OpenAPI or Swagger file in the pinned code
+repository as an API reference. An unclear note must name the sources
+searched. Every primary unclear point was reviewed again against pinned
+sources and introducing changes. A script checked each quote against the
+pinned file lines or the cited issue text.
+
+| Change | Points |
+| --- | ---: |
+| Unclear to significant | 90 |
+| Unclear to trivial | 76 |
+| Unclear with a recorded search | 151 |
+| Round 3 adjudication of primary significant or trivial labels | 6 |
+
+Three agent proposals were kept unclear. They relied on configuration file
+comments or on a retry rule with no stop condition. All six class quotas
+now pass without a higher cap.
+
+Six independent agents labeled the guide version 4 draw, one project each.
+They saw only the guide, the blind review command, and pinned sources.
+
+| Project | Paired points | Disagreements | Cohen's kappa |
+| --- | ---: | ---: | ---: |
+| Gitea | 24 | 2 | 0.871 |
+| Hyperswitch | 24 | 3 | 0.797 |
+| Mattermost | 24 | 1 | 0.935 |
+| Nova | 20 | 1 | 0.906 |
+| Vector | 12 | 2 | 0.692 |
+| Zulip | 24 | 4 | 0.748 |
+
+`corpus agreement PROJECT --min 0.6` passed for all six projects.
+
+| Project | Role | Significant | Trivial | Rated precision | Lower bound | Trivial questions |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| Gitea | Gate | 27 | 72 | 4/5 | 4/7 | 1/72 |
+| Nova | Gate | 44 | 21 | 17/18 | 17/20 | 2/21 |
+| Vector | Gate | 16 | 23 | 10/11 | 10/19 | 0/23 |
+| Hyperswitch | Tuning | 29 | 59 | 3/5 | 3/10 | 19/59 |
+| Mattermost | Tuning | 30 | 61 | 13/14 | 13/15 | 2/61 |
+| Zulip | Tuning | 32 | 32 | 13/16 | 13/19 | 2/32 |
+
+Gitea and Vector rate fewer than 80% of their top positions. The unrated
+positions are undocumented disk buffer recovery and batch configuration
+checks, and two Gitea merge status branches. Two independent searches
+found no pinned source for them. With every unrated position counted as a
+miss, gate precision@5 is 31/46 (67.4%). Rated gate precision@5 is 31/34
+(91.2%). Three of 116 trivial gate points triggered a question (2.6%).
+Both score runs returned `complete`.
+
+Per language, Go has 57 significant and 133 trivial points, Python has 76
+and 53, and Rust has 45 and 82. Tuning precision is a signal: 29/35 rated
+(82.9%), with a lower bound of 29/44. Hyperswitch accounts for 19 of 23
+trivial tuning questions.

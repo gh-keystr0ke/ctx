@@ -2,7 +2,7 @@
 
 All notable changes to `ctx` are documented here. The project follows semantic versioning.
 
-## Unreleased
+## 0.9.0 — 2026-11-21
 
 ### Added
 

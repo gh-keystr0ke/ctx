@@ -14,6 +14,9 @@ use super::{
     sample,
 };
 
+/// Release threshold for precision@5 on the combined held-out projects.
+const PRECISION_THRESHOLD: f64 = 0.6;
+
 #[derive(Default, Serialize)]
 struct Counts {
     top: usize,
@@ -37,6 +40,7 @@ impl Counts {
     fn metrics(&self) -> serde_json::Value {
         json!({
             "precision_at_5": ratio(self.top_significant, self.top_significant + self.top_trivial),
+            "precision_at_5_lower_bound": self.precision_lower_bound(),
             "trivial_false_positive_rate": ratio(self.asked_trivial, self.trivial),
             "top_evaluated": self.top_significant + self.top_trivial,
             "significant_count": self.significant,
@@ -44,6 +48,13 @@ impl Counts {
             "quota_met": self.significant >= 15 && self.trivial >= 15,
             "counts": self,
         })
+    }
+}
+
+impl Counts {
+    /// Precision@5 when every unrated top position counts as a miss.
+    fn precision_lower_bound(&self) -> Option<f64> {
+        ratio(self.top_significant, self.top)
     }
 }
 
@@ -85,19 +96,30 @@ pub(super) fn score(root: &Path, cache: &Path, role: Role) -> Result<serde_json:
     if projects.is_empty() {
         return Err(io::Error::other("no manifests for the selected role").into());
     }
-    if role == Role::Gate && !insufficient.is_empty() {
+    let complete = pool_bounded(&combined, insufficient.is_empty());
+    if role == Role::Gate && !complete {
         return Ok(
             json!({"status": "incomplete", "ranking_version": RANKING_VERSION, "extend": insufficient}),
         );
     }
     Ok(json!({
-        "status": if insufficient.is_empty() {"complete"} else {"incomplete"},
+        "status": if complete {"complete"} else {"incomplete"},
+        "pool_complete": insufficient.is_empty(),
         "ranking_version": RANKING_VERSION,
         "projects": projects,
         "languages": languages.into_iter().map(|(key, counts)| (key, counts.metrics())).collect::<BTreeMap<_, _>>(),
         "combined": combined.metrics(),
         "extend": insufficient,
     }))
+}
+
+/// A precision pool is complete when each project rates enough top positions,
+/// or when the combined lower bound already meets the release threshold.
+fn pool_bounded(combined: &Counts, pools_rated: bool) -> bool {
+    pools_rated
+        || combined
+            .precision_lower_bound()
+            .is_some_and(|value| value >= PRECISION_THRESHOLD)
 }
 
 fn score_project(
@@ -191,6 +213,8 @@ mod tests {
             .selected_by = SelectedBy::Pool;
         let (counts, missing, _) = score_project(&project, &selection, &ranked).unwrap();
         assert_eq!(counts.metrics()["precision_at_5"], 0.5);
+        assert_eq!(counts.metrics()["precision_at_5_lower_bound"], 0.1);
+        assert!(!pool_bounded(&counts, false));
         assert_eq!(counts.trivial, 0);
         assert_eq!(counts.significant, 1);
         assert_eq!(missing.len(), 8);
@@ -202,5 +226,18 @@ mod tests {
                 .to_string()
                 .contains("anchor_lost")
         );
+    }
+
+    #[test]
+    fn lower_bound_completes_only_at_the_threshold() {
+        let rated = |top, top_significant| Counts {
+            top,
+            top_significant,
+            ..Counts::default()
+        };
+        assert!(pool_bounded(&rated(10, 1), true));
+        assert!(pool_bounded(&rated(10, 6), false));
+        assert!(!pool_bounded(&rated(10, 5), false));
+        assert!(!pool_bounded(&rated(0, 0), false));
     }
 }

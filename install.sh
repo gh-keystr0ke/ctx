@@ -194,8 +194,13 @@ tar xzf "$work_dir/$archive" -C "$work_dir"
 extracted_dir="$work_dir/ctx-$version-$target"
 
 mkdir -p "$install_dir"
-cp "$extracted_dir/ctx" "$install_dir/ctx"
-chmod +x "$install_dir/ctx"
+# Replace the binary with a rename, not an in-place copy. macOS kills a
+# signed executable whose file was overwritten after it last ran, so an
+# upgrade must give the new binary a new file.
+staged="$install_dir/.ctx.$$"
+cp "$extracted_dir/ctx" "$staged" || die "could not write $staged"
+chmod +x "$staged"
+mv -f "$staged" "$install_dir/ctx" || { rm -f "$staged"; die "could not install $install_dir/ctx"; }
 
 say "installed ctx $version to $install_dir/ctx"
 

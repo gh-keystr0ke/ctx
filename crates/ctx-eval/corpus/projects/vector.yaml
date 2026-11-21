@@ -52,8 +52,8 @@ points:
     url: https://github.com/vectordotdev/vector/pull/25795
     quote: drop over-limit disk_v2 records instead of crashing
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v4
   note: The sampled test model enforces the documented drop behavior for oversized records.
 - id: vector-0002
   anchor: symbol:rust:crate.sinks.util.retries.FibonacciRetryPolicy.Policy<Req,Res,Error>.retry:Method#b6e37645550aea6a40e99cb8816f358b452347643b8b1e614dd6fb4ae76654f7#1
@@ -99,8 +99,8 @@ points:
     url: https://github.com/vectordotdev/vector/blob/b78d987398d23f19f3705fb76a1cd18642565b66/rfcs/2020-06-12-2768-batch-and-buffer-rework.md#L76
     quote: 'timeout_secs: Option<u64>,'
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: claude-blind-v4
   note: Defensive presence guard after timeout validation.
 - id: vector-0004
   anchor: symbol:rust:crate.finalization.BatchNotifier.update_status:Method#103d7bd8e750063fdaebd3b8b092a6b6b23d23245304cabcd17abd11031f04c6#1
@@ -187,8 +187,8 @@ points:
   category: validation
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: claude-blind-v4
   note: Defensive presence guard after timeout validation.
 - id: vector-0008
   anchor: symbol:rust:crate.finalization.BatchStatus.update:Method#9cf34e5ead14ce5cfcc31aaf2690ba1d30991f4ae5f8b382bebccca5a6686164#1
@@ -358,8 +358,8 @@ points:
     url: https://github.com/vectordotdev/vector/blob/b78d987398d23f19f3705fb76a1cd18642565b66/website/cue/reference/components/generated/schema_definitions/derived_vector_buffers_config_buffertype_6c60e9549d874ce4350c077a.cue#L4-L8
     quote: "relevant_when: \"type = \\\"memory\\\"\""
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: claude-blind-v4
   note: "For type = disk, a configured max_events is rejected as an unknown field. The buffer reference limits max_events to type = memory, and this branch enforces that field availability (guide row for API field availability)."
 - id: vector-0018
   anchor: symbol:rust:crate.variants.disk_v2.tests.model.filesystem.TestFilesystem.Filesystem.open_file_readable:Method#abf1e79cc530e319982cac1bf925907c2f8010fcc57371ac40a13657b666a093#1
@@ -370,8 +370,8 @@ points:
   category: validation
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: claude-blind-v4
   note: A missing entry in the test filesystem model maps to a standard not-found error.
 - id: vector-0019
   anchor: symbol:rust:crate.topology.channel.sender.UsageAccounting.record:Method#13901e7396c5e580e7a311afeddd71c733859cb7d0ebf1a59378b083452d9a1e#1
@@ -406,8 +406,8 @@ points:
   category: validation
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: claude-blind-v4
   note: This arm unwraps a successful file lookup in the test filesystem model.
 - id: vector-0022
   anchor: symbol:rust:crate.variants.disk_v2.io.ProductionFilesystem.Filesystem.list_files:Method#1e93d2ce3386d6f28e9e3da1ce907cdc32f668e9422c0d580235e0ff492360ec#1
@@ -481,8 +481,8 @@ points:
     url: https://github.com/vectordotdev/vector/blob/b78d987398d23f19f3705fb76a1cd18642565b66/website/content/en/docs/architecture/buffering-model.md#L54-L55
     quote: "By default, sinks use an in-memory buffer like all other components do, but the default buffer size\nis slightly increased, at 500 events."
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v4
   note: "Memory arm (also used when type is omitted): builds an in-memory buffer limited by max_events with a default of 500 unless max_size is given. The docs state the memory default type and the 500-event default."
 - id: vector-0027
   anchor: symbol:rust:crate.topology.channel.sender.BufferSender.flush:Method#bdc5869a15d3395c3eececa71d99a4671808016c7539b15e8ce9d082f287a385#1
@@ -517,8 +517,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: claude-blind-v4
   note: The question mark propagates the existing snapshot error unchanged.
 - id: vector-0030
   anchor: symbol:rust:crate.topology.channel.sender.BufferSender.send:Method#1b20b51c4546304bd443a5552c9398d3a6383f64a462dc73366a648c2c46fa93#1
@@ -532,8 +532,8 @@ points:
     url: https://github.com/vectordotdev/vector/blob/b78d987398d23f19f3705fb76a1cd18642565b66/website/content/en/docs/architecture/buffering-model.md#L182
     quote: "When configured to \"drop newest\", Vector will simply drop an event if the buffer is currently full."
   verified_by: claude-adjudication-v3
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v4
   note: "In drop_newest mode, a full buffer drops the event and records it as dropped."
 - id: vector-0031
   anchor: symbol:rust:crate.finalization.BatchStatus.update:Method#fb7c92a01c3b43de737ffbcd4f2cac06cc9fa9e2ab0bf5e9a6dadf34402e3dfc#1
@@ -571,8 +571,8 @@ points:
   category: validation
   evidence: []
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v4
   note: "Batch validation rejects a timeout_secs that is zero or negative (InvalidTimeout). Searched the generated batch reference (timeout_secs only says 'The maximum age of a batch before it is flushed.'), RFC 2768, PR #11812 and issue #11790 (allow fractional timeouts); none states the positivity rule."
 - id: vector-0034
   anchor: symbol:rust:crate.sinks.util.batch.SinkBatchSettings.TIMEOUT_SECS:Constant#195464cb05f6c530ec6222256b82b7a5f5abaaf74a68dcd6ceb2840565890168#1
@@ -634,8 +634,8 @@ points:
   category: observability
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: claude-blind-v4
   note: The arm updates instrumentation for an already discarded event.
 - id: vector-0039
   anchor: symbol:rust:crate.variants.disk_v2.writer.BufferWriter.apply_writer_checkpoint_scan:Method#11af5da7738d47c808b8e73b109ae42e6f3c72d4d88b074db3b6a0aceeb3f27a#1
@@ -856,8 +856,8 @@ points:
   category: validation
   evidence: []
   verified_by: claude-adjudication-v3
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: claude-blind-v4
   note: "The fallback arm returns the status unchanged. The preceding arms implement the precedence rule."
 - id: vector-0056
   anchor: symbol:rust:crate.variants.in_memory.MemoryBuffer.IntoBuffer<T>.into_buffer_parts:Method#80c2a8e74eb4bfb2b564003e723b64abd17626b2da48b4509739c231ce37db50#1

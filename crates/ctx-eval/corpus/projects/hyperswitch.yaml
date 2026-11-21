@@ -44,8 +44,8 @@ points:
   category: validation
   evidence: []
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: claude-blind-v4
   note: "The arm matches the expected PaymentResourceUpdateResponse variant of the connector response in the UpdatePostConfirm tracker; other Ok variants become an internal 'Unexpected response' error. Selecting the expected response type is a routine type check; the product behavior lives in the nested status branch."
 - id: hyperswitch-0002
   anchor: symbol:rust:router.core.routing.helpers.push_metrics_with_update_window_for_contract_based_routing:Function#69769c1c9beeca73fad7cbddd8147dcb86ba8ebd87a3f35b8a7b5dda517947f1#1
@@ -67,8 +67,8 @@ points:
   category: state-transition
   evidence: []
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: claude-blind-v4
   note: "Only when the attempt's derived status is Charged does the code send an UpdateContract call that adds one to the contract count for the matched connector label. Searched the pinned docs and API reference (no contract-based routing text) and PR #6761 (commit 60ddddf24 that added the check) plus PR #7335 (commit 049fcdb3f that re-indented it); neither states that only charged attempts count toward the contract target."
 - id: hyperswitch-0003
   anchor: symbol:rust:router.core.payments.operations.payment_response.PaymentResponse.PostUpdateTracker<F,PaymentData<F>,types::PaymentsUpdatePostConfirmData>.update_tracker:Method#872088b5c318f49223caa7fff7869faf46cb7abb42317607942d1da54ef71036#1
@@ -283,8 +283,8 @@ points:
     url: https://github.com/juspay/hyperswitch/pull/8044
     quote: "if decision engine is enabled, we would call DE instead of Dynamo"
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v4
   note: "Removes the routing configuration from the Decision Engine when the engine is configured for dynamic routing."
 - id: hyperswitch-0013
   anchor: symbol:rust:router.core.payments.routing.try_pre_routing_connectors:Function#9ac3f10b26e945121e7d3ffa5b978b3c2a01ba0fe6d1dc29007e2a2ab36e0225#1
@@ -404,8 +404,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: claude-blind-v4
   note: null
 - id: hyperswitch-0019
   anchor: symbol:rust:router.core.payments.helpers.get_token_pm_type_mandate_details:Function#f543c999ac19868bbeed978e170688055203181aed1fda6e0b65808a0ce19568#1
@@ -540,8 +540,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: claude-blind-v4
   note: "Propagates a billing address lookup error in the cancellation flow."
 - id: hyperswitch-0026
   anchor: symbol:rust:router.core.payments.flows.authorize_flow.PaymentsAuthorizeRouterData.Feature<api::Authorize,types::PaymentsAuthorizeData>.pre_authentication_step:Method#cdd8eebf704aa4f55f3e1d59161f33a74821e4748e6c24cdef46d854067f68a9#1
@@ -559,8 +559,8 @@ points:
   category: null
   evidence: []
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: claude-blind-v4
   note: "In the pre-authentication step the connector's should_trigger_handle_response_without_body flag selects CallConnectorAction::HandleResponseWithoutBuildRequest instead of Trigger. PR #10878 (commit 4f40b298c) says the new variant handles flows where a response is processed before building a request, but neither it nor the pinned docs or API reference state when pre-authentication uses it; this is connector-call plumbing without a documented product rule."
 - id: hyperswitch-0027
   anchor: symbol:rust:router.core.payments.helpers.fetch_card_details_from_external_vault:Function#9a51b5131739cea1fa0e04f1c36309f4fb58d20a6e988d51b8d7f050601a8e1e#1
@@ -635,8 +635,8 @@ points:
   category: state-transition
   evidence: []
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v4
   note: "When the request sets up a connector mandate, the payment method is saved synchronously and the connector mandate reference is persisted on the payment method and attempt; other cases save asynchronously or skip. Searched the pinned recurring-payments and save-payment-method docs (general MIT text only), the API reference, and PR #4307 (commit 5f40eee3f, a refactor about async locker calls); none states this branch."
 - id: hyperswitch-0031
   anchor: symbol:rust:router.core.routing.helpers.push_metrics_with_update_window_for_contract_based_routing:Function#bf9fa3c8f72b83b2c2514dc23e4bc00ad822a6ada3d70e86a4ac19e304618977#1
@@ -989,8 +989,8 @@ points:
   category: state-transition
   evidence: []
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: claude-blind-v4
   note: "Enabling success-rate routing first clears the contract-based routing algorithm id, then enables the success-based algorithm. The API reference documents the success-based toggle but not the contract disabling; the pinned docs have no contract routing page, and PRs #6761 (commit 60ddddf24 that added the disable call) and #6568 do not state that enabling success-rate routing disables contract routing."
 - id: hyperswitch-0048
   anchor: symbol:rust:router.core.payments.tokenization.save_payment_method:Function#9a7c8c131fe46de0e7898ab26d146e4ea98dbd78abcaf1f935ad6803d295bc8a#1
@@ -1053,8 +1053,8 @@ points:
     url: https://github.com/juspay/hyperswitch/blob/cf913c5aaa226e102b257a81a3a53ac841bf45bd/api-reference/decision_engine_openapi-specs.json#L2741-L2748
     quote: "\"description\": \"List all routing rules for a merchant.\","
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v4
   note: "With active_only the code calls the decision engine's routing/list/active/{created_by} endpoint, otherwise routing/list/{created_by}. The pinned decision-engine API reference describes both endpoints and their results, which this branch selects between."
 - id: hyperswitch-0051
   anchor: symbol:rust:router.core.routing.helpers.TxnStatus.ForeignFrom<common_enums::AttemptStatus>.foreign_from:Method#00fc4bc9c64ca151709ff73a363ebf043e41e9e5d89bad5e7bfc214fd7ab0ca2#1
@@ -1123,8 +1123,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: claude-blind-v4
   note: "Success arm of the ensure_algorithm_cached_v1 Result match in perform_static_routing_v1: the cached algorithm is passed on unchanged as Some(algo). The rule (fallback when the lookup fails) is in the Err arm, so this arm is a routine Result check."
 - id: hyperswitch-0055
   anchor: symbol:rust:router.core.routing.helpers.TxnStatus.ForeignFrom<common_enums::AttemptStatus>.foreign_from:Method#0ce0ee1632168b527dd255ebfaeb5fbeaf2d728c75a30ed510df745d1961a0ad#1
@@ -1264,8 +1264,8 @@ points:
   category: validation
   evidence: []
   verified_by: claude-adjudication-v3
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: claude-blind-v4
   note: "Maps the authentication success status to the equivalent open router status."
 - id: hyperswitch-0064
   anchor: symbol:rust:router.core.payments.helpers.make_url_with_signature:Function#c3ad433ef7f3c99793f0579070af9f4e491f8ed7601e1cdac933341fa01b8a07#1
@@ -1309,8 +1309,8 @@ points:
   category: default
   evidence: []
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: claude-blind-v4
   note: "In the modular payment-method create path, Card, CardWithNoCVC, BankRedirect and BankDebit data always create a payment method (wallets only for decrypted or off_session flows). PR #12052 (which changed the arm) only says BankRedirect is 'Allowed ... to be created during payment confirmation, aligning with existing Card and Wallet flows'. It does not cover BankDebit or CardWithNoCVC, and the pinned docs do not describe the modular path."
 - id: hyperswitch-0067
   anchor: symbol:rust:router.core.routing.helpers.TxnStatus.ForeignFrom<common_enums::AttemptStatus>.foreign_from:Method#12367362dc4e5ed7e9cf4b2b928f2a449149a6a0c46da9bbe9ec0ab470f97228#1
@@ -1417,8 +1417,8 @@ points:
   category: default
   evidence: []
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: claude-blind-v4
   note: "Fallback arm of generate_mandate: without setup mandate details plus a customer id, no mandate record is built (Ok(None)), and nothing is logged or changed. The (Some, Some) arm holds the mandate-creation rule, and PR #1188 (the last change) only reshaped how mandate details arrive. This arm passes because the request asks for no mandate."
 - id: hyperswitch-0075
   anchor: symbol:rust:router.core.routing.helpers.TxnStatus.ForeignFrom<common_enums::AttemptStatus>.foreign_from:Method#26553cf66196815c39af60faa16ee3c039c5f30af63dad883afb8df036f3c3a9#1
@@ -1495,8 +1495,8 @@ points:
   category: default
   evidence: []
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: claude-blind-v4
   note: "convert_value maps ast::ValueType::StrValue(s) to the Decision Engine ValueType::StrValue(s) with the same string. This moves data between equivalent representations with the same value and meaning."
 - id: hyperswitch-0081
   anchor: symbol:rust:router.core.payments.routing.perform_session_routing_for_pm_type:Function#03f81ce2311250c68ece10c15d727042efa72ccc88f1ecd7d1363524212bd80d#1
@@ -1585,8 +1585,8 @@ points:
   category: state-transition
   evidence: []
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: claude-blind-v4
   note: "The open_router TxnStatus conversion merges AttemptStatus::Voided and Expired into TxnStatus::Voided, so cases are merged. Searched: pinned docs routing pages, the OpenAPI specs including decision_engine_openapi-specs.json, PR #8720 (which added Expired; its text covers Adyen OFFER_CLOSED handling) and PR #7896. None states how Expired is reported to the Decision Engine."
 - id: hyperswitch-0088
   anchor: symbol:rust:router.core.payments.helpers.GooglePayTokenDecryptor.verify_intermediate_signing_key:Method#1113950255316a6669b39ae00ce07721e4f426dc829f805c4bbbe37d3f40474d#1
@@ -1693,8 +1693,8 @@ points:
   category: validation
   evidence: []
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v4
   note: "get_required_value on business_profile.tax_connector_id inside the is_tax_connector_enabled block. get_is_tax_connector_enabled returns true only when tax_connector_id is Some, so this is a routine non-empty check that cannot change the outcome."
 - id: hyperswitch-0097
   anchor: symbol:rust:router.core.payments.routing.utils.decision_engine_routing_batch:Function#92975da43b9f585a48bc1bafe914dc5f3e705f9dc4cd25b047df57d9856a0ec1#1
@@ -1717,8 +1717,8 @@ points:
   category: validation
   evidence: []
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: claude-blind-v4
   note: "payment_approve get_trackers: get_payment_intent_id() fails when the id is not a payment intent id, and the error is changed to PaymentNotFound and returned with `?`. This is a routine id type check with error propagation."
 - id: hyperswitch-0099
   anchor: symbol:rust:router.core.routing.helpers.TxnStatus.ForeignFrom<common_enums::AttemptStatus>.foreign_from:Method#7019346f52edc4ea56b5e467cdb310696e91d12b096054d8a74b7d07e0a0d20d#1
@@ -1759,8 +1759,8 @@ points:
     url: https://github.com/juspay/hyperswitch/pull/13846
     quote: "against an engine without the endpoint the load-bearing path degrades to the concurrent single calls from step 2, so either side can ship first."
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v4
   note: "When the batch evaluate call fails, decision_engine_routing_batch_with_fallback logs a warning and runs concurrent single evaluations instead. PR #13846, which added the arm, states this degradation from batch to single calls."
 - id: hyperswitch-0102
   anchor: symbol:rust:router.core.payments.filters.get_payment_filters:Function#970f71faa4e70d79fc1c9bdf44fee8c4e157ae41c9d47834dea4530b965dbbda#1
@@ -1771,8 +1771,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: claude-blind-v4
   note: "get_payment_filters destructures the ApplicationResponse::Json from list_payment_connectors and returns InternalServerError for any other variant. This is a routine type check on an internal response, with error propagation."
 - id: hyperswitch-0103
   anchor: symbol:rust:router.core.routing.helpers.TxnStatus.ForeignFrom<common_enums::AttemptStatus>.foreign_from:Method#76c14bc06a77ebaa90c731643c023a98e8f279286be9d2817fe2868b4dd0ed51#1
@@ -1783,8 +1783,8 @@ points:
   category: validation
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: claude-blind-v4
   note: "Transfers the same status or value between representations without changing its meaning."
 - id: hyperswitch-0104
   anchor: symbol:rust:router.core.payments.session_operation.payments_session_operation_core:Function#a4f5c81d48908be977afc5c50128019debe931d5caa82411b573da4cf745a2c2#1
@@ -1834,8 +1834,8 @@ points:
   category: validation
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: claude-blind-v4
   note: "Transfers the same status or value between representations without changing its meaning."
 - id: hyperswitch-0108
   anchor: symbol:rust:router.core.payments.flows.setup_mandate_flow.SetupMandateRouterData.Feature<api::SetupMandate,types::SetupMandateRequestData>.create_connector_customer:Method#70c71ad7941b4953274ccaccff175360bc6349ef41f352f08d6c625050b367c4#1
@@ -1846,8 +1846,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: claude-blind-v4
   note: Propagates the conversion error unchanged.
 - id: hyperswitch-0109
   anchor: symbol:rust:router.core.payments.tokenization.save_payment_method:Function#5b2c9fd1bdd2438ba19aa70bf1ae6a630c27fe80ac899d91d15103c424b4357d#1
@@ -1858,8 +1858,8 @@ points:
   category: state-transition
   evidence: []
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: claude-blind-v4
   note: "save_payment_method saves or updates payment method data only on an Ok connector response; an Err response returns an empty result. The save-a-payment-method guide is titled for a 'successful transaction' but does not state that a connector error skips saving. PR #3907 (the commit that last changed the line) is about storing connector_mandate_details."
 - id: hyperswitch-0110
   anchor: symbol:rust:router.core.payments.operations.payment_response.payment_response_update_tracker:Function#a7d03178d9c8cad0fba492d04eda13cfdd5bcc7859dcd0707a5e461f75703cc9#1
@@ -1882,8 +1882,8 @@ points:
   category: state-transition
   evidence: []
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: claude-blind-v4
   note: "The open_router TxnStatus conversion merges Unresolved, Pending, IntegrityFailure, PaymentMethodAwaited, ConfirmationAwaited, DeviceDataCollectionPending and CaptureReview into TxnStatus::Pending. Searched: pinned docs, the OpenAPI/decision engine specs, PR #11859 (which added CaptureReview) and PR #7896. #11859 says only that Review maps to 'RequiresMerchantAction or Pending depending on context' and does not name this conversion."
 - id: hyperswitch-0112
   anchor: symbol:rust:router.core.payments.operations.payment_response.update_modular_pm_and_mandate_impl:Function#0ee7d09a8060cbbb19b6a9938c88b3d317ea49fbafd67ae18c0629e7f32b11f9#1

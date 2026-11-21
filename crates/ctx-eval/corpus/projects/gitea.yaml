@@ -158,8 +158,8 @@ points:
   category: validation
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: claude-blind-v4
   note: Checks for an absent user before accessing that user.
 - id: gitea-0008
   anchor: symbol:go:services.pull.StartPullRequestCheckDelayable:Function#4ecbd8611414e73330949d127f2cf35e687d0f0447c7f63505cfb86ed24c990c#1
@@ -278,8 +278,8 @@ points:
     url: https://github.com/go-gitea/gitea/pull/37680
     quote: listable by any member of the organization
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v4
   note: The linked change documents limited team visibility for organization members.
 - id: gitea-0016
   anchor: symbol:go:models.organization.GetTeam:Function#62adfe36292792b771b1e3004e9ee5d5e3a5f9f78ca2e5af2cf4354ceadac9a1#1
@@ -290,8 +290,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: claude-blind-v4
   note: Propagates the lookup error before checking whether the team exists.
 - id: gitea-0017
   anchor: symbol:go:models.git.ProtectedBranch.IsUnprotectedFile:Method#f4151b97f74c58b593da74d6be0a0f53b2b66bdfe45c2cfca0ff33391ca4c3cb#1
@@ -362,8 +362,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: claude-blind-v4
   note: Propagates the query error with empty results.
 - id: gitea-0023
   anchor: symbol:go:models.organization.VisibleTeamVisibilitiesFor:Function#5056ef4221991d2768f599e03fd8f3576e6dc32c2380110dc620dedae376559c#1
@@ -416,8 +416,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: claude-blind-v4
   note: "Returns the original lookup error and adds a diagnostic log."
 - id: gitea-0027
   anchor: symbol:go:models.perm.access.applyPublicAccessPermission:Function#f93597eb33d796ebf45f7731ec08e64c63216419f357111662161b8bffa15c1a#1
@@ -503,8 +503,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: claude-blind-v4
   note: "A failed merge command with a MERGE_HEAD file is classified as ErrMergeConflicts (API 409, UI flash). The Swagger merge endpoint lists a 409 response without its condition, and #8548 only gives a purpose statement (\"handles merge and rebase failures from merging a little more nicely with Flash errors rather a 500\"); #22568, #32880 and #36402 are refactors."
 - id: gitea-0034
   anchor: symbol:go:models.git.UpdateProtectBranch:Function#41d115b9e7c003b14f9f1fd17c8a7005594e44874fc515d6a2533ecfacea822c#4
@@ -620,8 +620,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: claude-blind-v4
   note: Propagates the owner lookup error unchanged.
 - id: gitea-0043
   anchor: symbol:go:models.perm.access.GetUserIDsWithAnyUnitAccess:Function#bb596539ad193ca3b16252ad0f079f6c719121889004a0e89b96e3e1ca020802#1
@@ -713,8 +713,8 @@ points:
     url: https://github.com/go-gitea/gitea/pull/37680
     quote: "Non-org-members still see nothing."
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v4
   note: "The default arm (viewer neither org member nor signed in) returns no visible team visibilities, so no limited or public teams are listed. PR #37680, which added the line, limits public listing to signed-in users and limited listing to org members."
 - id: gitea-0050
   anchor: symbol:go:models.perm.access.CheckRepoUnitUser:Function#d4c24436eb263b99ee65454abe4b24995d52dba01ad52835ab43084f4b3e2766#1
@@ -725,8 +725,8 @@ points:
   category: permission
   evidence: []
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: claude-blind-v4
   note: "CheckRepoUnitUser returns true for any site admin without computing repo permission. Searched the pinned permissions docs (no site-admin rule) and the commit messages of #17933 and #20262 (moves); no source states that site admins can read every unit here."
 - id: gitea-0051
   anchor: symbol:go:models.organization.Team.GetUnitsMap:Method#5056ef4221991d2768f599e03fd8f3576e6dc32c2380110dc620dedae376559c#1
@@ -833,8 +833,8 @@ points:
     url: https://github.com/go-gitea/gitea/pull/39442
     quote: "If failure occurs in step 4: the pull request can be marked as merged by the merged commit ID stored in it later."
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v4
   note: "When the merged commit recorded on the PR is not in the base branch (the push in step 3 never succeeded), restoreInterruptedMerge does not mark the PR merged and the normal mergeable check continues. PR #39442, which added the line, states that failures in steps 1-3 leave the PR open and only a step-4 failure is later marked merged from the stored commit ID."
 - id: gitea-0059
   anchor: symbol:go:models.git.DeleteProtectedBranch:Function#a2df481a1955082ef2a715b0b68c8813d81fbe144ee74eed68ca44711e802616#1
@@ -1022,8 +1022,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: claude-blind-v4
   note: "Returns the lookup failure with identifiers for diagnosis."
 - id: gitea-0074
   anchor: symbol:go:models.organization.TeamList.HasAllRepoAdminAccess:Method#b782a35a2ac26a07cdce0011dae2da76215390690a312ba5944a756979592c46#2
@@ -1034,8 +1034,8 @@ points:
   category: permission
   evidence: []
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: claude-blind-v4
   note: "A team that includes all repositories and has admin-or-higher access makes HasAllRepoAdminAccess true, which lets the member see all org teams and manage any org package. Searched: introducing PR #39063 (purpose statement about repo-scoped authorization), #38058, #39046, docs permissions.md (Admin Team) and packages docs; none states this condition and effect."
 - id: gitea-0075
   anchor: symbol:go:services.pull.getMergeMessage:Function#cda2dabb8f48ec8c785e4be085dbb458a2f3a85a16d3a1829ed2e6f68cccec37#1
@@ -1079,8 +1079,8 @@ points:
     url: https://github.com/go-gitea/gitea/pull/39442
     quote: "If failure occurs in step 4: the pull request can be marked as merged by the merged commit ID stored in it later."
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v4
   note: "A PR with no recorded merged commit ID is reported as not merged, so neither interrupted-merge recovery nor marking as merged happens. PR #39442, which added the line, states that a failure before the merged commit ID is stored and pushed (steps 1-3) leaves the PR open, and only a stored commit ID allows later marking as merged."
 - id: gitea-0078
   anchor: symbol:go:models.perm.access.GetActionsUserRepoPermission:Function#81ba408cbd1ef492fdfa2e8cc77b99f7b7981f81061509a06498afe8cef2c97f#2
@@ -1103,8 +1103,8 @@ points:
   category: permission
   evidence: []
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: claude-blind-v4
   note: "For an anonymous viewer (or nil target), DoerViewOtherVisibility returns VisibleTypePublic, so only public orgs are listed. Searched: introducing PR #34629 (body only 'See the new test'), #39047, Swagger /users/{username}/orgs and docs config-cheat-sheet visibility settings; none states this rule (a test alone is level 4)."
 - id: gitea-0080
   anchor: symbol:go:models.organization.Organization.AnyRepoUnitPermission:Method#3717cd3009efffcb9612024e728925a8257f14f4288544cfedc70120cc057603#1
@@ -1127,8 +1127,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: claude-blind-v4
   note: "If the per-org repo count query fails, the error is returned unchanged; routine Go error propagation."
 - id: gitea-0082
   anchor: symbol:go:models.git.ProtectedBranch.CanUserForcePush:Method#03433be40a04f2290d54a78e575303ab3a602409ccd378ffca935199d9d690e7#1
@@ -1142,8 +1142,8 @@ points:
     url: https://github.com/go-gitea/gitea/pull/28086
     quote: The default value of the rule will be set to `Disabled`
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v4
   note: A protected branch denies force pushes unless that option has been enabled.
 - id: gitea-0083
   anchor: symbol:go:models.organization.loadOrganizationOwners:Function#959f2fd772a4a7144e586d871878e374fe2047dc82f6d2854535240a6a915d98#1
@@ -1181,8 +1181,8 @@ points:
   category: permission
   evidence: []
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: claude-blind-v4
   note: "With an empty force-push team allowlist, the user (already not in the user allowlist) is denied; routine emptiness check whose result equals the team-membership lookup on an empty list."
 - id: gitea-0086
   anchor: symbol:go:services.pull.CheckPRsForBaseBranch:Function#41d115b9e7c003b14f9f1fd17c8a7005594e44874fc515d6a2533ecfacea822c#1
@@ -1385,8 +1385,8 @@ points:
     url: https://github.com/go-gitea/gitea/pull/12543
     quote: Make manual merge autodetection optional
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v4
   note: Skips manual merge detection when the repository setting disables it.
 - id: gitea-0102
   anchor: symbol:go:services.pull.StartPullRequestCheckDelayable:Function#71ad5a02508c24568b76bfdf558aedc9c783644bbb94adfe0d54f99275545416#1
@@ -1439,8 +1439,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: claude-blind-v4
   note: Returns the existing ref lookup error with diagnostic context.
 - id: gitea-0106
   anchor: symbol:go:models.organization.ApplyTeamListFilter:Function#41d115b9e7c003b14f9f1fd17c8a7005594e44874fc515d6a2533ecfacea822c#2
@@ -1502,8 +1502,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: claude-blind-v4
   note: Propagates the existing error.
 - id: gitea-0111
   anchor: symbol:go:models.organization.FindOrgMembers:Function#f1e3889319dd60cac10334ec50b38823195fb3d20a7fc71a6d9016ac93850986#2
@@ -1541,8 +1541,8 @@ points:
   category: permission
   evidence: []
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: claude-blind-v4
   note: "In RecalculateUserAccess, for public repos the minimum stored access is raised to write, so read-level access rows are not stored, also for org repos and restricted users (unlike refreshAccesses). Searched: introducing PR #8481 (commit body 'only add access if minimum mode'), #18518/#19753 moves, docs permissions.md; none states this rule."
 - id: gitea-0114
   anchor: symbol:go:models.organization.CountOrgMembers:Function#2bf9822ff432487571fdb997547331e3a3fde55467bcb1cd69c0d7ed7333c45a#1
@@ -1553,8 +1553,8 @@ points:
   category: null
   evidence: []
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: claude-blind-v4
   note: "The swagger summary names the public members endpoint. It does not state that a viewer who is not a member or admin counts only public members."
 - id: gitea-0115
   anchor: symbol:go:models.perm.access.IsUserRealRepoAdmin:Function#ecaad4496f6b925c56bd43e0dd545b963849d61ce7638c1841cc43347fa6878a#2
@@ -1577,8 +1577,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: claude-blind-v4
   note: "Propagates the existing error."
 - id: gitea-0117
   anchor: symbol:go:models.perm.access.RecalculateAccesses:Function#172126224bf346d24e40b42db12a13eb0e35dd4bc761d7fe6a754ef5e11d0365#1
@@ -1616,8 +1616,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: claude-blind-v4
   note: "Returns the insertion error with diagnostic context."
 - id: gitea-0120
   anchor: symbol:go:services.pull.checkSigningRequirements:Function#41d115b9e7c003b14f9f1fd17c8a7005594e44874fc515d6a2533ecfacea822c#1

@@ -144,8 +144,8 @@ points:
   category: state-transition
   evidence: []
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: claude-blind-v4
   note: "If instance.disable_terminate is set, _delete logs and returns, so the delete request is silently ignored. Searched doc/source, api-ref/source and nova-specs (no mention of disable_terminate), plus bug 905270 from the introducing commit 932f3aaf; the bug only says the attribute is unsupported and does not state that deletes are skipped."
 - id: nova-0006
   anchor: symbol:python:nova.quota.DbQuotaDriver._process_quotas:Method#a53a8f7fd7b7de3165544d82bfe3a4bf62d076f70a3ec7d5b8a5a5733cace6df#1
@@ -274,8 +274,8 @@ points:
     url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/nova/conf/api.py#L249-L250
     quote: "When enabled, this will cause the API to only query cell databases\nin which the tenant has mapped instances."
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v4
   note: "When [api]instance_list_per_project_cells is enabled, legacy quota counting queries only the cells mapped to the project; otherwise it loads and queries all cells. Commit ab16946885e (Closes-Bug #1878979) added this branch, and the bug plus the option's help text state the option and its effect."
 - id: nova-0011
   anchor: symbol:python:nova.scheduler.filters.image_props_filter.ImagePropertiesFilter._instance_supported:Method#e3a5031cb5dc53799b5a6c00c079679a9811f6a9c2b977f7ef57b40f1e92e8e6#1
@@ -293,8 +293,8 @@ points:
   category: validation
   evidence: []
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: claude-blind-v4
   note: "ImagePropertiesFilter rejects a host when the image requests architecture/hv_type/vm_mode but the host advertises no supported_instances. The scheduling.rst filter section only describes passing hosts that support the properties; it, the api-ref, nova-specs (only an unrelated juno mention of supported_instances) and bug 1037339 from introducing commit 5ea7db9b719 do not state the outcome for a host that advertises nothing."
 - id: nova-0012
   anchor: symbol:python:nova.api.openstack.compute.hosts.HostController.update:Method#5b905e8af639e5d281447f9446acbde250b3e7c6167a97e04229d333722b25b5#1
@@ -533,8 +533,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: claude-blind-v4
   note: "A Neutron 409 on security group create becomes SecurityGroupLimitExceeded and is returned as HTTP 403. The os-security-groups api-ref lists 403 without saying when, doc/source/user/quotas.rst only names the security_groups quota, nova-specs have nothing, and introducing commit 61ce9805008 (blueprint v2-on-v3-api) references no issue stating that over-limit maps to 403."
 - id: nova-0023
   anchor: symbol:python:nova.api.openstack.compute.evacuate.EvacuateController._get_on_shared_storage:Method#463ef7590a903993085b3ea6f11b84ff546f3611886b8f8818a4875f44c1946d#1
@@ -582,8 +582,8 @@ points:
     url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/nova/api/validation/extra_specs/hw.py#L95
     quote: "'If ``require``, hosts with hardware threads will be required. '"
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v4
   note: "NUMATopologyFilter rejects a host when _satisfies_cpu_policy fails, i.e. the request asks for dedicated CPUs with the require thread policy and the host has no hyperthreading. cpu-topologies.rst and the hw:cpu_thread_policy extra-spec description document that require places the instance only on hosts with SMT."
 - id: nova-0025
   anchor: symbol:python:nova.compute.api.block_accelerators.inner.wrapper:Method#8504292ae33014d7b5110253523deb9baeff24ec3136c171edc3b40b909e378f#1
@@ -658,8 +658,8 @@ points:
   category: validation
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: claude-blind-v4
   note: Checks the collection before reading its first element.
 - id: nova-0029
   anchor: symbol:python:nova.api.openstack.compute.servers.ServersController.create:Method#984279fcd18f39dca29a91d9ea4651e14feb3e149cf11758a234c6fc5ed48b87#1
@@ -743,8 +743,8 @@ points:
     url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/api-ref/source/parameters.yaml#L4898
     quote: Links to the migration. This parameter is returned if the migration type is ``live-migration`` and the migration status is one of ``queued``, ``preparing``, ``running`` and ``post-migrating``. See `Paginated collections
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v4
   note: The API reference specifies migration type and in-progress statuses for returned links.
 - id: nova-0033
   anchor: symbol:python:nova.api.openstack.compute.views.servers.ViewBuilder.show:Method#0aa36e6ffcee777af2333313dfb572bf0d589c3e7161062733541419043e551b#1
@@ -950,8 +950,8 @@ points:
     url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/doc/source/admin/cpu-topologies.rst#L394
     quote: This will ensure the instance gets scheduled to a host with SMT
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v4
   note: The CPU topology guide states the CPU-thread host requirement. Commit 83cd67cd describes filtering out hosts without sibling support.
 - id: nova-0045
   anchor: symbol:python:nova.scheduler.filters.pci_passthrough_filter.PciPassthroughFilter.host_passes:Method#68ee3e83f7f4a540fc43adf5104a74495ad7e73924c73cc3ce41dff4e30d9001#1
@@ -980,8 +980,8 @@ points:
     url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/api-ref/source/os-keypairs.inc#L52
     quote: Imports (or generates) a keypair.
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v4
   note: An explicit public key selects import; the API also describes generation.
 - id: nova-0047
   anchor: symbol:python:nova.compute.api.API._allow_cross_cell_resize:Method#63917f458b8f1cd908f18a8ab95d35ce9e9dd563c0d10c9aea4818ec90b662f0#1
@@ -1049,8 +1049,8 @@ points:
     url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/api-ref/source/servers-action-shelve.inc#L73
     quote: The server status must be ``SHELVED``.
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v4
   note: Invalid server state becomes the documented shelve-offload conflict response.
 - id: nova-0052
   anchor: symbol:python:nova.compute.api.HostAPI.service_get_all:Method#deea6d0e7cc9888194237f70a5773da32635fa17f9a4da82343a73e6fe6f843a#1
@@ -1061,8 +1061,8 @@ points:
   category: null
   evidence: []
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: claude-blind-v4
   note: "With all_cells=True, HostAPI.service_get_all scatter-gathers services from every cell (optionally with down-cell minimal records); otherwise it lists services only from the current context's database. Searched api-ref os-services/os-hosts/os-availability-zone, doc/source/admin/cells.rst, nova-specs and commit 39c1b252e8a (Related to blueprint cells-aware-api, no bug); none states this internal all_cells scope switch."
 - id: nova-0053
   anchor: symbol:python:nova.compute.api.HostAPI.compute_node_get:Method#87ea46dd2ac918a045b15b19326f090aae4a67c84abc3da00c1fefdfbc3200b0#1
@@ -1166,8 +1166,8 @@ points:
   category: default
   evidence: []
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: claude-blind-v4
   note: "Anchored line is the user_id=None parameter default of the internal helper DbQuotaDriver._get_quotas; with no user_id it returns project quotas instead of user quotas, and all callers pass user_id explicitly. Searched doc/source/admin/quotas.rst, api-ref/source/os-quota-sets.inc, nova-specs and blueprint per-user-quotas/bug 968175 from commit 77b4012a02c; none describes this internal parameter default."
 - id: nova-0061
   anchor: symbol:python:nova.api.openstack.compute.instance_actions.InstanceActionsController._format_event:Method#242330cc0a1f60ed2a09fb3e80e5ed5df6b9b6a7a93da7c4244c831a842d612a#1
@@ -1196,8 +1196,8 @@ points:
     url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/api-ref/source/os-server-groups.inc#L16
     quote: Administrative users can use the ``all_projects`` query parameter
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v4
   note: Restricts the all-project server-group query to administrators.
 - id: nova-0063
   anchor: symbol:python:nova.compute.api.API._check_image_arch:Method#f9d9a31069c7cbcb311d3ae38851a191becd74ff4a88e18f2af20d48e2d9ce6a#1
@@ -1304,8 +1304,8 @@ points:
     url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/nova/conf/api.py#L327-L331
     quote: "When True, the TenantNetworkController will query the Neutron API to get the default networks to use."
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v4
   note: "Only when [api]use_neutron_default_nets is True does the os-tenant-networks controller fetch default networks from Neutron; the option help (rendered into the configuration reference via doc/source/configuration/config.rst show-options) states this on/off rule."
 - id: nova-0070
   anchor: symbol:python:nova.api.openstack.compute.floating_ips.FloatingIPActionController._add_floating_ip:Method#fbeb1861b3cbe51013bc156ebb25b0eeee0e6778e02d7bb51880b65a6b46b57f#1
@@ -1343,8 +1343,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: claude-blind-v4
   note: "Skips a rule whose referenced remote security group was not found when formatting a security group. Searched api-ref os-security-groups.inc and server-security-groups.inc, and bug 1729741 (commit dc658dbdcf2), which is only about redundant Neutron queries; no source states that such rules are omitted."
 - id: nova-0073
   anchor: symbol:python:nova.quota.UnifiedLimitsDriver.get_project_quotas:Method#13652a16dc83e9bf5c54ff4d844d032462e0711e5596c61601c4c114558f7bb5#1
@@ -1400,8 +1400,8 @@ points:
     url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/api-ref/source/os-volume-attachments-swap.inc#L40
     quote: "Error response codes: badRequest(400), unauthorized(401), forbidden(403), itemNotFound(404), conflict(409)"
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v4
   note: "Swap volume on a locked instance (InstanceIsLocked) is rejected with 409; the API guide lists 'Update a volume attachment' among actions not allowed on a locked server and the API reference lists conflict(409)."
 - id: nova-0076
   anchor: symbol:python:nova.compute.api.KeypairAPI.create_key_pair:Method#4f8e767e3de53eb69eff96552aac02c58defc07fcd7b7c91389069f92be46d6e#1
@@ -1454,8 +1454,8 @@ points:
   category: limit
   evidence: []
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: claude-blind-v4
   note: "In the remains calculation, user quota rows are subtracted only for resources present in the requested resource set; the membership guard just skips resources not requested (guide: check passes because no requirement to check), the subtraction itself is the loop body."
 - id: nova-0080
   anchor: symbol:python:nova.compute.api.API._validate_unshelve_az:Method#988c4e62c192ce9034765b69b16e66b92d9a0e01f62f93ff8d86e2a2b5664aa8#1
@@ -1571,8 +1571,8 @@ points:
     url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/api-ref/source/parameters.yaml#L5872
     quote: Indicates whether the server is rebuilt with the preservation of the ephemeral
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v4
   note: Honors the ephemeral partition preservation flag in the rebuild request.
 - id: nova-0088
   anchor: symbol:python:nova.scheduler.filters.image_props_filter.ImagePropertiesFilter.host_passes:Method#608a0d32c9241f56245670dab1f064349b43c21ae1bf28d6ae95bce9767fdd67#1
@@ -1736,8 +1736,8 @@ points:
     url: https://opendev.org/openstack/nova/src/commit/5e835dee087c60042e3292ed4336e7ec0993f2ef/api-ref/source/os-aggregates.inc#L217-L218
     quote: "It is not allowed to move a host with servers between Availability Zones. Such request is rejected with 409 error."
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v4
   note: "add_host failures AggregateHostExists/InvalidAggregateAction become 409; InvalidAggregateAction is raised when adding the host would move its servers to another AZ, which the API reference says is rejected with 409."
 - id: nova-0100
   anchor: symbol:python:nova.quota.DbQuotaDriver.get_user_quotas:Method#56bad21e9ca112bba4d078441d76eab5e654461c94fdbf950c7e320cedeca9aa#1
@@ -1754,6 +1754,6 @@ points:
     url: https://bugs.launchpad.net/nova/+bug/1205582
     quote: "When user quota is not set, it's not restricted by the project quota."
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v4
   note: "For each resource with no user-specific quota, the user's quota defaults to the project quota. The condition was introduced by commit 2c84198f2b ('Use project quota as default user quota', Fixes bug 1205582) and moved here by b4905b40fd2 (bug 1208400); bug 1205582 states that an unset user quota should equal the project quota."

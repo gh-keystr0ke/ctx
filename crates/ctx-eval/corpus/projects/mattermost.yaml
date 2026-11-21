@@ -82,8 +82,8 @@ points:
     url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/manage/admin/abac-channel-access-rules.rst#L125
     quote: "channel admins can define channel-level permission rules for file upload and file download"
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v4
   note: "The destination channel's attachment policy applies when moving a thread with attachments."
 - id: mattermost-0003
   anchor: symbol:go:server.channels.app.App.AddUserToTeamWithToken:Method#228c54dd9d63bd752a8b90782f4909a8550b7daf013689a070f35e3646ae0859#1
@@ -104,8 +104,8 @@ points:
     url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/end-user-guide/collaborate/invite-people.rst#L55
     quote: Invitation links sent by email expire after 48 hours and can only be used once.
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v4
   note: The pinned guide confirms expiry. This branch rejects an expired token. The original second label is retained for agreement.
 - id: mattermost-0004
   anchor: symbol:go:server.channels.app.App.AddChannelMember:Method#5e2dac38c1b48d3eb28b3b66cfc503da9bef51f398ff42f0620a62d67b81e5b5#1
@@ -161,8 +161,8 @@ points:
   category: validation
   evidence: []
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: claude-blind-v4
   note: "Rejects token redemption with 400 when the invite token's email differs from the redeeming user's email. Searched PR #37741 (adding commit; body only says 'Fixed an edge case in team invitation handling'), api/v4/source/teams.yaml, and docs end-user-guide/collaborate/invite-people.rst; none states the email-match rule."
 - id: mattermost-0007
   anchor: symbol:go:server.channels.app.App.AddChannelMember:Method#6e79f1c97bce7e530b1de643de7903cb67365a9d78b7907dec7694a14d95a11e#1
@@ -712,8 +712,8 @@ points:
     url: https://github.com/mattermost/mattermost/pull/10006
     quote: "Duplicate posts outside the 30 second window will not be de-duplicated."
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v4
   note: "When the pending_post_id is not in the dedup cache (first seen or expired), it is recorded with the 30 s TTL and creation proceeds normally. PR #10006 introduced this first-seen branch (moved by #14921) and states the window and that posts outside it are not deduplicated."
 - id: mattermost-0033
   anchor: symbol:go:server.channels.app.App.CreatePost:Method#326cc0bcb334d5c0e9709b0a7adef9079696759d99ef5a46f3bf97c720d4a49d#1
@@ -867,8 +867,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: claude-blind-v4
   note: null
 - id: mattermost-0041
   anchor: symbol:go:server.channels.app.App.AdjustTeamsFromProductLimits:Method#6da3350a7a2ddb987aa59981e5410daa026648bdf03ce70f17e519890371fb3e#1
@@ -886,8 +886,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: claude-blind-v4
   note: null
 - id: mattermost-0042
   anchor: symbol:go:server.channels.app.App.DeleteChannel:Method#a7650fa5733a02df6b5a758c5c31b8c9798a6dce299f12984b68ff3b4e0b9fa4#1
@@ -1087,8 +1087,8 @@ points:
     url: https://github.com/mattermost/mattermost/pull/30094
     quote: "It also makes changes to the app methods for creating/editing/deleting posts, drafts, etc. that should disallow users from sending messages in DMs/GMs that are restricted due to not sharing a team."
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v4
   note: "CreatePostAsUser returns 400 when posting in a DM/GM restricted because its users no longer share a team. PR #30094, which added the check, states the condition and effect."
 - id: mattermost-0052
   anchor: symbol:go:server.channels.app.App.supplementWithTranslationUpdatedPosts:Method#0b2f67d5906e50fab072f58c84ef4776683734cb658d444dd81f22f659f0c47a#1
@@ -1106,8 +1106,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: claude-blind-v4
   note: null
 - id: mattermost-0053
   anchor: symbol:go:server.channels.app.App.leaveTeam:Method#8ddb237d24e472435fd3aa150ccbd1ef8311b04bca8f251fe410b6a08ab3e7d9#1
@@ -1194,8 +1194,8 @@ points:
     url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/end-user-guide/preferences/troubleshoot-notifications.rst#L14
     quote: Under **Troubleshooting notifications** select the **Send a test notification** option. If notifications are working, you'll receive a system-bot direct message in Mattermost confirming that notifications are working.
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: claude-blind-v4
   note: null
 - id: mattermost-0057
   anchor: symbol:go:server.channels.app.App.CreatePostAsUserWithFlags:Method#326cc0bcb334d5c0e9709b0a7adef9079696759d99ef5a46f3bf97c720d4a49d#1
@@ -1248,8 +1248,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: claude-blind-v4
   note: "leaveTeam turns a failed team-member lookup into a 400 'user does not appear to be part of this team'. Searched teams.yaml RemoveTeamMember (lists a generic 400 only) and the commits back to #5106/#7327/#11428, which are refactors without rule text."
 - id: mattermost-0060
   anchor: symbol:go:server.channels.app.App.forEachChannelMember:Method#5d79bf8c94bd649fbb6101cb3e1fac390794333f62c9e78b4f1af7e5e36a6079#1
@@ -1468,8 +1468,8 @@ points:
     url: https://github.com/mattermost/mattermost/pull/26227
     quote: "It ensures that all users Including Team Administrators have model.PermissionInviteUser before returning inviteId on the team object."
   verified_by: claude-adjudication-v3
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v4
   note: "Returns the unsanitized team only when the caller has both team management and invitation permissions."
 - id: mattermost-0070
   anchor: symbol:go:server.channels.app.App.SetTeamIconFromMultiPartFile:Method#02ee7c37df55879aa80209fa5af1f7b64596448c50163c59cbe69f0a6251fd09#1
@@ -1553,8 +1553,8 @@ points:
     url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/administration-guide/configure/site-configuration-settings.rst#L823
     quote: The maximum number of channels per team, including both active and archived channels.
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v4
   note: Rejects channel creation above the configured team channel cap.
 - id: mattermost-0074
   anchor: symbol:go:server.channels.app.App.UpdateTeamMemberSchemeRoles:Method#4f870a8c920ed02a8a8a28864b67d89871e43b0c45e5d235fa1a6d0503f096ea#1
@@ -1568,8 +1568,8 @@ points:
     url: https://github.com/mattermost/mattermost/pull/25957
     quote: "If a user has the SchemeGuest set in their Team membership, ask the member to be promoted as user before being able to change the scheme to member or admin"
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v4
   note: "UpdateTeamMemberSchemeRoles returns 400 when the existing team membership is a guest. PR #25957, which added the check, states the condition and effect."
 - id: mattermost-0075
   anchor: symbol:go:server.channels.app.App.CreatePostAsUserWithFlags:Method#39545e9b817e995497ff434834eb7579be11d02e07a4d8a014e1a5cdcbb27f31#1
@@ -1649,8 +1649,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: claude-adjudication-v3
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: claude-blind-v4
   note: "Forwards an unexpected store failure as an internal error with diagnostic context."
 - id: mattermost-0081
   anchor: symbol:go:server.channels.app.App.CreatePostAsUserWithFlags:Method#b7c0ca143f193d76f38a7070c18c2979eb823fd084344bdc5635692c26ad5959#1
@@ -1661,8 +1661,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: claude-blind-v4
   note: "Any store error from the channel lookup is wrapped as a 400 invalid post.channel_id AppError and returned; the post creation fails either way, so this is routine propagation with diagnostic context. The createPost API reference (api/v4/source/posts.yaml) lists only a generic 400."
 - id: mattermost-0082
   anchor: symbol:go:server.channels.app.App.GetAllTeams:Method#cdfe3634d0c3fe8c5248aebb09e55d280702927178ed3ecbfc5553ddf1d0e5cb#1
@@ -1700,8 +1700,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: claude-blind-v4
   note: "A store error from GetDirectMessagesWithUnreadAndMentions is wrapped in a 500 AppError and returned; routine error propagation with diagnostic context."
 - id: mattermost-0085
   anchor: symbol:go:server.channels.app.App.CreateChannelWithUserAndPropertyValues:Method#cb471591cef255d47b734d4fe8c5bdf70a41161943789111e998bad779a07596#1
@@ -1739,8 +1739,8 @@ points:
     url: https://github.com/mattermost/docs/blob/bd09d959514c34e72a33c24663b5946682b656ec/source/end-user-guide/collaborate/channel-types.rst#L70
     quote: "marks it read-only to prevent new messages from being sent and preserve channel history"
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: significant
+  second_by: claude-blind-v4
   note: "The posting path rejects new messages in archived channels."
 - id: mattermost-0088
   anchor: symbol:go:server.channels.app.App.parseAndFetchChannelIdByNameFromInFilter:Method#f95d2993f86915bb767e9ba4956771958bf707ca767f514f4abf774a09816cca#5
@@ -1790,8 +1790,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: claude-blind-v4
   note: Propagates the existing error.
 - id: mattermost-0092
   anchor: symbol:go:server.channels.app.App.ValidateMoveOrCopy:Method#cadbdad0cf2ce27bdd986ad83cc012c00e15e98c961195d148e4e937567d2d91#1
@@ -1844,8 +1844,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: claude-blind-v4
   note: Propagates the existing error.
 - id: mattermost-0096
   anchor: symbol:go:server.channels.app.App.InviteNewUsersToTeamGracefully:Method#3403433e559528c855ffd5f4f6af23677da00be77041e0f42208fe50ccf42709#1
@@ -1880,8 +1880,8 @@ points:
   category: validation
   evidence: []
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: claude-blind-v4
   note: "Rejects a reply when the root post list is empty or the root belongs to a different channel (500 channel_root_id error). The condition dates to the 2015 initial code (git log -S finds only first-commit, refactor and monorepo commits such as #4931 and #9697, with no issue). The createPost API reference (posts.yaml) only describes root_id as 'The post ID to comment on', and the pinned docs do not state the same-channel rule."
 - id: mattermost-0099
   anchor: symbol:go:server.channels.app.App.DeletePost:Method#a225847115c06fa5a70adfbdd7da044b1202c319528697bc65d7cd8ccc6f1c25#1
@@ -2015,8 +2015,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: claude-blind-v4
   note: Wraps and returns the lookup error.
 - id: mattermost-0110
   anchor: symbol:go:server.channels.app.App.RegenerateTeamInviteId:Method#f95d2993f86915bb767e9ba4956771958bf707ca767f514f4abf774a09816cca#1
@@ -2051,8 +2051,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: codex-work
-  second_label: null
-  second_by: null
+  second_label: trivial
+  second_by: claude-blind-v4
   note: Wraps and returns the post creation error.
 - id: mattermost-0113
   anchor: symbol:go:server.channels.app.App.leaveTeam:Method#1c4eeec55102914819b7f663f1f69f2721b2aaa9cf211d685f9183434e442c28#1
@@ -2102,8 +2102,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: claude-blind-v4
   note: "When the store finds no edit history, which includes a post that was never edited, GET /posts/{post_id}/edit_history returns 404 instead of an empty list; other errors return 500. The API reference (posts.yaml GetEditHistoryForPost) lists only a generic 404 'Resource not found'. PR #20945 (commit 50fec7c8926) gives only a purpose statement, and the pinned docs do not state this outcome."
 - id: mattermost-0117
   anchor: symbol:go:server.channels.app.App.GetPermalinkPost:Method#b446ebcb4dc4318b50a66a5dae767a558a071907815b6cebed15b31ec73f0e4a#1
@@ -2114,8 +2114,8 @@ points:
   category: error-handling
   evidence: []
   verified_by: claude-relabel-v4
-  second_label: null
-  second_by: null
+  second_label: unclear
+  second_by: claude-blind-v4
   note: "Returns 404 when the permalink lookup does not leave exactly one post in Order, for example when the post was filtered out as a suppressed join/leave message. The check dates to the 2015 permalinks commit 9e8cd93790 (no issue) and was moved in #5170 and #9697. Commit 5de31f8e868 (#37314) added the filter before it but did not change this line. The pinned docs and posts.yaml do not state this outcome."
 - id: mattermost-0118
   anchor: symbol:go:server.channels.app.App.SearchPostsForUser:Method#335556ec9c2366e4912def81e6ef8e64552468ab9e8b9a89d47ec979cadeb76c#1

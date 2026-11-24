@@ -19,9 +19,9 @@ path = "src/bin/ctx-corpus.rs"
 blake3.workspace = true
 clap.workspace = true
 chrono.workspace = true
-ctx-adapters = { path = "../ctx-adapters", version = "0.9.0" }
-ctx-app = { path = "../ctx-app", version = "0.9.0" }
-ctx-core = { path = "../ctx-core", version = "0.9.0" }
+ctx-adapters = { path = "../ctx-adapters", version = "0.9.1" }
+ctx-app = { path = "../ctx-app", version = "0.9.1" }
+ctx-core = { path = "../ctx-core", version = "0.9.1" }
 regex = "1.13.1"
 serde.workspace = true
 serde_json.workspace = true

@@ -7,6 +7,7 @@ All notable changes to `ctx` are documented here. The project follows semantic v
 ### Fixed
 
 - `install.sh` replaces `ctx` with a rename. On macOS, an upgrade while an older `ctx` was running stopped the new binary with `Killed: 9`.
+- `--agent claude` passes the prompt after `--`. Before, every call in `ctx coverage research` and `ctx repair propose --agent claude` failed unless `--model` was set, because `--tools` took the prompt as a tool name.
 
 ## 0.9.0 — 2026-11-21
 

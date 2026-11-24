@@ -1,5 +1,6 @@
 //! Claude Code CLI agent adapter (prompt3.md PR-AGENT-001): shells out to
-//! `claude -p --safe-mode` in headless mode. `--safe-mode` disables
+//! `claude -p --safe-mode [--tools ""] [--model M] -- <prompt>` in headless
+//! mode. `--safe-mode` disables
 //! CLAUDE.md, skills, plugins, hooks, MCP servers, and custom
 //! commands/agents -- none of which this adapter needs, since the entire
 //! bounded neighborhood is inlined into the prompt text itself and the
@@ -72,7 +73,12 @@ impl SubprocessTransport {
         if let Some(model) = &self.model {
             command.arg("--model").arg(model);
         }
-        command.arg(prompt);
+        // `--tools <tools...>` is variadic in the Claude Code CLI: without an
+        // option after it, it takes the prompt as more tool names and
+        // `claude -p` exits with "Input must be provided". The `--` ends
+        // option parsing, so the prompt is always one positional argument,
+        // also when it starts with `-`.
+        command.arg("--").arg(prompt);
         let output = agent_contract::run_subprocess(&mut command, &self.binary, timeout)?;
         tracing::debug!(
             agent = "claude",
@@ -171,7 +177,7 @@ mod tests {
     /// The JSON-contract parsing/validation logic is tested once, generically,
     /// in `agent_contract`'s own test module -- this is the one thing that's
     /// actually specific to this vendor: that the real subprocess boundary
-    /// invokes `claude -p --safe-mode <prompt>` and surfaces its stdout,
+    /// invokes `claude -p --safe-mode -- <prompt>` and surfaces its stdout,
     /// using a fake script standing in for the real binary so this suite
     /// never depends on a real `claude` installation.
     #[test]
@@ -180,7 +186,7 @@ mod tests {
         let script_path = dir.path().join("claude");
         std::fs::write(
             &script_path,
-            "#!/bin/sh\nif [ \"$1\" = \"-p\" ] && [ \"$2\" = \"--safe-mode\" ]; then echo \"{\\\"outcome\\\":\\\"not_relevant\\\",\\\"prompt_arg\\\":\\\"$3\\\"}\"; else exit 1; fi\n",
+            "#!/bin/sh\nif [ \"$1\" = \"-p\" ] && [ \"$2\" = \"--safe-mode\" ] && [ \"$3\" = \"--\" ]; then echo \"{\\\"outcome\\\":\\\"not_relevant\\\",\\\"prompt_arg\\\":\\\"$4\\\"}\"; else exit 1; fi\n",
         )
         .expect("write fake claude script");
         #[cfg(unix)]
@@ -279,7 +285,7 @@ mod tests {
         let script_path = dir.path().join("claude");
         std::fs::write(
             &script_path,
-            "#!/bin/sh\nif [ \"$1\" = \"-p\" ] && [ \"$2\" = \"--safe-mode\" ] && [ \"$3\" = \"hello neighborhood\" ] && [ $# -eq 3 ]; then echo '{\"outcome\":\"not_relevant\"}'; else exit 1; fi\n",
+            "#!/bin/sh\nif [ \"$1\" = \"-p\" ] && [ \"$2\" = \"--safe-mode\" ] && [ \"$3\" = \"--\" ] && [ \"$4\" = \"hello neighborhood\" ] && [ $# -eq 4 ]; then echo '{\"outcome\":\"not_relevant\"}'; else exit 1; fi\n",
         )
         .expect("write fake claude script");
         #[cfg(unix)]
@@ -297,5 +303,105 @@ mod tests {
         let output = transport.run("hello neighborhood").expect("script output");
 
         assert!(output.contains("not_relevant"));
+    }
+
+    /// Writes a fake `claude` that records its full argv, NUL-separated, to
+    /// `argv` next to it and prints a valid contract response.
+    fn recording_fake_claude(dir: &std::path::Path) -> (String, std::path::PathBuf) {
+        let script_path = dir.join("claude");
+        let argv_path = dir.join("argv");
+        std::fs::write(
+            &script_path,
+            format!(
+                "#!/bin/sh\nprintf '%s\\0' \"$@\" > '{}'\necho '{{\"outcome\":\"not_relevant\"}}'\n",
+                argv_path.display()
+            ),
+        )
+        .expect("write fake claude script");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut permissions = std::fs::metadata(&script_path)
+                .expect("script metadata")
+                .permissions();
+            permissions.set_mode(0o755);
+            std::fs::set_permissions(&script_path, permissions).expect("chmod");
+        }
+        (script_path.to_string_lossy().into_owned(), argv_path)
+    }
+
+    fn recorded_argv(path: &std::path::Path) -> Vec<String> {
+        let raw = std::fs::read_to_string(path).expect("recorded argv");
+        let mut argv: Vec<String> = raw.split('\0').map(str::to_owned).collect();
+        assert_eq!(argv.pop().as_deref(), Some(""), "argv ends with NUL");
+        argv
+    }
+
+    /// Regression test for a live bug: `--tools <tools...>` is variadic in
+    /// the Claude Code CLI, so `--tools ""` directly before the prompt took
+    /// the prompt as more tool names. Every `coverage research` and
+    /// `repair propose --agent claude` call (both set a timeout) then failed
+    /// with "Input must be provided" unless `--model` happened to end the
+    /// list. The prompt must come after `--` as the last argument.
+    #[test]
+    fn subprocess_transport_with_timeout_ends_options_before_the_prompt() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let (binary, argv_path) = recording_fake_claude(dir.path());
+        let timeout = Some(std::time::Duration::from_secs(30));
+
+        SubprocessTransport::new(binary.clone(), false, None)
+            .run_with_timeout("hello neighborhood", timeout)
+            .expect("script output");
+        assert_eq!(
+            recorded_argv(&argv_path),
+            [
+                "-p",
+                "--safe-mode",
+                "--tools",
+                "",
+                "--",
+                "hello neighborhood"
+            ]
+        );
+
+        SubprocessTransport::new(binary, false, Some("opus".to_owned()))
+            .run_with_timeout("hello neighborhood", timeout)
+            .expect("script output");
+        assert_eq!(
+            recorded_argv(&argv_path),
+            [
+                "-p",
+                "--safe-mode",
+                "--tools",
+                "",
+                "--model",
+                "opus",
+                "--",
+                "hello neighborhood"
+            ]
+        );
+    }
+
+    /// A prompt that contains `!=` (seen in the live failure as an "unknown
+    /// tool") or starts with `-` reaches `claude` as one positional argument.
+    #[test]
+    fn subprocess_transport_passes_option_like_prompts_as_one_argument() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let (binary, argv_path) = recording_fake_claude(dir.path());
+        let transport = SubprocessTransport::new(binary, false, None);
+
+        for prompt in ["status != 'paid' at app.py:12", "--model haiku is a prompt"] {
+            transport
+                .run_with_timeout(prompt, Some(std::time::Duration::from_secs(30)))
+                .expect("script output");
+            let argv = recorded_argv(&argv_path);
+            assert_eq!(argv[argv.len() - 2..], ["--", prompt]);
+
+            transport.run(prompt).expect("script output");
+            assert_eq!(
+                recorded_argv(&argv_path),
+                ["-p", "--safe-mode", "--", prompt]
+            );
+        }
     }
 }

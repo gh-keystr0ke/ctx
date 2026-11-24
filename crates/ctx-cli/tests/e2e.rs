@@ -1053,7 +1053,7 @@ fn write_fake_claude_script_with_ungrounded_candidate_paths(script_path: &Path) 
     fs::write(
         script_path,
         "#!/bin/sh\n\
-         prompt=\"$3\"\n\
+         for prompt in \"$@\"; do :; done\n\
          id=$(echo \"$prompt\" | grep -o 'Valid artifact ids for this neighborhood: [^ ,]*' | sed 's/.*: //')\n\
          echo \"{\\\"outcome\\\":\\\"relevant\\\",\\\"candidates\\\":[{\\\"kind\\\":\\\"requirement\\\",\\\"statement\\\":\\\"Commit history documents cancellation behavior.\\\",\\\"evidence\\\":[{\\\"artifact_id\\\":\\\"$id\\\",\\\"locator\\\":\\\"body\\\",\\\"excerpt\\\":\\\"excerpt\\\"}],\\\"implementation_candidates\\\":[\\\"nonexistent/module.rs\\\"],\\\"test_candidates\\\":[\\\"nonexistent/module_test.rs\\\"]}]}\"\n",
     )
@@ -1170,7 +1170,7 @@ fn a_pending_candidate_survives_losing_the_local_database_once_committed() {
     fs::write(
         &script_path,
         "#!/bin/sh\n\
-         prompt=\"$3\"\n\
+         for prompt in \"$@\"; do :; done\n\
          id=$(echo \"$prompt\" | grep -o 'Valid artifact ids for this neighborhood: [^ ,]*' | sed 's/.*: //')\n\
          echo \"{\\\"outcome\\\":\\\"relevant\\\",\\\"candidates\\\":[{\\\"kind\\\":\\\"requirement\\\",\\\"statement\\\":\\\"Commit history documents cancellation behavior.\\\",\\\"evidence\\\":[{\\\"artifact_id\\\":\\\"$id\\\",\\\"locator\\\":\\\"body\\\",\\\"excerpt\\\":\\\"excerpt\\\"}]}]}\"\n",
     )
@@ -1481,7 +1481,7 @@ fn accepting_a_knowledge_candidate_writes_a_context_document_ctx_index_then_abso
     fs::write(
         &script_path,
         "#!/bin/sh\n\
-         prompt=\"$3\"\n\
+         for prompt in \"$@\"; do :; done\n\
          id=$(echo \"$prompt\" | grep -o 'Valid artifact ids for this neighborhood: [^ ,]*' | sed 's/.*: //')\n\
          echo \"{\\\"outcome\\\":\\\"relevant\\\",\\\"candidates\\\":[{\\\"kind\\\":\\\"requirement\\\",\\\"statement\\\":\\\"Commit history documents cancellation behavior.\\\",\\\"evidence\\\":[{\\\"artifact_id\\\":\\\"$id\\\",\\\"locator\\\":\\\"body\\\",\\\"excerpt\\\":\\\"excerpt\\\"}]}]}\"\n",
     )
@@ -1570,7 +1570,7 @@ fn accepting_a_restated_requirement_is_refused_unless_forced() {
     fs::write(
         &script_path,
         "#!/bin/sh\n\
-         prompt=\"$3\"\n\
+         for prompt in \"$@\"; do :; done\n\
          id=$(echo \"$prompt\" | grep -o 'Valid artifact ids for this neighborhood: [^ ,]*' | sed 's/.*: //')\n\
          echo \"{\\\"outcome\\\":\\\"relevant\\\",\\\"candidates\\\":[{\\\"kind\\\":\\\"requirement\\\",\\\"statement\\\":\\\"When a paid user cancels, access must remain active until paid_until.\\\",\\\"evidence\\\":[{\\\"artifact_id\\\":\\\"$id\\\",\\\"locator\\\":\\\"body\\\",\\\"excerpt\\\":\\\"excerpt\\\"}]}]}\"\n",
     )
@@ -2255,7 +2255,8 @@ fn verify_stale_reactivates_an_accepted_claim_and_leaves_a_rejected_one_as_a_sug
     fs::write(
         &script_path,
         "#!/bin/sh\n\
-         claim=$(echo \"$3\" | grep '^- claim:' | head -1 | sed 's/^- claim: //')\n\
+         for prompt in \"$@\"; do :; done\n\
+         claim=$(echo \"$prompt\" | grep '^- claim:' | head -1 | sed 's/^- claim: //')\n\
          echo \"{\\\"decisions\\\":[{\\\"claim\\\":\\\"$claim\\\",\\\"verdict\\\":\\\"accept\\\",\\\"reasoning\\\":\\\"cancel still preserves paid access; it only gained an optional reason parameter\\\"}]}\"\n",
     )
     .expect("write accepting fake claude script");
@@ -2430,7 +2431,7 @@ fn verify_knowledge_auto_reviews_and_accepts_with_an_honest_agent_decision_metho
     fs::write(
         &script_path,
         "#!/bin/sh\n\
-         prompt=\"$3\"\n\
+         for prompt in \"$@\"; do :; done\n\
          if echo \"$prompt\" | grep -q 'second-opinion reviewer'; then\n\
          fp=$(echo \"$prompt\" | grep '^- fingerprint:' | head -1 | sed 's/^- fingerprint: //')\n\
          echo \"{\\\"decisions\\\":[{\\\"fingerprint\\\":\\\"$fp\\\",\\\"verdict\\\":\\\"accept\\\"}]}\"\n\
@@ -2906,7 +2907,7 @@ fn enrich_and_verify_knowledge_accept_a_candidate_into_an_external_context_store
     write_executable_script(
         &script_path,
         "#!/bin/sh\n\
-         prompt=\"$3\"\n\
+         for prompt in \"$@\"; do :; done\n\
          id=$(echo \"$prompt\" | grep -o 'Valid artifact ids for this neighborhood: [^ ,]*' | sed 's/.*: //')\n\
          echo \"{\\\"outcome\\\":\\\"relevant\\\",\\\"candidates\\\":[{\\\"kind\\\":\\\"requirement\\\",\\\"statement\\\":\\\"Handler must return ok.\\\",\\\"evidence\\\":[{\\\"artifact_id\\\":\\\"$id\\\",\\\"locator\\\":\\\"body\\\",\\\"excerpt\\\":\\\"excerpt\\\"}]}]}\"\n",
     );
